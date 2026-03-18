@@ -46,8 +46,6 @@ export class HitsplatOverlay implements Overlay {
         left: { tex: Texture; w: number; h: number };
         mid: { tex: Texture; w: number; h: number };
         right: { tex: Texture; w: number; h: number };
-        xOff: number;
-        yOff: number;
     };
     private spriteTextures: Map<string, { tex: Texture; w: number; h: number }> = new Map();
     private spriteIndex?: CacheIndex;
@@ -205,13 +203,11 @@ export class HitsplatOverlay implements Overlay {
 
             const count = Math.max(1, Math.min(4, (entry.count ?? this.count ?? 1) | 0));
             // OSRS Parity: Base screen Y offset is -12 pixels (class386.java line 682)
-            const baseBottom = -12 * resolvedScale;
+            const baseTop = -12 * resolvedScale;
             const variantRaw = entry.variant ?? 0;
             const variant = ((variantRaw % order.length) + order.length) % order.length;
 
             const col = (entry.color ?? useType?.textColor ?? 0xffffff) >>> 0;
-            const partsXOff = (this.bgParts?.xOff || 0) * 0.5 * resolvedScale;
-            const partsYOff = (this.bgParts?.yOff || 0) * 0.5 * resolvedScale;
             // OSRS Parity: textOffsetY (field2086) is an additional Y offset for text
             // Reference: class386.java line 685: var69 = var66 + var95.field2086 + 15
             const textOffsetY = (useType?.textOffsetY ?? 0) | 0;
@@ -248,16 +244,14 @@ export class HitsplatOverlay implements Overlay {
                 animAlpha = Math.max(0, Math.min(1, alpha256 / 255));
             }
             const textInfo = this.digits ? this.buildTextTexture(numberText, col) : undefined;
+            centerWorld[1] = anchorY;
 
             for (let i = 0; i < count; i++) {
                 const pIdx = order[(variant + i) % order.length];
-                // OSRS Parity: Apply animation offsets to position
-                // animXOffset animates from 0 to xOffset, animYOffset from 0 to -yOffset
+                // OSRS parity: slot offsets and animated x/y offsets are applied in screen
+                // space before the hitsplat box is laid out from its top edge.
                 const cx = ((stackDxBase[pIdx] * resolvedScale) | 0) + animXOffset;
-                const cy = ((stackDyBase[pIdx] * resolvedScale) | 0) + baseBottom + animYOffset;
-                const worldYOffsetTiles = -cy / 128.0;
-                centerWorld[1] = anchorY - worldYOffsetTiles;
-                const localCy = 0;
+                const topY = ((stackDyBase[pIdx] * resolvedScale) | 0) + baseTop + animYOffset;
 
                 if (this.bgParts) {
                     const lw = (this.bgParts.left.w * resolvedScale) | 0;
@@ -271,7 +265,7 @@ export class HitsplatOverlay implements Overlay {
                         0;
                     const totalWidth = lw + middleWidth + rw;
                     const lx = cx - (totalWidth >> 1);
-                    const ly = localCy - (lh >> 1);
+                    const ly = topY;
                     quadVerts[0] = lx;
                     quadVerts[1] = ly;
                     quadVerts[2] = lx;
@@ -354,7 +348,7 @@ export class HitsplatOverlay implements Overlay {
                     const w = (sprite.w * resolvedScale) | 0;
                     const hq = (sprite.h * resolvedScale) | 0;
                     const x = cx - (w >> 1);
-                    const y = localCy - (hq >> 1);
+                    const y = topY;
                     quadVerts[0] = x;
                     quadVerts[1] = y;
                     quadVerts[2] = x;
@@ -382,10 +376,10 @@ export class HitsplatOverlay implements Overlay {
                 if (this.digits && textInfo) {
                     const tw = textInfo.w * resolvedScale;
                     const th = textInfo.h * resolvedScale;
-                    const gx = cx - (tw >> 1) + partsXOff;
-                    // OSRS Parity: Apply textOffsetY to text position
-                    // Reference: class386.java line 685: var69 = var66 + var95.field2086 + 15
-                    const gy = localCy - (th >> 1) + partsYOff + textOffsetY * resolvedScale;
+                    const gx = cx - (tw >> 1);
+                    // OSRS parity: text draw Y is a baseline at (top + textOffsetY + 15).
+                    // The cached texture is built with its baseline at `ascent`.
+                    const gy = topY + (15 + textOffsetY - textInfo.ascent) * resolvedScale;
                     quadVerts[0] = gx;
                     quadVerts[1] = gy;
                     quadVerts[2] = gx;
@@ -455,7 +449,7 @@ export class HitsplatOverlay implements Overlay {
                             0;
                         const sec2TotalWidth = slw + sec2MiddleWidth + srw;
                         const slx = scx;
-                        const sly = localCy - (slh >> 1);
+                        const sly = topY;
 
                         // Draw left part
                         quadVerts[0] = slx;
@@ -537,12 +531,11 @@ export class HitsplatOverlay implements Overlay {
                         if (sec2TextInfo) {
                             const stw = sec2TextInfo.w * resolvedScale;
                             const sth = sec2TextInfo.h * resolvedScale;
-                            const sec2XOff = (type2Def.xOffset ?? 0) * 0.5 * resolvedScale;
-                            const sec2YOff = (type2Def.yOffset ?? 0) * 0.5 * resolvedScale;
                             const sec2TextOffsetY = (type2Def.textOffsetY ?? 0) | 0;
-                            const stx = slx + (sec2TotalWidth >> 1) - (stw >> 1) + sec2XOff;
+                            const stx = slx + (sec2TotalWidth >> 1) - (stw >> 1);
                             const sty =
-                                localCy - (sth >> 1) + sec2YOff + sec2TextOffsetY * resolvedScale;
+                                topY +
+                                (15 + sec2TextOffsetY - sec2TextInfo.ascent) * resolvedScale;
                             quadVerts[0] = stx;
                             quadVerts[1] = sty;
                             quadVerts[2] = stx;
@@ -750,8 +743,6 @@ export class HitsplatOverlay implements Overlay {
                             w: right.subWidth | 0,
                             h: right.subHeight | 0,
                         },
-                        xOff: usedDef.xOffset | 0,
-                        yOff: usedDef.yOffset | 0,
                     };
                     this.width = (left.subWidth | 0) + (mid.subWidth | 0) + (right.subWidth | 0);
                     this.height = Math.max(
@@ -915,14 +906,19 @@ export class HitsplatOverlay implements Overlay {
     private buildTextTexture(
         text: string,
         color: number,
-    ): { tex: Texture; w: number; h: number } | undefined {
+    ): { tex: Texture; w: number; h: number; ascent: number } | undefined {
         const bmp = this.fontBmp;
         if (!bmp || !this.app) return undefined;
         const activeFontId =
             (this.type?.fontId ?? -1) >= 0 ? this.type!.fontId | 0 : this.fontId | 0;
         const key = `${activeFontId}|${bmp.ascent}|${color >>> 0}|${text}`;
         if (this.lastTextKey === key && this.textTex) {
-            return { tex: this.textTex, w: this.textTexW, h: this.textTexH };
+            return {
+                tex: this.textTex,
+                w: this.textTexW,
+                h: this.textTexH,
+                ascent: bmp.maxAscent | 0,
+            };
         }
         try {
             const w = Math.max(1, bmp.measure(text) | 0);
@@ -952,7 +948,7 @@ export class HitsplatOverlay implements Overlay {
             this.textTexW = w;
             this.textTexH = h;
             this.lastTextKey = key;
-            return { tex: this.textTex, w, h };
+            return { tex: this.textTex, w, h, ascent: bmp.maxAscent | 0 };
         } catch {
             return undefined;
         }
