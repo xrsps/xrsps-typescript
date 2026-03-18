@@ -358,6 +358,10 @@ export class GroundItemsPlugin {
         return this.state.config;
     }
 
+    getVersion(): number {
+        return this.version | 0;
+    }
+
     setConfig(nextConfig: Partial<GroundItemsPluginConfig>): void {
         this.config = this.sanitizeConfig({
             ...this.config,

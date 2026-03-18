@@ -170,6 +170,7 @@ import {
     createPlayerProgram,
     createProjectileProgram,
 } from "./shaders/Shaders";
+import { resolveFogRange, resolveNextEffectiveRenderDistanceTiles } from "./RenderDistancePolicy";
 
 const MAX_TEXTURES = 1024;
 const TEXTURE_SIZE = 128;
@@ -186,10 +187,6 @@ const OVERHEAD_CHAT_FADE_TICKS = 25;
 const MAX_CLIENT_TICKS_PER_FRAME = 25;
 // Cap outstanding tick debt so we do not spiral on extremely long pauses.
 const MAX_CLIENT_TICK_DEBT = 600;
-const MOBILE_ADAPTIVE_RENDER_DISTANCE_MOVING = 12;
-const MOBILE_ADAPTIVE_RENDER_DISTANCE_BUSY = 12;
-const MOBILE_ADAPTIVE_RENDER_DISTANCE_HEAVY = 10;
-
 interface ColorRgb {
     r: number;
     g: number;
@@ -560,6 +557,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     private lastDistanceCulledVisibleMapCount: number = 0;
     private effectiveRenderDistanceTiles: number = 0;
     private effectiveRenderDistanceFrame: number = -1;
+    private effectiveLodThresholdTiles: number = 0;
+    private effectiveLodThresholdFrame: number = -1;
+    private effectiveGroundItemOverlayMaxEntries: number = 40;
+    private effectiveGroundItemOverlayFrame: number = -1;
+    private effectiveGroundItemOverlayRadius: number = 12;
+    private effectiveGroundItemOverlayRadiusFrame: number = -1;
     private frameRoofFilteredRangeCount: number = 0;
     private frameRoofTotalRangeCount: number = 0;
     private roofFilteredDrawIndices: number[] = [];
@@ -2005,12 +2008,15 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         baseHeightTiles: number,
         output: HealthBarEntry[],
         clientCycle: number,
+        maxOutput: number,
     ): void {
+        if (output.length >= maxOutput) return;
         const state = map.get(serverId);
         if (!state) return;
         const groupKey = ((kind === "npc" ? 1 : 0) << 24) | ((serverId | 0) & 0xffffff) | 0;
         // Mirror class386: iterate from the tail of the deque.
         for (let i = state.bars.length - 1; i >= 0; i--) {
+            if (output.length >= maxOutput) break;
             const bar = state.bars[i];
             const update = this.healthBarGet(bar, clientCycle);
             if (!update) {
@@ -5597,10 +5603,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         // Keep fog tied to configured render distance.
         // Edge-based fog clamping causes over-aggressive fog collapse near stream boundaries.
-        const fogEnd = renderDistance;
-        const fogDepth = this.autoFogDepth
-            ? Math.max(0, fogEnd * this.autoFogDepthFactor)
-            : this.fogDepth;
+        const { fogEnd, fogDepth } = resolveFogRange({
+            renderDistance,
+            autoFogDepth: this.autoFogDepth,
+            autoFogDepthFactor: this.autoFogDepthFactor,
+            manualFogDepth: this.fogDepth,
+        });
 
         // Update scene uniform buffer
         profiler.startPhase("sceneUbo");
@@ -5762,6 +5770,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const healthBars = this.healthBarOutput;
             const overheadTexts = this.overheadTextOutput;
             const overheadPrayers = this.overheadPrayerOutput;
+            const hitsplatMaxEntries = this.getFrameHitsplatMaxEntries();
+            const healthBarMaxEntries = this.getFrameHealthBarMaxEntries();
+            const overheadTextMaxEntries = this.getFrameOverheadTextMaxEntries();
+            const overheadPrayerMaxEntries = this.getFrameOverheadPrayerMaxEntries();
+            const groundOverlayMaxEntries = this.getFrameGroundItemOverlayMaxEntries();
+            const groundOverlayRadius = this.getFrameGroundItemOverlayRadius();
             let groundOverlayEntries: GroundItemOverlayEntry[] | undefined;
 
             try {
@@ -5783,7 +5797,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             if (
                 playerWorldX != null &&
                 playerWorldZ != null &&
-                hitsplats.length < MAX_HIT_ENTRIES
+                hitsplats.length < hitsplatMaxEntries
             ) {
                 const localPlayerHeightFallback =
                     this.osrsClient.playerEcs.getDefaultHeightTiles?.(playerAnchorIdx) ??
@@ -5804,7 +5818,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const state =
                     playerServerId > 0 ? this.playerHitsplats.get(playerServerId) : undefined;
                 if (state) {
-                    for (let slot = 0; slot < 4 && hitsplats.length < MAX_HIT_ENTRIES; slot++) {
+                    for (
+                        let slot = 0;
+                        slot < 4 && hitsplats.length < hitsplatMaxEntries;
+                        slot++
+                    ) {
                         // OSRS Parity: Use client cycles and calculate visibility from end cycle
                         const animProgress = this.getHitsplatVisibility(state, slot, clientCycle);
                         if (animProgress === undefined) continue;
@@ -5836,6 +5854,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         healthBarOffset,
                         healthBars,
                         clientCycle,
+                        healthBarMaxEntries,
                     );
                 }
             }
@@ -5845,6 +5864,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const count = pe.size?.() ?? (pe as any).size?.() ?? 0;
                 if (count > 0) {
                     for (let i = 0; i < count; i++) {
+                        if (overheadTexts.length >= overheadTextMaxEntries) break;
                         const chatState = pe.getOverheadChat(i);
                         if (!chatState) continue;
                         const px = pe.getX(i) | 0;
@@ -5898,6 +5918,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const count = pe.size?.() ?? (pe as any).size?.() ?? 0;
                 if (count > 0) {
                     for (let i = 0; i < count; i++) {
+                        if (overheadPrayers.length >= overheadPrayerMaxEntries) break;
                         const headIconPrayer = pe.getHeadIconPrayer(i);
                         if (headIconPrayer < 0) continue;
 
@@ -5929,7 +5950,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 if (count > 0 && this.playerHitsplats.size > 0) {
                     const controlledId = this.getEffectiveControlledPlayerId();
                     for (let i = 0; i < count; i++) {
-                        if (hitsplats.length >= MAX_HIT_ENTRIES) break;
+                        if (
+                            hitsplats.length >= hitsplatMaxEntries &&
+                            healthBars.length >= healthBarMaxEntries
+                        ) {
+                            break;
+                        }
 
                         // Get server ID for this player
                         const serverId = pe.getServerIdForIndex?.(i);
@@ -5954,7 +5980,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             this.resolvePlayerLogicalHeightTiles(i, playerHeightFallback) +
                             15 / 128;
 
-                        for (let slot = 0; slot < 4 && hitsplats.length < MAX_HIT_ENTRIES; slot++) {
+                        for (
+                            let slot = 0;
+                            slot < 4 && hitsplats.length < hitsplatMaxEntries;
+                            slot++
+                        ) {
                             // OSRS Parity: Use client cycles and calculate visibility from end cycle
                             const animProgress = this.getHitsplatVisibility(
                                 state,
@@ -5980,7 +6010,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         }
 
                         // Add health bar for this player
-                        if (serverId > 0) {
+                        if (serverId > 0 && healthBars.length < healthBarMaxEntries) {
                             this.appendActorHealthBars(
                                 this.playerHealthBars,
                                 serverId,
@@ -5991,6 +6021,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                                 healthBarOffset,
                                 healthBars,
                                 clientCycle,
+                                healthBarMaxEntries,
                             );
                         }
                     }
@@ -6023,11 +6054,21 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 try {
                     const npcEcs = this.osrsClient.npcEcs;
                     for (let i = 0; i < this.mapManager.visibleMapCount; i++) {
-                        if (hitsplats.length >= MAX_HIT_ENTRIES) break;
+                        if (
+                            hitsplats.length >= hitsplatMaxEntries &&
+                            healthBars.length >= healthBarMaxEntries
+                        ) {
+                            break;
+                        }
                         const map = this.mapManager.visibleMaps[i];
                         if (!map?.npcEntityIds || map.npcEntityIds.length === 0) continue;
                         for (let j = 0; j < map.npcEntityIds.length; j++) {
-                            if (hitsplats.length >= MAX_HIT_ENTRIES) break;
+                            if (
+                                hitsplats.length >= hitsplatMaxEntries &&
+                                healthBars.length >= healthBarMaxEntries
+                            ) {
+                                break;
+                            }
                             const ecsId = map.npcEntityIds[j] | 0;
                             if (ecsId <= 0 || seen.has(ecsId)) continue;
                             if (!npcEcs.isActive(ecsId)) continue;
@@ -6064,7 +6105,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                                 overlayAnchor.logicalHeightTiles * 0.5,
                             );
                             const healthBarOffset = overlayAnchor.logicalHeightTiles + 15 / 128;
-                            if (hasHealth) {
+                            if (hasHealth && healthBars.length < healthBarMaxEntries) {
                                 this.appendActorHealthBars(
                                     this.npcHealthBars,
                                     serverId,
@@ -6075,12 +6116,13 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                                     healthBarOffset,
                                     healthBars,
                                     clientCycle,
+                                    healthBarMaxEntries,
                                 );
                             }
                             if (!state) continue;
                             for (
                                 let slot = 0;
-                                slot < 4 && hitsplats.length < MAX_HIT_ENTRIES;
+                                slot < 4 && hitsplats.length < hitsplatMaxEntries;
                                 slot++
                             ) {
                                 // OSRS Parity: Use client cycles and calculate visibility from end cycle
@@ -6118,7 +6160,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     Math.floor(playerWorldX),
                     Math.floor(playerWorldZ),
                     playerLevel,
-                    { radius: 12, maxEntries: 40 },
+                    { radius: groundOverlayRadius, maxEntries: groundOverlayMaxEntries },
                 );
                 if (overlayEntries.length > 0) {
                     groundOverlayEntries = overlayEntries;
@@ -6131,7 +6173,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             camX,
                             camY,
                             camLevel,
-                            { radius: 12, maxEntries: 40 },
+                            { radius: groundOverlayRadius, maxEntries: groundOverlayMaxEntries },
                         );
                         if (camEntries.length > 0) {
                             groundOverlayEntries = camEntries;
@@ -6150,7 +6192,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             fallbackX,
                             fallbackY,
                             fallbackLevel,
-                            { radius: 12, maxEntries: 40 },
+                            { radius: groundOverlayRadius, maxEntries: groundOverlayMaxEntries },
                         );
                         if (overlayEntries.length > 0) {
                             groundOverlayEntries = overlayEntries;
@@ -10062,44 +10104,168 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.effectiveRenderDistanceTiles = base;
         }
 
-        let target = base;
-        let moving = false;
-        try {
-            const pe: any = this.osrsClient.playerEcs as any;
-            const idx = pe.getIndexForServerId?.(this.osrsClient.controlledPlayerServerId);
-            if (idx !== undefined) {
-                moving = !!pe.isMoving?.(idx);
-            }
-        } catch {}
-        if (moving) {
-            target = Math.min(target, MOBILE_ADAPTIVE_RENDER_DISTANCE_MOVING);
-        }
-
+        const mobilePressure = this.getMobilePressureTier();
         const triangles = this.stats.trianglesSubmitted | 0;
         const batches = this.stats.drawBatches | 0;
-        if (triangles >= 1_000_000 || batches >= 900) {
-            target = Math.min(target, MOBILE_ADAPTIVE_RENDER_DISTANCE_BUSY);
-        }
-        if (triangles >= 1_350_000 || batches >= 1200) {
-            target = Math.min(target, MOBILE_ADAPTIVE_RENDER_DISTANCE_HEAVY);
-        }
-
-        const floor = Math.max(4, Math.min(8, base));
-        target = Math.max(floor, Math.min(base, target));
-        const current = Math.max(floor, Math.min(base, this.effectiveRenderDistanceTiles | 0));
-        if (target < current) {
-            this.effectiveRenderDistanceTiles = Math.max(target, current - 1);
-        } else if (target > current) {
-            this.effectiveRenderDistanceTiles = Math.min(target, current + 1);
-        } else {
-            this.effectiveRenderDistanceTiles = current;
-        }
+        this.effectiveRenderDistanceTiles = resolveNextEffectiveRenderDistanceTiles({
+            baseRenderDistance: base,
+            currentEffectiveRenderDistance: this.effectiveRenderDistanceTiles | 0,
+            isTouchDevice,
+            mobilePressure,
+            triangles,
+            batches,
+        });
         this.effectiveRenderDistanceFrame = frameId | 0;
         return this.effectiveRenderDistanceTiles | 0;
     }
 
     private getFrameRenderDistanceTiles(): number {
         return this.resolveEffectiveRenderDistanceTiles(this.stats.frameCount | 0);
+    }
+
+    private getMobilePressureTier(): number {
+        if (!isTouchDevice) return 0;
+        const triangles = this.stats.trianglesSubmitted | 0;
+        const batches = this.stats.drawBatches | 0;
+        if (triangles >= 1_600_000 || batches >= 1400) return 3;
+        if (triangles >= 1_300_000 || batches >= 1100) return 2;
+        if (triangles >= 1_000_000 || batches >= 900) return 1;
+        return 0;
+    }
+
+    private resolveEffectiveLodThresholdTiles(frameId: number): number {
+        const renderDistance = this.getFrameRenderDistanceTiles() | 0;
+        const base = clamp(this.osrsClient.lodDistance | 0, 0, Math.max(0, renderDistance));
+        if (base <= 0) {
+            this.effectiveLodThresholdTiles = 0;
+            this.effectiveLodThresholdFrame = frameId | 0;
+            return 0;
+        }
+        if ((this.effectiveLodThresholdFrame | 0) === (frameId | 0)) {
+            return this.effectiveLodThresholdTiles | 0;
+        }
+        if ((this.effectiveLodThresholdTiles | 0) <= 0 && base > 0) {
+            this.effectiveLodThresholdTiles = base;
+        }
+
+        let target = base;
+        const triangles = this.stats.trianglesSubmitted | 0;
+        const batches = this.stats.drawBatches | 0;
+
+        if (triangles >= 1_000_000 || batches >= 900) {
+            target = Math.min(target, Math.max(10, base - 3));
+        }
+        if (triangles >= 1_300_000 || batches >= 1100) {
+            target = Math.min(target, Math.max(8, base - 6));
+        }
+        if (triangles >= 1_600_000 || batches >= 1400) {
+            target = Math.min(target, Math.max(6, base - 9));
+        }
+
+        const floor = Math.max(1, Math.min(10, base));
+        target = Math.max(floor, Math.min(base, target));
+        const current = Math.max(floor, Math.min(base, this.effectiveLodThresholdTiles | 0));
+        if (target < current) {
+            this.effectiveLodThresholdTiles = Math.max(target, current - 1);
+        } else if (target > current) {
+            this.effectiveLodThresholdTiles = Math.min(target, current + 1);
+        } else {
+            this.effectiveLodThresholdTiles = current;
+        }
+        this.effectiveLodThresholdFrame = frameId | 0;
+        return this.effectiveLodThresholdTiles | 0;
+    }
+
+    private getFrameLodThresholdTiles(): number {
+        return this.resolveEffectiveLodThresholdTiles(this.stats.frameCount | 0);
+    }
+
+    private resolveEffectiveGroundItemOverlayMaxEntries(frameId: number): number {
+        if ((this.effectiveGroundItemOverlayFrame | 0) === (frameId | 0)) {
+            return this.effectiveGroundItemOverlayMaxEntries | 0;
+        }
+        let target = 40;
+        const mobilePressure = this.getMobilePressureTier();
+        if (isTouchDevice) {
+            if (mobilePressure >= 1) target = 24;
+            if (mobilePressure >= 2) target = 16;
+            if (mobilePressure >= 3) target = 12;
+        } else {
+            const triangles = this.stats.trianglesSubmitted | 0;
+            const batches = this.stats.drawBatches | 0;
+            if (triangles >= 1_000_000 || batches >= 900) {
+                target = 32;
+            }
+            if (triangles >= 1_300_000 || batches >= 1100) {
+                target = 24;
+            }
+            if (triangles >= 1_600_000 || batches >= 1400) {
+                target = 16;
+            }
+        }
+        this.effectiveGroundItemOverlayMaxEntries = target;
+        this.effectiveGroundItemOverlayFrame = frameId | 0;
+        return target;
+    }
+
+    private getFrameGroundItemOverlayMaxEntries(): number {
+        return this.resolveEffectiveGroundItemOverlayMaxEntries(this.stats.frameCount | 0);
+    }
+
+    private resolveEffectiveGroundItemOverlayRadius(frameId: number): number {
+        if ((this.effectiveGroundItemOverlayRadiusFrame | 0) === (frameId | 0)) {
+            return this.effectiveGroundItemOverlayRadius | 0;
+        }
+        let target = 12;
+        if (isTouchDevice) {
+            const mobilePressure = this.getMobilePressureTier();
+            if (mobilePressure >= 1) target = 10;
+            if (mobilePressure >= 2) target = 8;
+            if (mobilePressure >= 3) target = 6;
+        }
+        this.effectiveGroundItemOverlayRadius = target;
+        this.effectiveGroundItemOverlayRadiusFrame = frameId | 0;
+        return target;
+    }
+
+    private getFrameGroundItemOverlayRadius(): number {
+        return this.resolveEffectiveGroundItemOverlayRadius(this.stats.frameCount | 0);
+    }
+
+    private getFrameHitsplatMaxEntries(): number {
+        if (!isTouchDevice) return MAX_HIT_ENTRIES;
+        const mobilePressure = this.getMobilePressureTier();
+        if (mobilePressure >= 3) return 72;
+        if (mobilePressure >= 2) return 96;
+        if (mobilePressure >= 1) return 128;
+        return 160;
+    }
+
+    private getFrameHealthBarMaxEntries(): number {
+        if (!isTouchDevice) return 256;
+        const mobilePressure = this.getMobilePressureTier();
+        if (mobilePressure >= 3) return 48;
+        if (mobilePressure >= 2) return 64;
+        if (mobilePressure >= 1) return 96;
+        return 128;
+    }
+
+    private getFrameOverheadTextMaxEntries(): number {
+        if (!isTouchDevice) return 256;
+        const mobilePressure = this.getMobilePressureTier();
+        if (mobilePressure >= 3) return 24;
+        if (mobilePressure >= 2) return 32;
+        if (mobilePressure >= 1) return 48;
+        return 64;
+    }
+
+    private getFrameOverheadPrayerMaxEntries(): number {
+        if (!isTouchDevice) return 256;
+        const mobilePressure = this.getMobilePressureTier();
+        if (mobilePressure >= 3) return 20;
+        if (mobilePressure >= 2) return 28;
+        if (mobilePressure >= 1) return 32;
+        return 40;
     }
 
     private updateAnimatedDrawRanges(
@@ -10157,7 +10323,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const renderDistanceTiles = Math.max(0, this.getFrameRenderDistanceTiles() | 0);
         const renderDistancePadTiles = 0;
         // LOD threshold in tiles from player tile to map bounds.
-        const lodThresholdTiles = Math.max(0, this.osrsClient.lodDistance | 0);
+        const lodThresholdTiles = Math.max(0, this.getFrameLodThresholdTiles() | 0);
         let lodVisibleMapCount = 0;
         let fullDetailVisibleMapCount = 0;
         let distanceCulledVisibleMapCount = 0;

@@ -653,6 +653,12 @@ export class OsrsClient {
     customLabelScreens: { x: number; y: number; text: string }[] = [];
 
     groundItems: GroundItemStore = new GroundItemStore();
+    private groundItemOverlayCache?:
+        | {
+              key: string;
+              entries: GroundItemOverlayEntry[];
+          }
+        | undefined;
 
     dragSourceWidget: any = null;
 
@@ -7824,16 +7830,48 @@ export class OsrsClient {
             return [];
         }
 
-        const stacks = this.groundItems.getStacksInRadius(tileX | 0, tileY | 0, level | 0, {
-            radius: opts?.radius,
-            // Pull a larger candidate set, then apply plugin filtering down to maxEntries.
-            maxEntries: 512,
-        });
+        const radius = Math.max(1, opts?.radius ?? 12);
         const maxEntries = Math.max(1, opts?.maxEntries ?? 40);
-        const centerX = tileX | 0;
-        const centerY = tileY | 0;
         const serverTiming = getServerTickPhaseNow();
         const accountType = this.getLocalAccountType();
+        const timerBucket =
+            config.despawnTimerMode === "seconds"
+                ? Math.max(
+                      0,
+                      Math.floor(
+                          (Math.max(
+                              0,
+                              Math.min(0.999, Number.isFinite(serverTiming.phase) ? serverTiming.phase : 0),
+                          ) *
+                              Math.max(1, serverTiming.tickMs | 0)) /
+                              100,
+                      ),
+                  )
+                : 0;
+        const cacheKey = [
+            tileX | 0,
+            tileY | 0,
+            level | 0,
+            radius | 0,
+            maxEntries | 0,
+            accountType | 0,
+            serverTiming.tick | 0,
+            timerBucket | 0,
+            this.groundItems.getVersion() | 0,
+            plugin.getVersion() | 0,
+        ].join("|");
+        const cachedOverlay = this.groundItemOverlayCache;
+        if (cachedOverlay?.key === cacheKey) {
+            return cachedOverlay.entries;
+        }
+
+        const stacks = this.groundItems.getStacksInRadius(tileX | 0, tileY | 0, level | 0, {
+            radius,
+            // Pull a bounded candidate set, then apply plugin filtering down to maxEntries.
+            maxEntries: Math.max(maxEntries * 4, 128),
+        });
+        const centerX = tileX | 0;
+        const centerY = tileY | 0;
 
         type OverlayCandidate = {
             stack: (typeof stacks)[number];
@@ -7905,6 +7943,7 @@ export class OsrsClient {
         }
 
         if (groups.size === 0) {
+            this.groundItemOverlayCache = { key: cacheKey, entries: [] };
             return [];
         }
 
@@ -7934,11 +7973,13 @@ export class OsrsClient {
                     line,
                 });
                 if (entries.length >= maxEntries) {
+                    this.groundItemOverlayCache = { key: cacheKey, entries };
                     return entries;
                 }
             }
         }
 
+        this.groundItemOverlayCache = { key: cacheKey, entries };
         return entries;
     }
 

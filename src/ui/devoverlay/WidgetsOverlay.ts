@@ -13,6 +13,7 @@ import { CacheIndex } from "../../rs/cache/CacheIndex";
 import { CacheSystem } from "../../rs/cache/CacheSystem";
 import { BitmapFont } from "../../rs/font/BitmapFont";
 import { GLRenderer } from "../gl/renderer";
+import { getChooseOptionMenuRect } from "../gl/choose-option";
 import {
     GLRenderOpts,
     beginWidgetUiFrame,
@@ -91,6 +92,8 @@ export class WidgetsOverlay implements Overlay {
     // Scratch canvas used for dirty-region texture uploads.
     private uploadScratchCanvas?: HTMLCanvasElement;
     private uploadScratchCtx?: CanvasRenderingContext2D | null;
+    private lastMenuVisualSignature: string = "";
+    private lastMenuVisualRect?: DirtyRect;
 
     // PERF: Timing breakdown for profiling
     private accumulatedRenderTime: number = 0;
@@ -522,6 +525,38 @@ export class WidgetsOverlay implements Overlay {
         }
     }
 
+    private getMenuVisualState(
+        sharedUi: any,
+        inputManager?: {
+            mouseX?: number;
+            mouseY?: number;
+            clickMode3?: number;
+            saveClickX?: number;
+            saveClickY?: number;
+        },
+    ): { signature: string; rect?: DirtyRect } {
+        const menu = sharedUi?.menu;
+        if (!(menu && menu.open && Array.isArray(menu.entries) && menu.entries.length > 0)) {
+            return { signature: "closed" };
+        }
+        const fontLoader = this.ctx.getFontLoader?.() || (() => undefined);
+        const rect = getChooseOptionMenuRect(fontLoader, menu, this.app.width, this.app.height);
+        const mx = (sharedUi?.mouseX ?? 0) | 0;
+        const my = (sharedUi?.mouseY ?? 0) | 0;
+        const clickMode3 = (inputManager?.clickMode3 ?? 0) | 0;
+        const saveClickX = (inputManager?.saveClickX ?? -1) | 0;
+        const saveClickY = (inputManager?.saveClickY ?? -1) | 0;
+        let entriesSig = "";
+        for (let i = 0; i < menu.entries.length; i++) {
+            const entry = menu.entries[i];
+            if (i > 0) entriesSig += "\u0001";
+            entriesSig += `${entry?.option ?? ""}\u0002${entry?.target ?? ""}`;
+        }
+        const signature =
+            `open:${menu.follow ? 1 : 0}:${menu.x | 0}:${menu.y | 0}:${mx}:${my}:${clickMode3}:${saveClickX}:${saveClickY}:${entriesSig}`;
+        return { signature, rect };
+    }
+
     draw(phase: RenderPhase): void {
         // Only draw in PostPresent phase
         if (phase !== RenderPhase.PostPresent) {
@@ -575,11 +610,21 @@ export class WidgetsOverlay implements Overlay {
             // Also check if menu is open - Choose Option menu needs to render even if widgets aren't dirty
             const hostCanvas = this.app.gl.canvas as any;
             const ui = hostCanvas?.__ui;
+            const inputManager = this.ctx.getGameContext?.()?.osrsClient?.inputManager;
+            try {
+                if (sharedUi && inputManager) {
+                    sharedUi.mouseX = inputManager.mouseX | 0;
+                    sharedUi.mouseY = inputManager.mouseY | 0;
+                }
+            } catch {}
             const menuOpen = !!ui?.menu?.open;
+            const menuVisualState = this.getMenuVisualState(sharedUi, inputManager);
+            const menuVisualDirty = menuVisualState.signature !== this.lastMenuVisualSignature;
 
-            // Force one full redraw when root set changes, menu is open, or texture must be recreated.
-            const forceFullRedraw = this.rootSetChanged || menuOpen || needsNewTexture;
-            const shouldRedraw = anyDirty || forceFullRedraw;
+            // Force a full redraw only for root set changes or texture recreation.
+            // Open menus now redraw via dirty menu rects instead of forcing a full widget pass.
+            const forceFullRedraw = this.rootSetChanged || needsNewTexture;
+            const shouldRedraw = anyDirty || forceFullRedraw || menuVisualDirty;
 
             // PERF: Track timing breakdown within WidgetsOverlay
             let renderTime = 0;
@@ -598,6 +643,16 @@ export class WidgetsOverlay implements Overlay {
                         const rootRect = this.getRootRect(widgetManager, root);
                         if (rootRect) dirtyRects.push(rootRect);
                     }
+                    if (dirtyRects.length === 0) {
+                        dirtyRects = [];
+                    }
+                }
+
+                if (menuVisualDirty) {
+                    if (this.lastMenuVisualRect) dirtyRects.push(this.lastMenuVisualRect);
+                    if (menuVisualState.rect) dirtyRects.push(menuVisualState.rect);
+                }
+                if (!renderFull) {
                     if (dirtyRects.length === 0) {
                         renderFull = true;
                     } else {
@@ -625,7 +680,8 @@ export class WidgetsOverlay implements Overlay {
                     this.rootSetChanged = false;
                 } else if (widgetManager) {
                     // Partial pass: keep existing click targets and redraw only dirty root regions.
-                    // Widget click targets are persistent; only minimap target is transient.
+                    // Widget click targets are persistent; menu redraws add their previous/current
+                    // bounds into dirtyRects so an open menu no longer forces a full widget pass.
                     for (const dirtyRect of dirtyRects) {
                         this.clearOffscreenRect(dirtyRect);
                         const rootClip = {
@@ -635,11 +691,19 @@ export class WidgetsOverlay implements Overlay {
                             y1: dirtyRect.y + dirtyRect.h,
                         };
 
+                        let renderedAnyRoot = false;
                         for (const entry of this.widgetEntries) {
                             const rootRect = this.getRootRect(widgetManager, entry.root);
                             if (!rootRect || !this.rectsIntersect(rootRect, dirtyRect)) continue;
+                            renderedAnyRoot = true;
                             renderWidgetTreeGL(this.glRenderer, entry.root, {
                                 ...entry.renderOpts,
+                                rootClip,
+                            });
+                        }
+                        if (!renderedAnyRoot && this.widgetEntries.length > 0) {
+                            renderWidgetTreeGL(this.glRenderer, this.widgetEntries[0].root, {
+                                ...this.widgetEntries[0].renderOpts,
                                 rootClip,
                             });
                         }
@@ -662,6 +726,9 @@ export class WidgetsOverlay implements Overlay {
                 this.accumulatedRenderTime += renderTime;
                 this.accumulatedUploadTime += uploadTime;
                 this.accumulatedFrames++;
+
+                this.lastMenuVisualSignature = menuVisualState.signature;
+                this.lastMenuVisualRect = menuVisualState.rect;
             }
 
             // Log breakdown every second (outside shouldRedraw so we always log)
@@ -693,7 +760,6 @@ export class WidgetsOverlay implements Overlay {
 
             // Process input against the current click target registry.
             // Targets are rebuilt on full redraws and persisted across partial/clean frames.
-            const inputManager = this.ctx.getGameContext?.()?.osrsClient?.inputManager;
             processWidgetUiInput(this.glRenderer, inputManager);
 
             // PERF: Cache viewport dimensions instead of querying GL state (causes GPU stall)

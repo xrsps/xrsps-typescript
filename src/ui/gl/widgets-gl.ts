@@ -79,6 +79,8 @@ const CANCEL_SELECTION_HANDLER = () => {
 };
 
 type WidgetMenuDeriveCacheEntry = {
+    revision: number;
+    flagsVersion: number;
     flags: number;
     itemId: number;
     targetVerb: string;
@@ -264,6 +266,9 @@ function deriveMenuEntriesForWidgetCached(
     }
 
     const flags = (getWidgetFlags ? getWidgetFlags(w) : ((w?.flags ?? 0) as number)) | 0;
+    const revision = (((w?.__interactionRevision ?? 0) as number) | 0) as number;
+    const flagsVersion =
+        typeof w?.__widgetFlagsVersion === "number" ? (w.__widgetFlagsVersion as number) | 0 : 0;
     const itemId = (typeof w?.itemId === "number" ? w.itemId : -1) | 0;
     const targetVerb = String(w?.targetVerb ?? "");
     const spellActionName = String(w?.spellActionName ?? "");
@@ -277,6 +282,8 @@ function deriveMenuEntriesForWidgetCached(
     const cached = widgetMenuDeriveCache.get(uid);
     if (
         cached &&
+        cached.revision === revision &&
+        cached.flagsVersion === flagsVersion &&
         cached.flags === flags &&
         cached.itemId === itemId &&
         cached.targetVerb === targetVerb &&
@@ -294,6 +301,8 @@ function deriveMenuEntriesForWidgetCached(
 
     const entries = UI_deriveMenuEntriesForWidget(w as any, false, getWidgetFlags) || [];
     const next: WidgetMenuDeriveCacheEntry = {
+        revision,
+        flagsVersion,
         flags,
         itemId,
         targetVerb,
@@ -743,12 +752,15 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         if (!widgetManager || !w) return ((w?.flags ?? 0) as number) | 0;
         const uid = typeof w.uid === "number" ? (w.uid | 0) : undefined;
         if (uid === undefined) {
-            return widgetManager.getWidgetFlags(w) | 0;
+            const flags = widgetManager.getWidgetFlags(w) | 0;
+            w.__widgetFlagsVersion = widgetFlagsVersion | 0;
+            return flags;
         }
         const cached = widgetFlagsFrameCache.get(uid);
         if (cached !== undefined) return cached;
         const flags = widgetManager.getWidgetFlags(w) | 0;
         widgetFlagsFrameCache.set(uid, flags);
+        w.__widgetFlagsVersion = widgetFlagsVersion | 0;
         return flags;
     };
     const rootOffsetX = Number.isFinite(opts.rootOffsetX as number) ? Number(opts.rootOffsetX) : 0;

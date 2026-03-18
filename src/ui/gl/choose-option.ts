@@ -8,6 +8,18 @@ import { GLRenderer } from "./renderer";
 
 type FontLoader = (id: number) => BitmapFont | undefined;
 
+export type ChooseOptionMenuEntry = {
+    option: string;
+    target?: string;
+};
+
+export type ChooseOptionMenuLike = {
+    open?: boolean;
+    x: number;
+    y: number;
+    entries: ChooseOptionMenuEntry[];
+};
+
 // PERF: Module-level canvas for text measurement (avoid creating per frame)
 let _measCanvas: HTMLCanvasElement | null = null;
 let _measCtx: CanvasRenderingContext2D | null = null;
@@ -51,6 +63,73 @@ const MENU_HIT_TEST_INSET_PX = 1; // emulate strict comparisons via 1px inset
 // Click target priorities (menu must consume clicks over widgets)
 const MENU_BG_PRIORITY = 999;
 const MENU_OPTION_PRIORITY_BASE = 1000;
+const FONT_TITLE = FONT_BOLD_12;
+const FONT_OPT = FONT_BOLD_12;
+
+function stripTagsForMeasure(s: string): string {
+    if (!s) return "";
+    return String(s).replace(/<[^>]*>/g, "");
+}
+
+function measureMenuText(fontLoader: FontLoader, s: string, fontId: number): number {
+    const cacheKey = `${fontId}:${s}`;
+    const cached = _measureCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+
+    const measCtx = getMeasureContext();
+    const plain = stripTagsForMeasure(s);
+    let result: number;
+    try {
+        const font = fontLoader(fontId);
+        const m = (font as any)?.measure?.(plain);
+        if (typeof m === "number") {
+            result = (m | 0) as number;
+        } else {
+            result = Math.ceil(measCtx.measureText(plain).width) | 0;
+        }
+    } catch {
+        result = Math.ceil(measCtx.measureText(plain).width) | 0;
+    }
+
+    if (_measureCache.size >= MEASURE_CACHE_MAX) {
+        const firstKey = _measureCache.keys().next().value;
+        if (firstKey !== undefined) _measureCache.delete(firstKey);
+    }
+    _measureCache.set(cacheKey, result);
+    return result;
+}
+
+export function getChooseOptionMenuRect(
+    fontLoader: FontLoader,
+    menu: ChooseOptionMenuLike | undefined,
+    hostW: number,
+    hostH: number,
+): { x: number; y: number; w: number; h: number } | undefined {
+    if (!(menu && menu.open && Array.isArray(menu.entries) && menu.entries.length > 0)) {
+        return undefined;
+    }
+
+    let contentW = measureMenuText(fontLoader, "Choose Option", FONT_TITLE);
+    for (const e of menu.entries) {
+        const option = e.option || "";
+        const target = e.target || "";
+        const full = target.length ? `${option} ${target}` : option;
+        const w = measureMenuText(fontLoader, full, FONT_OPT);
+        if (w > contentW) contentW = w;
+    }
+
+    const boxW = (contentW + MENU_WIDTH_PADDING_PX) | 0;
+    const boxH = ((menu.entries.length * MENU_ROW_HEIGHT_PX + MENU_HEIGHT_BASE_PX) | 0) as number;
+
+    let left = ((menu.x | 0) - ((boxW / 2) | 0)) | 0;
+    if (left + boxW > (hostW | 0)) left = (hostW | 0) - boxW;
+    if (left < 0) left = 0;
+    let top = menu.y | 0;
+    if (top + boxH > (hostH | 0)) top = (hostH | 0) - boxH;
+    if (top < 0) top = 0;
+
+    return { x: left, y: top, w: boxW, h: boxH };
+}
 
 export function drawChooseOptionMenu(
     glr: GLRenderer,
@@ -188,66 +267,17 @@ export function drawChooseOptionMenu(
     const COL_TEXT_DEFAULT = 0xffffff;
     const COL_TEXT_HOVER = 0xffff00;
 
-    // PERF: Use module-level canvas for measurement with caching
-    const measCtx = getMeasureContext();
-    const stripTagsForMeasure = (s: string): string => {
-        if (!s) return "";
-        // AbstractFont.stringWidth ignores markup tags like <col=..>.
-        return String(s).replace(/<[^>]*>/g, "");
-    };
-    const measure = (s: string, fontId: number) => {
-        // Check cache first
-        const cacheKey = `${fontId}:${s}`;
-        const cached = _measureCache.get(cacheKey);
-        if (cached !== undefined) return cached;
-
-        let result: number;
-        const plain = stripTagsForMeasure(s);
-        try {
-            const font = opts.fontLoader(fontId);
-            const m = (font as any)?.measure?.(plain);
-            if (typeof m === "number") {
-                result = (m | 0) as number;
-            } else {
-                result = Math.ceil(measCtx.measureText(plain).width) | 0;
-            }
-        } catch {
-            result = Math.ceil(measCtx.measureText(plain).width) | 0;
-        }
-
-        // Store in cache (evict oldest if full)
-        if (_measureCache.size >= MEASURE_CACHE_MAX) {
-            const firstKey = _measureCache.keys().next().value;
-            if (firstKey !== undefined) _measureCache.delete(firstKey);
-        }
-        _measureCache.set(cacheKey, result);
-        return result;
-    };
-
-    // OSRS parity: Menu sizing/positioning matches Client.openMenu().
-    // menuWidth = max(stringWidth("Choose Option"), max entry width) + MENU_WIDTH_PADDING_PX
-    // menuHeight = (menuOptionsCount * MENU_ROW_HEIGHT_PX) + MENU_HEIGHT_BASE_PX
-    const FONT_TITLE = FONT_BOLD_12; // b12_full
-    const FONT_OPT = FONT_BOLD_12;
-    let contentW = measure("Choose Option", FONT_TITLE);
-    for (const e of menu.entries) {
-        const option = e.option || "";
-        const target = e.target || "";
-        const full = target.length ? `${option} ${target}` : option;
-        const w = measure(full, FONT_OPT);
-        if (w > contentW) contentW = w;
-    }
-    const boxW = (contentW + MENU_WIDTH_PADDING_PX) | 0;
-    const boxH = ((menu.entries.length * MENU_ROW_HEIGHT_PX + MENU_HEIGHT_BASE_PX) | 0) as number;
-
     const hostW = glr.width | 0;
     const hostH = glr.height | 0;
-    let left = ((menu.x | 0) - ((boxW / 2) | 0)) | 0;
-    if (left + boxW > hostW) left = hostW - boxW;
-    if (left < 0) left = 0;
-    let top = menu.y | 0 | 0;
-    if (top + boxH > hostH) top = hostH - boxH;
-    if (top < 0) top = 0;
+    const menuRect = getChooseOptionMenuRect(opts.fontLoader, menu, hostW, hostH);
+    if (!menuRect) {
+        unregisterMenuTargets(prevCount);
+        return;
+    }
+    const left = menuRect.x | 0;
+    const top = menuRect.y | 0;
+    const boxW = menuRect.w | 0;
+    const boxH = menuRect.h | 0;
 
     // OSRS parity: menu() auto-closes when the mouse moves outside the menu rect with a MENU_CLOSE_MARGIN_PX margin.
     // Reference: Client.menu() lines 6086-6101.

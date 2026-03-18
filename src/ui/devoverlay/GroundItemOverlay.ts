@@ -1,10 +1,10 @@
 import { vec3 } from "gl-matrix";
 import {
+    DrawCall,
     App as PicoApp,
     PicoGL,
     Program,
     Texture,
-    UniformBuffer,
     VertexArray,
     VertexBuffer,
 } from "picogl";
@@ -14,48 +14,62 @@ import { BitmapFont } from "../../rs/font/BitmapFont";
 import { FONT_PLAIN_11 } from "../fonts";
 import { Overlay, OverlayInitArgs, OverlayUpdateArgs, RenderPhase } from "./Overlay";
 
-type GlyphMeta = {
-    ch: number;
-    u0: number;
-    v0: number;
-    u1: number;
-    v1: number;
+type CachedTexture = {
+    tex: Texture;
     w: number;
     h: number;
-    lb: number;
-    tb: number;
-    adv: number;
 };
+
+const SCREEN_VERT_SRC = `#version 300 es
+precision highp float;
+layout(location=0) in vec2 a_position;
+layout(location=1) in vec2 a_texCoord;
+uniform vec2 u_resolution;
+out vec2 v_uv;
+void main(){
+    vec2 zeroToOne = a_position / u_resolution;
+    vec2 zeroToTwo = zeroToOne * 2.0;
+    vec2 clip = zeroToTwo - 1.0;
+    gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+    v_uv = a_texCoord;
+}`;
+
+const SCREEN_FRAG_SRC = `#version 300 es
+precision mediump float;
+in vec2 v_uv;
+uniform sampler2D u_sprite;
+uniform vec4 u_tint;
+out vec4 fragColor;
+void main(){
+    vec4 texel = texture(u_sprite, v_uv);
+    fragColor = vec4(texel.rgb * u_tint.rgb, texel.a * u_tint.a);
+}`;
+
+const H_PADDING = 2;
+const V_PADDING = 2;
+const TEXTURE_CACHE_MAX = 512;
 
 export class GroundItemOverlay implements Overlay {
     constructor(
-        private program: Program,
+        _program: Program,
         private ctx: { getCacheSystem: () => any },
     ) {}
 
     private app!: PicoApp;
-    private sceneUniforms!: UniformBuffer;
     private positions?: VertexBuffer;
     private uvs?: VertexBuffer;
     private array?: VertexArray;
-    private drawCall?: any;
-    private tex?: Texture;
-    private glyphs = new Map<number, GlyphMeta>();
-    private ascent: number = 12;
+    private drawCall?: DrawCall;
     private screenSize = new Float32Array(2);
     private tint = new Float32Array([1, 1, 1, 1]);
+    private quadVerts = new Float32Array(12);
+    private quadUvs = new Float32Array([0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0]);
     private centerWorld = vec3.create();
     private entries: GroundItemOverlayEntry[] = [];
     private lastArgs?: OverlayUpdateArgs;
-    // PERF: Batched rendering - large buffers to hold multiple glyphs per draw call
-    private static readonly MAX_GLYPHS_PER_ENTRY = 64;
-    private static readonly VERTS_PER_GLYPH = 6 * 2; // 6 vertices × 2 coords (x, y)
-    private batchedVerts = new Float32Array(
-        GroundItemOverlay.MAX_GLYPHS_PER_ENTRY * GroundItemOverlay.VERTS_PER_GLYPH,
-    );
-    private batchedUvs = new Float32Array(
-        GroundItemOverlay.MAX_GLYPHS_PER_ENTRY * GroundItemOverlay.VERTS_PER_GLYPH,
-    );
+    private font?: BitmapFont;
+    private screenProgram?: Program;
+    private textCache: Map<string, CachedTexture> = new Map();
 
     // Use native-size 11px font to keep text crisp (avoid fractional downscaling blur).
     fontId: number = FONT_PLAIN_11;
@@ -63,27 +77,20 @@ export class GroundItemOverlay implements Overlay {
 
     init(args: OverlayInitArgs): void {
         this.app = args.app;
-        this.sceneUniforms = args.sceneUniforms;
-
-        // PERF: Create buffers large enough to hold MAX_GLYPHS_PER_ENTRY glyphs for batched rendering
-        const bufferSize =
-            GroundItemOverlay.MAX_GLYPHS_PER_ENTRY * GroundItemOverlay.VERTS_PER_GLYPH;
-        this.positions = this.app.createVertexBuffer(PicoGL.FLOAT, 2, new Float32Array(bufferSize));
-        this.uvs = this.app.createVertexBuffer(PicoGL.FLOAT, 2, new Float32Array(bufferSize));
+        this.positions = this.app.createVertexBuffer(PicoGL.FLOAT, 2, new Float32Array(12));
+        this.uvs = this.app.createVertexBuffer(PicoGL.FLOAT, 2, new Float32Array(this.quadUvs));
+        this.uvs.data(this.quadUvs);
         this.array = this.app
             .createVertexArray()
             .vertexAttributeBuffer(0, this.positions)
             .vertexAttributeBuffer(1, this.uvs);
+        this.screenProgram = this.app.createProgram(SCREEN_VERT_SRC, SCREEN_FRAG_SRC);
         this.drawCall = this.app
-            .createDrawCall(this.program, this.array)
-            .uniformBlock("SceneUniforms", this.sceneUniforms)
-            .uniform("u_screenSize", this.screenSize)
+            .createDrawCall(this.screenProgram, this.array)
+            .uniform("u_resolution", this.screenSize)
             .uniform("u_tint", this.tint)
             .primitive(PicoGL.TRIANGLES);
-
-        this.buildAtlas(
-            "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ()[]{}-+:'!?. ,x",
-        );
+        this.ensureFont();
     }
 
     update(args: OverlayUpdateArgs): void {
@@ -98,7 +105,7 @@ export class GroundItemOverlay implements Overlay {
 
     draw(phase: RenderPhase): void {
         if (phase !== RenderPhase.PostPresent) return;
-        if (!this.drawCall || !this.positions || !this.uvs || !this.tex) return;
+        if (!this.drawCall || !this.positions || !this.uvs) return;
         const args = this.lastArgs;
         if (!args || this.entries.length === 0) return;
 
@@ -128,99 +135,53 @@ export class GroundItemOverlay implements Overlay {
             this.centerWorld[0] = entry.tileX + 0.5;
             this.centerWorld[1] = h - 0.05 - line * 0.22;
             this.centerWorld[2] = entry.tileY + 0.5;
+            const screenPos = args.helpers.worldToScreen?.(
+                this.centerWorld[0],
+                this.centerWorld[1],
+                this.centerWorld[2],
+            );
+            if (!screenPos || typeof screenPos[0] !== "number" || typeof screenPos[1] !== "number")
+                continue;
 
-            const penY = -((this.ascent * scale) / 2);
-            const baseWidth = this.measureTextAdvance(baseLabel);
-            const baseStartX = -((baseWidth * scale) / 2);
+            const tex = this.getTextTexture(
+                baseLabel,
+                timerLabel,
+                entry.color ?? 0xffffff,
+                Number.isFinite(entry.timerColor) ? (entry.timerColor as number) : 0xffff00,
+            );
+            if (!tex) continue;
 
-            this.setTintColor(entry.color ?? 0xffffff);
-            this.drawLabelBatch(baseLabel, baseStartX, penY, scale);
+            const centerX = Math.round(screenPos[0]);
+            const centerY = Math.round(screenPos[1]);
+            const width = Math.max(1, Math.round(tex.w * scale));
+            const heightPx = Math.max(1, Math.round(tex.h * scale));
+            const left = centerX - Math.round(width / 2);
+            const top = centerY - Math.round(heightPx / 2);
 
-            if (timerLabel.length > 0) {
-                this.setTintColor(
-                    Number.isFinite(entry.timerColor) ? (entry.timerColor as number) : 0xffff00,
-                );
-                this.drawLabelBatch(timerLabel, baseStartX + baseWidth * scale, penY, scale);
-            }
+            this.quadVerts[0] = left;
+            this.quadVerts[1] = top;
+            this.quadVerts[2] = left;
+            this.quadVerts[3] = top + heightPx;
+            this.quadVerts[4] = left + width;
+            this.quadVerts[5] = top + heightPx;
+            this.quadVerts[6] = left;
+            this.quadVerts[7] = top;
+            this.quadVerts[8] = left + width;
+            this.quadVerts[9] = top + heightPx;
+            this.quadVerts[10] = left + width;
+            this.quadVerts[11] = top;
+
+            this.positions.data(this.quadVerts);
+            this.tint[0] = 1;
+            this.tint[1] = 1;
+            this.tint[2] = 1;
+            this.tint[3] = 1;
+            this.drawCall
+                .uniform("u_resolution", this.screenSize)
+                .uniform("u_tint", this.tint)
+                .texture("u_sprite", tex.tex)
+                .draw();
         }
-    }
-
-    private setTintColor(color: number): void {
-        const col = (color ?? 0xffffff) >>> 0;
-        this.tint[0] = ((col >> 16) & 0xff) / 255.0;
-        this.tint[1] = ((col >> 8) & 0xff) / 255.0;
-        this.tint[2] = (col & 0xff) / 255.0;
-        this.tint[3] = 1.0;
-    }
-
-    private measureTextAdvance(text: string): number {
-        let advance = 0;
-        for (let i = 0; i < text.length; i++) {
-            const g = this.glyphs.get(text.charCodeAt(i));
-            advance += (g?.adv ?? g?.w ?? 0) + (i > 0 ? 0.75 : 0);
-        }
-        return advance;
-    }
-
-    private drawLabelBatch(text: string, startX: number, penY: number, scale: number): void {
-        if (!this.positions || !this.uvs || !this.drawCall || !this.tex) return;
-        if (text.length === 0) return;
-
-        const verts = this.batchedVerts;
-        const uvs = this.batchedUvs;
-        let glyphCount = 0;
-        let penX = startX;
-        const maxGlyphs = GroundItemOverlay.MAX_GLYPHS_PER_ENTRY;
-
-        for (let i = 0; i < text.length && glyphCount < maxGlyphs; i++) {
-            const ch = text.charCodeAt(i);
-            const g = this.glyphs.get(ch);
-            if (!g) continue;
-            const gw = Math.max(1, (g.w * scale) | 0);
-            const gh = Math.max(1, (g.h * scale) | 0);
-            const gx = (penX + g.lb * scale) | 0;
-            const gy = (penY + g.tb * scale) | 0;
-
-            const vi = glyphCount * 12; // 6 vertices × 2 coords per glyph
-            verts[vi + 0] = gx;
-            verts[vi + 1] = gy;
-            verts[vi + 2] = gx;
-            verts[vi + 3] = gy + gh;
-            verts[vi + 4] = gx + gw;
-            verts[vi + 5] = gy + gh;
-            verts[vi + 6] = gx;
-            verts[vi + 7] = gy;
-            verts[vi + 8] = gx + gw;
-            verts[vi + 9] = gy + gh;
-            verts[vi + 10] = gx + gw;
-            verts[vi + 11] = gy;
-            uvs[vi + 0] = g.u0;
-            uvs[vi + 1] = g.v0;
-            uvs[vi + 2] = g.u0;
-            uvs[vi + 3] = g.v1;
-            uvs[vi + 4] = g.u1;
-            uvs[vi + 5] = g.v1;
-            uvs[vi + 6] = g.u0;
-            uvs[vi + 7] = g.v0;
-            uvs[vi + 8] = g.u1;
-            uvs[vi + 9] = g.v1;
-            uvs[vi + 10] = g.u1;
-            uvs[vi + 11] = g.v0;
-
-            penX += (g.adv ?? g.w) * scale + 0.75 * scale;
-            glyphCount++;
-        }
-
-        if (glyphCount <= 0) return;
-
-        const vertCount = glyphCount * 12;
-        this.positions.data(verts.subarray(0, vertCount));
-        this.uvs.data(uvs.subarray(0, vertCount));
-        this.drawCall
-            .uniform("u_screenSize", this.screenSize)
-            .uniform("u_centerWorld", this.centerWorld)
-            .texture("u_sprite", this.tex)
-            .draw();
     }
 
     dispose(): void {
@@ -228,75 +189,99 @@ export class GroundItemOverlay implements Overlay {
             this.positions?.delete?.();
             this.uvs?.delete?.();
             this.array?.delete?.();
-            this.tex?.delete?.();
+            this.drawCall?.delete?.();
         } catch {}
+        for (const cached of this.textCache.values()) {
+            try {
+                cached.tex.delete?.();
+            } catch {}
+        }
         this.positions = undefined;
         this.uvs = undefined;
         this.array = undefined;
-        this.tex = undefined;
-        this.glyphs.clear();
+        this.drawCall = undefined;
+        this.font = undefined;
+        this.textCache.clear();
+        try {
+            this.screenProgram?.delete?.();
+        } catch {}
+        this.screenProgram = undefined;
     }
 
-    private buildAtlas(charset: string): void {
+    private ensureFont(): void {
         try {
-            let bmp = BitmapFont.tryLoad(this.ctx.getCacheSystem(), this.fontId);
-            if (!bmp && this.fontId !== FONT_PLAIN_11) {
-                bmp = BitmapFont.tryLoad(this.ctx.getCacheSystem(), FONT_PLAIN_11);
+            if (this.font) return;
+            let font = BitmapFont.tryLoad(this.ctx.getCacheSystem(), this.fontId);
+            if (!font && this.fontId !== FONT_PLAIN_11) {
+                font = BitmapFont.tryLoad(this.ctx.getCacheSystem(), FONT_PLAIN_11);
             }
-            if (!bmp) return;
-            this.ascent = bmp.ascent | 0;
-            const chars = Array.from(new Set(charset.split(""))).map((c) => c.charCodeAt(0));
-            let W = 2;
-            let H = 1;
-            const metas: GlyphMeta[] = [];
-            for (const ch of chars) {
-                const w = bmp.widths[ch] | 0 || 1;
-                const h = bmp.heights[ch] | 0 || 1;
-                const lb = bmp.leftBearings[ch] | 0;
-                const tb = bmp.topBearings[ch] | 0;
-                const adv = bmp.advances[ch] | 0 || w;
-                metas.push({ ch, u0: 0, v0: 0, u1: 0, v1: 0, w, h, lb, tb, adv });
-                W += w + 1;
-                H = Math.max(H, h);
-            }
-            W |= 0;
-            H = Math.max(1, H | 0);
-            const out = new Uint8Array(W * H * 4);
-            let penX = 1;
-            for (const m of metas) {
-                const gp = bmp.glyphPixels[m.ch];
-                const w = m.w | 0;
-                const h = m.h | 0;
-                if (gp) {
-                    for (let y = 0; y < h; y++) {
-                        for (let x = 0; x < w; x++) {
-                            const idx = gp[y * w + x] & 0xff;
-                            if (idx === 0) continue;
-                            const di = (penX + x + y * W) * 4;
-                            out[di] = 255;
-                            out[di + 1] = 255;
-                            out[di + 2] = 255;
-                            out[di + 3] = 255;
-                        }
-                    }
-                }
-                m.u0 = penX / W;
-                m.v0 = 0;
-                m.u1 = (penX + w) / W;
-                m.v1 = h / H;
-                this.glyphs.set(m.ch, m);
-                penX += w + 1;
-            }
-            this.tex = this.app.createTexture2D(out, W, H, {
-                internalFormat: PicoGL.RGBA8,
-                type: PicoGL.UNSIGNED_BYTE,
-                minFilter: PicoGL.NEAREST,
-                magFilter: PicoGL.NEAREST,
-                wrapS: PicoGL.CLAMP_TO_EDGE,
-                wrapT: PicoGL.CLAMP_TO_EDGE,
-            });
+            if (font) this.font = font;
         } catch (e) {
-            console.error("GroundItemOverlay: failed to build glyph atlas", e);
+            console.error("GroundItemOverlay: failed to load font", e);
         }
+    }
+
+    private getTextTexture(
+        baseLabel: string,
+        timerLabel: string,
+        baseColor: number,
+        timerColor: number,
+    ): CachedTexture | undefined {
+        this.ensureFont();
+        const font = this.font;
+        if (!font) return undefined;
+
+        const key = `${baseColor >>> 0}|${timerColor >>> 0}|${baseLabel}|${timerLabel}`;
+        const cached = this.textCache.get(key);
+        if (cached) {
+            return cached;
+        }
+
+        const baseWidth = baseLabel.length > 0 ? font.measure(baseLabel) : 0;
+        const timerWidth = timerLabel.length > 0 ? font.measure(timerLabel) : 0;
+        const width = Math.max(1, Math.ceil(H_PADDING * 2 + baseWidth + timerWidth));
+        const ascent = font.maxAscent || font.ascent || 11;
+        const descent = font.maxDescent || 2;
+        const height = Math.max(1, Math.ceil(V_PADDING * 2 + ascent + descent));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", {
+            willReadFrequently: true as any,
+        }) as CanvasRenderingContext2D | null;
+        if (!ctx) return undefined;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const baseline = V_PADDING + ascent;
+        let penX = H_PADDING;
+        if (baseLabel.length > 0) {
+            font.draw(ctx, baseLabel, penX, baseline, `#${(baseColor >>> 0).toString(16).padStart(6, "0")}`);
+            penX += baseWidth;
+        }
+        if (timerLabel.length > 0) {
+            font.draw(ctx, timerLabel, penX, baseline, `#${(timerColor >>> 0).toString(16).padStart(6, "0")}`);
+        }
+
+        const tex = this.app.createTexture2D(canvas as any, {
+            flipY: false,
+            minFilter: PicoGL.NEAREST,
+            magFilter: PicoGL.NEAREST,
+            wrapS: PicoGL.CLAMP_TO_EDGE,
+            wrapT: PicoGL.CLAMP_TO_EDGE,
+        });
+        const next: CachedTexture = { tex, w: canvas.width, h: canvas.height };
+        if (this.textCache.size >= TEXTURE_CACHE_MAX) {
+            const firstKey = this.textCache.keys().next().value;
+            if (firstKey !== undefined) {
+                const first = this.textCache.get(firstKey);
+                try {
+                    first?.tex.delete?.();
+                } catch {}
+                this.textCache.delete(firstKey);
+            }
+        }
+        this.textCache.set(key, next);
+        return next;
     }
 }

@@ -2622,6 +2622,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w) {
             // Store pause text - used for dialogue "Click here to continue" etc.
             w.pauseText = text;
+            markWidgetInteractionDirty(w);
         }
     });
 
@@ -2631,6 +2632,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const text = ctx.stringStack[--ctx.stringStackSize];
         if (w) {
             w.pauseText = text;
+            markWidgetInteractionDirty(w);
         }
     });
 
@@ -2689,14 +2691,20 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.CC_SETOPBASE, (ctx, intOp) => {
         const text = ctx.stringStack[--ctx.stringStackSize];
         const w = getTargetWidget(ctx, intOp);
-        if (w) w.opBase = text;
+        if (w) {
+            w.opBase = text;
+            markWidgetInteractionDirty(w);
+        }
     });
 
     handlers.set(Opcodes.IF_SETOPBASE, (ctx) => {
         // Pop order: widget first (top of intStack), then text (from stringStack)
         const w = getWidgetFromStack(ctx);
         const text = ctx.stringStack[--ctx.stringStackSize];
-        if (w) w.opBase = text;
+        if (w) {
+            w.opBase = text;
+            markWidgetInteractionDirty(w);
+        }
     });
 
     handlers.set(Opcodes.CC_GETOPBASE, (ctx, intOp) => {

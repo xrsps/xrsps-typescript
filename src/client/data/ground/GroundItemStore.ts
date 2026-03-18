@@ -42,6 +42,7 @@ export class GroundItemStore {
     private stacksById = new Map<number, ClientGroundItemStack>();
     private listeners = new Set<() => void>();
     private resolveMetadata: ResolveMetadata = DEFAULT_METADATA_RESOLVER;
+    private version = 0;
 
     private normalizeStack(stack: GroundItemStackMessage): ClientGroundItemStack | undefined {
         if (!stack || !(stack.id > 0) || !(stack.itemId > 0)) return undefined;
@@ -171,6 +172,10 @@ export class GroundItemStore {
         return () => this.listeners.delete(cb);
     }
 
+    getVersion(): number {
+        return this.version | 0;
+    }
+
     getStacksAt(tileX: number, tileY: number, level: number): ClientGroundItemStack[] {
         const key = this.tileKey(tileX | 0, tileY | 0, level | 0);
         const list = this.stacksByTile.get(key);
@@ -269,6 +274,7 @@ export class GroundItemStore {
     }
 
     private notify(): void {
+        this.version = (this.version + 1) | 0;
         for (const cb of this.listeners) {
             try {
                 cb();
