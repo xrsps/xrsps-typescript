@@ -5,6 +5,7 @@ import { IndexType } from "../../rs/cache/IndexType";
 import { ByteBuffer } from "../../rs/io/ByteBuffer";
 import { FONT_BOLD_12, FONT_PLAIN_11 } from "../fonts";
 import { loadCustomWidgetGroup } from "./custom/CustomWidgetGroups";
+import { markWidgetInteractionDirty } from "./WidgetInteraction";
 
 /**
  * Widget/interface loader for OSRS cache
@@ -331,6 +332,7 @@ export class WidgetLoader {
             w.flags = (w.flags || 0) | 1;
         }
 
+        markWidgetInteractionDirty(w);
         return w;
     }
 
@@ -538,6 +540,7 @@ export class WidgetLoader {
             w.onScroll
         );
 
+        markWidgetInteractionDirty(w);
         return w;
     }
 

@@ -6,6 +6,7 @@ import {
     markWidgetsLoaded,
 } from "../../../client/TransmitCycles";
 import type { WidgetNode } from "../../../ui/widgets/WidgetManager";
+import { markWidgetInteractionDirty } from "../../../ui/widgets/WidgetInteraction";
 import { getViewportSize } from "../../../util/DeviceUtil";
 import { Opcodes } from "../Opcodes";
 import type { HandlerContext, HandlerMap } from "./HandlerTypes";
@@ -1377,6 +1378,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             // PERF: Only invalidate if value actually changed
             if (w.text !== text) {
                 w.text = text;
+                markWidgetInteractionDirty(w);
                 invalidateWidgetRender(ctx, w);
             }
         }
@@ -1390,6 +1392,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             // PERF: Only invalidate if value actually changed
             if (w.text !== text) {
                 w.text = text;
+                markWidgetInteractionDirty(w);
                 invalidateWidgetRender(ctx, w);
             }
         }
@@ -2309,6 +2312,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             // Reference: MouseHandler.method721 (r215): stackable items force mode=1.
             w.itemQuantityMode = getSetObjectQuantityMode(ctx, itemId);
             w.itemShowQuantity = undefined;
+            markWidgetInteractionDirty(w);
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2326,6 +2330,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             w.itemQuantity = amount;
             w.itemQuantityMode = getSetObjectQuantityMode(ctx, itemId);
             w.itemShowQuantity = undefined;
+            markWidgetInteractionDirty(w);
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2342,6 +2347,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             w.itemQuantity = amount;
             w.itemQuantityMode = 0;
             w.itemShowQuantity = false;
+            markWidgetInteractionDirty(w);
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2359,6 +2365,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             w.itemQuantity = amount;
             w.itemQuantityMode = 0;
             w.itemShowQuantity = false;
+            markWidgetInteractionDirty(w);
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2375,6 +2382,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             w.itemQuantity = amount;
             w.itemQuantityMode = 1;
             w.itemShowQuantity = true;
+            markWidgetInteractionDirty(w);
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2392,6 +2400,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             w.itemQuantity = amount;
             w.itemQuantityMode = 1;
             w.itemShowQuantity = true;
+            markWidgetInteractionDirty(w);
             invalidateWidgetRender(ctx, w);
         }
     });
@@ -2468,7 +2477,10 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const w = getTargetWidget(ctx, intOp);
         if (w) {
             if (!w.actions) w.actions = [];
-            if (index >= 1 && index <= 10) w.actions[index - 1] = text;
+            if (index >= 1 && index <= 10) {
+                w.actions[index - 1] = text;
+                markWidgetInteractionDirty(w);
+            }
         }
     });
 
@@ -2479,18 +2491,27 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const text = ctx.stringStack[--ctx.stringStackSize];
         if (w) {
             if (!w.actions) w.actions = [];
-            if (index >= 1 && index <= 10) w.actions[index - 1] = text;
+            if (index >= 1 && index <= 10) {
+                w.actions[index - 1] = text;
+                markWidgetInteractionDirty(w);
+            }
         }
     });
 
     handlers.set(Opcodes.CC_CLEAROPS, (ctx, intOp) => {
         const w = getTargetWidget(ctx, intOp);
-        if (w) w.actions = [];
+        if (w) {
+            w.actions = [];
+            markWidgetInteractionDirty(w);
+        }
     });
 
     handlers.set(Opcodes.IF_CLEAROPS, (ctx) => {
         const w = getWidgetFromStack(ctx);
-        if (w) w.actions = [];
+        if (w) {
+            w.actions = [];
+            markWidgetInteractionDirty(w);
+        }
     });
 
     // CC_SETSUBOP (4222): Sets a sub-operation text for nested menu actions
@@ -2691,14 +2712,20 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.CC_SETTARGETVERB, (ctx, intOp) => {
         const verb = ctx.stringStack[--ctx.stringStackSize];
         const w = getTargetWidget(ctx, intOp);
-        if (w) w.targetVerb = verb;
+        if (w) {
+            w.targetVerb = verb;
+            markWidgetInteractionDirty(w);
+        }
     });
 
     handlers.set(Opcodes.IF_SETTARGETVERB, (ctx) => {
         // Pop order: widget first (top of intStack), then verb (from stringStack)
         const w = getWidgetFromStack(ctx);
         const verb = ctx.stringStack[--ctx.stringStackSize];
-        if (w) w.targetVerb = verb;
+        if (w) {
+            w.targetVerb = verb;
+            markWidgetInteractionDirty(w);
+        }
     });
 
     handlers.set(Opcodes.CC_GETTARGETMASK, (ctx, intOp) => {

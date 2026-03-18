@@ -1,4 +1,5 @@
 import type { WidgetManager, WidgetNode } from "../../ui/widgets/WidgetManager";
+import { markWidgetInteractionDirty } from "../../ui/widgets/WidgetInteraction";
 import type { TypeLoader } from "../config/TypeLoader";
 import type { DbRepository } from "../config/db/DbRepository";
 import type { EnumType } from "../config/enumtype/EnumType";
@@ -1849,6 +1850,7 @@ export class Cs2Vm {
         } else if (eventType === "onVarTransmit") {
             (widget as any).varTransmitTriggers = transmitTriggers ?? undefined;
         }
+        markWidgetInteractionDirty(widget);
     }
 
     /**
@@ -1903,6 +1905,7 @@ export class Cs2Vm {
         } else if (eventType === "onVarTransmit") {
             (widget as any).varTransmitTriggers = transmitTriggers ?? undefined;
         }
+        markWidgetInteractionDirty(widget);
     }
 
     /**

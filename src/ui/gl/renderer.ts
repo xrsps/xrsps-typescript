@@ -19,8 +19,8 @@ export class GLRenderer {
     uTintStrength_tex!: WebGLUniformLocation;
     uAlpha_tex!: WebGLUniformLocation;
     aPos_col = -1;
+    aColor_col = -1;
     uProj_col!: WebGLUniformLocation;
-    uColor_col!: WebGLUniformLocation;
     // Gradient uniforms
     uProj_grad!: WebGLUniformLocation;
     uColorTop_grad!: WebGLUniformLocation;
@@ -48,6 +48,14 @@ export class GLRenderer {
     private texVerts = new Float32Array(16); // 4 vertices × 4 floats (x, y, u, v)
     private rotatedVerts = new Float32Array(16); // 4 vertices × 4 floats (x, y, u, v)
     private maskedVerts = new Float32Array(16); // 4 vertices × 4 floats (x, y, u, v)
+    private perfDrawCalls = 0;
+    private perfTextureDrawCalls = 0;
+    private perfSolidDrawCalls = 0;
+    private perfGradientDrawCalls = 0;
+    private perfMaskedDrawCalls = 0;
+    private static readonly SOLID_BATCH_RECT_CAPACITY = 2048;
+    private solidBatchData = new Float32Array(GLRenderer.SOLID_BATCH_RECT_CAPACITY * 36);
+    private solidBatchFloatCount = 0;
 
     constructor(canvas: HTMLCanvasElement) {
         const gl = createGL(canvas);
@@ -62,8 +70,21 @@ export class GLRenderer {
         // Programs
         const vsTex = `#version 300 es\nprecision mediump float;\nlayout(location=0) in vec2 aPos; layout(location=1) in vec2 aUV; uniform mat4 uProj; out vec2 vUV; void main(){ vUV=aUV; gl_Position=uProj*vec4(aPos,0.0,1.0);} `;
         const fsTex = `#version 300 es\nprecision mediump float; in vec2 vUV; uniform sampler2D uSampler; uniform vec3 uTintColor; uniform float uTintStrength; uniform float uAlpha; out vec4 o; void main(){ vec4 c = texture(uSampler, vUV); c.rgb = mix(c.rgb, uTintColor, clamp(uTintStrength, 0.0, 1.0)); c.a *= uAlpha; o = c; }`;
-        const vsCol = `#version 300 es\nprecision mediump float; layout(location=0) in vec2 aPos; uniform mat4 uProj; void main(){ gl_Position=uProj*vec4(aPos,0.0,1.0);} `;
-        const fsCol = `#version 300 es\nprecision mediump float; uniform vec4 uColor; out vec4 o; void main(){ o = uColor; }`;
+        const vsCol = `#version 300 es
+precision mediump float;
+layout(location=0) in vec2 aPos;
+layout(location=1) in vec4 aColor;
+uniform mat4 uProj;
+out vec4 vColor;
+void main(){
+    vColor = aColor;
+    gl_Position=uProj*vec4(aPos,0.0,1.0);
+}`;
+        const fsCol = `#version 300 es
+precision mediump float;
+in vec4 vColor;
+out vec4 o;
+void main(){ o = vColor; }`;
         // OSRS PARITY: Vertical gradient shader for fillMode=1 (GRADIENT_VERTICAL)
         // Reference: Rasterizer2D.Rasterizer2D_fillRectangleGradient
         const vsGrad = `#version 300 es\nprecision mediump float; layout(location=0) in vec2 aPos; layout(location=1) in float aT; uniform mat4 uProj; out float vT; void main(){ vT=aT; gl_Position=uProj*vec4(aPos,0.0,1.0);} `;
@@ -118,7 +139,6 @@ void main(){
         this.uTintStrength_tex = gl.getUniformLocation(this.progTex, "uTintStrength")!;
         this.uAlpha_tex = gl.getUniformLocation(this.progTex, "uAlpha")!;
         this.uProj_col = gl.getUniformLocation(this.progSolid, "uProj")!;
-        this.uColor_col = gl.getUniformLocation(this.progSolid, "uColor")!;
         // Gradient program uniforms
         this.uProj_grad = gl.getUniformLocation(this.progGrad, "uProj")!;
         this.uColorTop_grad = gl.getUniformLocation(this.progGrad, "uColorTop")!;
@@ -151,7 +171,9 @@ void main(){
         gl.bindVertexArray(this.vaoCol);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
         gl.enableVertexAttribArray(0);
-        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 24, 0);
+        gl.enableVertexAttribArray(1);
+        gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 24, 8);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
         // VAO for gradient (aPos + aT interleaved: x, y, t per vertex)
         this.vaoGrad = gl.createVertexArray()!;
@@ -183,29 +205,35 @@ void main(){
 
     clear(r = 0.043, g = 0.059, b = 0.078, a = 1) {
         const gl = this.gl;
+        this.solidBatchFloatCount = 0;
         gl.clearColor(r, g, b, a);
         gl.clear(gl.COLOR_BUFFER_BIT);
     }
 
+    getPerfCounters() {
+        return {
+            drawCalls: this.perfDrawCalls,
+            textureDrawCalls: this.perfTextureDrawCalls,
+            solidDrawCalls: this.perfSolidDrawCalls,
+            gradientDrawCalls: this.perfGradientDrawCalls,
+            maskedDrawCalls: this.perfMaskedDrawCalls,
+        };
+    }
+
+    resetPerfCounters() {
+        this.perfDrawCalls = 0;
+        this.perfTextureDrawCalls = 0;
+        this.perfSolidDrawCalls = 0;
+        this.perfGradientDrawCalls = 0;
+        this.perfMaskedDrawCalls = 0;
+    }
+
+    flush() {
+        this.flushSolidBatch();
+    }
+
     drawRect(x: number, y: number, w: number, h: number, color: [number, number, number, number]) {
-        const gl = this.gl;
-        // PERF: Reuse cached array instead of allocating new Float32Array each call
-        const verts = this.rectVerts;
-        verts[0] = x;
-        verts[1] = y;
-        verts[2] = x + w;
-        verts[3] = y;
-        verts[4] = x + w;
-        verts[5] = y + h;
-        verts[6] = x;
-        verts[7] = y + h;
-        gl.useProgram(this.progSolid);
-        gl.uniformMatrix4fv(this.uProj_col, false, this.proj);
-        gl.uniform4fv(this.uColor_col, color);
-        gl.bindVertexArray(this.vaoCol);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-        gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
-        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+        this.appendSolidRect(x, y, w, h, color);
     }
 
     /**
@@ -222,6 +250,7 @@ void main(){
         colorBot: [number, number, number, number],
     ) {
         const gl = this.gl;
+        this.flushSolidBatch();
         // PERF: Reuse cached array instead of allocating new Float32Array
         const verts = this.gradVerts;
         // top-left
@@ -248,6 +277,8 @@ void main(){
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
         gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+        this.perfDrawCalls++;
+        this.perfGradientDrawCalls++;
     }
 
     /**
@@ -293,6 +324,7 @@ void main(){
         alpha = 1,
     ) {
         const gl = this.gl;
+        this.flushSolidBatch();
         gl.useProgram(this.progTex);
         gl.uniformMatrix4fv(this.uProj_tex, false, this.proj);
         gl.activeTexture(gl.TEXTURE0);
@@ -330,6 +362,8 @@ void main(){
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
         gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+        this.perfDrawCalls++;
+        this.perfTextureDrawCalls++;
     }
 
     /**
@@ -361,6 +395,7 @@ void main(){
         alpha = 1,
     ) {
         const gl = this.gl;
+        this.flushSolidBatch();
         gl.useProgram(this.progTex);
         gl.uniformMatrix4fv(this.uProj_tex, false, this.proj);
         gl.activeTexture(gl.TEXTURE0);
@@ -420,6 +455,8 @@ void main(){
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
         gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+        this.perfDrawCalls++;
+        this.perfTextureDrawCalls++;
     }
 
     /**
@@ -447,6 +484,7 @@ void main(){
         angleScale: number = 65536,
     ) {
         const gl = this.gl;
+        this.flushSolidBatch();
         gl.useProgram(this.progMasked);
         gl.uniformMatrix4fv(this.uProj_masked, false, this.proj);
 
@@ -507,9 +545,95 @@ void main(){
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
         gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+        this.perfDrawCalls++;
+        this.perfMaskedDrawCalls++;
 
         // Reset to texture unit 0
         gl.activeTexture(gl.TEXTURE0);
+    }
+
+    private appendSolidRect(
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        color: [number, number, number, number],
+    ) {
+        if (this.solidBatchFloatCount + 36 > this.solidBatchData.length) {
+            this.flushSolidBatch();
+        }
+
+        const data = this.solidBatchData;
+        let o = this.solidBatchFloatCount;
+        const x1 = x + w;
+        const y1 = y + h;
+        const r = color[0];
+        const g = color[1];
+        const b = color[2];
+        const a = color[3];
+
+        data[o++] = x;
+        data[o++] = y;
+        data[o++] = r;
+        data[o++] = g;
+        data[o++] = b;
+        data[o++] = a;
+
+        data[o++] = x1;
+        data[o++] = y;
+        data[o++] = r;
+        data[o++] = g;
+        data[o++] = b;
+        data[o++] = a;
+
+        data[o++] = x1;
+        data[o++] = y1;
+        data[o++] = r;
+        data[o++] = g;
+        data[o++] = b;
+        data[o++] = a;
+
+        data[o++] = x;
+        data[o++] = y;
+        data[o++] = r;
+        data[o++] = g;
+        data[o++] = b;
+        data[o++] = a;
+
+        data[o++] = x1;
+        data[o++] = y1;
+        data[o++] = r;
+        data[o++] = g;
+        data[o++] = b;
+        data[o++] = a;
+
+        data[o++] = x;
+        data[o++] = y1;
+        data[o++] = r;
+        data[o++] = g;
+        data[o++] = b;
+        data[o++] = a;
+
+        this.solidBatchFloatCount = o;
+    }
+
+    private flushSolidBatch() {
+        if (this.solidBatchFloatCount === 0) return;
+
+        const gl = this.gl;
+        gl.useProgram(this.progSolid);
+        gl.uniformMatrix4fv(this.uProj_col, false, this.proj);
+        gl.bindVertexArray(this.vaoCol);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            this.solidBatchData.subarray(0, this.solidBatchFloatCount),
+            gl.DYNAMIC_DRAW,
+        );
+        gl.drawArrays(gl.TRIANGLES, 0, this.solidBatchFloatCount / 6);
+        this.perfDrawCalls++;
+        this.perfSolidDrawCalls++;
+        this.solidBatchFloatCount = 0;
     }
 
     createTextureFromCanvas(key: string, canvas: HTMLCanvasElement): Texture {

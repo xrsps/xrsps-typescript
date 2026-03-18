@@ -53,6 +53,7 @@ export class WidgetManager {
      * Reference: class405.getWidgetFlags in the Java client.
      */
     private widgetFlagsOverrides: Map<bigint, number> = new Map();
+    private widgetFlagsVersion: number = 1;
 
     /**
      * PERF: Index of parentUid -> static children. Built once during loadGroup.
@@ -982,6 +983,7 @@ export class WidgetManager {
 
         // Clear widget flags overrides
         this.widgetFlagsOverrides.clear();
+        this.widgetFlagsVersion++;
 
         // Clear sub-interface tracking state
         this.interfaceParents.clear();
@@ -1114,6 +1116,10 @@ export class WidgetManager {
         return (this.widgetFlagsOverrides.get(key) ?? w.flags ?? 0) | 0;
     }
 
+    getWidgetFlagsVersion(): number {
+        return this.widgetFlagsVersion | 0;
+    }
+
     /**
      * OSRS parity: Set a widget flags override (Client.widgetFlags.put).
      * This does not mutate `w.flags` (base flags from cache).
@@ -1127,6 +1133,7 @@ export class WidgetManager {
             typeof (w as any).childIndex === "number" ? (w as any).childIndex | 0 : -1;
         const key = this.makeWidgetFlagsKey(id, childIndex);
         this.widgetFlagsOverrides.set(key, flags | 0);
+        this.widgetFlagsVersion++;
     }
 
     /**
@@ -1138,6 +1145,7 @@ export class WidgetManager {
     setWidgetFlagsByKey(id: number, childIndex: number, flags: number): void {
         const key = this.makeWidgetFlagsKey(id | 0, childIndex | 0);
         this.widgetFlagsOverrides.set(key, flags | 0);
+        this.widgetFlagsVersion++;
     }
 
     /**
@@ -1177,6 +1185,7 @@ export class WidgetManager {
             if (keyGroup === g) toDelete.push(key);
         }
         for (const key of toDelete) this.widgetFlagsOverrides.delete(key);
+        if (toDelete.length > 0) this.widgetFlagsVersion++;
     }
 
     /**
@@ -1294,6 +1303,7 @@ export class WidgetManager {
         // OSRS parity: Clear runtime widget flags overrides on major interface changes.
         // Reference: Client.java reinitializes widgetFlags when interface parents are refreshed.
         this.widgetFlagsOverrides.clear();
+        this.widgetFlagsVersion++;
 
         // Mark all widgets dirty - major interface change requires full redraw
         this.invalidateAll();

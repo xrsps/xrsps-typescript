@@ -39,6 +39,35 @@ let _widgetRenderCount = 0;
 let _lastWidgetCountLog = 0;
 let _accumulatedWidgetCount = 0;
 let _accumulatedFrames = 0;
+let _lastWidgetBreakdownLog = 0;
+let _accumulatedWidgetRenderMs = 0;
+let _accumulatedWidgetClickMs = 0;
+let _accumulatedWidgetMinimapMs = 0;
+let _accumulatedWidgetSpriteMs = 0;
+let _accumulatedWidgetModelMs = 0;
+let _accumulatedWidgetTextMs = 0;
+let _accumulatedWidgetOtherMs = 0;
+let _accumulatedWidgetRectMs = 0;
+let _accumulatedWidgetLineMs = 0;
+let _accumulatedWidgetContainerMs = 0;
+let _accumulatedWidgetClickProbeMs = 0;
+let _accumulatedWidgetClickDeriveMs = 0;
+let _accumulatedWidgetClickRegisterMs = 0;
+let _accumulatedWidgetPasses = 0;
+let _accumulatedWidgetDrawCalls = 0;
+let _accumulatedWidgetTextureDrawCalls = 0;
+let _accumulatedWidgetSolidDrawCalls = 0;
+let _accumulatedWidgetGradientDrawCalls = 0;
+let _accumulatedWidgetMaskedDrawCalls = 0;
+let _accumulatedTextWidgets = 0;
+let _accumulatedSpriteWidgets = 0;
+let _accumulatedModelWidgets = 0;
+let _accumulatedMinimapWidgets = 0;
+let _accumulatedInteractiveWidgets = 0;
+let _accumulatedMenuDeriveWidgets = 0;
+let _accumulatedMenuEntries = 0;
+let _accumulatedModelCacheHits = 0;
+let _accumulatedModelCacheMisses = 0;
 
 // PERF: Cached no-op function to avoid closure allocation in ensureInput calls
 const NOOP = () => {};
@@ -62,6 +91,21 @@ type WidgetMenuDeriveCacheEntry = {
     hasOnOpArray: boolean;
     hasOnOpHandler: boolean;
     entries: Array<{ option: string; target?: string }>;
+};
+
+type WidgetInteractionSnapshot = {
+    revision: number;
+    flagsVersion: number;
+    hasCs2Click: boolean;
+    hasActions: boolean;
+    hasActionSlots: boolean;
+    hasTargetVerbCandidate: boolean;
+    hasOriginalHandlers: boolean;
+    isInventoryItem: boolean;
+    hasButtonTypeInteraction: boolean;
+    isPauseButtonWidget: boolean;
+    buttonType: number;
+    shouldDeriveEntries: boolean;
 };
 
 const widgetMenuDeriveCache = new Map<number, WidgetMenuDeriveCacheEntry>();
@@ -91,6 +135,123 @@ function getWidgetOnOpHandlerPresence(w: any): { hasOnOpArray: boolean; hasOnOpH
         hasOnOpHandler = Array.isArray(mapped) ? mapped.length > 0 : !!mapped;
     }
     return { hasOnOpArray, hasOnOpHandler };
+}
+
+function getWidgetInteractionSnapshot(
+    w: any,
+    getWidgetFlags: (w: any) => number,
+    flagsVersion: number,
+): WidgetInteractionSnapshot {
+    const revision = (((w?.__interactionRevision ?? 0) as number) | 0) as number;
+    const cached = w?.__interactionSnapshot as WidgetInteractionSnapshot | undefined;
+    if (cached && cached.revision === revision && cached.flagsVersion === (flagsVersion | 0)) {
+        return cached;
+    }
+
+    const eh = w?.eventHandlers as any;
+    const hasEventHandlerContainer = !!eh;
+    const hasLegacyHandlerArrays =
+        !!w?.onClick ||
+        !!w?.onOp ||
+        !!w?.onHold ||
+        !!w?.onRelease ||
+        !!w?.onMouseOver ||
+        !!w?.onMouseLeave;
+
+    let hasCs2Click = false;
+    if (w?.hasListener || hasEventHandlerContainer || hasLegacyHandlerArrays) {
+        hasCs2Click =
+            !!(
+                (eh instanceof Map
+                    ? eh.get("onClick") ||
+                      eh.get("onOp") ||
+                      eh.get("onHold") ||
+                      eh.get("onRelease") ||
+                      eh.get("onMouseOver") ||
+                      eh.get("onMouseLeave")
+                    : eh?.onClick ||
+                      eh?.onOp ||
+                      eh?.onHold ||
+                      eh?.onRelease ||
+                      eh?.onMouseOver ||
+                      eh?.onMouseLeave) ||
+                (Array.isArray(w?.onClick) && w.onClick.length > 0) ||
+                (Array.isArray(w?.onOp) && w.onOp.length > 0) ||
+                (Array.isArray(w?.onHold) && w.onHold.length > 0) ||
+                (Array.isArray(w?.onRelease) && w.onRelease.length > 0) ||
+                (Array.isArray(w?.onMouseOver) && w.onMouseOver.length > 0) ||
+                (Array.isArray(w?.onMouseLeave) && w.onMouseLeave.length > 0)
+            );
+    }
+
+    const widgetActions = Array.isArray(w?.actions) ? (w.actions as any[]) : undefined;
+    const hasActions = !!widgetActions?.some((a: any) => a && a !== "");
+    const hasActionSlots = !!widgetActions?.length;
+    const hasTargetVerbCandidate =
+        !!w?.targetVerb || !!w?.spellActionName || !!w?.buttonText;
+    const buttonType = (w?.buttonType ?? 0) | 0;
+    const hasButtonTypeInteraction = buttonType > 0;
+    const hasOriginalHandlers =
+        !!w?.__hasOriginalOnClick ||
+        !!w?.__hasOriginalOnOp ||
+        !!w?.__hasOriginalOnHold ||
+        !!w?.__hasOriginalOnRelease;
+
+    const widgetItemId = w?.itemId;
+    const widgetGroupId = ((w?.groupId ?? (w?.uid >>> 16)) ?? 0) | 0;
+    const isInventoryItem = widgetGroupId === 149 && widgetItemId != null && widgetItemId >= 0;
+
+    let isPauseButtonWidget = false;
+    if (
+        !hasCs2Click &&
+        !hasActions &&
+        !hasOriginalHandlers &&
+        !isInventoryItem &&
+        !hasTargetVerbCandidate &&
+        !hasButtonTypeInteraction
+    ) {
+        if ((getWidgetFlags(w) & 1) !== 0) {
+            isPauseButtonWidget = true;
+        } else {
+            const rawButtonText = w?.buttonText;
+            if (typeof rawButtonText === "string" && rawButtonText.length > 0) {
+                isPauseButtonWidget = rawButtonText.toLowerCase() === "continue";
+            }
+            if (!isPauseButtonWidget) {
+                const rawWidgetText = w?.text;
+                if (
+                    typeof rawWidgetText === "string" &&
+                    rawWidgetText.length >= 8 &&
+                    rawWidgetText.toLowerCase().includes("continue")
+                ) {
+                    const lowerText = rawWidgetText.toLowerCase();
+                    isPauseButtonWidget =
+                        lowerText.includes("click") && lowerText.includes("continue");
+                }
+            }
+        }
+    }
+    if (!isPauseButtonWidget && buttonType === 6) {
+        isPauseButtonWidget = true;
+    }
+
+    const snapshot: WidgetInteractionSnapshot = {
+        revision,
+        flagsVersion: flagsVersion | 0,
+        hasCs2Click,
+        hasActions,
+        hasActionSlots,
+        hasTargetVerbCandidate,
+        hasOriginalHandlers,
+        isInventoryItem,
+        hasButtonTypeInteraction,
+        isPauseButtonWidget,
+        buttonType,
+        shouldDeriveEntries:
+            hasActionSlots || hasTargetVerbCandidate || isInventoryItem || isPauseButtonWidget,
+    };
+    (w as any).__interactionSnapshot = snapshot;
+    return snapshot;
 }
 
 function deriveMenuEntriesForWidgetCached(
@@ -186,6 +347,7 @@ type CachedClickTarget = {
 export type { WidgetNode };
 
 type Widget = WidgetNode;
+const EMPTY_WIDGETS: Widget[] = [];
 
 /**
  * OSRS PARITY: Draw a single-pixel line using Bresenham's algorithm
@@ -528,6 +690,29 @@ export type GLRenderOpts = {
 export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRenderOpts) {
     // PERF: Reset widget count for this render pass
     _widgetRenderCount = 0;
+    const profileWidgetRender = profiler.enabled && profiler.verbose;
+    const renderStartMs = profileWidgetRender ? performance.now() : 0;
+    const drawCountersStart = profileWidgetRender ? glr.getPerfCounters() : null;
+    let clickRegistrationMs = 0;
+    let clickProbeMs = 0;
+    let clickDeriveMs = 0;
+    let clickRegisterMs = 0;
+    let minimapMs = 0;
+    let spriteMs = 0;
+    let modelMs = 0;
+    let textMs = 0;
+    let rectMs = 0;
+    let lineMs = 0;
+    let containerMs = 0;
+    let textWidgets = 0;
+    let spriteWidgets = 0;
+    let modelWidgets = 0;
+    let minimapWidgets = 0;
+    let interactiveWidgets = 0;
+    let menuDeriveWidgets = 0;
+    let menuEntriesTotal = 0;
+    let modelCacheHits = 0;
+    let modelCacheMisses = 0;
 
     // Use the actual GL drawable size for scissor computations so CSS layout and clipping stay aligned.
     const hostH = glr.height;
@@ -552,6 +737,20 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         canvasAny.__textureCache = tc;
     }
     const widgetManager = opts.widgetManager;
+    const widgetFlagsVersion = widgetManager?.getWidgetFlagsVersion?.() ?? 0;
+    const widgetFlagsFrameCache = new Map<number, number>();
+    const getCachedWidgetFlags = (w: any): number => {
+        if (!widgetManager || !w) return ((w?.flags ?? 0) as number) | 0;
+        const uid = typeof w.uid === "number" ? (w.uid | 0) : undefined;
+        if (uid === undefined) {
+            return widgetManager.getWidgetFlags(w) | 0;
+        }
+        const cached = widgetFlagsFrameCache.get(uid);
+        if (cached !== undefined) return cached;
+        const flags = widgetManager.getWidgetFlags(w) | 0;
+        widgetFlagsFrameCache.set(uid, flags);
+        return flags;
+    };
     const rootOffsetX = Number.isFinite(opts.rootOffsetX as number) ? Number(opts.rootOffsetX) : 0;
     const rootOffsetY = Number.isFinite(opts.rootOffsetY as number) ? Number(opts.rootOffsetY) : 0;
     const rootScaleXRaw = Number(opts.rootScaleX ?? opts.rootScale ?? 1.0);
@@ -730,7 +929,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             const getWidgetFlags =
                 osrsClientRef?.widgetManager &&
                 typeof osrsClientRef.widgetManager.getWidgetFlags === "function"
-                    ? (w: any) => osrsClientRef.widgetManager.getWidgetFlags(w)
+                    ? (w: any) => getCachedWidgetFlags(w)
                     : undefined;
 
             // Prefer the hovered click target (registered during render) as the menu anchor.
@@ -1012,10 +1211,10 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
     // PERF: Cache ScissorStack on canvas instead of creating new one each frame
     let sc: ScissorStack = canvasAny.__scissorStack;
     if (!sc) {
-        sc = new ScissorStack(gl, glr.width, hostH);
+        sc = new ScissorStack(gl, glr.width, hostH, () => glr.flush());
         canvasAny.__scissorStack = sc;
     } else {
-        sc.reinit(gl, glr.width, hostH);
+        sc.reinit(gl, glr.width, hostH, () => glr.flush());
     }
 
     // Helpers
@@ -1612,6 +1811,12 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         const y1 = Math.round((logicalY + logicalHeight) * rootScaleY + rootOffsetY);
         const width = Math.max(1, x1 - x);
         const height = Math.max(1, y1 - y);
+        const isContainer = w.type === 0 || w.type === 11;
+        const staticChildren = isContainer
+            ? (widgetManager?.getStaticChildrenByParentUid(w.uid) ?? EMPTY_WIDGETS)
+            : EMPTY_WIDGETS;
+        const hasStaticChildren = staticChildren.length > 0;
+        const hasChildren = !!(w.children && w.children.length);
 
         // OSRS PARITY: Calculate widget clip bounds based on widget type
         // Reference: UserComparator5.drawInterface lines 142-170
@@ -1635,10 +1840,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         //
         // IMPORTANT: Actively dragged widgets should NOT be culled - they need to be deferred
         // for rendering on top, even when dragged outside their parent's clip bounds.
-        const isContainerWithChildren =
-            (w.type === 0 || w.type === 11) &&
-            ((w.children && w.children.length > 0) ||
-                (widgetManager && widgetManager.getStaticChildrenByParentUid(w.uid).length > 0));
+        const isContainerWithChildren = isContainer && (hasChildren || hasStaticChildren);
         if (isIf3 && !isClipValid(widgetClip) && !isContainerWithChildren && !isDragActive) {
             return; // IF3 widget is completely outside visible area and has no children
         }
@@ -1712,13 +1914,34 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         }
 
         // Default click target registration based on widget actions/verb OR CS2 event handlers
+        const clickRegistrationStartMs = profileWidgetRender ? performance.now() : 0;
         try {
+            const clickProbeStartMs = profileWidgetRender ? performance.now() : 0;
+            const interaction = getWidgetInteractionSnapshot(
+                w as any,
+                getCachedWidgetFlags,
+                widgetFlagsVersion,
+            );
+            const widgetActions = Array.isArray(w.actions) ? (w.actions as any[]) : undefined;
+            const widgetItemId = (w as any).itemId;
+            if (profileWidgetRender) {
+                clickProbeMs += performance.now() - clickProbeStartMs;
+            }
+            if (interaction.shouldDeriveEntries) {
+                menuDeriveWidgets++;
+            }
+
             // OSRS parity: Use widgetManager.getWidgetFlags for IF_SETEVENTS override lookup.
             // Without this, equipment slots won't show "Remove" if flags are only set via IF_SETEVENTS.
-            const getWidgetFlagsLocal = widgetManager
-                ? (ww: any) => widgetManager.getWidgetFlags(ww)
-                : undefined;
-            const entries = deriveMenuEntriesForWidgetCached(w as any, getWidgetFlagsLocal);
+            const getWidgetFlagsLocal = widgetManager ? getCachedWidgetFlags : undefined;
+            const clickDeriveStartMs = profileWidgetRender ? performance.now() : 0;
+            const entries = interaction.shouldDeriveEntries
+                ? deriveMenuEntriesForWidgetCached(w as any, getWidgetFlagsLocal)
+                : [];
+            if (profileWidgetRender) {
+                clickDeriveMs += performance.now() - clickDeriveStartMs;
+            }
+            menuEntriesTotal += entries.length | 0;
             const primary = entries.find((e) => {
                 const lower = String(e?.option ?? "")
                     .trim()
@@ -1726,80 +1949,25 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 return !!lower && lower !== "cancel" && lower !== "examine";
             });
 
-            // Check for CS2 event handlers that require click registration
-            // eventHandlers can be either a Map or plain object depending on how it was set
-            const eh = w.eventHandlers as any;
-            const hasCs2Click =
-                (eh instanceof Map
-                    ? eh.get("onClick") ||
-                      eh.get("onOp") ||
-                      eh.get("onHold") ||
-                      eh.get("onRelease") ||
-                      eh.get("onMouseOver") ||
-                      eh.get("onMouseLeave")
-                    : eh?.onClick ||
-                      eh?.onOp ||
-                      eh?.onHold ||
-                      eh?.onRelease ||
-                      eh?.onMouseOver ||
-                      eh?.onMouseLeave) ||
-                (Array.isArray(w.onClick) && w.onClick.length > 0) ||
-                (Array.isArray(w.onOp) && w.onOp.length > 0) ||
-                (Array.isArray(w.onHold) && w.onHold.length > 0) ||
-                (Array.isArray(w.onRelease) && w.onRelease.length > 0) ||
-                (Array.isArray(w.onMouseOver) && w.onMouseOver.length > 0) ||
-                (Array.isArray(w.onMouseLeave) && w.onMouseLeave.length > 0);
-
-            // Also check if widget has actions array (indicating it's meant to be interactive)
-            // or has specific flags that indicate clickability
-            const hasActions =
-                Array.isArray(w.actions) && w.actions.some((a: any) => a && a !== "");
-
-            // Check for widgets with onOp/onClick originally defined in cache (even if cleared by script)
-            // These widgets are designed to be interactive
-            const hasOriginalHandlers =
-                (w as any).__hasOriginalOnClick ||
-                (w as any).__hasOriginalOnOp ||
-                (w as any).__hasOriginalOnHold ||
-                (w as any).__hasOriginalOnRelease;
-
-            // Also register click targets for inventory items (widgets with itemId)
-            const widgetItemId = (w as any).itemId;
-            const widgetGroupId = ((w as any).groupId ?? w.uid >>> 16) | 0;
-            // OSRS parity: Inventory shift-click drop applies to the inventory widget (149) only.
-            const isInventoryItem =
-                widgetGroupId === 149 && widgetItemId != null && widgetItemId >= 0;
-
-            // OSRS parity: Check for pause button widgets (flags bit 0 or text containing "continue")
-            // These are dialog continue buttons that should always be clickable
-            // Use widgetManager.getWidgetFlags for IF_SETEVENTS override lookup.
-            const wFlags = widgetManager
-                ? widgetManager.getWidgetFlags(w)
-                : ((w as any).flags ?? 0) | 0;
-            const isPauseButton = (wFlags & 1) !== 0;
-            const buttonText = String((w as any).buttonText || "").toLowerCase();
-            const isContinueButton = buttonText === "continue";
-            const widgetText = String((w as any).text || "").toLowerCase();
-            const hasClickToContinue =
-                widgetText.includes("click") && widgetText.includes("continue");
-            const isPauseButtonWidget = isPauseButton || isContinueButton || hasClickToContinue;
-
             if (
                 primary ||
-                hasCs2Click ||
-                hasActions ||
-                hasOriginalHandlers ||
-                isInventoryItem ||
-                isPauseButtonWidget
+                interaction.hasCs2Click ||
+                interaction.hasActions ||
+                interaction.hasOriginalHandlers ||
+                interaction.isInventoryItem ||
+                interaction.isPauseButtonWidget ||
+                interaction.hasButtonTypeInteraction
             ) {
+                const clickRegisterStartMs = profileWidgetRender ? performance.now() : 0;
+                interactiveWidgets++;
                 let primaryOptionText = primary?.option ?? "";
                 let primaryTarget = primary?.target;
 
                 // For inventory items, use the widget's actions array to find the primary action
                 // The CS2 scripts set actions on inventory widgets from the item definition
                 // We need to find the first non-empty, non-Drop, non-Examine action
-                if (isInventoryItem && Array.isArray(w.actions)) {
-                    const widgetActions = w.actions as (string | null | undefined)[];
+                if (interaction.isInventoryItem && widgetActions) {
+                    const itemWidgetActions = widgetActions as (string | null | undefined)[];
                     const hasNonUseAction = widgetActions.some((action) => {
                         if (!action || typeof action !== "string") return false;
                         const lower = action.trim().toLowerCase();
@@ -1811,8 +1979,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                             lower !== "cancel"
                         );
                     });
-                    for (let i = 0; i < widgetActions.length; i++) {
-                        const action = widgetActions[i];
+                    for (let i = 0; i < itemWidgetActions.length; i++) {
+                        const action = itemWidgetActions[i];
                         if (!action || typeof action !== "string") continue;
                         const trimmed = action.trim();
                         if (!trimmed) continue;
@@ -1826,16 +1994,16 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
                 // OSRS parity: Pause button widgets show "Continue" with empty target
                 // Reference: WorldMapSprite.java line 128-129
-                if (isPauseButtonWidget && !primaryOptionText) {
+                if (interaction.isPauseButtonWidget && !primaryOptionText) {
                     primaryOptionText = "Continue";
                     primaryTarget = undefined;
                 }
 
                 // Check if widget has a Drop action (for shift-click drop)
                 const hasDropAction =
-                    isInventoryItem &&
-                    Array.isArray(w.actions) &&
-                    w.actions.some(
+                    interaction.isInventoryItem &&
+                    !!widgetActions &&
+                    widgetActions.some(
                         (a: any) => a && typeof a === "string" && a.trim().toLowerCase() === "drop",
                     );
 
@@ -1927,7 +2095,11 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     // Right edge
                     glr.drawRect(x + width - 1, y, 1, height, purple);
                 }
+                if (profileWidgetRender) {
+                    clickRegisterMs += performance.now() - clickRegisterStartMs;
+                }
             } else if (ClientState.isSpellSelected || ClientState.isItemSelected === 1) {
+                const clickRegisterStartMs = profileWidgetRender ? performance.now() : 0;
                 // Widget has no options, but there's an active spell/item selection.
                 // Register a click target so clicking this widget cancels the selection.
                 // This matches OSRS behavior where clicking on widgets without valid
@@ -1959,8 +2131,14 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     target.onClick = CANCEL_SELECTION_HANDLER;
                 }
                 clicks.register(target);
+                if (profileWidgetRender) {
+                    clickRegisterMs += performance.now() - clickRegisterStartMs;
+                }
             }
         } catch {}
+        if (profileWidgetRender) {
+            clickRegistrationMs += performance.now() - clickRegistrationStartMs;
+        }
 
         // OSRS PARITY: Auto-scroll clamping for IF1 containers only
         // Reference: UserComparator5.java lines 231-238
@@ -2056,6 +2234,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         // Reference: SecureUrlRequester.java drawMinimap() - uses localPlayer position, NOT camera
         // WebGL-based rendering for better mobile performance
         if (contentType === 1338) {
+            const minimapStartMs = profileWidgetRender ? performance.now() : 0;
+            minimapWidgets++;
+            glr.flush();
             const osrsClient = (opts.game as any)?.osrsClient;
             if (osrsClient && osrsClient.camera) {
                 const localPlayerId = osrsClient.controlledPlayerServerId | 0;
@@ -2404,9 +2585,13 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 } // end if (playerState)
             }
             // Skip normal type-based rendering for minimap
+            if (profileWidgetRender) {
+                minimapMs += performance.now() - minimapStartMs;
+            }
         }
 
         if (w.type === 3) {
+            const rectStartMs = profileWidgetRender ? performance.now() : 0;
             // OSRS PARITY: Type 3 rectangle rendering
             // Reference: UserComparator5.java lines 272-304
             // For IF1 widgets, runCs1() determines which color set to use
@@ -2520,7 +2705,12 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     glr.drawRect(x + width - strokeW, y, strokeW, height, [r, g, b, a]);
                 }
             }
+            if (profileWidgetRender) {
+                rectMs += performance.now() - rectStartMs;
+            }
         } else if (w.type === 5 && contentType !== 1339 && contentType !== 1338) {
+            const spriteStartMs = profileWidgetRender ? performance.now() : 0;
+            spriteWidgets++;
             // Type 5 = Sprite widget (skip if compass/minimap - already rendered above)
             const isIf3 = w.isIf3 !== false;
             let cs1Result = false;
@@ -2701,6 +2891,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     );
                 }
             }
+            if (profileWidgetRender) {
+                spriteMs += performance.now() - spriteStartMs;
+            }
         } else if (
             w.type === 6 &&
             ((typeof w.modelId === "number" && w.modelId >= 0) ||
@@ -2712,6 +2905,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 (w as any).isPlayerModel) &&
             typeof opts.renderModelCanvas === "function"
         ) {
+            const modelStartMs = profileWidgetRender ? performance.now() : 0;
+            modelWidgets++;
             // OSRS parity: IF1 widgets use CS1 to choose model/sequence secondary fields.
             const cs1Result = runCs1(w, widgetManager);
             const modelId = ((cs1Result ? w.modelId2 : w.modelId) ?? -1) | 0;
@@ -2841,6 +3036,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             const cached = cacheKey ? modelCache.get(cacheKey) : null;
 
             if (cached) {
+                modelCacheHits++;
                 // PERF: Use cached texture + offsets, skip CPU model rendering entirely
                 const stretch = !!(w as any).stretchModel;
                 if (stretch) {
@@ -2851,6 +3047,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     glr.drawTexture(cached.tex, drawX, drawY, cached.w, cached.h, 1, 1);
                 }
             } else {
+                modelCacheMisses++;
                 // No cache hit - do expensive CPU model rendering
                 const res = opts.renderModelCanvas(
                     modelId,
@@ -2907,7 +3104,11 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     }
                 }
             }
+            if (profileWidgetRender) {
+                modelMs += performance.now() - modelStartMs;
+            }
         } else if (w.type === 9) {
+            const lineStartMs = profileWidgetRender ? performance.now() : 0;
             // OSRS PARITY: Type 9 = Line widget
             // Reference: UserComparator5.java lines 547-564
             // Lines are defined by start point (x, y) and end point (x+width, y+height)
@@ -2951,7 +3152,12 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 // Thick line - draw multiple parallel lines
                 drawThickLine(glr, x1, y1, x2, y2, scaledLineWid, [r, g, b, a]);
             }
+            if (profileWidgetRender) {
+                lineMs += performance.now() - lineStartMs;
+            }
         } else if (w.type === 4 || w.type === 8) {
+            const textStartMs = profileWidgetRender ? performance.now() : 0;
+            textWidgets++;
             // OSRS PARITY: Type 4 text widget rendering
             // Reference: UserComparator5.java lines 305-328
             // For IF1 widgets, runCs1() determines which text/color to use
@@ -3021,6 +3227,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     (w.xTextAlignment ?? 0) as 0 | 1 | 2,
                 );
             }
+            if (profileWidgetRender) {
+                textMs += performance.now() - textStartMs;
+            }
         } else if (w.type === 2) {
             // OSRS parity: no placeholder slot grid rendering for type-2 inventory widgets.
             // Visible cells/items are rendered by real widget content and scripts.
@@ -3034,20 +3243,10 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         // - Type 0 (layer): renders static children (via parentUid) AND dynamic children (w.children)
         // - Type 11 (layer): renders ONLY dynamic children (w.children)
         // Non-container types do NOT render children even if they somehow have them
-        const isContainer = w.type === 0 || w.type === 11;
-
         // OSRS PARITY: Only containers can have children - skip children processing for non-containers
         if (!isContainer) {
             return; // Non-containers have finished rendering their content above
         }
-
-        // Children with clipping for containers (type 0 and 11)
-        // OSRS PARITY: Use parentUid filtering instead of staticChildren array
-        // Get static children by filtering all widgets in the group by parentUid
-        // This matches OSRS updateInterface which iterates Widget[] and filters by parentId
-        const staticChildren = widgetManager?.getStaticChildrenByParentUid(w.uid) ?? [];
-        const hasStaticChildren = staticChildren.length > 0;
-        const hasChildren = !!(w.children && w.children.length);
 
         // OSRS PARITY: InterfaceParent (mounted sub-interface) is rendered as an additional
         // child interface layer for type 0 containers.
@@ -3081,6 +3280,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         // No need to duplicate here
 
         if (hasAnyChildren) {
+            const containerStartMs = profileWidgetRender ? performance.now() : 0;
             // OSRS PARITY: Calculate child clip bounds
             // Reference: UserComparator5.drawInterface lines 163-169
             // For containers, children are clipped to the intersection of:
@@ -3162,6 +3362,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 // Reference: UserComparator5.java line 251 - Rasterizer2D_setClip(var2, var3, var4, var5)
                 sc.pop();
             }
+            if (profileWidgetRender) {
+                containerMs += performance.now() - containerStartMs;
+            }
         }
     }
 
@@ -3220,6 +3423,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         sc.pop();
     }
     sc.pop();
+    glr.flush();
     gl.disable(gl.SCISSOR_TEST);
     // Final debug devoverlay pass, drawn on top of all content
     if (opts.debug && debugRects.length) {
@@ -3261,15 +3465,153 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             menuState: (opts.game?.osrsClient as any)?.menuState,
         });
     } catch {}
+    glr.flush();
 
     // NOTE: Input is processed once per frame by WidgetsOverlay after ALL roots are rendered,
     // so clicks/hover can hit targets from any root (bank, dialogs, etc.).
 
-    // PERF: Log widget count every second (only when profiler enabled)
-    if (profiler.enabled && profiler.verbose) {
+    // PERF: Log widget count and branch timing every second (only when profiler enabled)
+    if (profileWidgetRender) {
+        const renderTotalMs = performance.now() - renderStartMs;
+        const measuredMs = clickRegistrationMs + minimapMs + spriteMs + modelMs + textMs;
+        const otherMs = Math.max(0, renderTotalMs - measuredMs);
+        const drawCountersEnd = glr.getPerfCounters();
+        const drawCallsDelta = drawCountersEnd.drawCalls - (drawCountersStart?.drawCalls ?? 0);
+        const textureDrawCallsDelta =
+            drawCountersEnd.textureDrawCalls - (drawCountersStart?.textureDrawCalls ?? 0);
+        const solidDrawCallsDelta =
+            drawCountersEnd.solidDrawCalls - (drawCountersStart?.solidDrawCalls ?? 0);
+        const gradientDrawCallsDelta =
+            drawCountersEnd.gradientDrawCalls - (drawCountersStart?.gradientDrawCalls ?? 0);
+        const maskedDrawCallsDelta =
+            drawCountersEnd.maskedDrawCalls - (drawCountersStart?.maskedDrawCalls ?? 0);
+
         _accumulatedWidgetCount += _widgetRenderCount;
         _accumulatedFrames++;
+        _accumulatedWidgetRenderMs += renderTotalMs;
+        _accumulatedWidgetClickMs += clickRegistrationMs;
+        _accumulatedWidgetMinimapMs += minimapMs;
+        _accumulatedWidgetSpriteMs += spriteMs;
+        _accumulatedWidgetModelMs += modelMs;
+        _accumulatedWidgetTextMs += textMs;
+        _accumulatedWidgetOtherMs += otherMs;
+        _accumulatedWidgetRectMs += rectMs;
+        _accumulatedWidgetLineMs += lineMs;
+        _accumulatedWidgetContainerMs += containerMs;
+        _accumulatedWidgetClickProbeMs += clickProbeMs;
+        _accumulatedWidgetClickDeriveMs += clickDeriveMs;
+        _accumulatedWidgetClickRegisterMs += clickRegisterMs;
+        _accumulatedWidgetPasses++;
+        _accumulatedWidgetDrawCalls += drawCallsDelta;
+        _accumulatedWidgetTextureDrawCalls += textureDrawCallsDelta;
+        _accumulatedWidgetSolidDrawCalls += solidDrawCallsDelta;
+        _accumulatedWidgetGradientDrawCalls += gradientDrawCallsDelta;
+        _accumulatedWidgetMaskedDrawCalls += maskedDrawCallsDelta;
+        _accumulatedTextWidgets += textWidgets;
+        _accumulatedSpriteWidgets += spriteWidgets;
+        _accumulatedModelWidgets += modelWidgets;
+        _accumulatedMinimapWidgets += minimapWidgets;
+        _accumulatedInteractiveWidgets += interactiveWidgets;
+        _accumulatedMenuDeriveWidgets += menuDeriveWidgets;
+        _accumulatedMenuEntries += menuEntriesTotal;
+        _accumulatedModelCacheHits += modelCacheHits;
+        _accumulatedModelCacheMisses += modelCacheMisses;
+
         const now = performance.now();
+        if (now - _lastWidgetBreakdownLog > 1000) {
+            if (_accumulatedWidgetPasses > 0 && _accumulatedWidgetRenderMs > 0.1) {
+                const total = _accumulatedWidgetRenderMs;
+                const otherAccounted =
+                    _accumulatedWidgetRectMs + _accumulatedWidgetLineMs + _accumulatedWidgetContainerMs;
+                const otherMiscMs = Math.max(0, _accumulatedWidgetOtherMs - otherAccounted);
+                const clickAccounted =
+                    _accumulatedWidgetClickProbeMs +
+                    _accumulatedWidgetClickDeriveMs +
+                    _accumulatedWidgetClickRegisterMs;
+                const clickMiscMs = Math.max(0, _accumulatedWidgetClickMs - clickAccounted);
+                const avgPerPass = (value: number) =>
+                    (_accumulatedWidgetPasses > 0 ? value / _accumulatedWidgetPasses : 0).toFixed(1);
+                const pct = (value: number) => ((value / total) * 100).toFixed(0);
+                console.log(
+                    `[PERF] Widget render branches (${
+                        _accumulatedWidgetPasses
+                    } passes, ${total.toFixed(1)}ms): ` +
+                        `other=${_accumulatedWidgetOtherMs.toFixed(1)}ms (${pct(
+                            _accumulatedWidgetOtherMs,
+                        )}%), ` +
+                        `text=${_accumulatedWidgetTextMs.toFixed(1)}ms (${pct(
+                            _accumulatedWidgetTextMs,
+                        )}%), ` +
+                        `sprite=${_accumulatedWidgetSpriteMs.toFixed(1)}ms (${pct(
+                            _accumulatedWidgetSpriteMs,
+                        )}%), ` +
+                        `minimap=${_accumulatedWidgetMinimapMs.toFixed(1)}ms (${pct(
+                            _accumulatedWidgetMinimapMs,
+                        )}%), ` +
+                        `model=${_accumulatedWidgetModelMs.toFixed(1)}ms (${pct(
+                            _accumulatedWidgetModelMs,
+                        )}%), ` +
+                        `click=${_accumulatedWidgetClickMs.toFixed(1)}ms (${pct(
+                            _accumulatedWidgetClickMs,
+                        )}%) | ` +
+                        `draws=${_accumulatedWidgetDrawCalls} ` +
+                        `(tex ${_accumulatedWidgetTextureDrawCalls}, solid ${_accumulatedWidgetSolidDrawCalls}, ` +
+                        `grad ${_accumulatedWidgetGradientDrawCalls}, masked ${_accumulatedWidgetMaskedDrawCalls}) | ` +
+                        `other: rect ${_accumulatedWidgetRectMs.toFixed(1)}, line ${_accumulatedWidgetLineMs.toFixed(
+                            1,
+                        )}, container ${_accumulatedWidgetContainerMs.toFixed(
+                            1,
+                        )}, misc ${otherMiscMs.toFixed(1)} | ` +
+                        `click: probe ${_accumulatedWidgetClickProbeMs.toFixed(
+                            1,
+                        )}, derive ${_accumulatedWidgetClickDeriveMs.toFixed(
+                            1,
+                        )}, register ${_accumulatedWidgetClickRegisterMs.toFixed(
+                            1,
+                        )}, misc ${clickMiscMs.toFixed(1)} | ` +
+                        `avg/pass: widgets ${avgPerPass(_accumulatedWidgetCount)}, text ${avgPerPass(
+                            _accumulatedTextWidgets,
+                        )}, sprite ${avgPerPass(_accumulatedSpriteWidgets)}, model ${avgPerPass(
+                            _accumulatedModelWidgets,
+                        )}, minimap ${avgPerPass(_accumulatedMinimapWidgets)}, interactive ${avgPerPass(
+                            _accumulatedInteractiveWidgets,
+                        )}, menuDerive ${avgPerPass(_accumulatedMenuDeriveWidgets)}, menuEntries ${avgPerPass(
+                            _accumulatedMenuEntries,
+                        )}, modelCache hit/miss ${_accumulatedModelCacheHits}/${
+                            _accumulatedModelCacheMisses
+                        }`,
+                );
+            }
+            _accumulatedWidgetRenderMs = 0;
+            _accumulatedWidgetClickMs = 0;
+            _accumulatedWidgetMinimapMs = 0;
+            _accumulatedWidgetSpriteMs = 0;
+            _accumulatedWidgetModelMs = 0;
+            _accumulatedWidgetTextMs = 0;
+            _accumulatedWidgetOtherMs = 0;
+            _accumulatedWidgetRectMs = 0;
+            _accumulatedWidgetLineMs = 0;
+            _accumulatedWidgetContainerMs = 0;
+            _accumulatedWidgetClickProbeMs = 0;
+            _accumulatedWidgetClickDeriveMs = 0;
+            _accumulatedWidgetClickRegisterMs = 0;
+            _accumulatedWidgetPasses = 0;
+            _accumulatedWidgetDrawCalls = 0;
+            _accumulatedWidgetTextureDrawCalls = 0;
+            _accumulatedWidgetSolidDrawCalls = 0;
+            _accumulatedWidgetGradientDrawCalls = 0;
+            _accumulatedWidgetMaskedDrawCalls = 0;
+            _accumulatedTextWidgets = 0;
+            _accumulatedSpriteWidgets = 0;
+            _accumulatedModelWidgets = 0;
+            _accumulatedMinimapWidgets = 0;
+            _accumulatedInteractiveWidgets = 0;
+            _accumulatedMenuDeriveWidgets = 0;
+            _accumulatedMenuEntries = 0;
+            _accumulatedModelCacheHits = 0;
+            _accumulatedModelCacheMisses = 0;
+            _lastWidgetBreakdownLog = now;
+        }
         if (now - _lastWidgetCountLog > 1000) {
             if (_accumulatedFrames > 0) {
                 const avgWidgets = (_accumulatedWidgetCount / _accumulatedFrames) | 0;

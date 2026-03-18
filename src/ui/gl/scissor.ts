@@ -180,6 +180,7 @@ export class ScissorStack {
     private gl: WebGL2RenderingContext;
     private viewportW: number;
     private viewportH: number;
+    private beforeScissorChange?: () => void;
     // Stack stores GL scissor coords [x, y, w, h] in GL space (bottom-left origin)
     // PERF: Pre-allocated array, use stackTop to track depth instead of push/pop
     private stack: Array<[number, number, number, number]>;
@@ -191,10 +192,16 @@ export class ScissorStack {
     // PERF: Initial capacity for stacks (resize if needed)
     private static readonly INITIAL_CAPACITY = 32;
 
-    constructor(gl: WebGL2RenderingContext, viewportW: number, viewportH: number) {
+    constructor(
+        gl: WebGL2RenderingContext,
+        viewportW: number,
+        viewportH: number,
+        beforeScissorChange?: () => void,
+    ) {
         this.gl = gl;
         this.viewportW = viewportW | 0;
         this.viewportH = viewportH | 0;
+        this.beforeScissorChange = beforeScissorChange;
         // Pre-allocate stack arrays
         this.stack = new Array(ScissorStack.INITIAL_CAPACITY);
         for (let i = 0; i < ScissorStack.INITIAL_CAPACITY; i++) {
@@ -210,10 +217,16 @@ export class ScissorStack {
      * PERF: Reinitialize for a new frame without allocating new arrays.
      * Call this instead of creating a new ScissorStack each frame.
      */
-    reinit(gl: WebGL2RenderingContext, viewportW: number, viewportH: number): void {
+    reinit(
+        gl: WebGL2RenderingContext,
+        viewportW: number,
+        viewportH: number,
+        beforeScissorChange?: () => void,
+    ): void {
         this.gl = gl;
         this.viewportW = viewportW | 0;
         this.viewportH = viewportH | 0;
+        this.beforeScissorChange = beforeScissorChange;
         this.stackTop = 0;
         this.clipStackTop = 0;
     }
@@ -290,6 +303,7 @@ export class ScissorStack {
         entry[2] = glW;
         entry[3] = glH;
         this.stackTop++;
+        this.beforeScissorChange?.();
         this.gl.scissor(glX, glY, glW, glH);
     }
 
@@ -298,8 +312,10 @@ export class ScissorStack {
         if (this.clipStackTop > 0) this.clipStackTop--;
         if (this.stackTop > 0) {
             const entry = this.stack[this.stackTop - 1];
+            this.beforeScissorChange?.();
             this.gl.scissor(entry[0], entry[1], entry[2], entry[3]);
         } else {
+            this.beforeScissorChange?.();
             this.gl.scissor(0, 0, this.viewportW, this.viewportH);
         }
     }
@@ -361,6 +377,7 @@ export class ScissorStack {
         entry[2] = glW;
         entry[3] = glH;
         this.stackTop++;
+        this.beforeScissorChange?.();
         this.gl.scissor(glX, glY, glW, glH);
     }
 
@@ -371,6 +388,7 @@ export class ScissorStack {
     reset() {
         this.stackTop = 0;
         this.clipStackTop = 0;
+        this.beforeScissorChange?.();
         this.gl.scissor(0, 0, this.viewportW, this.viewportH);
     }
 }

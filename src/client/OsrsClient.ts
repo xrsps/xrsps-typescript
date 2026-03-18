@@ -117,6 +117,7 @@ import {
     INTERFACE_QUEST_LIST_ID,
     SIDE_JOURNAL_GROUP_ID,
 } from "../shared/ui/sideJournal";
+import { markWidgetInteractionDirty } from "../ui/widgets/WidgetInteraction";
 import {
     TRANSMIT_VARPS,
     VARBIT_COMBATLEVEL_TRANSMIT,
@@ -2219,6 +2220,7 @@ export class OsrsClient {
                 const w = this.widgetManager?.getWidgetByUid(uid);
                 if (w) {
                     w.text = text;
+                    markWidgetInteractionDirty(w);
                     this.widgetManager.invalidateWidgetRender(w);
                 }
             } else if (payload?.action === "set_hidden") {
@@ -2271,6 +2273,7 @@ export class OsrsClient {
                     (w as any).itemId = itemId | 0;
                     (w as any).itemQuantity = quantity;
                     (w as any).modelOrthog = true;
+                    markWidgetInteractionDirty(w);
                     this.widgetManager.invalidateWidgetRender(w);
                 }
             } else if (payload?.action === "set_npc_head") {

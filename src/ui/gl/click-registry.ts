@@ -31,6 +31,9 @@ function inRect(p: { x: number; y: number }, r: Rect) {
 
 export class ClickRegistry {
     private targets: ClickTarget[] = [];
+    private targetIndexById: Map<string, number> = new Map();
+    private registrationOrderById: Map<string, number> = new Map();
+    private nextRegistrationOrder: number = 1;
     private hoverId: string | null = null;
     private activeId: string | null = null;
     // Store the active target itself, not just the id, so it survives beginFrame() clearing
@@ -55,21 +58,37 @@ export class ClickRegistry {
         } else {
             this.targets = [];
         }
+        this.rebuildIndexes();
         // keep hover/active across frames when still valid
     }
 
     register(target: ClickTarget) {
         // Replace-by-id to avoid unbounded growth when callers re-register targets every frame.
-        // Preserve overlap behavior by treating a replacement as "latest registered" (move to end).
-        const idx = this.targets.findIndex((t) => t.id === target.id);
-        if (idx >= 0) {
-            this.targets.splice(idx, 1);
+        // Track "latest registered" via a monotonic order counter instead of physically moving
+        // array entries, which avoids O(n) churn during large widget redraws.
+        const existingIdx = this.targetIndexById.get(target.id);
+        if (existingIdx !== undefined) {
+            this.targets[existingIdx] = target;
+        } else {
+            this.targetIndexById.set(target.id, this.targets.length);
+            this.targets.push(target);
         }
-        this.targets.push(target);
+        this.registrationOrderById.set(target.id, this.nextRegistrationOrder++);
     }
 
     unregister(id: string) {
-        this.targets = this.targets.filter((t) => t.id !== id);
+        const idx = this.targetIndexById.get(id);
+        if (idx !== undefined) {
+            const lastIdx = this.targets.length - 1;
+            if (idx !== lastIdx) {
+                const last = this.targets[lastIdx];
+                this.targets[idx] = last;
+                this.targetIndexById.set(last.id, idx);
+            }
+            this.targets.pop();
+            this.targetIndexById.delete(id);
+        }
+        this.registrationOrderById.delete(id);
         if (this.hoverId === id) this.hoverId = null;
         if (this.activeId === id) this.activeId = null;
     }
@@ -99,9 +118,9 @@ export class ClickRegistry {
         const id = hit?.id || null;
         if (id !== this.hoverId) {
             // notify previous
-            const prev = this.targets.find((t) => t.id === this.hoverId);
+            const prev = this.hoverId ? this.getTargetById(this.hoverId) : undefined;
             if (prev?.onHoverChange) prev.onHoverChange(false);
-            const next = this.targets.find((t) => t.id === id);
+            const next = id ? this.getTargetById(id) : undefined;
             if (next?.onHoverChange) next.onHoverChange(true);
             this.hoverId = id;
             return true;
@@ -128,7 +147,7 @@ export class ClickRegistry {
         let target: ClickTarget | undefined = this.activeTarget ?? undefined;
         // If activeTarget was cleared somehow, try to find by id as fallback
         if (!target && this.activeId) {
-            target = this.targets.find((t) => t.id === this.activeId);
+            target = this.getTargetById(this.activeId);
         }
         const hadActive = !!this.activeTarget;
         this.activeId = null;
@@ -176,7 +195,7 @@ export class ClickRegistry {
     getHoverTarget(): ClickTarget | undefined {
         const id = this.hoverId;
         if (!id) return undefined;
-        const target = this.targets.find((t) => t.id === id);
+        const target = this.getTargetById(id);
         if (!target) return undefined;
         // Check visibility at query time (OSRS-style)
         if (target.widgetUid !== undefined && this.widgetHiddenChecker?.(target.widgetUid)) {
@@ -205,12 +224,25 @@ export class ClickRegistry {
             if (t.widgetUid !== undefined && this.widgetHiddenChecker?.(t.widgetUid)) {
                 continue;
             }
-            const p = (t.priority ?? 0) * 1e6 + i; // later registered wins on tie
+            const order = this.registrationOrderById.get(t.id) ?? 0;
+            const p = (t.priority ?? 0) * 1e6 + order; // later registered wins on tie
             if (p > bestP) {
                 bestP = p;
                 best = t;
             }
         }
         return best;
+    }
+
+    private getTargetById(id: string): ClickTarget | undefined {
+        const idx = this.targetIndexById.get(id);
+        return idx === undefined ? undefined : this.targets[idx];
+    }
+
+    private rebuildIndexes(): void {
+        this.targetIndexById.clear();
+        for (let i = 0; i < this.targets.length; i++) {
+            this.targetIndexById.set(this.targets[i].id, i);
+        }
     }
 }
