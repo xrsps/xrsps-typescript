@@ -1,11 +1,18 @@
+import type { PlayerCombatManager } from "../combat";
 import { NpcManager } from "../npcManager";
 import { PlayerManager } from "../player";
 
 export class MovementSystem {
+    private playerCombatManager?: PlayerCombatManager;
+
     constructor(
         private readonly players: PlayerManager,
         private readonly npcManager?: NpcManager,
     ) {}
+
+    setPlayerCombatManager(playerCombatManager: PlayerCombatManager | undefined): void {
+        this.playerCombatManager = playerCombatManager;
+    }
 
     runPreMovement(tick: number): void {
         // Update follow positions BEFORE processing following logic
@@ -42,7 +49,16 @@ export class MovementSystem {
         try {
             // Lock movement for players that are about to start a combat swing/cast this tick.
             // This prevents "move away then attack" artifacts due to tick phase ordering.
-            this.players.applyCombatMovementLocks(tick, (npcId) => this.npcManager?.getById(npcId));
+            this.players.applyCombatMovementLocks(
+                tick,
+                (npcId) => this.npcManager?.getById(npcId),
+                (playerId, npcId, currentTick) =>
+                    this.playerCombatManager?.shouldLockPreMovement(
+                        playerId,
+                        npcId,
+                        currentTick,
+                    ) ?? false,
+            );
         } catch {}
     }
 

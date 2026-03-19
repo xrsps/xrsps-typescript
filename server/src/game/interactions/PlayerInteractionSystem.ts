@@ -41,39 +41,11 @@ import {
 } from "./types";
 
 /**
- * OSRS Combat Timing Constants
- *
- * In OSRS, when a player runs away from combat, the NPC keeps chasing for a certain
- * duration before giving up. RSMod uses ACTIVE_COMBAT_TIMER = 17 ticks (10.2 seconds).
- * This is the hold time after the player stops auto-attacking.
- */
-const DEFAULT_NPC_AGGRO_HOLD_TICKS = 16; // ~10 seconds
-
-/**
  * Maximum distance (in tiles) the player can be from the NPC before combat disengages.
  * In OSRS, this is typically the view distance.
  */
 const PLAYER_CHASE_DISTANCE_TILES = 32;
 
-/**
- * OSRS Melee Combat Movement Lock
- *
- * When a melee attack is executed, the player's path is cleared for this many ticks
- * to prevent moving during the attack animation.
- */
-const PLAYER_STEP_LOCK_TICKS = 1;
-
-/**
- * OSRS Melee Combat Hold Position
- *
- * After a melee attack, the player is held in position for the weapon's attack delay.
- * This prevents kiting behavior and matches OSRS's "attack delay" feel.
- *
- * NOTE: The actual holdPositionUntilTick is now calculated dynamically using
- * the player's attackDelay (weapon attack speed), not this constant.
- * This constant is kept as a fallback only.
- */
-const PLAYER_HOLD_POSITION_TICKS_FALLBACK = 4; // Default 4-tick weapon
 const YOU_CANT_REACH_THAT = "I can't reach that!";
 const LEAGUE_TUTOR_NPC_TYPE_ID = 315;
 
@@ -191,7 +163,7 @@ export class PlayerInteractionSystem {
      */
     private onInterruptSkillActions?: (playerId: number) => void;
     /**
-     * Callback to stop auto-attack in CombatController when player walks.
+     * Callback to stop auto-attack in PlayerCombatManager when player walks.
      */
     private onStopAutoAttack?: (playerId: number) => void;
     /**
@@ -273,7 +245,7 @@ export class PlayerInteractionSystem {
     }
 
     /**
-     * Set callback to stop auto-attack in CombatController when player walks.
+     * Set callback to stop auto-attack in PlayerCombatManager when player walks.
      * This is called when clearAllInteractions() is invoked during an active npcCombat.
      */
     setStopAutoAttackCallback(callback: (playerId: number) => void): void {
@@ -362,10 +334,7 @@ export class PlayerInteractionSystem {
             if (st.kind === "npcCombat") {
                 const combatState = st as NpcCombatInteractionState;
                 combatState.playerAutoAttack = false;
-                combatState.pendingAttackTick = undefined;
-                combatState.holdPositionUntilTick = undefined;
-                combatState.stepLockUntilTick = undefined;
-                // Also notify CombatController to stop player auto-attack
+                // Also notify PlayerCombatManager to stop player auto-attack
                 if (me) {
                     this.onStopAutoAttack?.(me.id);
                 }
@@ -638,12 +607,7 @@ export class PlayerInteractionSystem {
         );
         if (interaction && interaction.kind === "npcCombat") {
             interaction.playerAutoAttack = false;
-            interaction.aggroHoldTicks = DEFAULT_NPC_AGGRO_HOLD_TICKS;
             interaction.lastRouteTick = Number.MIN_SAFE_INTEGER;
-            interaction.pendingAttackTick = undefined;
-            interaction.stepLockUntilTick = undefined;
-            interaction.holdPositionUntilTick = undefined;
-            interaction.retaliationEngaged = false;
         } else if (interaction) {
             this.interactions.delete(ws);
         }
@@ -660,7 +624,7 @@ export class PlayerInteractionSystem {
         ws: any,
         npc: NpcState,
         currentTick: number,
-        attackDelay: number = 4,
+        _attackDelay: number = 4,
         modifierFlags?: number,
     ): { ok: boolean; message?: string; chatMessage?: string } {
         // Support passing either a socket or a PlayerState directly (for bots)
@@ -703,41 +667,24 @@ export class PlayerInteractionSystem {
             // Clicking "Attack" should continue routing/attacking until cancelled.
             // Whether attacks repeat after the first swing/cast is resolved on-hit.
             state.playerAutoAttack = true;
-            state.retaliationEngaged = state.retaliationEngaged ?? false;
             state.modifierFlags = this.normalizeModifierFlags(modifierFlags);
         } else {
             state = {
                 kind: "npcCombat",
                 npcId: npc.id,
                 modifierFlags: this.normalizeModifierFlags(modifierFlags),
-                nextAttackTick: currentTick,
                 lastRouteTick: currentTick,
-                attackDelay: Math.max(1, attackDelay),
                 lastNpcTileX: npc.tileX,
                 lastNpcTileY: npc.tileY,
                 playerAutoAttack: true,
-                aggroHoldTicks: DEFAULT_NPC_AGGRO_HOLD_TICKS,
-                npcAttackDelay: 4,
-                npcNextAttackTick: 0,
-                lastNpcChaseTick: currentTick,
-                pendingAttackTick: undefined,
-                retaliationEngaged: false,
             };
         }
 
-        state.nextAttackTick = currentTick;
         state.lastRouteTick = currentTick;
-        state.attackDelay = Math.max(1, attackDelay ?? state.attackDelay ?? 4);
         state.lastNpcTileX = npc.tileX;
         state.lastNpcTileY = npc.tileY;
         state.playerAutoAttack = true;
         state.modifierFlags = this.normalizeModifierFlags(state.modifierFlags);
-        state.aggroHoldTicks = DEFAULT_NPC_AGGRO_HOLD_TICKS;
-        const npcDelay = Math.max(1, state.npcAttackDelay ?? state.attackDelay ?? 4);
-        state.npcAttackDelay = npcDelay;
-        state.npcNextAttackTick = 0;
-        state.lastNpcChaseTick = currentTick;
-        state.pendingAttackTick = undefined;
         state.unreachableSinceTick = undefined;
 
         // OSRS parity: Do not force NPC to face/engage on click.
@@ -753,7 +700,6 @@ export class PlayerInteractionSystem {
         if (this.isWithinAttackReach(me, npc)) {
             me.clearPath();
             state.lastRouteTick = currentTick;
-            state.nextAttackTick = currentTick;
             state.unreachableSinceTick = undefined;
             return { ok: true };
         }
@@ -768,7 +714,6 @@ export class PlayerInteractionSystem {
             )
         ) {
             state.lastRouteTick = currentTick;
-            state.nextAttackTick = currentTick;
             state.unreachableSinceTick = undefined;
             return { ok: true };
         }
@@ -787,7 +732,6 @@ export class PlayerInteractionSystem {
             // If player walks into range during this tick's movement phase, they can
             // attack during the combat phase (same tick). The attack speed cooldown
             // only starts AFTER the first attack is executed, not when clicked.
-            state.nextAttackTick = currentTick;
             state.unreachableSinceTick = undefined;
             return { ok: true };
         }
@@ -803,13 +747,11 @@ export class PlayerInteractionSystem {
             fallbackRouted && (me.hasPath() || this.isWithinAttackReach(me, npc));
         if (fallbackWithProgress) {
             state.lastRouteTick = currentTick;
-            state.nextAttackTick = currentTick;
             state.unreachableSinceTick = undefined;
             return { ok: true };
         }
 
         // Routing failed - try again next tick
-        state.nextAttackTick = currentTick;
         state.unreachableSinceTick = currentTick;
         return { ok: false, message: "no_path" };
     }
@@ -818,11 +760,6 @@ export class PlayerInteractionSystem {
         const st = this.interactions.get(ws);
         if (!st || st.kind !== "npcCombat") return;
         st.playerAutoAttack = false;
-        st.aggroHoldTicks = Math.max(st.aggroHoldTicks, DEFAULT_NPC_AGGRO_HOLD_TICKS);
-        st.npcNextAttackTick = Number.MIN_SAFE_INTEGER;
-        st.lastNpcChaseTick = Number.MIN_SAFE_INTEGER;
-        st.stepLockUntilTick = undefined;
-        st.holdPositionUntilTick = undefined;
         const me = this.players.get(ws);
         if (me) {
             // RSMod parity: Clear combat target (COMBAT_TARGET_FOCUS_ATTR)
@@ -834,7 +771,7 @@ export class PlayerInteractionSystem {
     }
 
     /**
-     * Fully ends preserved NPC combat focus after the combat controller drops the engagement.
+     * Fully ends preserved NPC combat focus after PlayerCombatManager drops the engagement.
      * This is distinct from `stopNpcAttack()`, which intentionally preserves the interaction
      * while the NPC is still allowed to chase/retaliate during the aggro hold window.
      */
@@ -869,48 +806,6 @@ export class PlayerInteractionSystem {
             if (player.getInteractingNpc()?.id === state.npcId) {
                 player.setInteractingNpc(null);
             }
-        }
-    }
-
-    /**
-     * Called when a player's hit on an NPC actually lands (hitsplat applied).
-     * OSRS parity: NPC retaliation should only start after the first hit LANDS,
-     * not when the attack is scheduled. This handles projectile delays correctly.
-     *
-     * @param ws - The player's websocket
-     * @param npcId - The NPC that was hit
-     * @param tick - Current game tick
-     * @param npc - The NPC state (for engaging combat)
-     */
-    confirmNpcHitLanded(ws: any, npcId: number, tick: number, npc: NpcState): void {
-        const st = this.interactions.get(ws);
-        if (!st || st.kind !== "npcCombat") return;
-        if (st.npcId !== npcId) return;
-
-        const me = this.players.get(ws);
-        if (!me) return;
-        if (npc.isRecoveringToSpawn()) return;
-
-        // First hit has now landed - NPC can start retaliating
-        if (!st.retaliationEngaged) {
-            st.retaliationEngaged = true;
-            st.attackScheduled = false; // Attack resolved
-            // Keep existing NPC timer if it is already in combat with someone.
-            // This matches CombatController.confirmHitLanded parity behavior.
-            const wasAlreadyInCombat = npc.isInCombat(tick);
-            if (!wasAlreadyInCombat) {
-                // Set timer on NPC itself, not per-interaction state.
-                // This delay is until retaliation swing; the hit resolves on NPC hit delay.
-                const npcAttackSpeed = npc.attackSpeed;
-                const retaliationDelay = Math.ceil(npcAttackSpeed / 2);
-                const nextSwingTick = tick + retaliationDelay;
-                npc.setNextAttackTick(nextSwingTick);
-                st.npcNextAttackTick = nextSwingTick;
-            } else {
-                st.npcNextAttackTick = npc.getNextAttackTick();
-            }
-            npc.engageCombat(me.id, tick);
-            npc.setInteraction("player", me.id);
         }
     }
 
@@ -1245,7 +1140,7 @@ export class PlayerInteractionSystem {
             // Passive NPC interactions (e.g., banking) should not mark the NPC as
             // "interacting with" the player. Setting the NPC's interaction index causes
             // clients to render combat-like targeting arrows. We only set NPC->player
-            // interaction during actual combat (see CombatController). For passive
+            // interaction during actual combat (see PlayerCombatManager). For passive
             // interactions, keep the NPC's interaction index clear.
             npc.clearInteraction();
 
@@ -1597,13 +1492,15 @@ export class PlayerInteractionSystem {
      * clear their path now so traversal does not consume a step before the combat phase schedules
      * the swing/cast.
      */
-    applyCombatMovementLocks(tick: number, npcLookup: InteractionTickNpcLookup): void {
+    applyCombatMovementLocks(
+        tick: number,
+        npcLookup: InteractionTickNpcLookup,
+        shouldLockMovement?: (playerId: number, npcId: number, tick: number) => boolean,
+    ): void {
         this.forEachInteraction((ws, interaction) => {
             if (interaction.kind !== "npcCombat") return;
             const state = interaction as NpcCombatInteractionState;
             if (!state.playerAutoAttack) return;
-            if (state.pendingAttackTick !== undefined) return;
-            if (tick < state.nextAttackTick) return;
 
             const me = this.players.get(ws);
             if (!me) return;
@@ -1612,15 +1509,9 @@ export class PlayerInteractionSystem {
 
             const reach = this.getPlayerAttackReach(me);
             if (!this.isWithinAttackReach(me, npc)) return;
-
+            if (reach > 1) return;
+            if (!shouldLockMovement?.(me.id, state.npcId, tick)) return;
             me.clearPath();
-            if (reach <= 1) {
-                state.stepLockUntilTick = tick + PLAYER_STEP_LOCK_TICKS;
-                // OSRS parity: Hold position for weapon's attack delay
-                const holdTicks =
-                    Math.max(1, state.attackDelay) || PLAYER_HOLD_POSITION_TICKS_FALLBACK;
-                state.holdPositionUntilTick = tick + holdTicks;
-            }
         });
     }
 

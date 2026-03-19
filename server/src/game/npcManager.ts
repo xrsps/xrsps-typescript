@@ -80,18 +80,6 @@ type NearbyAggressionPlayer = {
     aggressionState: PlayerAggressionState;
 };
 
-const DEBUG_NPC_ROAM_TYPE_IDS = (() => {
-    const raw = process.env.DEBUG_NPC_ROAM_TYPES ?? "11917";
-    const ids = new Set<number>();
-    for (const token of raw.split(",")) {
-        const value = Number(token.trim());
-        if (Number.isInteger(value) && value >= 0) {
-            ids.add(value);
-        }
-    }
-    return ids;
-})();
-
 const REGION_SIZE = 32; // tiles; aligns to half a chunk for coarse spatial buckets
 
 /** Track NPCs we've warned about missing combat stats */
@@ -196,7 +184,6 @@ export class NpcManager {
         number,
         { despawnTick: number; respawnTick: number; pendingDrops?: PendingNpcDrop[] }
     >();
-    private readonly lastRoamDebugStateByNpcId = new Map<number, string>();
     private npcCombatStats?: Record<string, any>;
 
     // Boss scripts for NPCs with complex combat behaviors
@@ -865,7 +852,7 @@ export class NpcManager {
                         npc.disengageCombat();
                         npc.scheduleNextAggressionCheck(currentTick);
                     }
-                    this.processRecoveryNpcMovement(npc, currentTick);
+                    this.processRecoveryNpcMovement(npc);
                 } else if (
                     combatTargetId !== undefined &&
                     npc.isInCombat(currentTick) &&
@@ -1157,14 +1144,7 @@ export class NpcManager {
     ): void {
         // RSMod parity: Timer-based roaming check
         // canRoam() checks if timer elapsed, not facing pawn, can move, etc.
-        const blockReason = npc.getRoamBlockReason(currentTick);
-        if (blockReason) {
-            this.logNpcRoamDebug(
-                npc,
-                currentTick,
-                blockReason.logKey,
-                `roam blocked: ${blockReason.detail}`,
-            );
+        if (!npc.canRoam(currentTick)) {
             return;
         }
 
@@ -1174,44 +1154,17 @@ export class NpcManager {
 
         const target = this.pickRandomTarget(npc);
         if (!target) {
-            this.logNpcRoamDebug(
-                npc,
-                currentTick,
-                "no_target",
-                "roam attempt found no random target within wander radius after 8 tries",
-            );
             return;
         }
 
         if (roamBudget) {
             if (roamBudget.remaining <= 0) {
-                this.logNpcRoamDebug(
-                    npc,
-                    currentTick,
-                    "budget_exhausted",
-                    "roam attempt skipped because the per-tick roam budget was exhausted",
-                );
                 return;
             }
             roamBudget.remaining--;
         }
 
-        const queued = this.queueNpcPathToward(npc, target, { maxQueuedSteps: 8 });
-        if (!queued) {
-            this.logNpcRoamDebug(
-                npc,
-                currentTick,
-                `queue_failed:${target.x}:${target.y}`,
-                `roam target (${target.x}, ${target.y}) could not be queued`,
-            );
-            return;
-        }
-        this.logNpcRoamDebug(
-            npc,
-            currentTick,
-            `queued:${target.x}:${target.y}:${npc.getPathQueue().length}`,
-            `queued roam path toward (${target.x}, ${target.y}) with ${npc.getPathQueue().length} step(s)`,
-        );
+        this.queueNpcPathToward(npc, target, { maxQueuedSteps: 8 });
     }
 
     private processIdleNpcMovement(
@@ -1220,75 +1173,29 @@ export class NpcManager {
         roamBudget?: { remaining: number },
     ): void {
         if (npc.isFacingPawn()) {
-            const interaction = npc.getInteractionTarget();
-            this.logNpcRoamDebug(
-                npc,
-                currentTick,
-                interaction ? `clear_facing:${interaction.type}:${interaction.id}` : "clear_facing",
-                interaction
-                    ? `clearing stale interaction target ${interaction.type} ${interaction.id} before idle roam`
-                    : "clearing stale interaction target before idle roam",
-            );
             npc.clearInteractionTarget();
         }
         this.maybeStartRoam(npc, currentTick, roamBudget);
     }
 
-    private processRecoveryNpcMovement(npc: NpcState, currentTick: number): void {
+    private processRecoveryNpcMovement(npc: NpcState): void {
         npc.beginSpawnRecovery();
-        const recoveryReason =
-            npc.level !== npc.spawnLevel
-                ? `recovering to spawn because level ${npc.level} differs from spawn level ${npc.spawnLevel}`
-                : `recovering to spawn because tile (${npc.tileX}, ${npc.tileY}) is outside roam radius ${npc.wanderRadius}`;
-        this.logNpcRoamDebug(
-            npc,
-            currentTick,
-            npc.level !== npc.spawnLevel ? "recover_level" : "recover_bounds",
-            recoveryReason,
-        );
-        this.maybeRecoverToSpawn(npc, currentTick);
+        this.maybeRecoverToSpawn(npc);
     }
 
-    private maybeRecoverToSpawn(npc: NpcState, currentTick: number): void {
+    private maybeRecoverToSpawn(npc: NpcState): void {
         if (npc.level !== npc.spawnLevel) {
-            this.logNpcRoamDebug(
-                npc,
-                currentTick,
-                "reset_spawn_level",
-                `resetting directly to spawn because current level ${npc.level} differs from spawn level ${npc.spawnLevel}`,
-            );
             npc.resetToSpawn();
             return;
         }
         if (npc.tileX === npc.spawnX && npc.tileY === npc.spawnY) {
             npc.stopSpawnRecovery();
-            this.logNpcRoamDebug(
-                npc,
-                currentTick,
-                "recover_at_spawn",
-                "recovery requested but NPC is already on its spawn tile",
-            );
             return;
         }
-        const queued = this.queueNpcPathToward(
+        this.queueNpcPathToward(
             npc,
             { x: npc.spawnX, y: npc.spawnY },
             { maxQueuedSteps: 2 },
-        );
-        if (!queued) {
-            this.logNpcRoamDebug(
-                npc,
-                currentTick,
-                `recover_queue_failed:${npc.spawnX}:${npc.spawnY}`,
-                `failed to queue recovery path back to spawn (${npc.spawnX}, ${npc.spawnY})`,
-            );
-            return;
-        }
-        this.logNpcRoamDebug(
-            npc,
-            currentTick,
-            `recover_queued:${npc.spawnX}:${npc.spawnY}:${npc.getPathQueue().length}`,
-            `queued recovery path back to spawn (${npc.spawnX}, ${npc.spawnY}) with ${npc.getPathQueue().length} step(s)`,
         );
     }
 
@@ -1531,33 +1438,6 @@ export class NpcManager {
             return { x: tx, y: ty };
         }
         return undefined;
-    }
-
-    private shouldDebugNpcRoam(npc: NpcState): boolean {
-        return DEBUG_NPC_ROAM_TYPE_IDS.has(npc.typeId);
-    }
-
-    private logNpcRoamDebug(
-        npc: NpcState,
-        currentTick: number,
-        stateKey: string,
-        detail: string,
-    ): void {
-        if (!this.shouldDebugNpcRoam(npc)) {
-            return;
-        }
-        const prev = this.lastRoamDebugStateByNpcId.get(npc.id);
-        if (prev === stateKey) {
-            return;
-        }
-        this.lastRoamDebugStateByNpcId.set(npc.id, stateKey);
-        logger.info(
-            `[npc-roam-debug] tick=${currentTick} npcId=${npc.id} typeId=${npc.typeId} name=${
-                npc.name ?? "unknown"
-            } tile=(${npc.tileX},${npc.tileY},${npc.level}) spawn=(${npc.spawnX},${npc.spawnY},${
-                npc.spawnLevel
-            }) radius=${npc.wanderRadius} ${detail}`,
-        );
     }
 
     private addToRegionIndex(npc: NpcState): void {

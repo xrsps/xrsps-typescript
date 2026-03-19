@@ -226,7 +226,7 @@ import {
     syncCollectionDisplayVarps,
     trackCollectionLogItem,
 } from "../game/collectionlog";
-import { CombatController, createCombatController } from "../game/combat";
+import { PlayerCombatManager, createPlayerCombatManager } from "../game/combat";
 import { calculateAmmoConsumption } from "../game/combat/AmmoSystem";
 import { AttackType, normalizeAttackType } from "../game/combat/AttackType";
 import { applyAutocastState, clearAutocastState } from "../game/combat/AutocastState";
@@ -1275,7 +1275,7 @@ export class WSServer {
     private movementSystem?: MovementSystem;
     private followerManager?: FollowerManager;
     private followerCombatManager?: FollowerCombatManager;
-    private combatController?: CombatController;
+    private playerCombatManager?: PlayerCombatManager;
     private shopManager?: ShopManager;
     private tradeManager?: TradeManager;
     private interfaceService?: InterfaceService;
@@ -2296,14 +2296,14 @@ export class WSServer {
             } catch {}
         }
         if (this.players) {
-            this.combatController = createCombatController({
+            this.playerCombatManager = createPlayerCombatManager({
                 scheduler: this.actionScheduler,
                 players: this.players,
-                npcManager: this.npcManager,
             });
-            // Wire up callback to stop auto-attack in CombatController when player walks
+            this.movementSystem?.setPlayerCombatManager(this.playerCombatManager);
+            // Wire up callback to stop player auto-attack when player walks
             this.players.setStopAutoAttackCallback((playerId) => {
-                this.combatController?.stopAutoAttack(playerId);
+                this.playerCombatManager?.stopAutoAttack(playerId);
             });
             // Validate single/multi-combat rules before starting NPC attack interactions.
             this.players.setNpcCombatPermissionCallback((attacker, npc, currentTick) =>
@@ -3783,21 +3783,16 @@ export class WSServer {
     }
 
     private runCombatPhase(frame: TickFrame): void {
-        if (!this.players || !this.combatController) return;
-        const combatResult = this.combatController.processTick({
+        if (!this.players || !this.playerCombatManager) return;
+        const combatResult = this.playerCombatManager.processTick({
             tick: frame.tick,
             npcLookup: (npcId) => this.npcManager?.getById(npcId),
             pathService: this.options.pathService,
             pickAttackSpeed: (player) => this.pickAttackSpeed(player),
-            pickAttackSequence: (player) => this.pickAttackSequence(player),
-            pickNpcAttackSpeed: (npc, player) => this.pickNpcAttackSpeed(npc, player),
             pickNpcHitDelay: (npc, player, attackSpeed) =>
                 this.pickNpcHitDelay(npc, player, attackSpeed),
-            getNpcCombatProfile: (npc) => this.resolveNpcCombatProfile(npc),
             getWeaponSpecialCostPercent: (weaponItemId) =>
                 this.getWeaponSpecialCostPercent(weaponItemId),
-            getWeaponSpecialDescription: (weaponItemId) =>
-                this.getWeaponSpecialDescription(weaponItemId),
             getAttackReach: (player) => this.getPlayerAttackReach(player),
             queueSpotAnimation: (event) => {
                 this.enqueueSpotAnimation(event);
@@ -7118,7 +7113,7 @@ export class WSServer {
             deriveAttackTypeFromStyle: (style, player) =>
                 this.deriveAttackTypeFromStyle(style, player),
             pickBlockSequence: (player) =>
-                this.combatController?.pickBlockSequence(player, this.weaponAnimOverrides) ?? -1,
+                this.playerCombatManager?.pickBlockSequence(player, this.weaponAnimOverrides) ?? -1,
 
             // --- NPC Combat ---
             getNpcCombatSequences: (typeId) => this.getNpcCombatSequences(typeId),
@@ -7177,8 +7172,6 @@ export class WSServer {
             stopPlayerCombat: (socket) => this.players?.stopPlayerCombat(socket),
             startPlayerCombat: (socket, targetId) =>
                 this.players?.startPlayerCombat(socket, targetId),
-            confirmNpcHitLanded: (socket, npcId, tick, npc) =>
-                this.players?.confirmNpcHitLanded(socket, npcId, tick, npc),
             clearInteractionsWithNpc: (npcId) => this.players?.clearInteractionsWithNpc(npcId),
             sendSkillsMessage: (socket, player) => {
                 if (socket instanceof WebSocket) {
@@ -7188,10 +7181,10 @@ export class WSServer {
 
             // --- Combat System ---
             startNpcCombat: (player, npc, tick, attackSpeed) =>
-                this.combatController?.startCombat(player, npc, tick, attackSpeed),
-            resumeAutoAttack: (playerId) => this.combatController?.resumeAutoAttack(playerId),
+                this.playerCombatManager?.startCombat(player, npc, tick, attackSpeed),
+            resumeAutoAttack: (playerId) => this.playerCombatManager?.resumeAutoAttack(playerId),
             confirmHitLanded: (playerId, tick, npc, damage, attackType, player) =>
-                this.combatController?.confirmHitLanded(
+                this.playerCombatManager?.confirmHitLanded(
                     playerId,
                     npc,
                     tick,
@@ -7199,11 +7192,13 @@ export class WSServer {
                     attackType,
                     player,
                 ),
+            extendAggroHold: (playerId, minimumTicks) =>
+                this.playerCombatManager?.extendAggroHold(playerId, minimumTicks),
             rollRetaliateDamage: (npc, player) =>
-                this.combatController?.rollRetaliateDamage(npc, player) ?? 0,
-            getDropEligibility: (npc) => this.combatController?.getDropEligibility?.(npc),
+                this.playerCombatManager?.rollRetaliateDamage(npc, player) ?? 0,
+            getDropEligibility: (npc) => this.playerCombatManager?.getDropEligibility?.(npc),
             rollNpcDrops: (npc, eligibility) => this.rollNpcDrops(npc, eligibility),
-            cleanupNpc: (npc) => this.combatController?.cleanupNpc?.(npc),
+            cleanupNpc: (npc) => this.playerCombatManager?.cleanupNpc?.(npc),
 
             // --- Ground Items ---
             spawnGroundItem: (itemId, quantity, location, tick, options) =>
@@ -7560,9 +7555,9 @@ export class WSServer {
             clearActionsInGroup: (playerId, group) =>
                 this.actionScheduler.clearActionsInGroup(playerId, group),
             startNpcCombat: (player, npc, tick, attackSpeed) => {
-                this.combatController?.startCombat(player, npc, tick, attackSpeed);
+                this.playerCombatManager?.startCombat(player, npc, tick, attackSpeed);
             },
-            stopAutoAttack: (playerId) => this.combatController?.stopAutoAttack(playerId),
+            stopAutoAttack: (playerId) => this.playerCombatManager?.stopAutoAttack(playerId),
 
             // --- Inventory ---
             sendInventorySnapshot: (socket, player) => this.sendInventorySnapshot(socket, player),
@@ -8219,7 +8214,7 @@ export class WSServer {
                 this.players?.startNpcInteraction(ws, npc, option, modifierFlags),
             pickAttackSpeed: (player) => this.pickAttackSpeed(player),
             startCombat: (player, npc, tick, attackSpeed) =>
-                this.combatController?.startCombat(player, npc, tick, attackSpeed),
+                this.playerCombatManager?.startCombat(player, npc, tick, attackSpeed),
             hasNpcOption: (npc, option) => this.npcManager?.hasNpcOption(npc, option) ?? false,
             resolveNpcOption: (npc, opNum) => this.resolveNpcOptionByOpNum(npc, opNum),
             resolveLocAction: (player, locId, opNum) =>
@@ -8869,7 +8864,7 @@ export class WSServer {
 
         const result = combatEffectApplicator.applyNpcHitsplat(npc, style, damage, tick, maxHit);
         if (result.amount > 0) {
-            this.combatController?.recordDamage(player, npc, result.amount, damageType, tick);
+            this.playerCombatManager?.recordDamage(player, npc, result.amount, damageType, tick);
         }
         if (result.hpCurrent <= 0) {
             this.handleNpcDeathOutsidePrimaryCombat(player, npc, tick);
@@ -8889,7 +8884,7 @@ export class WSServer {
         logger.info(`[combat] NPC ${npc.id} (type ${npc.typeId}) died`);
         npc.clearInteractionTarget();
 
-        const eligibility = this.combatController?.getDropEligibility?.(npc);
+        const eligibility = this.playerCombatManager?.getDropEligibility?.(npc);
         const inWilderness = isInWilderness(npc.tileX, npc.tileY);
         const pendingDrops = this.rollNpcDrops(npc, eligibility).map((drop) => ({
             ...drop,
@@ -8963,7 +8958,7 @@ export class WSServer {
             );
         }
 
-        this.combatController?.cleanupNpc?.(npc);
+        this.playerCombatManager?.cleanupNpc?.(npc);
 
         const killerId = eligibility?.primaryLooter?.id ?? player.id;
         this.leagueTaskManager?.onNpcKill(killerId, npc.typeId);

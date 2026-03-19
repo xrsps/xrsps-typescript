@@ -1,45 +1,27 @@
 /**
- * Combat Controller
+ * Player Combat Manager
  *
- * Central orchestrator for all combat operations.
- * Owns combat state, coordinates state machine transitions,
- * delegates calculations to CombatEngine and effects to CombatEffectApplicator.
- *
- * This replaces the fragmented combat logic spread across:
- * - CombatSystem.ts (scheduling) - NOW MERGED
- * - PlayerInteractionSystem.ts (state management, routing)
- * - wsServer.ts (effect application)
- *
- * Usage:
- * ```typescript
- * const controller = createCombatController({
- *     scheduler,
- *     players,
- *     npcManager,
- * });
- *
- * // Start combat
- * controller.startCombat(player, npc, tick);
- *
- * // Process each tick
- * const effects = controller.processTick(ctx);
- *
- * // End combat
- * controller.endCombat(playerId, tick, "target_dead");
- * ```
+ * Owns player-vs-NPC combat state, attack scheduling, and combat timing.
+ * NPC movement, chase, retreat, and retaliation authority remain in NpcManager.
  */
 import { SkillId } from "../../../../src/rs/skill/skills";
 import { getPoweredStaffSpellData, getSpellData } from "../../data/spells";
 import type { PathService } from "../../pathfinding/PathService";
+import {
+    CardinalAdjacentRouteStrategy,
+    ExactRouteStrategy,
+    RectWithinRangeLineOfSightRouteStrategy,
+    RectWithinRangeRouteStrategy,
+    RouteStrategy,
+} from "../../pathfinding/legacy/pathfinder/RouteStrategy";
+import { CollisionFlag } from "../../pathfinding/legacy/pathfinder/flag/CollisionFlag";
 import type { ActionScheduler } from "../actions/ActionScheduler";
 import type { CombatAttackActionData } from "../actions/actionPayloads";
 import type { ActionEffect } from "../actions/types";
 import { NpcState } from "../npc";
-import type { NpcManager } from "../npcManager";
 import { type PlayerManager, PlayerState } from "../player";
 import {
     CombatEngine,
-    type NpcCombatProfile,
     type PlayerAttackPlan,
 } from "../systems/combat/CombatEngine";
 import { type AttackType, normalizeAttackType } from "./AttackType";
@@ -48,16 +30,11 @@ import {
     hasDirectMeleeReach,
     hasProjectileLineOfSightToNpc,
     isWithinAttackRange,
-    walkToAttackRange,
 } from "./CombatAction";
 import { CombatEffectApplicator } from "./CombatEffectApplicator";
 import { CombatEngagementRegistry } from "./CombatEngagementRegistry";
 import * as CombatFormulas from "./CombatFormulas";
-import {
-    resolveNpcAttackRange,
-    resolveNpcAttackType,
-    resolvePlayerAttackType,
-} from "./CombatRules";
+import { resolvePlayerAttackReach, resolvePlayerAttackType } from "./CombatRules";
 import {
     CombatPhase,
     CombatStateMachineContext,
@@ -151,11 +128,10 @@ export interface AttackScheduleResult {
 }
 
 /**
- * Context provided to CombatController.processTick().
- * Contains all external dependencies needed for combat processing.
- * Combines the old CombatControllerContext with CombatContext from CombatSystem.
+ * Context provided to PlayerCombatManager.processTick().
+ * Contains the player-owned dependencies needed for combat processing.
  */
-export interface CombatControllerContext {
+export interface PlayerCombatManagerContext {
     /** Current game tick */
     tick: number;
     /** Lookup NPC by ID */
@@ -166,28 +142,14 @@ export interface CombatControllerContext {
     pathService?: PathService;
     /** Get player's attack speed based on weapon */
     pickAttackSpeed: (player: PlayerState) => number;
-    /** Get player's attack sequence (animation) */
-    pickAttackSequence?: (player: PlayerState) => number | undefined;
-    /** Get NPC's attack speed */
-    pickNpcAttackSpeed?: (npc: NpcState, player: PlayerState) => number;
     /** Get NPC hit delay (projectile travel time) */
     pickNpcHitDelay?: (npc: NpcState, player: PlayerState, attackSpeed: number) => number;
-    /** Get NPC combat profile (bonuses, attack type, etc.) */
-    getNpcCombatProfile?: (npc: NpcState) => NpcCombatProfile | undefined;
     /** Get special attack energy cost for a weapon */
     getWeaponSpecialCostPercent?: (weaponItemId: number) => number | undefined;
-    /** Get special attack description for a weapon */
-    getWeaponSpecialDescription?: (weaponItemId: number) => string | undefined;
     /** Get attack reach for player (weapon/spell range) */
     getAttackReach?: (player: PlayerState) => number;
-    /** Get attack reach for NPC (weapon/spell range) */
-    getNpcAttackRange?: (npc: NpcState, attackType: AttackType) => number;
-    /** Get NPC attack type (melee/ranged/magic) */
-    getNpcAttackType?: (npc: NpcState) => AttackType | undefined;
     /** Check if player has line of sight to NPC */
     hasLineOfSight?: (player: PlayerState, npc: NpcState) => boolean;
-    /** Check if NPC has line of sight to player */
-    hasNpcLineOfSight?: (npc: NpcState, player: PlayerState) => boolean;
     /** Check if player is frozen */
     isPlayerFrozen?: (player: PlayerState, tick: number) => boolean;
     /** Calculate distance from player to NPC */
@@ -195,12 +157,7 @@ export interface CombatControllerContext {
     /** Check if player is within attack reach of NPC */
     isWithinAttackReach?: (player: PlayerState, npc: NpcState, reach: number) => boolean;
     /** Route player toward NPC */
-    routePlayerToNpc?: (player: PlayerState, npc: NpcState) => boolean;
-    /**
-     * Route NPC toward player for combat.
-     * RSMod parity: Use walkToAttackRange(npc, player, pathService, attackRange)
-     */
-    walkToAttackRange?: (npc: NpcState, player: PlayerState, attackRange: number) => boolean;
+    routePlayerToNpc?: (player: PlayerState, npc: NpcState, reach: number) => boolean;
     /**
      * Schedule a player attack on an NPC.
      * Called when player is in range and attack cooldown is ready.
@@ -210,16 +167,6 @@ export interface CombatControllerContext {
         npc: NpcState,
         attackSpeed: number,
     ) => AttackScheduleResult;
-    /**
-     * Schedule an NPC attack on a player.
-     * Called when NPC is in range and attack cooldown is ready.
-     */
-    scheduleNpcAttack?: (
-        player: PlayerState,
-        npc: NpcState,
-        attackSpeed: number,
-        tick: number,
-    ) => boolean;
     /**
      * Check if player attack should auto-repeat (melee/ranged yes, manual spell no).
      */
@@ -244,6 +191,13 @@ export interface CombatControllerContext {
     logger?: { warn: (...args: unknown[]) => void; debug?: (...args: unknown[]) => void };
 }
 
+export interface PlayerCombatMovementContext {
+    tick: number;
+    npcLookup: (npcId: number) => NpcState | undefined;
+    pathService?: PathService;
+    onCannotReachTarget?: (player: PlayerState) => void;
+}
+
 /**
  * Result of processing a combat tick.
  */
@@ -256,8 +210,6 @@ export interface CombatTickResult {
     endedEngagements: Array<{ playerId: number; reason: string }>;
     /** Players who had attacks scheduled this tick */
     attacksScheduled: Array<{ playerId: number; npcId: number; attackSpeed: number }>;
-    /** NPCs who had attacks scheduled this tick */
-    npcAttacksScheduled: Array<{ playerId: number; npcId: number; attackSpeed: number }>;
 }
 
 /**
@@ -289,23 +241,17 @@ const DEFAULT_MELEE_REACH = 1;
 const STEP_LOCK_TICKS = 1;
 
 // =============================================================================
-// Combat Controller
+// Player Combat Manager
 // =============================================================================
 
 /**
- * Central combat controller.
- *
- * Manages all player-vs-NPC combat engagements with explicit state machines.
- * Provides a clean API for starting, processing, and ending combat.
- *
- * Now includes CombatEngine integration (merged from CombatSystem).
+ * Player-owned combat state and scheduling for NPC targets.
  */
-export class CombatController {
+export class PlayerCombatManager {
     private readonly effectApplicator: CombatEffectApplicator;
     private readonly actionScheduler?: ActionScheduler;
     private readonly engine: CombatEngine;
     private readonly playerManager?: PlayerManager;
-    private readonly npcManager?: NpcManager;
 
     /** Player-vs-NPC engagements keyed by player PID. */
     private readonly engagements = new CombatEngagementRegistry();
@@ -313,14 +259,12 @@ export class CombatController {
     constructor(opts?: {
         scheduler?: ActionScheduler;
         players?: PlayerManager;
-        npcManager?: NpcManager;
         randomSeed?: number;
     }) {
         this.effectApplicator = new CombatEffectApplicator();
         this.actionScheduler = opts?.scheduler;
         this.engine = new CombatEngine({ seed: opts?.randomSeed ?? Date.now() });
         this.playerManager = opts?.players;
-        this.npcManager = opts?.npcManager;
     }
 
     // =========================================================================
@@ -419,6 +363,19 @@ export class CombatController {
         }
     }
 
+    /**
+     * Ensure the disengage hold stays alive for at least the given number of ticks.
+     * Used when the NPC successfully retaliates so player combat focus does not collapse early.
+     */
+    extendAggroHold(playerId: number, minimumTicks: number = 6): void {
+        const state = this.engagements.getState(playerId);
+        if (!state) return;
+        state.engagement.aggroHoldTicks = Math.max(
+            state.engagement.aggroHoldTicks,
+            Math.max(0, minimumTicks),
+        );
+    }
+
     // =========================================================================
     // State Queries
     // =========================================================================
@@ -491,7 +448,7 @@ export class CombatController {
      * @param ctx - Combat context with lookups and utilities
      * @returns Tick result with effects, transitions, and scheduled attacks
      */
-    processTick(ctx: CombatControllerContext): CombatTickResult {
+    processTick(ctx: PlayerCombatManagerContext): CombatTickResult {
         // Build internal context with scheduling functions
         const internalCtx = this.buildInternalContext(ctx);
 
@@ -499,8 +456,6 @@ export class CombatController {
         const transitions: CombatStateTransition[] = [];
         const endedEngagements: Array<{ playerId: number; reason: string }> = [];
         const attacksScheduled: Array<{ playerId: number; npcId: number; attackSpeed: number }> =
-            [];
-        const npcAttacksScheduled: Array<{ playerId: number; npcId: number; attackSpeed: number }> =
             [];
 
         // OSRS parity: Process combat in PID order (ascending player ID)
@@ -523,11 +478,6 @@ export class CombatController {
                 endedEngagements.push({ playerId, reason: "target_dead" });
                 continue;
             }
-            if (npc.isRecoveringToSpawn()) {
-                this.endCombat(playerId, ctx.tick, "target_recovering");
-                endedEngagements.push({ playerId, reason: "target_recovering" });
-                continue;
-            }
 
             const result = this.processPlayerCombatTick(player, npc, state, internalCtx);
             effects.push(...result.effects);
@@ -542,13 +492,6 @@ export class CombatController {
                     playerId,
                     npcId: state.engagement.npcId,
                     attackSpeed: state.timing.attackSpeed,
-                });
-            }
-            if (result.npcAttackScheduled) {
-                npcAttacksScheduled.push({
-                    playerId,
-                    npcId: state.engagement.npcId,
-                    attackSpeed: state.engagement.npcAttackSpeed,
                 });
             }
         }
@@ -595,7 +538,7 @@ export class CombatController {
             effects.push(...schedulerEffects);
         }
 
-        return { effects, transitions, endedEngagements, attacksScheduled, npcAttacksScheduled };
+        return { effects, transitions, endedEngagements, attacksScheduled };
     }
 
     /**
@@ -606,20 +549,18 @@ export class CombatController {
         player: PlayerState,
         npc: NpcState,
         state: PlayerVsNpcCombatState,
-        ctx: CombatControllerContext,
+        ctx: PlayerCombatManagerContext,
     ): {
         effects: ActionEffect[];
         transition?: CombatStateTransition;
         ended?: boolean;
         endReason?: string;
         playerAttackScheduled?: boolean;
-        npcAttackScheduled?: boolean;
     } {
         const effects: ActionEffect[] = [];
         const playerId = player.id;
         const tick = ctx.tick;
         let playerAttackScheduled = false;
-        let npcAttackScheduled = false;
 
         const sm = this.engagements.getStateMachine(playerId);
         if (!sm) {
@@ -692,7 +633,7 @@ export class CombatController {
             case CombatPhase.Approaching:
                 // Route player toward NPC
                 if (ctx.routePlayerToNpc && !isFrozen) {
-                    ctx.routePlayerToNpc(player, npc);
+                    ctx.routePlayerToNpc(player, npc, reach);
                 }
                 state.timing.pendingAttackTick = undefined;
                 break;
@@ -742,13 +683,12 @@ export class CombatController {
         }
 
         // NPC chase/retaliation ownership lives in NpcManager.
-        // CombatController only manages player-facing combat state and attack scheduling.
+        // PlayerCombatManager only manages player-facing combat state and attack scheduling.
 
         return {
             effects,
             transition: transition ?? undefined,
             playerAttackScheduled,
-            npcAttackScheduled,
         };
     }
 
@@ -907,6 +847,131 @@ export class CombatController {
     }
 
     /**
+     * Update player-vs-NPC combat movement during pre/post movement phases.
+     * This owns chase routing and unreachable cancellation for active combat.
+     */
+    updateNpcCombatMovement(ctx: PlayerCombatMovementContext): void {
+        const pathService = ctx.pathService;
+        if (!pathService) return;
+
+        for (const [playerId, entry] of this.engagements.entriesSortedByPid()) {
+            const state = entry.state;
+            if (!state.engagement.playerAutoAttack) continue;
+
+            const player = this.playerManager?.getPlayerById(playerId);
+            if (!player) continue;
+
+            const npc = ctx.npcLookup(state.engagement.npcId);
+            if (!npc) continue;
+            if (npc.level !== player.level) continue;
+
+            const reach = resolvePlayerAttackReach(player);
+            if (this.isWithinAttackReachForMovement(player, npc, reach, pathService)) {
+                player.clearPath();
+                state.timing.unreachableSinceTick = undefined;
+                continue;
+            }
+
+            const npcMoved =
+                state.engagement.lastNpcTileX !== npc.tileX || state.engagement.lastNpcTileY !== npc.tileY;
+            if (npcMoved) {
+                state.engagement.lastNpcTileX = npc.tileX;
+                state.engagement.lastNpcTileY = npc.tileY;
+                state.timing.lastRouteTick = Number.MIN_SAFE_INTEGER;
+                state.timing.unreachableSinceTick = undefined;
+            }
+
+            const shouldRoute =
+                !player.hasPath() ||
+                npcMoved ||
+                ctx.tick - state.timing.lastRouteTick >= 2 ||
+                player.wasTeleported();
+
+            if (!shouldRoute) continue;
+
+            const run = this.resolveCombatRunMode(player, playerId, state.engagement.npcId);
+            if (
+                this.tryRouteToLineOfSight(player, npc, reach, pathService, run) ||
+                this.routePlayerToNpc(player, npc, reach, pathService, run)
+            ) {
+                state.timing.lastRouteTick = ctx.tick;
+                state.timing.unreachableSinceTick = undefined;
+                continue;
+            }
+
+            const fallbackRouted = this.routePlayerToTile(
+                player,
+                { x: npc.tileX, y: npc.tileY },
+                pathService,
+                run,
+            );
+            const fallbackWithProgress =
+                fallbackRouted &&
+                (player.hasPath() ||
+                    this.isWithinAttackReachForMovement(player, npc, reach, pathService));
+            if (fallbackWithProgress) {
+                state.timing.lastRouteTick = ctx.tick;
+                state.timing.unreachableSinceTick = undefined;
+                continue;
+            }
+
+            if (state.timing.unreachableSinceTick === undefined) {
+                state.timing.unreachableSinceTick = ctx.tick;
+                continue;
+            }
+            if (ctx.tick - state.timing.unreachableSinceTick < 1) {
+                continue;
+            }
+
+            ctx.onCannotReachTarget?.(player);
+            player.clearPath();
+            player.clearInteraction();
+            player.removeCombatTarget();
+            player.stopAnimation();
+            this.endCombat(playerId, ctx.tick, "no_path");
+            this.playerManager?.finishNpcCombatByPlayerId(playerId, state.engagement.npcId);
+        }
+    }
+
+    /**
+     * Clear path before movement when an in-range melee swing should start this tick.
+     */
+    applyPreMovementLocks(ctx: PlayerCombatMovementContext): void {
+        const pathService = ctx.pathService;
+        if (!pathService) return;
+
+        for (const [playerId, entry] of this.engagements.entriesSortedByPid()) {
+            const state = entry.state;
+            const npcId = state.engagement.npcId;
+            if (!this.shouldLockPreMovement(playerId, npcId, ctx.tick)) continue;
+
+            const player = this.playerManager?.getPlayerById(playerId);
+            if (!player) continue;
+            const npc = ctx.npcLookup(npcId);
+            if (!npc) continue;
+
+            const reach = resolvePlayerAttackReach(player);
+            if (reach > 1) continue;
+            if (!this.isWithinAttackReachForMovement(player, npc, reach, pathService)) continue;
+            player.clearPath();
+        }
+    }
+
+    /**
+     * Check whether pre-movement should clear the player's path so an in-range melee
+     * swing can start on this tick instead of consuming a movement step first.
+     */
+    shouldLockPreMovement(playerId: number, npcId: number, tick: number): boolean {
+        const state = this.engagements.getState(playerId);
+        if (!state) return false;
+        if (state.engagement.npcId !== npcId) return false;
+        if (!state.engagement.playerAutoAttack) return false;
+        if ((state.config.weaponRange ?? DEFAULT_MELEE_REACH) > 1) return false;
+        if (state.timing.pendingAttackTick !== undefined) return false;
+        return tick >= state.timing.nextAttackTick;
+    }
+
+    /**
      * Get all active combat engagements.
      */
     getAllEngagements(): CombatEngagementInfo[] {
@@ -982,32 +1047,10 @@ export class CombatController {
     }
 
     /**
-     * Get the NPC manager.
-     */
-    getNpcManager(): NpcManager | undefined {
-        return this.npcManager;
-    }
-
-    /**
      * Get the player manager.
      */
     getPlayerManager(): PlayerManager | undefined {
         return this.playerManager;
-    }
-
-    /**
-     * Default NPC attack speed when no profile attackSpeed is provided.
-     * OSRS NPCs have individual attack speeds defined in cache (e.g., men=4, dragons=6).
-     * Uses the NPC's cached attackSpeed property if available, otherwise falls back to 4 ticks.
-     */
-    private pickDefaultNpcAttackSpeed(npc: NpcState): number {
-        // Use NPC's cached attack speed if available
-        const npcSpeed = npc.attackSpeed;
-        if (npcSpeed > 0) {
-            return npcSpeed;
-        }
-        // Fallback: 4 ticks (2.4s) - most common NPC attack speed
-        return 4;
     }
 
     // =========================================================================
@@ -1022,7 +1065,7 @@ export class CombatController {
         player: PlayerState,
         npc: NpcState,
         attackDelay: number,
-        ctx: CombatControllerContext,
+        ctx: PlayerCombatManagerContext,
     ): AttackScheduleResult {
         if (!this.actionScheduler) {
             return { ok: false, hitDelay: 0 };
@@ -1339,61 +1382,6 @@ export class CombatController {
     }
 
     /**
-     * Schedule NPC retaliation attack (internal implementation).
-     * This is the ~45 LOC lambda from CombatSystem.processTick().
-     */
-    private scheduleNpcRetaliateInternal(
-        player: PlayerState,
-        npc: NpcState,
-        attackDelay: number,
-        currentTick: number,
-        ctx: CombatControllerContext,
-    ): boolean {
-        if (!this.actionScheduler) {
-            return false;
-        }
-
-        const playerAttackSpeed = ctx.pickAttackSpeed(player);
-        player.attackDelay = playerAttackSpeed;
-        const attackSpeed = Math.max(1, attackDelay);
-        const attackTypeOverride = this.resolveNpcAttackTypeInternal(npc, ctx);
-        const retaliationPlan = this.engine.planNpcRetaliation({
-            player,
-            npc,
-            attackSpeed,
-            pickNpcHitDelay: ctx.pickNpcHitDelay,
-            attackTypeOverride,
-        });
-        const res = this.actionScheduler.requestAction(
-            player.id,
-            {
-                kind: "combat.npcRetaliate",
-                data: {
-                    npcId: npc.id,
-                    damage: retaliationPlan.damage,
-                    maxHit: retaliationPlan.maxHit,
-                    style: retaliationPlan.style,
-                    attackType: retaliationPlan.attackType,
-                    hitDelay: retaliationPlan.hitDelay,
-                    phase: "swing",
-                },
-                groups: ["combat.retaliate"],
-                cooldownTicks: 0,
-                delayTicks: 0,
-            },
-            currentTick,
-        );
-        if (!res.ok && ctx.logger) {
-            ctx.logger.warn?.(
-                `[combat] failed npc auto retaliate schedule (player=${player.id}, npc=${
-                    npc.id
-                }): ${res.reason ?? "unknown"}`,
-            );
-        }
-        return !!res.ok;
-    }
-
-    /**
      * Helper to check if attack should auto-repeat (melee/ranged yes, manual spell no).
      */
     private shouldRepeatAttackInternal(player: PlayerState): boolean {
@@ -1406,30 +1394,301 @@ export class CombatController {
         return true;
     }
 
-    /**
-     * Resolve NPC attack type from context/profile.
-     */
-    private resolveNpcAttackTypeInternal(npc: NpcState, ctx: CombatControllerContext): AttackType {
-        const override = ctx.getNpcAttackType?.(npc);
-        return resolveNpcAttackType(npc, override);
+    private resolveCombatRunMode(player: PlayerState, playerId: number, npcId: number): boolean {
+        const interaction = this.playerManager?.getInteractionState(
+            this.playerManager.getSocketByPlayerId(playerId),
+        ) as { kind?: string; npcId?: number; modifierFlags?: number } | undefined;
+        const modifierFlags =
+            interaction?.kind === "npcCombat" && interaction.npcId === npcId
+                ? interaction.modifierFlags ?? 0
+                : 0;
+        let run = player.wantsToRun();
+        if ((modifierFlags & 1) !== 0) {
+            run = !run;
+        }
+        if (modifierFlags === 3) {
+            run = true;
+        }
+        return player.resolveRequestedRun(run);
     }
 
-    /**
-     * Resolve NPC attack range from explicit attack type.
-     */
-    private resolveNpcAttackRangeInternalByType(
+    private applyPathSteps(player: PlayerState, steps: { x: number; y: number }[], run: boolean): boolean {
+        const normalizedSteps = Array.isArray(steps) ? steps.map((s) => ({ x: s.x, y: s.y })) : [];
+        let prevX = player.tileX;
+        let prevY = player.tileY;
+        for (const step of normalizedSteps) {
+            const dx = Math.abs(step.x - prevX);
+            const dy = Math.abs(step.y - prevY);
+            if (dx > 1 || dy > 1 || (dx === 0 && dy === 0)) {
+                return false;
+            }
+            prevX = step.x;
+            prevY = step.y;
+        }
+        const currentQueue = player.getPathQueue();
+        const sameQueue =
+            currentQueue.length === normalizedSteps.length &&
+            currentQueue.every((step, idx) => {
+                const other = normalizedSteps[idx];
+                return other && step.x === other.x && step.y === other.y;
+            });
+        if (sameQueue) {
+            player.running = run;
+            return false;
+        }
+        player.setPath(normalizedSteps, run);
+        return true;
+    }
+
+    private routePlayerToTile(
+        player: PlayerState,
+        tile: { x: number; y: number },
+        pathService: PathService,
+        run: boolean,
+    ): boolean {
+        const rs = new ExactRouteStrategy();
+        rs.approxDestX = tile.x;
+        rs.approxDestY = tile.y;
+        rs.destSizeX = 1;
+        rs.destSizeY = 1;
+        const res = pathService.findPathSteps(
+            {
+                from: { x: player.tileX, y: player.tileY, plane: player.level },
+                to: tile,
+                size: 1,
+            },
+            { maxSteps: 128, routeStrategy: rs },
+        );
+        if (!res.ok || !Array.isArray(res.steps)) {
+            return false;
+        }
+        if (res.steps.length === 0 && !rs.hasArrived(player.tileX, player.tileY, player.level)) {
+            return false;
+        }
+        if (res.steps.length === 0) {
+            return true;
+        }
+        this.applyPathSteps(player, res.steps, run);
+        return true;
+    }
+
+    private isTileWalkable(pathService: PathService, x: number, y: number, level: number): boolean {
+        const flag = pathService.getCollisionFlagAt(x, y, level);
+        if (flag === undefined) return false;
+        const mask = CollisionFlag.OBJECT | CollisionFlag.FLOOR_BLOCKED;
+        return (flag & mask) === 0;
+    }
+
+    private isWithinAttackDistance(player: PlayerState, npc: NpcState, reach: number): boolean {
+        const size = Math.max(1, npc.size);
+        const minX = npc.tileX;
+        const minY = npc.tileY;
+        const maxX = minX + size - 1;
+        const maxY = minY + size - 1;
+        const clampedX = Math.max(minX, Math.min(player.tileX, maxX));
+        const clampedY = Math.max(minY, Math.min(player.tileY, maxY));
+        const distance = Math.max(
+            Math.abs(player.tileX - clampedX),
+            Math.abs(player.tileY - clampedY),
+        );
+        if (distance === 0) return false;
+        return distance <= reach;
+    }
+
+    private extractValidatedStrategyPathSteps(
+        player: PlayerState,
+        res: { ok: boolean; steps?: { x: number; y: number }[]; end?: { x: number; y: number } },
+        strategy: RouteStrategy,
+    ): { x: number; y: number }[] | undefined {
+        if (!res.ok || !Array.isArray(res.steps)) {
+            return undefined;
+        }
+        const selectedEnd =
+            res.steps.length > 0
+                ? res.end ?? res.steps[res.steps.length - 1]!
+                : { x: player.tileX, y: player.tileY };
+        if (!strategy.hasArrived(selectedEnd.x, selectedEnd.y, player.level)) {
+            return undefined;
+        }
+        return res.steps;
+    }
+
+    private tryRouteToLineOfSight(
+        player: PlayerState,
         npc: NpcState,
-        attackType: AttackType,
-        _ctx: CombatControllerContext,
-    ): number {
-        return resolveNpcAttackRange(npc, attackType);
+        reach: number,
+        pathService: PathService,
+        run: boolean,
+    ): boolean {
+        if (reach <= 1 || !this.isWithinAttackDistance(player, npc, reach)) {
+            return false;
+        }
+        const npcSize = Math.max(1, npc.size);
+        const npcMinX = npc.tileX;
+        const npcMinY = npc.tileY;
+        const npcMaxX = npcMinX + npcSize - 1;
+        const npcMaxY = npcMinY + npcSize - 1;
+        const px = player.tileX;
+        const py = player.tileY;
+        const level = player.level;
+        let bestSteps: { x: number; y: number }[] | undefined;
+        let bestPathLength = Number.MAX_SAFE_INTEGER;
+        let bestPlayerDistance = Number.MAX_SAFE_INTEGER;
+        let bestNpcDistance = Number.MAX_SAFE_INTEGER;
+        const maxSearchRadius =
+            reach +
+            Math.max(
+                Math.abs(px - npcMinX),
+                Math.abs(px - npcMaxX),
+                Math.abs(py - npcMinY),
+                Math.abs(py - npcMaxY),
+            ) +
+            1;
+
+        for (let ring = 0; ring <= maxSearchRadius; ring++) {
+            for (let dx = -ring; dx <= ring; dx++) {
+                const dyAbs = ring - Math.abs(dx);
+                const dys = dyAbs === 0 ? [0] : [-dyAbs, dyAbs];
+                for (const dy of dys) {
+                    const tx = px + dx;
+                    const ty = py + dy;
+                    if (tx >= npcMinX && tx <= npcMaxX && ty >= npcMinY && ty <= npcMaxY) {
+                        continue;
+                    }
+                    const clampedX = Math.max(npcMinX, Math.min(tx, npcMaxX));
+                    const clampedY = Math.max(npcMinY, Math.min(ty, npcMaxY));
+                    const distToNpc = Math.max(Math.abs(tx - clampedX), Math.abs(ty - clampedY));
+                    if (distToNpc > reach || distToNpc === 0) {
+                        continue;
+                    }
+                    if (!this.isTileWalkable(pathService, tx, ty, level)) {
+                        continue;
+                    }
+                    if (!hasProjectileLineOfSightToNpc(tx, ty, level, npc, pathService)) {
+                        continue;
+                    }
+                    const rs = new ExactRouteStrategy();
+                    rs.approxDestX = tx;
+                    rs.approxDestY = ty;
+                    rs.destSizeX = 1;
+                    rs.destSizeY = 1;
+                    const res = pathService.findPathSteps(
+                        {
+                            from: { x: player.tileX, y: player.tileY, plane: player.level },
+                            to: { x: tx, y: ty },
+                            size: 1,
+                        },
+                        { maxSteps: 128, routeStrategy: rs },
+                    );
+                    const steps = this.extractValidatedStrategyPathSteps(player, res, rs);
+                    if (!steps) {
+                        continue;
+                    }
+                    const pathLength = steps.length;
+                    const playerDistance = Math.abs(dx) + Math.abs(dy);
+                    if (
+                        pathLength < bestPathLength ||
+                        (pathLength === bestPathLength && playerDistance < bestPlayerDistance) ||
+                        (pathLength === bestPathLength &&
+                            playerDistance === bestPlayerDistance &&
+                            distToNpc < bestNpcDistance)
+                    ) {
+                        bestSteps = steps;
+                        bestPathLength = pathLength;
+                        bestPlayerDistance = playerDistance;
+                        bestNpcDistance = distToNpc;
+                    }
+                }
+            }
+        }
+        if (!bestSteps) return false;
+        if (bestSteps.length === 0) {
+            player.clearPath();
+            return true;
+        }
+        this.applyPathSteps(player, bestSteps, run);
+        return true;
+    }
+
+    private routePlayerToNpc(
+        player: PlayerState,
+        npc: NpcState,
+        reach: number,
+        pathService: PathService,
+        run: boolean,
+    ): boolean {
+        const normalizedReach = Math.max(1, reach);
+        const attackType = resolvePlayerAttackType(player);
+        const strategy =
+            normalizedReach <= 1
+                ? new CardinalAdjacentRouteStrategy(
+                      npc.tileX,
+                      npc.tileY,
+                      Math.max(1, npc.size),
+                      Math.max(1, npc.size),
+                  )
+                : attackType !== "melee"
+                  ? new RectWithinRangeLineOfSightRouteStrategy(
+                        npc.tileX,
+                        npc.tileY,
+                        Math.max(1, npc.size),
+                        Math.max(1, npc.size),
+                        normalizedReach,
+                    )
+                  : new RectWithinRangeRouteStrategy(
+                        npc.tileX,
+                        npc.tileY,
+                        Math.max(1, npc.size),
+                        Math.max(1, npc.size),
+                        normalizedReach,
+                    );
+        if (strategy instanceof CardinalAdjacentRouteStrategy) {
+            strategy.setCollisionGetter((x, y, p) => pathService.getCollisionFlagAt(x, y, p), player.level);
+        } else if (strategy instanceof RectWithinRangeLineOfSightRouteStrategy) {
+            strategy.setProjectileRaycast((from, to) => pathService.projectileRaycast(from, to));
+        }
+        const res = pathService.findPathSteps(
+            {
+                from: { x: player.tileX, y: player.tileY, plane: player.level },
+                to: { x: npc.tileX, y: npc.tileY },
+                size: 1,
+            },
+            { routeStrategy: strategy, maxSteps: 128 },
+        );
+        const steps = this.extractValidatedStrategyPathSteps(player, res, strategy);
+        if (!steps) return false;
+        if (steps.length === 0) {
+            player.clearPath();
+            return true;
+        }
+        this.applyPathSteps(player, steps, run);
+        return true;
+    }
+
+    private isWithinAttackReachForMovement(
+        player: PlayerState,
+        npc: NpcState,
+        reach: number,
+        pathService: PathService,
+    ): boolean {
+        const inRange = isWithinAttackRange(player, npc, reach);
+        if (!inRange) return false;
+        if (reach <= 1) {
+            return hasDirectMeleeReach(player, npc, pathService);
+        }
+        const resolvedAttackType =
+            normalizeAttackType(player.getCurrentAttackType?.()) ?? resolvePlayerAttackType(player);
+        if (resolvedAttackType === "melee") {
+            return hasDirectMeleePath(player, npc, pathService);
+        }
+        return hasProjectileLineOfSightToNpc(player.tileX, player.tileY, player.level, npc, pathService);
     }
 
     /**
      * Build full isWithinAttackReach implementation with LoS checks.
      */
     private buildIsWithinAttackReachFn(
-        ctx: CombatControllerContext,
+        ctx: PlayerCombatManagerContext,
     ): (player: PlayerState, npc: NpcState, reach: number) => boolean {
         if (ctx.isWithinAttackReach) {
             return ctx.isWithinAttackReach;
@@ -1456,7 +1715,7 @@ export class CombatController {
      * Build hasLineOfSight function with pathService.
      */
     private buildHasLineOfSightFn(
-        ctx: CombatControllerContext,
+        ctx: PlayerCombatManagerContext,
     ): ((player: PlayerState, npc: NpcState) => boolean) | undefined {
         if (ctx.hasLineOfSight) {
             return ctx.hasLineOfSight;
@@ -1476,85 +1735,25 @@ export class CombatController {
     }
 
     /**
-     * Build hasNpcLineOfSight function with pathService.
-     */
-    private buildHasNpcLineOfSightFn(
-        ctx: CombatControllerContext,
-    ): ((npc: NpcState, player: PlayerState) => boolean) | undefined {
-        if (ctx.hasNpcLineOfSight) {
-            return ctx.hasNpcLineOfSight;
-        }
-        if (ctx.pathService) {
-            return (npc: NpcState, player: PlayerState): boolean => {
-                // OSRS parity: For multi-tile NPCs, check LoS from EACH tile
-                // the NPC occupies. If ANY tile has LoS, attack succeeds.
-                // Reference: docs/line-of-sight.md lines 176-198
-                const size = Math.max(1, npc.size);
-                const baseX = npc.tileX;
-                const baseY = npc.tileY;
-                const plane = npc.level;
-                const px = player.tileX;
-                const py = player.tileY;
-
-                for (let ox = 0; ox < size; ox++) {
-                    for (let oy = 0; oy < size; oy++) {
-                        const ray = ctx.pathService!.projectileRaycast(
-                            { x: baseX + ox, y: baseY + oy, plane },
-                            { x: px, y: py },
-                        );
-                        if (ray.clear) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            };
-        }
-        return undefined;
-    }
-
-    /**
      * Build internal context for processTick that adds scheduling functions.
      * This wraps the external context with internal implementations.
      */
-    private buildInternalContext(ctx: CombatControllerContext): CombatControllerContext {
+    private buildInternalContext(ctx: PlayerCombatManagerContext): PlayerCombatManagerContext {
         const isWithinAttackReach = this.buildIsWithinAttackReachFn(ctx);
         const hasLineOfSight = this.buildHasLineOfSightFn(ctx);
-        const hasNpcLineOfSight = this.buildHasNpcLineOfSightFn(ctx);
 
         return {
             ...ctx,
             playerLookup: ctx.playerLookup ?? ((id) => this.playerManager?.getPlayerById(id)),
-            pickNpcAttackSpeed:
-                ctx.pickNpcAttackSpeed ??
-                ((npc) => {
-                    // Use NPC's owned combat profile directly
-                    if (npc.combat.attackSpeed > 0) {
-                        return npc.combat.attackSpeed;
-                    }
-                    return this.pickDefaultNpcAttackSpeed(npc);
-                }),
             getDistanceToNpc:
                 ctx.getDistanceToNpc ?? ((player, npc) => distanceToNpcBounds(player, npc)),
             isWithinAttackReach,
             hasLineOfSight,
-            hasNpcLineOfSight,
             isPlayerFrozen: ctx.isPlayerFrozen ?? ((player, tick) => player.isFrozen(tick)),
-            walkToAttackRange: ctx.pathService
-                ? (npc, player, range) => walkToAttackRange(npc, player, ctx.pathService!, range)
-                : ctx.walkToAttackRange,
-            getNpcAttackRange: (npc, attackType) =>
-                this.resolveNpcAttackRangeInternalByType(npc, attackType, ctx),
-            getNpcAttackType: (npc) => this.resolveNpcAttackTypeInternal(npc, ctx),
             schedulePlayerAttack:
                 ctx.schedulePlayerAttack ??
                 ((player, npc, attackSpeed) => {
                     return this.schedulePlayerAttackInternal(player, npc, attackSpeed, ctx);
-                }),
-            scheduleNpcAttack:
-                ctx.scheduleNpcAttack ??
-                ((player, npc, attackSpeed, tick) => {
-                    return this.scheduleNpcRetaliateInternal(player, npc, attackSpeed, tick, ctx);
                 }),
             shouldRepeatAttack:
                 ctx.shouldRepeatAttack ?? ((player) => this.shouldRepeatAttackInternal(player)),
@@ -1563,13 +1762,12 @@ export class CombatController {
 }
 
 /**
- * Create a new combat controller instance.
+ * Create a new player combat manager instance.
  */
-export function createCombatController(opts?: {
+export function createPlayerCombatManager(opts?: {
     scheduler?: ActionScheduler;
     players?: PlayerManager;
-    npcManager?: NpcManager;
     randomSeed?: number;
-}): CombatController {
-    return new CombatController(opts);
+}): PlayerCombatManager {
+    return new PlayerCombatManager(opts);
 }

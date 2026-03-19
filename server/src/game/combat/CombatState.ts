@@ -111,6 +111,8 @@ export interface CombatTimingState {
     stepLockUntilTick?: number;
     /** Last tick when pathfinding was attempted */
     lastRouteTick: number;
+    /** First tick where combat routing could not find a valid path. */
+    unreachableSinceTick?: number;
 }
 
 /**
@@ -190,7 +192,7 @@ export function createInitialEngagementState(
 
 /**
  * Complete combat state for a player-vs-NPC engagement.
- * Owned by CombatController, replaces fragmented state across systems.
+ * Owned by PlayerCombatManager, replaces fragmented state across systems.
  */
 export interface PlayerVsNpcCombatState {
     /** Current combat phase */

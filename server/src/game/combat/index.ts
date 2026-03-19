@@ -55,14 +55,14 @@ export {
     type SkillSyncCallback,
 } from "./CombatEffectApplicator";
 
-// Controller
+// Player combat manager
 export {
-    CombatController,
-    createCombatController,
-    type CombatControllerContext,
+    PlayerCombatManager,
+    createPlayerCombatManager,
+    type PlayerCombatManagerContext,
     type CombatTickResult,
     type CombatEngagementInfo,
-} from "./CombatController";
+} from "./PlayerCombatManager";
 
 // Hit effects
 export {

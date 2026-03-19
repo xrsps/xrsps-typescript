@@ -161,8 +161,6 @@ export interface InteractionState {
     npcId?: number;
     playerId?: number;
     playerAutoAttack?: boolean;
-    nextAttackTick?: number;
-    aggroHoldTicks?: number;
 }
 
 /** Skill sync data. */
@@ -324,8 +322,6 @@ export interface CombatActionServices {
     stopPlayerCombat(socket: unknown): void;
     /** Start player-vs-player combat. */
     startPlayerCombat(socket: unknown, targetId: number): void;
-    /** Confirm NPC hit landed. */
-    confirmNpcHitLanded(socket: unknown, npcId: number, tick: number, npc: NpcState): void;
     /** Clear all interactions with NPC. */
     clearInteractionsWithNpc(npcId: number): void;
     /** Send skills message to player. */
@@ -336,6 +332,8 @@ export interface CombatActionServices {
     startNpcCombat(player: PlayerState, npc: NpcState, tick: number, attackSpeed: number): void;
     /** Resume auto-attack after player was hit (for auto-retaliate). */
     resumeAutoAttack(playerId: number): void;
+    /** Ensure player combat focus stays alive after NPC retaliation. */
+    extendAggroHold(playerId: number, minimumTicks?: number): void;
     /** Confirm hit landed for retaliation. */
     confirmHitLanded(
         playerId: number,
@@ -1258,10 +1256,6 @@ export class CombatActionHandler {
         // Refresh NPC combat timer
         npc.engageCombat(player.id, tick);
 
-        // Confirm hit landed for retaliation
-        if (sock) {
-            this.services.confirmNpcHitLanded(sock, npc.id, tick, npc);
-        }
         this.services.confirmHitLanded(
             player.id,
             tick,
@@ -1486,13 +1480,8 @@ export class CombatActionHandler {
             ),
         );
 
-        // Extend aggro hold on successful hit
-        const combatState = this.services.getInteractionState(sock);
-        if (combatState && combatState.kind === "npcCombat") {
-            const aggroHoldTicks = combatState.aggroHoldTicks;
-            combatState.aggroHoldTicks =
-                aggroHoldTicks !== undefined ? Math.max(aggroHoldTicks, 6) : 6;
-        }
+        // Keep the player-side combat focus alive after a successful retaliation.
+        this.services.extendAggroHold(player.id, 6);
 
         if (!this.services.isActiveFrame() && effects.length > 0) {
             this.services.dispatchActionEffects(effects);
@@ -2430,9 +2419,6 @@ export class CombatActionHandler {
         npc.engageCombat(player.id, tick);
 
         const sock = this.services.getPlayerSocket(player.id);
-        if (sock) {
-            this.services.confirmNpcHitLanded(sock, npc.id, tick, npc);
-        }
         this.services.confirmHitLanded(
             player.id,
             tick,
@@ -2491,11 +2477,7 @@ export class CombatActionHandler {
         if (interactionState?.kind === "npcCombat" && (interactionState.npcId ?? 0) === npcId) {
             if (!interactionState.playerAutoAttack) {
                 interactionState.playerAutoAttack = true;
-                interactionState.nextAttackTick = Math.min(
-                    interactionState.nextAttackTick ?? tick,
-                    tick,
-                );
-                // Also resume auto-attack in CombatController so combat loop continues
+                // Also resume auto-attack in PlayerCombatManager so combat loop continues
                 this.services.resumeAutoAttack(player.id);
             }
             player.setInteraction("npc", npc.id);

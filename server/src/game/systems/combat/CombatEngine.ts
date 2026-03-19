@@ -1396,7 +1396,7 @@ export class CombatEngine {
         return bestIdx as AttackBonusIndex.Stab | AttackBonusIndex.Slash | AttackBonusIndex.Crush;
     }
 
-    /** Get player's boosted skill level. Public for use by CombatController. */
+    /** Get player's boosted skill level. Public for use by PlayerCombatManager. */
     getBoostedLevel(player: PlayerState, skill: SkillId): number {
         const entry = player.getSkill(skill);
         const base = entry.baseLevel;
@@ -1466,7 +1466,7 @@ export class CombatEngine {
     /**
      * Get player's defence bonus against a specific attack type.
      */
-    /** Get player's defence bonus vs attack type. Public for use by CombatController. */
+    /** Get player's defence bonus vs attack type. Public for use by PlayerCombatManager. */
     getPlayerDefenceBonus(player: PlayerState, attackType: AttackType): number {
         const bonuses = this.aggregatePlayerBonuses(player);
         let defenceIndex: number;

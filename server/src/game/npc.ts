@@ -622,65 +622,26 @@ export class NpcState extends Actor {
      * - Has wander radius > 0
      */
     canRoam(currentTick: number): boolean {
-        return this.getRoamBlockReason(currentTick) === undefined;
-    }
-
-    getRoamBlockReason(
-        currentTick: number,
-    ):
-        | {
-              code: string;
-              logKey: string;
-              detail: string;
-          }
-        | undefined {
         if (!this.isRoamTimerReady(currentTick)) {
-            return {
-                code: "timer",
-                logKey: `timer:${this.nextRoamTick}`,
-                detail: `waiting for roam timer (next tick ${this.nextRoamTick})`,
-            };
+            return false;
         }
         if (this.isDead(currentTick)) {
-            return {
-                code: "dead",
-                logKey: `dead:${this.deadUntilTick}`,
-                detail: `dead until tick ${this.deadUntilTick}`,
-            };
+            return false;
         }
-        const queuedPath = this.getPathQueue();
-        if (queuedPath.length > 0) {
-            return {
-                code: "path",
-                logKey: `path:${queuedPath.length}:${queuedPath[0]?.x ?? this.tileX}:${
-                    queuedPath[0]?.y ?? this.tileY
-                }`,
-                detail: `already has queued path with ${queuedPath.length} step(s)`,
-            };
+        if (this.hasPath()) {
+            return false;
         }
         const interaction = this.getInteractionTarget();
         if (interaction && (interaction.type === "player" || interaction.type === "npc")) {
-            return {
-                code: "facing_pawn",
-                logKey: `facing:${interaction.type}:${interaction.id}`,
-                detail: `facing ${interaction.type} ${interaction.id}`,
-            };
+            return false;
         }
         if (this.isStationary()) {
-            return {
-                code: "stationary",
-                logKey: `stationary:${this.walkSeqId}:${this.idleSeqId}`,
-                detail: `walk sequence ${this.walkSeqId} matches idle sequence ${this.idleSeqId}`,
-            };
+            return false;
         }
         if (this.wanderRadius <= 0) {
-            return {
-                code: "zero_radius",
-                logKey: "zero_radius",
-                detail: `wander radius is ${this.wanderRadius}`,
-            };
+            return false;
         }
-        return undefined;
+        return true;
     }
 
     /**

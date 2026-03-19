@@ -1,16 +1,16 @@
 /**
- * Combat Controller Tests
+ * Player Combat Manager Tests
  *
- * Tests for the central combat orchestrator.
+ * Tests for player-owned combat state and scheduling.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 
 import {
-    CombatController,
-    CombatControllerContext,
-    createCombatController,
-} from "../src/game/combat/CombatController";
+    PlayerCombatManager,
+    PlayerCombatManagerContext,
+    createPlayerCombatManager,
+} from "../src/game/combat/PlayerCombatManager";
 import { CombatPhase } from "../src/game/combat/CombatState";
 import type { NpcState } from "../src/game/npc";
 import type { PlayerState } from "../src/game/player";
@@ -72,8 +72,8 @@ function createMockNpc(overrides: Partial<NpcState> = {}): NpcState {
 }
 
 function createMockContext(
-    overrides: Partial<CombatControllerContext> = {},
-): CombatControllerContext {
+    overrides: Partial<PlayerCombatManagerContext> = {},
+): PlayerCombatManagerContext {
     const players = new Map<number, PlayerState>();
     const npcs = new Map<number, NpcState>();
 
@@ -88,9 +88,7 @@ function createMockContext(
         hasLineOfSight: () => true,
         isPlayerFrozen: () => false,
         schedulePlayerAttack: vi.fn(() => ({ ok: true })),
-        scheduleNpcAttack: vi.fn(() => true),
         routePlayerToNpc: vi.fn(),
-        walkToAttackRange: vi.fn(),
         shouldRepeatAttack: () => true,
         ...overrides,
     };
@@ -100,13 +98,13 @@ function createMockContext(
 // Tests
 // =============================================================================
 
-describe("CombatController", () => {
-    let controller: CombatController;
+describe("PlayerCombatManager", () => {
+    let controller: PlayerCombatManager;
     let player: PlayerState;
     let npc: NpcState;
 
     beforeEach(() => {
-        controller = createCombatController();
+        controller = createPlayerCombatManager();
         player = createMockPlayer();
         npc = createMockNpc();
     });
@@ -228,14 +226,12 @@ describe("CombatController", () => {
         });
 
         it("keeps retaliation combat active without steering the NPC", () => {
-            let queuedStep: { x: number; y: number } | undefined;
             player = createMockPlayer({ tileX: 3205, tileY: 3200, x: 3205 << 7, y: 3200 << 7 });
             npc = createMockNpc({
                 tileX: 3201,
                 tileY: 3200,
                 x: 3201 << 7,
                 y: 3200 << 7,
-                peekNextStep: vi.fn(() => queuedStep),
             });
 
             controller.startCombat(player, npc, 100);
@@ -245,22 +241,16 @@ describe("CombatController", () => {
             }
             combatState.engagement.retaliationEngaged = true;
 
-            const walkToAttackRange = vi.fn(() => {
-                queuedStep = { x: 3202, y: 3200 };
-                return true;
-            });
             const ctx = createMockContext({
                 tick: 101,
                 playerLookup: () => player,
                 npcLookup: () => npc,
                 getDistanceToNpc: () => 4,
                 isWithinAttackReach: () => false,
-                walkToAttackRange,
             });
 
             const result = controller.processTick(ctx);
 
-            expect(walkToAttackRange).not.toHaveBeenCalled();
             expect(result.endedEngagements).toHaveLength(0);
             expect(controller.isInCombat(player.id)).toBe(true);
             expect((npc.disengageCombat as Mock)).not.toHaveBeenCalled();
@@ -281,7 +271,7 @@ describe("CombatController", () => {
             expect(result.endedEngagements[0].reason).toBe("target_dead");
         });
 
-        it("ends combat when NPC is returning home", () => {
+        it("keeps combat active while NPC is returning home", () => {
             controller.startCombat(player, npc, 0);
             const recoveringNpc = createMockNpc({
                 isRecoveringToSpawn: vi.fn(() => true),
@@ -293,8 +283,8 @@ describe("CombatController", () => {
             });
 
             const result = controller.processTick(ctx);
-            expect(result.endedEngagements).toHaveLength(1);
-            expect(result.endedEngagements[0].reason).toBe("target_recovering");
+            expect(result.endedEngagements).toHaveLength(0);
+            expect(controller.isInCombat(player.id)).toBe(true);
         });
 
         it("schedules attack when in range and ready", () => {
@@ -560,19 +550,20 @@ describe("CombatController", () => {
                 controller.getCombatState(overlappingPlayer.id)?.engagement.retaliationEngaged,
             ).toBe(false);
 
-            const walkToAttackRange = vi.fn();
+            const routePlayerToNpc = vi.fn();
             const ctx = createMockContext({
                 tick: 1,
                 playerLookup: () => overlappingPlayer,
                 npcLookup: () => overlappingNpc,
-                walkToAttackRange,
+                routePlayerToNpc,
                 isWithinAttackReach: () => false, // Overlapping is not valid attack position
             });
 
             controller.processTick(ctx);
 
-            // NpcManager owns NPC movement, not CombatController
-            expect(walkToAttackRange).not.toHaveBeenCalled();
+            expect(routePlayerToNpc).toHaveBeenCalled();
+            // NpcManager owns NPC movement, not PlayerCombatManager
+            expect((overlappingNpc.clearPath as Mock)).not.toHaveBeenCalled();
         });
 
         it("does not route NPC when not overlapping", () => {
@@ -582,19 +573,17 @@ describe("CombatController", () => {
 
             controller.startCombat(adjacentPlayer, adjacentNpc, 0);
 
-            const walkToAttackRange = vi.fn();
             const ctx = createMockContext({
                 tick: 1,
                 playerLookup: () => adjacentPlayer,
                 npcLookup: () => adjacentNpc,
-                walkToAttackRange,
                 isWithinAttackReach: () => true, // Adjacent is valid
             });
 
             controller.processTick(ctx);
 
-            // NPC should NOT be routed when already in range
-            expect(walkToAttackRange).not.toHaveBeenCalled();
+            // NPC should not be manipulated by the player combat manager
+            expect((adjacentNpc.clearPath as Mock)).not.toHaveBeenCalled();
         });
     });
 

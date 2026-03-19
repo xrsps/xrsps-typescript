@@ -3678,7 +3678,7 @@ export class PlayerManager implements PlayerRepository {
     }
 
     /**
-     * Set callback to stop auto-attack in CombatController when player walks.
+     * Set callback to stop auto-attack in PlayerCombatManager when player walks.
      */
     setStopAutoAttackCallback(callback: (playerId: number) => void): void {
         this.interactionSystem.setStopAutoAttackCallback(callback);
@@ -3793,7 +3793,7 @@ export class PlayerManager implements PlayerRepository {
 
     /**
      * Get a player by their unique ID.
-     * Used by CombatController for player lookups.
+     * Used by PlayerCombatManager for player lookups.
      * Also checks orphaned players since they're still in the game world.
      */
     getPlayerById(playerId: number): PlayerState | undefined {
@@ -4293,14 +4293,6 @@ export class PlayerManager implements PlayerRepository {
         this.interactionSystem.updatePlayerAttacks(tick, requestAttack, opts);
     }
 
-    /**
-     * Called when a player's hit on an NPC actually lands (hitsplat applied).
-     * OSRS parity: NPC retaliation should only start after the first hit LANDS.
-     */
-    confirmNpcHitLanded(ws: any, npcId: number, tick: number, npc: NpcState): void {
-        this.interactionSystem.confirmNpcHitLanded(ws, npcId, tick, npc);
-    }
-
     // Record a pending object (loc) interaction for a socket. Server will log upon proximity.
     startLocInteract(
         ws: any,
@@ -4350,8 +4342,9 @@ export class PlayerManager implements PlayerRepository {
     applyCombatMovementLocks(
         tick: number,
         npcLookup: (npcId: number) => NpcState | undefined,
+        shouldLockMovement?: (playerId: number, npcId: number, tick: number) => boolean,
     ): void {
-        this.interactionSystem.applyCombatMovementLocks(tick, npcLookup);
+        this.interactionSystem.applyCombatMovementLocks(tick, npcLookup, shouldLockMovement);
     }
 
     // Clear all player interactions with a specific NPC (e.g., when NPC dies)
