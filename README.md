@@ -2,6 +2,8 @@
 
 xRSPS is intended to explore OSRS in a similar spirit to Jagex's abandoned Project Zanaris.
 
+Discord: https://discord.gg/3dzttF2q73
+
 This project contains:
 
 - a React/WebGL game client
