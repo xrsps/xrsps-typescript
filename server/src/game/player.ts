@@ -4332,21 +4332,6 @@ export class PlayerManager implements PlayerRepository {
         this.interactionSystem.updateGroundItemInteractions(tick);
     }
 
-    updateNpcCombatInteractions(
-        tick: number,
-        npcLookup: (npcId: number) => NpcState | undefined,
-    ): void {
-        this.interactionSystem.updateNpcCombatInteractions(tick, npcLookup);
-    }
-
-    applyCombatMovementLocks(
-        tick: number,
-        npcLookup: (npcId: number) => NpcState | undefined,
-        shouldLockMovement?: (playerId: number, npcId: number, tick: number) => boolean,
-    ): void {
-        this.interactionSystem.applyCombatMovementLocks(tick, npcLookup, shouldLockMovement);
-    }
-
     // Clear all player interactions with a specific NPC (e.g., when NPC dies)
     clearInteractionsWithNpc(npcId: number): void {
         this.interactionSystem.clearInteractionsWithNpc(npcId);

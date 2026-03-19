@@ -2236,7 +2236,11 @@ export class WSServer {
                     },
                 );
             }
-            this.movementSystem = new MovementSystem(this.players, this.npcManager);
+            this.movementSystem = new MovementSystem(
+                this.players,
+                this.options.pathService,
+                this.npcManager,
+            );
             // Set up loc change callback to broadcast to all clients
             this.players.setLocChangeCallback((oldId, newId, tile, level, opts) => {
                 this.emitLocChange(oldId, newId, tile, level, opts);

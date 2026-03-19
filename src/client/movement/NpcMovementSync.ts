@@ -228,7 +228,12 @@ export class NpcMovementSync {
         });
 
         const nextStep = path.steps[0];
-        const pathOrientation = nextStep ? directionToOrientation(nextStep.direction) : undefined;
+        const pathOrientation =
+            !teleported && nextStep
+                ? undefined
+                : nextStep
+                ? directionToOrientation(nextStep.direction)
+                : undefined;
         const orientation = this.resolveOrientation(
             {
                 orientation: update.orientation,
@@ -240,6 +245,10 @@ export class NpcMovementSync {
         );
 
         if (orientation !== undefined) {
+            // OSRS parity: do not switch desired facing to an upcoming movement segment the
+            // moment the packet arrives. Normal walking updates let the active segment take
+            // over facing as movement begins; forcing targetRot early makes retreating NPCs
+            // instantly snap away from their last combat-facing yaw.
             this.npcEcs.setTargetRot(ecsIndex, orientation);
             if (forceImmediateRotation || teleported) {
                 this.npcEcs.setRotation(ecsIndex, orientation);

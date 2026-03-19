@@ -35,7 +35,17 @@ function createMockPlayer(overrides: Partial<PlayerState> = {}): PlayerState {
         autocastEnabled: false,
         autocastMode: null,
         attackDelay: 4,
+        running: false,
         clearPath: vi.fn(),
+        clearInteraction: vi.fn(),
+        removeCombatTarget: vi.fn(),
+        stopAnimation: vi.fn(),
+        hasPath: vi.fn(() => false),
+        wasTeleported: vi.fn(() => false),
+        wantsToRun: vi.fn(() => false),
+        resolveRequestedRun: vi.fn((run: boolean) => run),
+        setPath: vi.fn(),
+        getPathQueue: vi.fn(() => []),
         ...overrides,
     } as unknown as PlayerState;
 }
@@ -584,6 +594,83 @@ describe("PlayerCombatManager", () => {
 
             // NPC should not be manipulated by the player combat manager
             expect((adjacentNpc.clearPath as Mock)).not.toHaveBeenCalled();
+        });
+
+        it("re-routes the player through PlayerCombatManager when the NPC moves", () => {
+            const playerManager = {
+                getPlayerById: vi.fn((id: number) => (id === player.id ? player : undefined)),
+                getSocketByPlayerId: vi.fn(() => ({ id: "sock" })),
+                getInteractionState: vi.fn(() => ({
+                    kind: "npcCombat",
+                    npcId: npc.id,
+                    modifierFlags: 0,
+                })),
+                finishNpcCombatByPlayerId: vi.fn(),
+            };
+            controller = createPlayerCombatManager({ players: playerManager as any });
+            controller.startCombat(player, npc, 0);
+
+            const movingNpc = createMockNpc({ id: npc.id, tileX: 3203, tileY: 3200 });
+            const pathService = {
+                findPathSteps: vi.fn((_req: any) => ({
+                    ok: true,
+                    steps: [{ x: 3201, y: 3200 }, { x: 3202, y: 3200 }],
+                    end: { x: 3202, y: 3200 },
+                })),
+                getCollisionFlagAt: vi.fn(() => 0),
+                projectileRaycast: vi.fn(() => ({ clear: true, tiles: 1 })),
+            };
+
+            controller.updateNpcCombatMovement({
+                tick: 1,
+                pathService: pathService as any,
+                npcLookup: (id) => (id === movingNpc.id ? movingNpc : undefined),
+            });
+
+            expect(player.setPath).toHaveBeenCalledWith(
+                [{ x: 3201, y: 3200 }, { x: 3202, y: 3200 }],
+                false,
+            );
+        });
+
+        it("owns no-path cancellation and interaction cleanup", () => {
+            const playerManager = {
+                getPlayerById: vi.fn((id: number) => (id === player.id ? player : undefined)),
+                getSocketByPlayerId: vi.fn(() => ({ id: "sock" })),
+                getInteractionState: vi.fn(() => ({
+                    kind: "npcCombat",
+                    npcId: npc.id,
+                    modifierFlags: 0,
+                })),
+                finishNpcCombatByPlayerId: vi.fn(),
+            };
+            controller = createPlayerCombatManager({ players: playerManager as any });
+            controller.startCombat(player, npc, 0);
+
+            const pathService = {
+                findPathSteps: vi.fn(() => ({ ok: false, steps: [] })),
+                getCollisionFlagAt: vi.fn(() => 0),
+                projectileRaycast: vi.fn(() => ({ clear: false, tiles: 0 })),
+            };
+
+            controller.updateNpcCombatMovement({
+                tick: 1,
+                pathService: pathService as any,
+                npcLookup: (id) => (id === npc.id ? npc : undefined),
+            });
+            expect(controller.isInCombat(player.id)).toBe(true);
+
+            controller.updateNpcCombatMovement({
+                tick: 2,
+                pathService: pathService as any,
+                npcLookup: (id) => (id === npc.id ? npc : undefined),
+            });
+
+            expect(player.clearInteraction).toHaveBeenCalled();
+            expect(player.removeCombatTarget).toHaveBeenCalled();
+            expect(player.stopAnimation).toHaveBeenCalled();
+            expect(playerManager.finishNpcCombatByPlayerId).toHaveBeenCalledWith(player.id, npc.id);
+            expect(controller.isInCombat(player.id)).toBe(false);
         });
     });
 

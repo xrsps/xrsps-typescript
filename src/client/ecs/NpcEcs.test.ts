@@ -107,4 +107,28 @@ describe("NpcEcs movement parity", () => {
         ecs.updateClient(1);
         expect(ecs.getX(id)).toBe(targetC);
     });
+
+    it("slows clipped NPC movement while turning into a retreat step", () => {
+        const clipped = new NpcEcs();
+        const clippedId = clipped.createNpc(50, 50, 99, 1, 64, 64, 0, 0, 0, 0, 64, true);
+        clipped.setServerMapping(clippedId, 3);
+        clipped.setRotation(clippedId, 1024);
+        clipped.enqueueStep(clippedId, 64 + 128, 64, 4);
+
+        clipped.updateClient(1);
+
+        expect(clipped.getX(clippedId)).toBe(66);
+        expect(clipped.getY(clippedId)).toBe(64);
+
+        const unclipped = new NpcEcs();
+        const unclippedId = unclipped.createNpc(50, 50, 99, 1, 64, 64, 0, 0, 0, 0, 64, false);
+        unclipped.setServerMapping(unclippedId, 4);
+        unclipped.setRotation(unclippedId, 1024);
+        unclipped.enqueueStep(unclippedId, 64 + 128, 64, 4);
+
+        unclipped.updateClient(1);
+
+        expect(unclipped.getX(unclippedId)).toBe(68);
+        expect(unclipped.getY(unclippedId)).toBe(64);
+    });
 });

@@ -46,7 +46,6 @@ import {
  */
 const PLAYER_CHASE_DISTANCE_TILES = 32;
 
-const YOU_CANT_REACH_THAT = "I can't reach that!";
 const LEAGUE_TUTOR_NPC_TYPE_ID = 315;
 
 /**
@@ -313,10 +312,9 @@ export class PlayerInteractionSystem {
      * RSMod parity: Called alongside player.resetInteractions() when player walks
      * and whenever a new click intent replaces an old one.
      *
-     * IMPORTANT: For NPC combat, we DON'T delete the state - we just set playerAutoAttack=false.
-     * This preserves the player's combat focus while NpcManager remains authoritative for
-     * any NPC chase/retreat behavior. RSMod behavior: walking away doesn't immediately cancel
-     * combat, it just stops the player's auto-attack.
+     * IMPORTANT: For NPC combat, we preserve the intent state here.
+     * Walking away should stop auto-attack in PlayerCombatManager without immediately
+     * deleting the combat-facing intent.
      */
     clearAllInteractions(ws: any): void {
         const st = this.interactions.get(ws);
@@ -329,16 +327,10 @@ export class PlayerInteractionSystem {
                 me.setInteractingPlayer(null);
             }
 
-            // RSMod parity: For NPC combat, preserve the state so NPC can continue chasing
-            // Only set playerAutoAttack=false so the player stops attacking
             if (st.kind === "npcCombat") {
-                const combatState = st as NpcCombatInteractionState;
-                combatState.playerAutoAttack = false;
-                // Also notify PlayerCombatManager to stop player auto-attack
                 if (me) {
                     this.onStopAutoAttack?.(me.id);
                 }
-                // Don't delete - preserve player combat state while the NPC remains server-driven
                 this.pendingLocInteractions.delete(ws);
                 return;
             }
@@ -606,8 +598,9 @@ export class PlayerInteractionSystem {
             }),
         );
         if (interaction && interaction.kind === "npcCombat") {
-            interaction.playerAutoAttack = false;
-            interaction.lastRouteTick = Number.MIN_SAFE_INTEGER;
+            if (me) {
+                this.onStopAutoAttack?.(me.id);
+            }
         } else if (interaction) {
             this.interactions.delete(ws);
         }
@@ -664,28 +657,16 @@ export class PlayerInteractionSystem {
         let state: NpcCombatInteractionState;
         if (existing && existing.kind === "npcCombat" && existing.npcId === npc.id) {
             state = existing;
-            // Clicking "Attack" should continue routing/attacking until cancelled.
-            // Whether attacks repeat after the first swing/cast is resolved on-hit.
-            state.playerAutoAttack = true;
             state.modifierFlags = this.normalizeModifierFlags(modifierFlags);
         } else {
             state = {
                 kind: "npcCombat",
                 npcId: npc.id,
                 modifierFlags: this.normalizeModifierFlags(modifierFlags),
-                lastRouteTick: currentTick,
-                lastNpcTileX: npc.tileX,
-                lastNpcTileY: npc.tileY,
-                playerAutoAttack: true,
             };
         }
 
-        state.lastRouteTick = currentTick;
-        state.lastNpcTileX = npc.tileX;
-        state.lastNpcTileY = npc.tileY;
-        state.playerAutoAttack = true;
         state.modifierFlags = this.normalizeModifierFlags(state.modifierFlags);
-        state.unreachableSinceTick = undefined;
 
         // OSRS parity: Do not force NPC to face/engage on click.
         // NPC retaliation/engagement begins when the first hit actually lands (confirmHitLanded),
@@ -699,8 +680,6 @@ export class PlayerInteractionSystem {
         const attackReach = Math.max(1, this.getPlayerAttackReach(me));
         if (this.isWithinAttackReach(me, npc)) {
             me.clearPath();
-            state.lastRouteTick = currentTick;
-            state.unreachableSinceTick = undefined;
             return { ok: true };
         }
 
@@ -713,8 +692,6 @@ export class PlayerInteractionSystem {
                 this.resolveRunMode(me, state.modifierFlags),
             )
         ) {
-            state.lastRouteTick = currentTick;
-            state.unreachableSinceTick = undefined;
             return { ok: true };
         }
 
@@ -727,12 +704,10 @@ export class PlayerInteractionSystem {
         );
         const routedWithProgress = routed && (me.hasPath() || this.isWithinAttackReach(me, npc));
         if (routedWithProgress) {
-            state.lastRouteTick = currentTick;
             // OSRS parity: Allow attack on the same tick the player arrives in range.
             // If player walks into range during this tick's movement phase, they can
             // attack during the combat phase (same tick). The attack speed cooldown
             // only starts AFTER the first attack is executed, not when clicked.
-            state.unreachableSinceTick = undefined;
             return { ok: true };
         }
 
@@ -746,22 +721,18 @@ export class PlayerInteractionSystem {
         const fallbackWithProgress =
             fallbackRouted && (me.hasPath() || this.isWithinAttackReach(me, npc));
         if (fallbackWithProgress) {
-            state.lastRouteTick = currentTick;
-            state.unreachableSinceTick = undefined;
             return { ok: true };
         }
 
-        // Routing failed - try again next tick
-        state.unreachableSinceTick = currentTick;
         return { ok: false, message: "no_path" };
     }
 
     stopNpcAttack(ws: any): void {
         const st = this.interactions.get(ws);
         if (!st || st.kind !== "npcCombat") return;
-        st.playerAutoAttack = false;
         const me = this.players.get(ws);
         if (me) {
+            this.onStopAutoAttack?.(me.id);
             // RSMod parity: Clear combat target (COMBAT_TARGET_FOCUS_ATTR)
             me.removeCombatTarget();
             me.clearPath();
@@ -1240,130 +1211,6 @@ export class PlayerInteractionSystem {
         });
     }
 
-    updateNpcCombatInteractions(tick: number, npcLookup: InteractionTickNpcLookup): void {
-        this.forEachInteraction((ws, interaction) => {
-            if (interaction.kind !== "npcCombat") return;
-            const state = interaction as NpcCombatInteractionState;
-            if (!state.playerAutoAttack) return;
-
-            const me = this.players.get(ws);
-            if (!me) {
-                this.interactions.delete(ws);
-                return;
-            }
-
-            const npc = npcLookup(state.npcId);
-            if (!npc) {
-                me.clearInteraction();
-                this.interactions.delete(ws);
-                return;
-            }
-
-            if (npc.level !== me.level) {
-                me.clearInteraction();
-                this.interactions.delete(ws);
-                return;
-            }
-
-            if (this.isWithinAttackReach(me, npc)) {
-                // OSRS parity: Stop moving immediately when in attack range
-                // This prevents walking an extra tile while attack is on cooldown
-                me.clearPath();
-                state.unreachableSinceTick = undefined;
-                return;
-            }
-
-            const npcMoved = state.lastNpcTileX !== npc.tileX || state.lastNpcTileY !== npc.tileY;
-            if (npcMoved) {
-                state.lastNpcTileX = npc.tileX;
-                state.lastNpcTileY = npc.tileY;
-                state.lastRouteTick = Number.MIN_SAFE_INTEGER;
-            }
-
-            const shouldRoute =
-                !me.hasPath() || npcMoved || tick - state.lastRouteTick >= 2 || me.wasTeleported();
-
-            if (!shouldRoute) return;
-
-            const reach = Math.max(1, this.getPlayerAttackReach(me));
-            const npcSize = Math.max(1, npc.size);
-
-            // If in range but blocked by wall, find a tile with LoS
-            if (
-                this.tryRouteToLineOfSight(
-                    me,
-                    npc,
-                    reach,
-                    this.resolveRunMode(me, state.modifierFlags),
-                )
-            ) {
-                state.lastRouteTick = tick;
-                state.unreachableSinceTick = undefined;
-                return;
-            }
-
-            // Melee adjacency handling
-            const strategy = new RectAdjacentRouteStrategy(npc.tileX, npc.tileY, npcSize, npcSize);
-            // OSRS parity: Set collision getter so hasArrived() checks for walls
-            strategy.setCollisionGetter(
-                (x, y, p) => this.pathService.getCollisionFlagAt(x, y, p),
-                me.level,
-            );
-            const arrived = strategy.hasArrived(me.tileX, me.tileY, me.level);
-
-            // hasArrived() already verified no wall blocks if arrived is true
-            if (arrived) {
-                return; // Already in melee range with clear path
-            }
-
-            const routed = this.routePlayerToNpc(
-                me,
-                npc,
-                reach,
-                npc.hasPath(),
-                this.resolveRunMode(me, state.modifierFlags),
-            );
-            const routedWithProgress =
-                routed && (me.hasPath() || this.isWithinAttackReach(me, npc));
-            if (routedWithProgress) {
-                state.lastRouteTick = tick;
-                state.unreachableSinceTick = undefined;
-                return;
-            }
-
-            const fallbackRouted = this.routePlayerToTile(
-                me,
-                { x: npc.tileX, y: npc.tileY },
-                this.resolveRunMode(me, state.modifierFlags),
-            );
-            const fallbackWithProgress =
-                fallbackRouted && (me.hasPath() || this.isWithinAttackReach(me, npc));
-            if (fallbackWithProgress) {
-                state.lastRouteTick = tick;
-                state.unreachableSinceTick = undefined;
-                return;
-            }
-
-            if (state.unreachableSinceTick === undefined) {
-                state.unreachableSinceTick = tick;
-                return;
-            }
-
-            // Give routing one extra tick after the first hard failure, then cancel.
-            if (tick - state.unreachableSinceTick < 1) {
-                return;
-            }
-
-            this.onGameMessage?.(me, YOU_CANT_REACH_THAT);
-            this.onStopAutoAttack?.(me.id);
-            me.clearPath();
-            me.clearInteraction();
-            me.removeCombatTarget();
-            me.stopAnimation();
-            this.interactions.delete(ws);
-        });
-    }
-
     applyInteractionFacing(
         ws: any,
         player: PlayerState,
@@ -1484,34 +1331,6 @@ export class PlayerInteractionSystem {
             if (tick < last + attackDelay) return;
 
             schedulePlayerAttack(me, target, attackDelay, tick);
-        });
-    }
-
-    /**
-     * Pre-movement: if a player is already in range and eligible to start an attack this tick,
-     * clear their path now so traversal does not consume a step before the combat phase schedules
-     * the swing/cast.
-     */
-    applyCombatMovementLocks(
-        tick: number,
-        npcLookup: InteractionTickNpcLookup,
-        shouldLockMovement?: (playerId: number, npcId: number, tick: number) => boolean,
-    ): void {
-        this.forEachInteraction((ws, interaction) => {
-            if (interaction.kind !== "npcCombat") return;
-            const state = interaction as NpcCombatInteractionState;
-            if (!state.playerAutoAttack) return;
-
-            const me = this.players.get(ws);
-            if (!me) return;
-            const npc = npcLookup(state.npcId);
-            if (!npc) return;
-
-            const reach = this.getPlayerAttackReach(me);
-            if (!this.isWithinAttackReach(me, npc)) return;
-            if (reach > 1) return;
-            if (!shouldLockMovement?.(me.id, state.npcId, tick)) return;
-            me.clearPath();
         });
     }
 

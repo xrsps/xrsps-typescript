@@ -1,3 +1,4 @@
+import type { PathService } from "../../pathfinding/PathService";
 import type { PlayerCombatManager } from "../combat";
 import { NpcManager } from "../npcManager";
 import { PlayerManager } from "../player";
@@ -7,6 +8,7 @@ export class MovementSystem {
 
     constructor(
         private readonly players: PlayerManager,
+        private readonly pathService?: PathService,
         private readonly npcManager?: NpcManager,
     ) {}
 
@@ -35,10 +37,11 @@ export class MovementSystem {
             this.players.updateNpcInteractions(tick, (npcId) => this.npcManager?.getById(npcId));
         } catch {}
         try {
-            this.players.updateNpcCombatInteractions(
+            this.playerCombatManager?.updateNpcCombatMovement({
                 tick,
-                (npcId) => this.npcManager?.getById(npcId),
-            );
+                pathService: this.pathService,
+                npcLookup: (npcId) => this.npcManager?.getById(npcId),
+            });
         } catch {}
         try {
             this.players.updateLocInteractions(tick);
@@ -47,18 +50,11 @@ export class MovementSystem {
             this.players.updateGroundItemInteractions(tick);
         } catch {}
         try {
-            // Lock movement for players that are about to start a combat swing/cast this tick.
-            // This prevents "move away then attack" artifacts due to tick phase ordering.
-            this.players.applyCombatMovementLocks(
+            this.playerCombatManager?.applyPreMovementLocks({
                 tick,
-                (npcId) => this.npcManager?.getById(npcId),
-                (playerId, npcId, currentTick) =>
-                    this.playerCombatManager?.shouldLockPreMovement(
-                        playerId,
-                        npcId,
-                        currentTick,
-                    ) ?? false,
-            );
+                pathService: this.pathService,
+                npcLookup: (npcId) => this.npcManager?.getById(npcId),
+            });
         } catch {}
     }
 
@@ -75,10 +71,11 @@ export class MovementSystem {
             this.players.updateNpcInteractions(tick, (npcId) => this.npcManager?.getById(npcId));
         } catch {}
         try {
-            this.players.updateNpcCombatInteractions(
+            this.playerCombatManager?.updateNpcCombatMovement({
                 tick,
-                (npcId) => this.npcManager?.getById(npcId),
-            );
+                pathService: this.pathService,
+                npcLookup: (npcId) => this.npcManager?.getById(npcId),
+            });
         } catch {}
     }
 }

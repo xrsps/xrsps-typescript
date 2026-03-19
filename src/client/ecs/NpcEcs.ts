@@ -43,6 +43,7 @@ export class NpcEcs {
     private rotation: Uint16Array; // 0..2047
     private npcTypeId: Int32Array; // interact id/type key
     private size: Uint8Array; // 1..N
+    private clipped: Uint8Array; // 1 when npcType.isClipped
     private mapId: Uint16Array; // getMapSquareId(mapX,mapY)
     private serverId: Int32Array;
     private hasServerState: Uint8Array;
@@ -115,6 +116,7 @@ export class NpcEcs {
         this.rotation = new Uint16Array(this.capacity);
         this.npcTypeId = new Int32Array(this.capacity);
         this.size = new Uint8Array(this.capacity);
+        this.clipped = new Uint8Array(this.capacity);
         this.mapId = new Uint16Array(this.capacity);
         this.serverId = new Int32Array(this.capacity);
         this.hasServerState = new Uint8Array(this.capacity);
@@ -176,6 +178,7 @@ export class NpcEcs {
         this.rotation = grow(this.rotation, newCap);
         this.npcTypeId = grow(this.npcTypeId, newCap);
         this.size = grow(this.size, newCap);
+        this.clipped = grow(this.clipped, newCap);
         this.mapId = grow(this.mapId, newCap);
         this.serverId = grow(this.serverId, newCap);
         this.hasServerState = grow(this.hasServerState, newCap);
@@ -282,6 +285,7 @@ export class NpcEcs {
         spawnTileX: number,
         spawnTileY: number,
         rotationSpeed?: number,
+        isClipped?: boolean,
     ): number {
         const id = this.allocId();
         const mid = getMapSquareId(mapX, mapY);
@@ -296,6 +300,7 @@ export class NpcEcs {
         this.spawnTileX[id] = (spawnTileX | 0) & 63;
         this.spawnTileY[id] = (spawnTileY | 0) & 63;
         this.rotSpeed[id] = ((typeof rotationSpeed === "number" ? rotationSpeed : 64) | 0) & 0xffff;
+        this.clipped[id] = isClipped === false ? 0 : 1;
         this.serverId[id] = 0;
         this.hasServerState[id] = 0;
         this.interactionIndex[id] = NO_INTERACTION;
@@ -354,6 +359,7 @@ export class NpcEcs {
         this.serverId[id] = 0;
         this.hasServerState[id] = 0;
         this.interactionIndex[id] = NO_INTERACTION;
+        this.clipped[id] = 0;
     }
 
     destroyNpcsForMap(mapX: number, mapY: number): void {
@@ -733,12 +739,36 @@ export class NpcEcs {
                     const rawStepSpeed = Math.max(1, this.getCurrentStepSpeed(id) | 0);
                     const pendingPathLength = pathLengthLike;
                     let speed = 4;
-                    if (pendingPathLength > 2) speed = 6;
-                    if (pendingPathLength > 3) speed = 8;
-                    if ((this.movementDelayCounter[id] | 0) > 0 && pendingPathLength > 1) {
-                        speed = 8;
-                        this.movementDelayCounter[id] =
-                            Math.max(0, (this.movementDelayCounter[id] | 0) - 1) & 0xff;
+                    const stepRot = this.getCurrentStepRot(id);
+                    const turningIntoStep =
+                        stepRot !== undefined &&
+                        ((stepRot | 0) !== (this.rotation[id] | 0)) &&
+                        (this.interactionIndex[id] | 0) === NO_INTERACTION &&
+                        (this.rotSpeed[id] | 0) !== 0;
+                    const isClippedNpc = this.clipped[id] === 1;
+
+                    if (isClippedNpc) {
+                        // Deob parity: clipped NPCs slow to walk speed 2 while turning into a
+                        // path step without an interaction target, which is especially visible
+                        // when retreating back toward spawn.
+                        if (turningIntoStep) {
+                            speed = 2;
+                        }
+                        if (pendingPathLength > 2) speed = 6;
+                        if (pendingPathLength > 3) speed = 8;
+                        if ((this.movementDelayCounter[id] | 0) > 0 && pendingPathLength > 1) {
+                            speed = 8;
+                            this.movementDelayCounter[id] =
+                                Math.max(0, (this.movementDelayCounter[id] | 0) - 1) & 0xff;
+                        }
+                    } else {
+                        if (pendingPathLength > 1) speed = 6;
+                        if (pendingPathLength > 2) speed = 8;
+                        if ((this.movementDelayCounter[id] | 0) > 0 && pendingPathLength > 1) {
+                            speed = 8;
+                            this.movementDelayCounter[id] =
+                                Math.max(0, (this.movementDelayCounter[id] | 0) - 1) & 0xff;
+                        }
                     }
                     if (rawStepSpeed >= 8) speed <<= 1; // run traversal
                     else if (rawStepSpeed <= 2) speed >>= 1; // crawl traversal

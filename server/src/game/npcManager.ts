@@ -849,7 +849,7 @@ export class NpcManager {
                 const combatTargetId = npc.getCombatTargetPlayerId();
                 if (shouldRecoverToSpawn) {
                     if (combatTargetId !== undefined) {
-                        npc.disengageCombat();
+                        npc.disengageCombatPreservingInteraction();
                         npc.scheduleNextAggressionCheck(currentTick);
                     }
                     this.processRecoveryNpcMovement(npc);

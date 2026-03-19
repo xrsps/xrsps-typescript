@@ -160,7 +160,6 @@ export interface InteractionState {
     kind: "npcCombat" | "playerCombat" | string;
     npcId?: number;
     playerId?: number;
-    playerAutoAttack?: boolean;
 }
 
 /** Skill sync data. */
@@ -2475,11 +2474,7 @@ export class CombatActionHandler {
             return;
         }
         if (interactionState?.kind === "npcCombat" && (interactionState.npcId ?? 0) === npcId) {
-            if (!interactionState.playerAutoAttack) {
-                interactionState.playerAutoAttack = true;
-                // Also resume auto-attack in PlayerCombatManager so combat loop continues
-                this.services.resumeAutoAttack(player.id);
-            }
+            this.services.resumeAutoAttack(player.id);
             player.setInteraction("npc", npc.id);
             return;
         }

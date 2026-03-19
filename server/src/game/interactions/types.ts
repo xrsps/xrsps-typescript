@@ -32,17 +32,6 @@ export interface NpcCombatInteractionState {
     /** Target NPC's unique instance ID */
     npcId: number;
     modifierFlags?: number;
-    /** Last tick when pathfinding was attempted */
-    lastRouteTick: number;
-    /** Last known NPC position for movement detection */
-    lastNpcTileX: number;
-    lastNpcTileY: number;
-    /** Whether player should auto-attack (false when player manually moves away) */
-    playerAutoAttack: boolean;
-    /** Last calculated distance to target (for debugging) */
-    lastChaseDistance?: number;
-    /** First tick where neither attack-range routing nor fallback movement could proceed. */
-    unreachableSinceTick?: number;
 }
 
 export interface NpcInteractPassiveState {

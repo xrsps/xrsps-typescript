@@ -326,6 +326,11 @@ function testNpcOutsideRoamAreaDropsChaseAndReturnsHome(): void {
         undefined,
         "NPCs displaced beyond their roam area should drop the chase and recover home",
     );
+    assert.deepStrictEqual(
+        npc.getInteractionTarget(),
+        { id: player.id, type: "player" },
+        "recovery should preserve the last faced player target while the NPC retreats home",
+    );
     assert.strictEqual(
         npc.tileX,
         12,

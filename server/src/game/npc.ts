@@ -547,6 +547,14 @@ export class NpcState extends Actor {
      * Used for explicit combat resets (e.g., scripted transitions).
      */
     disengageCombat(): void {
+        this.disengageCombatInternal(true);
+    }
+
+    disengageCombatPreservingInteraction(): void {
+        this.disengageCombatInternal(false);
+    }
+
+    private disengageCombatInternal(clearInteraction: boolean): void {
         const hadPath = this.hasPath();
         this.combatTargetPlayerId = undefined;
         this.combatTimeoutTick = 0;
@@ -554,7 +562,9 @@ export class NpcState extends Actor {
             this.forceSyncUpdate = true;
         }
         this.clearPath();
-        this.clearInteractionTarget();
+        if (clearInteraction) {
+            this.clearInteractionTarget();
+        }
     }
 
     /**

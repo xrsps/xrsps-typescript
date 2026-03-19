@@ -9,6 +9,7 @@
  */
 import assert from "assert";
 
+import { createPlayerCombatManager } from "../src/game/combat/PlayerCombatManager";
 import { NpcState } from "../src/game/npc";
 import { PlayerManager } from "../src/game/player";
 
@@ -322,6 +323,7 @@ function main(): void {
         });
 
         const pm = new PlayerManager(pathService as any);
+        const combat = createPlayerCombatManager({ players: pm });
         const ws: any = { id: "los-moving-target" };
         const player = pm.add(ws, 0, 0, 0);
         player.combatWeaponCategory = 3;
@@ -332,6 +334,7 @@ function main(): void {
 
         let result = pm.startNpcAttack(ws, npc, 0, 4);
         assert.strictEqual(result.ok, true, "Expected initial ranged chase route to succeed");
+        combat.startCombat(player, npc, 0, 4);
         assert.deepStrictEqual(
             cloneQueue(player as any),
             [{ x: 1, y: 0 }],
@@ -339,7 +342,11 @@ function main(): void {
         );
 
         npc.tileX = 6;
-        pm.updateNpcCombatInteractions(1, (npcId) => (npcId === npc.id ? npc : undefined));
+        combat.updateNpcCombatMovement({
+            tick: 1,
+            pathService: pathService as any,
+            npcLookup: (npcId) => (npcId === npc.id ? npc : undefined),
+        });
 
         assert.deepStrictEqual(
             cloneQueue(player as any),
