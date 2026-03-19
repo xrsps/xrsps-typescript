@@ -53,6 +53,7 @@ export class GLRenderer {
     private perfSolidDrawCalls = 0;
     private perfGradientDrawCalls = 0;
     private perfMaskedDrawCalls = 0;
+    private texIndexQuadCapacity = 1;
     private static readonly SOLID_BATCH_RECT_CAPACITY = 2048;
     private solidBatchData = new Float32Array(GLRenderer.SOLID_BATCH_RECT_CAPACITY * 36);
     private solidBatchFloatCount = 0;
@@ -366,6 +367,35 @@ void main(){
         this.perfTextureDrawCalls++;
     }
 
+    drawTextureQuads(
+        tex: Texture,
+        vertices: Float32Array,
+        quadCount: number,
+        tintStrength = 0,
+        tintColor: [number, number, number] = [0, 0, 0],
+        alpha = 1,
+    ) {
+        if (!tex?.tex || quadCount <= 0) return;
+
+        const gl = this.gl;
+        this.flushSolidBatch();
+        this.ensureTextureIndexCapacity(quadCount);
+        gl.useProgram(this.progTex);
+        gl.uniformMatrix4fv(this.uProj_tex, false, this.proj);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tex.tex);
+        gl.uniform1i(this.uSampler_tex, 0);
+        gl.uniform3f(this.uTintColor_tex, tintColor[0], tintColor[1], tintColor[2]);
+        gl.uniform1f(this.uTintStrength_tex, tintStrength);
+        gl.uniform1f(this.uAlpha_tex, alpha);
+        gl.bindVertexArray(this.vaoTex);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices.subarray(0, quadCount * 16), gl.DYNAMIC_DRAW);
+        gl.drawElements(gl.TRIANGLES, quadCount * 6, gl.UNSIGNED_SHORT, 0);
+        this.perfDrawCalls++;
+        this.perfTextureDrawCalls++;
+    }
+
     /**
      * OSRS PARITY: Draw a texture rotated around its center
      * Reference: SpritePixels.method9857() and method9855()
@@ -634,6 +664,31 @@ void main(){
         this.perfDrawCalls++;
         this.perfSolidDrawCalls++;
         this.solidBatchFloatCount = 0;
+    }
+
+    private ensureTextureIndexCapacity(quadCount: number) {
+        if (quadCount <= this.texIndexQuadCapacity) return;
+
+        let nextCapacity = this.texIndexQuadCapacity;
+        while (nextCapacity < quadCount) {
+            nextCapacity <<= 1;
+        }
+
+        const idx = new Uint16Array(nextCapacity * 6);
+        for (let i = 0; i < nextCapacity; i++) {
+            const baseVertex = i * 4;
+            const baseIndex = i * 6;
+            idx[baseIndex + 0] = baseVertex;
+            idx[baseIndex + 1] = baseVertex + 1;
+            idx[baseIndex + 2] = baseVertex + 2;
+            idx[baseIndex + 3] = baseVertex;
+            idx[baseIndex + 4] = baseVertex + 2;
+            idx[baseIndex + 5] = baseVertex + 3;
+        }
+
+        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.ibo);
+        this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, idx, this.gl.STATIC_DRAW);
+        this.texIndexQuadCapacity = nextCapacity;
     }
 
     createTextureFromCanvas(key: string, canvas: HTMLCanvasElement): Texture {

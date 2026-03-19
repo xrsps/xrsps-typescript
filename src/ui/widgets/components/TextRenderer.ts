@@ -1,47 +1,11 @@
 import { BitmapFont } from "../../../rs/font/BitmapFont";
 import type { GLRenderer } from "../../gl/renderer";
+import { getBitmapFontAtlas } from "../../text/BitmapFontAtlas";
 
 export type FontLoader = (id: number) => BitmapFont | undefined;
 export type InlineImageResolver = (
     imgId: number,
 ) => { canvas: HTMLCanvasElement; width: number; height: number } | undefined;
-
-// ============================================================================
-// Performance optimization: Cached helpers and reusable objects
-// ============================================================================
-
-// Color string cache to avoid repeated string allocations
-const _colorCache = new Map<number, string>();
-function toCss(c: number): string {
-    let cached = _colorCache.get(c);
-    if (!cached) {
-        cached = `#${(c >>> 0).toString(16).padStart(6, "0")}`;
-        // Limit cache size
-        if (_colorCache.size > 256) {
-            const first = _colorCache.keys().next().value;
-            if (first !== undefined) _colorCache.delete(first);
-        }
-        _colorCache.set(c, cached);
-    }
-    return cached;
-}
-
-// Single regex for stripping markup (much faster than 12 separate replace calls)
-const _stripMarkupRegex = /<\/?(?:col|color|shad|u|str)(?:=[^>]*)?>|<img=\d+>|<br\s*\/?>/gi;
-
-// Reusable measurement canvas/context (singleton)
-let _measCanvas: HTMLCanvasElement | null = null;
-let _measCtx: CanvasRenderingContext2D | null = null;
-function getMeasureContext(): CanvasRenderingContext2D {
-    if (!_measCtx) {
-        _measCanvas = document.createElement("canvas");
-        _measCanvas.width = 1;
-        _measCanvas.height = 1;
-        _measCtx = _measCanvas.getContext("2d")!;
-        _measCtx.font = "12px sans-serif";
-    }
-    return _measCtx;
-}
 
 /** Parsed text segment with styling information */
 interface TextSegment {
@@ -222,53 +186,305 @@ function hasOsrsMarkup(text: string): boolean {
     );
 }
 
-/** Strip all OSRS markup tags from text, returning plain text */
-function stripOsrsMarkup(text: string): string {
-    // Reset regex lastIndex for global regex reuse
-    _stripMarkupRegex.lastIndex = 0;
-    return text.replace(_stripMarkupRegex, (match) => {
-        // <br> becomes newline, everything else is removed
-        return match.toLowerCase().startsWith("<br") ? "\n" : "";
-    });
+type QuadBuffer = {
+    data: Float32Array;
+    quadCount: number;
+};
+
+const _glyphQuadBuffer: QuadBuffer = {
+    data: new Float32Array(16 * 128),
+    quadCount: 0,
+};
+const _inlineCanvasIds = new WeakMap<HTMLCanvasElement, number>();
+let _nextInlineCanvasId = 1;
+
+function resetQuadBuffer(buffer: QuadBuffer): void {
+    buffer.quadCount = 0;
 }
 
-// Reusable canvas for text rendering to avoid allocation per draw call
-let _textCanvas: HTMLCanvasElement | null = null;
-let _textCtx: CanvasRenderingContext2D | null = null;
+function ensureQuadBufferCapacity(buffer: QuadBuffer, addQuads: number): void {
+    const requiredQuads = buffer.quadCount + addQuads;
+    const currentQuads = buffer.data.length / 16;
+    if (requiredQuads <= currentQuads) return;
 
-function computeVerticalTextureBounds(widgetH: number, topRaw: number, bottomRaw: number) {
-    const minY = Math.min(0, Math.floor(topRaw));
-    const maxY = Math.max(widgetH, Math.ceil(bottomRaw));
-    return {
-        minY,
-        maxY,
-        canvasH: Math.max(1, maxY - minY),
-    };
+    let nextQuads = Math.max(1, currentQuads);
+    while (nextQuads < requiredQuads) {
+        nextQuads <<= 1;
+    }
+
+    const next = new Float32Array(nextQuads * 16);
+    next.set(buffer.data.subarray(0, buffer.quadCount * 16));
+    buffer.data = next;
 }
 
-function getTextCanvas(
-    w: number,
-    h: number,
-): {
-    canvas: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
-} {
-    if (!_textCanvas) {
-        _textCanvas = document.createElement("canvas");
-        _textCtx = _textCanvas.getContext("2d", {
-            willReadFrequently: true,
-        }) as CanvasRenderingContext2D;
+function toRgb01(c: number): [number, number, number] {
+    return [((c >>> 16) & 0xff) / 255, ((c >>> 8) & 0xff) / 255, (c & 0xff) / 255];
+}
+
+function measureSegmentsWidth(
+    font: BitmapFont,
+    segments: TextSegment[],
+    inlineImageResolver?: InlineImageResolver,
+): number {
+    const resolveInlineImage = inlineImageResolver ?? (() => undefined);
+    let width = 0;
+    for (const seg of segments) {
+        if (seg.text === "\n") continue;
+        if (seg.imgId !== undefined) {
+            const icon = resolveInlineImage(seg.imgId | 0);
+            if (icon) width += Math.max(0, icon.width | 0);
+            continue;
+        }
+        width += font.measure(seg.text) | 0;
     }
-    // PERF: Always set exact dimensions - texture upload uses full canvas size
-    // Setting dimensions also clears the canvas, so no separate clearRect needed
-    if (_textCanvas.width !== w || _textCanvas.height !== h) {
-        _textCanvas.width = w;
-        _textCanvas.height = h;
-    } else {
-        // Same size - just clear it
-        _textCtx!.clearRect(0, 0, w, h);
+    return width;
+}
+
+function scaleRange(origin: number, start: number, end: number, scale: number): [number, number] {
+    const scaledStart = origin + Math.round(start * scale);
+    let scaledEnd = origin + Math.round(end * scale);
+    if (end > start && scaledEnd <= scaledStart) {
+        scaledEnd = scaledStart + 1;
     }
-    return { canvas: _textCanvas, ctx: _textCtx! };
+    return [scaledStart, scaledEnd];
+}
+
+function appendScaledQuad(
+    buffer: QuadBuffer,
+    originX: number,
+    originY: number,
+    scaleX: number,
+    scaleY: number,
+    left: number,
+    top: number,
+    right: number,
+    bottom: number,
+    u0: number,
+    v0: number,
+    u1: number,
+    v1: number,
+): void {
+    const [x0, x1] = scaleRange(originX, left, right, scaleX);
+    const [y0, y1] = scaleRange(originY, top, bottom, scaleY);
+    if (x1 <= x0 || y1 <= y0) return;
+
+    ensureQuadBufferCapacity(buffer, 1);
+    const offset = buffer.quadCount * 16;
+    const data = buffer.data;
+    data[offset + 0] = x0;
+    data[offset + 1] = y0;
+    data[offset + 2] = u0;
+    data[offset + 3] = v0;
+    data[offset + 4] = x1;
+    data[offset + 5] = y0;
+    data[offset + 6] = u1;
+    data[offset + 7] = v0;
+    data[offset + 8] = x1;
+    data[offset + 9] = y1;
+    data[offset + 10] = u1;
+    data[offset + 11] = v1;
+    data[offset + 12] = x0;
+    data[offset + 13] = y1;
+    data[offset + 14] = u0;
+    data[offset + 15] = v1;
+    buffer.quadCount++;
+}
+
+function getInlineCanvasTexture(glr: GLRenderer, canvas: HTMLCanvasElement) {
+    let id = _inlineCanvasIds.get(canvas);
+    if (id === undefined) {
+        id = _nextInlineCanvasId++;
+        _inlineCanvasIds.set(canvas, id);
+    }
+    return glr.createTextureFromCanvas(`txticon:${id}`, canvas);
+}
+
+function drawScaledRect(
+    glr: GLRenderer,
+    originX: number,
+    originY: number,
+    left: number,
+    top: number,
+    width: number,
+    height: number,
+    color: number,
+    alpha: number,
+    scaleX: number,
+    scaleY: number,
+): void {
+    if (width <= 0 || height <= 0) return;
+    const [x0, x1] = scaleRange(originX, left, left + width, scaleX);
+    const [y0, y1] = scaleRange(originY, top, top + height, scaleY);
+    if (x1 <= x0 || y1 <= y0) return;
+    const rgb = toRgb01(color);
+    glr.drawRect(x0, y0, x1 - x0, y1 - y0, [rgb[0], rgb[1], rgb[2], alpha]);
+}
+
+function drawBitmapRunGL(
+    glr: GLRenderer,
+    font: BitmapFont,
+    text: string,
+    logicalX: number,
+    baselineY: number,
+    color: number,
+    alpha: number,
+    originX: number,
+    originY: number,
+    scaleX: number,
+    scaleY: number,
+): void {
+    if (!text) return;
+
+    const atlas = getBitmapFontAtlas(glr, font);
+    const buffer = _glyphQuadBuffer;
+    resetQuadBuffer(buffer);
+
+    let penX = logicalX;
+    let prev = -1;
+    for (let i = 0; i < text.length; i++) {
+        let ch = text.charCodeAt(i) & 0xff;
+        if (ch === 160) ch = 32;
+        if (font.kerning && prev !== -1) {
+            penX += font.kerning[(prev << 8) + ch] || 0;
+        }
+
+        const glyph = atlas.glyphs[ch];
+        if (glyph?.drawable) {
+            const left = penX + glyph.lb;
+            const top = baselineY - atlas.ascent + glyph.tb;
+            appendScaledQuad(
+                buffer,
+                originX,
+                originY,
+                scaleX,
+                scaleY,
+                left,
+                top,
+                left + glyph.w,
+                top + glyph.h,
+                glyph.u0,
+                glyph.v0,
+                glyph.u1,
+                glyph.v1,
+            );
+        }
+
+        penX += glyph?.adv ?? font.advances[ch] ?? glyph?.w ?? 0;
+        prev = ch;
+    }
+
+    if (buffer.quadCount > 0) {
+        glr.drawTextureQuads(atlas.texture, buffer.data, buffer.quadCount, 1, toRgb01(color), alpha);
+    }
+}
+
+function drawBitmapSegmentsGL(
+    glr: GLRenderer,
+    font: BitmapFont,
+    segments: TextSegment[],
+    logicalX: number,
+    baselineY: number,
+    shadow: boolean,
+    alpha: number,
+    originX: number,
+    originY: number,
+    scaleX: number,
+    scaleY: number,
+    fontAscent: number,
+    inlineImageResolver?: InlineImageResolver,
+): void {
+    const resolveInlineImage = inlineImageResolver ?? (() => undefined);
+    let cx = logicalX;
+
+    for (const seg of segments) {
+        if (seg.text === "\n") continue;
+
+        if (seg.imgId !== undefined) {
+            const icon = resolveInlineImage(seg.imgId | 0);
+            if (icon) {
+                const iconW = Math.max(0, icon.width | 0);
+                const iconH = Math.max(0, icon.height | 0);
+                if (iconW > 0 && iconH > 0) {
+                    const tex = getInlineCanvasTexture(glr, icon.canvas);
+                    const [x0, x1] = scaleRange(originX, cx, cx + iconW, scaleX);
+                    const [y0, y1] = scaleRange(originY, baselineY - iconH, baselineY, scaleY);
+                    if (x1 > x0 && y1 > y0) {
+                        glr.drawTexture(tex, x0, y0, x1 - x0, y1 - y0, 1, 1, 0, [0, 0, 0], false, false, alpha);
+                    }
+                }
+                cx += iconW;
+            }
+            continue;
+        }
+
+        const segWidth = (font.measure(seg.text) | 0) as number;
+        const shouldShadow = shadow || seg.shadow >= 0;
+        const shadowColor = seg.shadow >= 0 ? seg.shadow : 0x000000;
+
+        if (shouldShadow && seg.shadow !== -2) {
+            drawBitmapRunGL(
+                glr,
+                font,
+                seg.text,
+                cx + 1,
+                baselineY + 1,
+                shadowColor,
+                alpha,
+                originX,
+                originY,
+                scaleX,
+                scaleY,
+            );
+        }
+
+        drawBitmapRunGL(
+            glr,
+            font,
+            seg.text,
+            cx,
+            baselineY,
+            seg.color,
+            alpha,
+            originX,
+            originY,
+            scaleX,
+            scaleY,
+        );
+
+        if (seg.underline >= 0) {
+            drawScaledRect(
+                glr,
+                originX,
+                originY,
+                cx,
+                baselineY + 2,
+                segWidth,
+                1,
+                seg.underline,
+                alpha,
+                scaleX,
+                scaleY,
+            );
+        }
+
+        if (seg.strikethrough >= 0) {
+            drawScaledRect(
+                glr,
+                originX,
+                originY,
+                cx,
+                baselineY - Math.floor(fontAscent * 0.3),
+                segWidth,
+                1,
+                seg.strikethrough,
+                alpha,
+                scaleX,
+                scaleY,
+            );
+        }
+
+        cx += segWidth;
+    }
 }
 
 export function drawTextGL(
@@ -292,13 +508,13 @@ export function drawTextGL(
     // Early exit for empty text
     if (!text || w <= 0 || h <= 0) return;
 
+    const font = fontLoader(fontId);
+    if (!font) return;
+
     const safeScaleX = Number.isFinite(renderScaleX) && renderScaleX > 0 ? renderScaleX : 1;
     const safeScaleY = Number.isFinite(renderScaleY) && renderScaleY > 0 ? renderScaleY : 1;
     const logicalW = Math.max(1, Math.round(w / safeScaleX));
     const logicalH = Math.max(1, Math.round(h / safeScaleY));
-
-    const font = fontLoader(fontId);
-    const cssColor = toCss(color);
 
     // Check for OSRS markup tags
     const useMarkup = hasOsrsMarkup(text);
@@ -310,211 +526,34 @@ export function drawTextGL(
         strikethrough: -1,
     };
     const segments = useMarkup ? parseOsrsMarkup(text, color) : [defaultSegment];
-    const resolveInlineImage = inlineImageResolver ?? (() => undefined);
-    const measCtx = getMeasureContext();
-    measCtx.font = "14px sans-serif";
-
-    const measureSegmentWidth = (
-        segment: TextSegment,
-        measureText: (s: string) => number,
-    ): number => {
-        if (segment.imgId !== undefined) {
-            const icon = resolveInlineImage(segment.imgId | 0);
-            return icon ? Math.max(0, icon.width | 0) : 0;
-        }
-        return measureText(segment.text);
-    };
-
-    const measureText = (s: string) => {
-        if (font) {
-            const m = (font as any).measure?.(s);
-            if (typeof m === "number") return m | 0;
-        }
-        return Math.ceil(measCtx.measureText(s).width);
-    };
-
-    let totalWidth = 0;
-    for (const seg of segments) {
-        if (seg.text === "\n") continue;
-        totalWidth += measureSegmentWidth(seg, measureText);
-    }
+    const totalWidth = measureSegmentsWidth(font, segments, inlineImageResolver);
 
     // OSRS parity: text alignment can overflow widget width (used by runmode 116:30)
     // so we expand the cached texture bounds instead of clipping to widget width.
     let txRaw = 0;
     if (xAlign === 1) txRaw = Math.round((logicalW - totalWidth) / 2);
     else if (xAlign === 2) txRaw = logicalW - totalWidth;
-    const minX = Math.min(0, txRaw);
-    const maxX = Math.max(logicalW, txRaw + totalWidth);
-    const canvasW = Math.max(1, Math.ceil(maxX - minX) | 0);
-    const texX = (x | 0) + Math.round(minX * safeScaleX);
-    const tx = (txRaw - minX) | 0;
-    let canvasH = Math.max(1, logicalH | 0);
-    let texY = y | 0;
-    let baselineY = 0;
-    let fontAscent = 0;
-
-    // Reuse cached text textures when available to avoid per-frame uploads
-    // Note: alpha is NOT included in key - we apply alpha at draw time, not render time
-    if (font) {
-        const ascent = (font as any).maxAscent || (font as any).ascent || 0;
-        const descent = (font as any).maxDescent || 0;
-        fontAscent = ascent;
-        const total = ascent + descent;
-        baselineY = ascent;
-        if (yAlign === 1) baselineY = Math.round((logicalH - total) / 2 + ascent) - 1;
-        else if (yAlign === 2) baselineY = Math.max(0, logicalH - descent);
-
-        const bounds = computeVerticalTextureBounds(
-            logicalH,
-            baselineY - ascent,
-            baselineY + descent,
-        );
-        canvasH = bounds.canvasH;
-        texY = (y | 0) + Math.round(bounds.minY * safeScaleY);
-        baselineY -= bounds.minY;
-    }
-
-    const key = `txt:${canvasW},${canvasH},${fontId},${color},${xAlign},${yAlign},${
-        texY - (y | 0)
-    },${shadow ? 1 : 0}:${text}`;
-    const cached = typeof glr.getTexture === "function" ? glr.getTexture(key) : undefined;
-    const drawW = Math.max(1, Math.round(canvasW * safeScaleX));
-    const drawH = Math.max(1, Math.round(canvasH * safeScaleY));
-    if (cached) {
-        glr.drawTexture(cached, texX, texY, drawW, drawH, 1, 1, 0, [0, 0, 0], false, false, alpha);
-        return;
-    }
-
-    // PERF: Reuse pooled canvas instead of allocating new one each call
-    // The texture is cached by key, so we can safely reuse the canvas for rendering
-    const { canvas: can, ctx: ctx2 } = getTextCanvas(canvasW, canvasH);
-
-    if (font) {
-        const by = baselineY | 0;
-
-        // Draw each segment with its styling
-        let cx = tx;
-        for (const seg of segments) {
-            if (seg.text === "\n") continue; // Skip line breaks in single-line mode
-
-            if (seg.imgId !== undefined) {
-                const icon = resolveInlineImage(seg.imgId | 0);
-                if (icon) {
-                    const iconW = Math.max(0, icon.width | 0);
-                    const iconH = Math.max(0, icon.height | 0);
-                    if (iconW > 0 && iconH > 0) {
-                        ctx2.drawImage(icon.canvas, cx, by - iconH, iconW, iconH);
-                    }
-                    cx += iconW;
-                }
-                continue;
-            }
-
-            const segCss = toCss(seg.color);
-            const segWidth = measureText(seg.text);
-
-            // Determine shadow color for this segment
-            const shouldShadow = shadow || seg.shadow >= 0;
-            const shadowCss = seg.shadow >= 0 ? toCss(seg.shadow) : "#000000";
-
-            if (shouldShadow && seg.shadow !== -2) {
-                (font as any).draw(ctx2, seg.text, cx + 1, by + 1, shadowCss);
-            }
-            (font as any).draw(ctx2, seg.text, cx, by, segCss);
-
-            // Draw underline
-            if (seg.underline >= 0) {
-                const uCss = toCss(seg.underline);
-                ctx2.fillStyle = uCss;
-                ctx2.fillRect(cx, by + 2, segWidth, 1);
-            }
-
-            // Draw strikethrough
-            if (seg.strikethrough >= 0) {
-                const sCss = toCss(seg.strikethrough);
-                ctx2.fillStyle = sCss;
-                const strikeY = by - Math.floor(fontAscent * 0.3);
-                ctx2.fillRect(cx, strikeY, segWidth, 1);
-            }
-
-            cx += segWidth;
-        }
-    } else {
-        ctx2.font = "14px sans-serif";
-        ctx2.textBaseline = "middle";
-        const cy =
-            yAlign === 1
-                ? Math.floor(canvasH / 2)
-                : yAlign === 2
-                ? canvasH - 2
-                : Math.floor(canvasH / 2);
-
-        if (!useMarkup) {
-            // Simple case - no markup
-            if (shadow) {
-                ctx2.fillStyle = "#000";
-                ctx2.fillText(text, tx + 1, cy + 1);
-            }
-            ctx2.fillStyle = cssColor;
-            ctx2.fillText(text, tx, cy);
-        } else {
-            // Draw segments - fallback for no bitmap font
-            let drawX = tx;
-            for (const seg of segments) {
-                if (seg.text === "\n") continue;
-
-                if (seg.imgId !== undefined) {
-                    const icon = resolveInlineImage(seg.imgId | 0);
-                    if (icon) {
-                        const iconW = Math.max(0, icon.width | 0);
-                        const iconH = Math.max(0, icon.height | 0);
-                        if (iconW > 0 && iconH > 0) {
-                            ctx2.drawImage(
-                                icon.canvas,
-                                drawX,
-                                Math.floor(cy - iconH / 2),
-                                iconW,
-                                iconH,
-                            );
-                        }
-                        drawX += iconW;
-                    }
-                    continue;
-                }
-
-                const segCss = toCss(seg.color);
-                const segWidth = ctx2.measureText(seg.text).width;
-
-                // Determine shadow for this segment
-                const shouldShadow = shadow || seg.shadow >= 0;
-                const shadowCss = seg.shadow >= 0 ? toCss(seg.shadow) : "#000";
-
-                if (shouldShadow && seg.shadow !== -2) {
-                    ctx2.fillStyle = shadowCss;
-                    ctx2.fillText(seg.text, drawX + 1, cy + 1);
-                }
-                ctx2.fillStyle = segCss;
-                ctx2.fillText(seg.text, drawX, cy);
-
-                // Draw underline
-                if (seg.underline >= 0) {
-                    ctx2.fillStyle = toCss(seg.underline);
-                    ctx2.fillRect(drawX, cy + 8, segWidth, 1);
-                }
-
-                // Draw strikethrough
-                if (seg.strikethrough >= 0) {
-                    ctx2.fillStyle = toCss(seg.strikethrough);
-                    ctx2.fillRect(drawX, cy, segWidth, 1);
-                }
-
-                drawX += segWidth;
-            }
-        }
-    }
-    const tex = glr.createTextureFromCanvas(key, can);
-    glr.drawTexture(tex, texX, texY, drawW, drawH, 1, 1, 0, [0, 0, 0], false, false, alpha);
+    const ascent = (font.maxAscent || font.ascent || 0) | 0;
+    const descent = (font.maxDescent || 0) | 0;
+    const total = ascent + descent;
+    let baselineY = ascent;
+    if (yAlign === 1) baselineY = Math.round((logicalH - total) / 2 + ascent) - 1;
+    else if (yAlign === 2) baselineY = Math.max(0, logicalH - descent);
+    drawBitmapSegmentsGL(
+        glr,
+        font,
+        segments,
+        txRaw,
+        baselineY,
+        shadow,
+        alpha,
+        x | 0,
+        y | 0,
+        safeScaleX,
+        safeScaleY,
+        ascent,
+        inlineImageResolver,
+    );
 }
 
 export function wrapTextToWidth(
@@ -596,50 +635,31 @@ export function drawWrappedTextGL(
     // Early exit for empty text
     if (!text || w <= 0 || h <= 0) return;
 
+    const font = fontLoader(fontId);
+    if (!font) return;
+
     const safeScaleX = Number.isFinite(renderScaleX) && renderScaleX > 0 ? renderScaleX : 1;
     const safeScaleY = Number.isFinite(renderScaleY) && renderScaleY > 0 ? renderScaleY : 1;
     const logicalW = Math.max(1, Math.round(w / safeScaleX));
     const logicalH = Math.max(1, Math.round(h / safeScaleY));
-
-    const font = fontLoader(fontId);
-    const cssColor = toCss(color);
-    const measCtx = getMeasureContext();
     const useMarkup = hasOsrsMarkup(text);
     const resolveInlineImage = inlineImageResolver ?? (() => undefined);
 
-    // Measure plain text (strip markup for accurate width calculation)
     const measure = (s: string) => {
-        const plain = stripOsrsMarkup(s);
-        try {
-            const m = (font as any)?.measure?.(plain);
-            if (typeof m === "number") return m | 0;
-        } catch {}
-        measCtx.font = "12px sans-serif";
-        return Math.ceil(measCtx.measureText(plain).width);
+        if (!useMarkup) return font.measure(s) | 0;
+        return measureSegmentsWidth(font, parseOsrsMarkup(s, color), inlineImageResolver);
     };
     const resolvedLineHeight = Math.max(
         1,
-        lineHeight | 0 ||
-            ((font as any)?.lineHeight as number) ||
-            ((font as any)?.ascent as number) ||
-            12,
+        lineHeight | 0 || (font.lineHeight as number) || (font.ascent as number) || 12,
     );
-    const maxAscent = ((font as any)?.maxAscent ?? (font as any)?.ascent ?? resolvedLineHeight) | 0;
-    const maxDescent = ((font as any)?.maxDescent ?? 0) | 0;
+    const maxAscent = (font.maxAscent ?? font.ascent ?? resolvedLineHeight) | 0;
+    const maxDescent = (font.maxDescent ?? 0) | 0;
     const autoWrap = shouldAutoWrapText(logicalH, resolvedLineHeight, maxAscent, maxDescent);
     // OSRS parity: short text widgets disable automatic wrapping and only honor explicit <br>.
     const lines = autoWrap
         ? wrapTextToWidth(text, Math.max(1, logicalW), measure)
         : splitExplicitLineBreaks(text);
-
-    const measureRaw = (s: string) => {
-        if (font) {
-            const m = (font as any)?.measure?.(s);
-            if (typeof m === "number") return m | 0;
-        }
-        measCtx.font = "12px sans-serif";
-        return Math.ceil(measCtx.measureText(s).width);
-    };
 
     const lineSegments: (TextSegment[] | null)[] = new Array(lines.length);
     const lineWidths: number[] = new Array(lines.length);
@@ -655,177 +675,60 @@ export function drawWrappedTextGL(
                     if (icon) width += Math.max(0, icon.width | 0);
                     continue;
                 }
-                width += measureRaw(seg.text);
+                width += font.measure(seg.text) | 0;
             }
             lineWidths[i] = width;
         } else {
             lineSegments[i] = null;
-            lineWidths[i] = measureRaw(lines[i]);
+            lineWidths[i] = font.measure(lines[i]) | 0;
         }
     }
 
     // OSRS parity: x alignment can overflow widget width (e.g. runmode percent text in 116:30).
     const lineOffsetsRaw: number[] = new Array(lines.length);
-    let minTx = 0;
-    let maxTx = logicalW;
     for (let i = 0; i < lines.length; i++) {
         const tw = lineWidths[i] ?? 0;
         let txRaw = 0;
         if (xAlign === 1) txRaw = Math.round((logicalW - tw) / 2);
         else if (xAlign === 2) txRaw = logicalW - tw;
         lineOffsetsRaw[i] = txRaw;
-        if (txRaw < minTx) minTx = txRaw;
-        const right = txRaw + tw;
-        if (right > maxTx) maxTx = right;
     }
-    const canvasW = Math.max(1, Math.ceil(maxTx - minTx) | 0);
-    const texX = (x | 0) + Math.round(minTx * safeScaleX);
-    let canvasH = Math.max(1, logicalH | 0);
-    let texY = y | 0;
-    let baseY0 = 0;
-
-    // Try cache after computing effective text bounds
-    if (font) {
-        const ascent = (font as any).maxAscent || (font as any).ascent || 0;
-        const descent = (font as any).maxDescent || 0;
-        const totalH = Math.max(resolvedLineHeight, lines.length * resolvedLineHeight);
-        baseY0 = ascent;
-        if (yAlign === 1) baseY0 = Math.round((logicalH - totalH) / 2) + ascent - 1;
-        else if (yAlign === 2) baseY0 = Math.max(0, logicalH - totalH) + ascent - 1;
-        const lastBaseline = baseY0 + Math.max(0, lines.length - 1) * resolvedLineHeight;
-        const bounds = computeVerticalTextureBounds(
-            logicalH,
-            baseY0 - ascent,
-            lastBaseline + descent,
+    const ascent = (font.maxAscent || font.ascent || 0) | 0;
+    const totalH = Math.max(resolvedLineHeight, lines.length * resolvedLineHeight);
+    let baseY0 = ascent;
+    if (yAlign === 1) baseY0 = Math.round((logicalH - totalH) / 2) + ascent - 1;
+    else if (yAlign === 2) baseY0 = Math.max(0, logicalH - totalH) + ascent - 1;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const by = baseY0 + i * resolvedLineHeight;
+        const tx = lineOffsetsRaw[i] | 0;
+        const segments = useMarkup
+            ? (lineSegments[i] ?? parseOsrsMarkup(line, color))
+            : [
+                  {
+                      text: line,
+                      color,
+                      shadow: -1,
+                      underline: -1,
+                      strikethrough: -1,
+                  },
+              ];
+        drawBitmapSegmentsGL(
+            glr,
+            font,
+            segments,
+            tx,
+            by,
+            shadow,
+            1,
+            x | 0,
+            y | 0,
+            safeScaleX,
+            safeScaleY,
+            ascent,
+            inlineImageResolver,
         );
-        canvasH = bounds.canvasH;
-        texY = (y | 0) + Math.round(bounds.minY * safeScaleY);
-        baseY0 -= bounds.minY;
     }
-
-    const baseKey = `txtwrap:${logicalW},${logicalH},${canvasW},${canvasH},${minTx},${
-        texY - (y | 0)
-    },${fontId},${color},${resolvedLineHeight},${shadow ? 1 : 0},${yAlign},${xAlign},${
-        autoWrap ? 1 : 0
-    }:${text}`;
-    const cachedBase = typeof glr.getTexture === "function" ? glr.getTexture(baseKey) : undefined;
-    const drawW = Math.max(1, Math.round(canvasW * safeScaleX));
-    const drawH = Math.max(1, Math.round(canvasH * safeScaleY));
-    if (cachedBase) {
-        glr.drawTexture(cachedBase, texX, texY, drawW, drawH, 1, 1);
-        return;
-    }
-
-    const can = document.createElement("canvas");
-    can.width = canvasW;
-    can.height = canvasH;
-    const ctx2 = can.getContext("2d", {
-        willReadFrequently: true as any,
-    }) as CanvasRenderingContext2D;
-
-    if (font) {
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const by = baseY0 + i * resolvedLineHeight;
-            const tx = (lineOffsetsRaw[i] - minTx) | 0;
-
-            if (useMarkup) {
-                const segments = lineSegments[i] ?? parseOsrsMarkup(line, color);
-                let cx = tx;
-                for (const seg of segments) {
-                    if (seg.text === "\n") continue;
-
-                    if (seg.imgId !== undefined) {
-                        const icon = resolveInlineImage(seg.imgId | 0);
-                        if (icon) {
-                            const iconW = Math.max(0, icon.width | 0);
-                            const iconH = Math.max(0, icon.height | 0);
-                            if (iconW > 0 && iconH > 0) {
-                                ctx2.drawImage(icon.canvas, cx, by - iconH, iconW, iconH);
-                            }
-                            cx += iconW;
-                        }
-                        continue;
-                    }
-
-                    const segCss = toCss(seg.color);
-                    const segWidth = ((font as any).measure?.(seg.text) | 0) as number;
-                    const shouldShadow = shadow || seg.shadow >= 0;
-                    const shadowCss = seg.shadow >= 0 ? toCss(seg.shadow) : "#000000";
-                    if (shouldShadow && seg.shadow !== -2) {
-                        (font as any).draw(ctx2, seg.text, cx + 1, by + 1, shadowCss);
-                    }
-                    (font as any).draw(ctx2, seg.text, cx, by, segCss);
-                    cx += segWidth;
-                }
-            } else {
-                // No markup - simple rendering
-                if (shadow) (font as any).draw(ctx2, line, tx + 1, by + 1, "#000000");
-                (font as any).draw(ctx2, line, tx, by, cssColor);
-            }
-        }
-    } else {
-        ctx2.textBaseline = "top";
-        ctx2.font = "12px sans-serif";
-        const totalH = Math.max(resolvedLineHeight, lines.length * resolvedLineHeight);
-        let y0 = 0;
-        if (yAlign === 1) y0 = Math.round((canvasH - totalH) / 2);
-        else if (yAlign === 2) y0 = Math.max(0, canvasH - totalH);
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const ty = y0 + i * resolvedLineHeight;
-            const tx = (lineOffsetsRaw[i] - minTx) | 0;
-
-            if (useMarkup) {
-                const segments = lineSegments[i] ?? parseOsrsMarkup(line, color);
-                let drawX = tx;
-                for (const seg of segments) {
-                    if (seg.text === "\n") continue;
-
-                    if (seg.imgId !== undefined) {
-                        const icon = resolveInlineImage(seg.imgId | 0);
-                        if (icon) {
-                            const iconW = Math.max(0, icon.width | 0);
-                            const iconH = Math.max(0, icon.height | 0);
-                            if (iconW > 0 && iconH > 0) {
-                                ctx2.drawImage(
-                                    icon.canvas,
-                                    drawX,
-                                    Math.floor(ty + (resolvedLineHeight - iconH) / 2),
-                                    iconW,
-                                    iconH,
-                                );
-                            }
-                            drawX += iconW;
-                        }
-                        continue;
-                    }
-
-                    const segCss = toCss(seg.color);
-                    const segWidth = ctx2.measureText(seg.text).width;
-                    const shouldShadow = shadow || seg.shadow >= 0;
-                    const shadowCss = seg.shadow >= 0 ? toCss(seg.shadow) : "#000";
-                    if (shouldShadow && seg.shadow !== -2) {
-                        ctx2.fillStyle = shadowCss;
-                        ctx2.fillText(seg.text, drawX + 1, ty + 1);
-                    }
-                    ctx2.fillStyle = segCss;
-                    ctx2.fillText(seg.text, drawX, ty);
-                    drawX += segWidth;
-                }
-            } else {
-                // No markup - simple rendering
-                if (shadow) {
-                    ctx2.fillStyle = "#000";
-                    ctx2.fillText(line, tx + 1, ty + 1);
-                }
-                ctx2.fillStyle = cssColor;
-                ctx2.fillText(line, tx, ty);
-            }
-        }
-    }
-    const tex = glr.createTextureFromCanvas(baseKey, can);
-    glr.drawTexture(tex, texX, texY, drawW, drawH, 1, 1);
 }
 
 export function drawRichTextGL(
@@ -846,35 +749,15 @@ export function drawRichTextGL(
     renderScaleX: number = 1,
     renderScaleY: number = 1,
 ) {
+    const font = fontLoader(fontId);
+    if (!font) return;
+
     const safeScaleX = Number.isFinite(renderScaleX) && renderScaleX > 0 ? renderScaleX : 1;
     const safeScaleY = Number.isFinite(renderScaleY) && renderScaleY > 0 ? renderScaleY : 1;
     const logicalW = Math.max(1, Math.round(w / safeScaleX));
     const logicalH = Math.max(1, Math.round(h / safeScaleY));
-    // Cache rich text by content and metrics
-    const key = `txtrich:${logicalW},${logicalH},${fontId},${defaultColor},${xAlign},${yAlign},${
-        shadow ? 1 : 0
-    },${highlightRegex?.source ?? ""},${highlightRegex?.flags ?? ""},${
-        highlightColor ?? -1
-    }:${text}`;
-    const cached = typeof glr.getTexture === "function" ? glr.getTexture(key) : undefined;
-    const drawW = Math.max(1, Math.round(logicalW * safeScaleX));
-    const drawH = Math.max(1, Math.round(logicalH * safeScaleY));
-    if (cached) {
-        glr.drawTexture(cached, x, y, drawW, drawH, 1, 1);
-        return;
-    }
-
-    const can = document.createElement("canvas");
-    can.width = logicalW;
-    can.height = logicalH;
-    const ctx2 = can.getContext("2d", {
-        willReadFrequently: true as any,
-    }) as CanvasRenderingContext2D;
-    const font = fontLoader(fontId);
-    const cssDefault = toCss(defaultColor);
-    const cssHilite = highlightColor != null ? toCss(highlightColor) : undefined;
-    const parts: { text: string; color: string }[] = [];
-    if (highlightRegex && cssHilite) {
+    const parts: { text: string; color: number }[] = [];
+    if (highlightRegex && highlightColor != null) {
         let idx = 0;
         let m: RegExpExecArray | null;
         const re = new RegExp(highlightRegex.source, highlightRegex.flags);
@@ -885,52 +768,65 @@ export function drawRichTextGL(
                 re.lastIndex = e + 1;
                 continue;
             }
-            if (s > idx) parts.push({ text: text.slice(idx, s), color: cssDefault });
-            parts.push({ text: text.slice(s, e), color: cssHilite });
+            if (s > idx) parts.push({ text: text.slice(idx, s), color: defaultColor });
+            parts.push({
+                text: text.slice(s, e),
+                color: highlightColor ?? defaultColor,
+            });
             idx = e;
         }
-        if (idx < text.length) parts.push({ text: text.slice(idx), color: cssDefault });
-    } else {
-        parts.push({ text, color: cssDefault });
-    }
-    if (font) {
-        const ascent = (font as any).maxAscent || (font as any).ascent || 0;
-        const descent = (font as any).maxDescent || 0;
-        const total = ascent + descent;
-        let by = ascent;
-        if (yAlign === 1) by = Math.round((logicalH - total) / 2 + ascent) - 1;
-        else if (yAlign === 2) by = Math.max(0, logicalH - descent);
-        let cx = 0;
-        if (xAlign === 1) cx = 0; // for rich text, measure and center per run below
-        else if (xAlign === 2) cx = Math.max(0, logicalW); // right align baseline start
-        for (const p of parts) {
-            if (shadow) (font as any).draw(ctx2, p.text, cx + 1, by + 1, "#000000");
-            (font as any).draw(ctx2, p.text, cx, by, p.color);
-            cx += (font as any).measure?.(p.text) | 0;
+        if (idx < text.length) {
+            parts.push({ text: text.slice(idx), color: defaultColor });
         }
     } else {
-        ctx2.fillStyle = cssDefault;
-        ctx2.font = "14px sans-serif";
-        ctx2.textBaseline = "middle";
-        ctx2.textAlign = xAlign === 1 ? "center" : xAlign === 2 ? "right" : "left";
-        const cx = xAlign === 1 ? Math.floor(logicalW / 2) : xAlign === 2 ? logicalW - 2 : 0;
-        const cy =
-            yAlign === 1
-                ? Math.floor(logicalH / 2)
-                : yAlign === 2
-                ? logicalH - 2
-                : Math.floor(logicalH / 2);
-        for (const p of parts) {
-            if (shadow) {
-                ctx2.fillStyle = "#000";
-                ctx2.fillText(p.text, cx + 1, cy + 1);
-                ctx2.fillStyle = p.color;
-            } else {
-                ctx2.fillStyle = p.color;
-            }
-            ctx2.fillText(p.text, cx, cy);
-        }
+        parts.push({ text, color: defaultColor });
     }
-    const tex = glr.createTextureFromCanvas(key, can);
-    glr.drawTexture(tex, x, y, drawW, drawH, 1, 1);
+
+    const ascent = (font.maxAscent || font.ascent || 0) | 0;
+    const descent = (font.maxDescent || 0) | 0;
+    const total = ascent + descent;
+    let by = ascent;
+    if (yAlign === 1) by = Math.round((logicalH - total) / 2 + ascent) - 1;
+    else if (yAlign === 2) by = Math.max(0, logicalH - descent);
+
+    let totalWidth = 0;
+    for (const p of parts) {
+        totalWidth += font.measure(p.text) | 0;
+    }
+
+    let cx = 0;
+    if (xAlign === 1) cx = Math.round((logicalW - totalWidth) / 2);
+    else if (xAlign === 2) cx = logicalW - totalWidth;
+
+    for (const p of parts) {
+        if (shadow) {
+            drawBitmapRunGL(
+                glr,
+                font,
+                p.text,
+                cx + 1,
+                by + 1,
+                0x000000,
+                1,
+                x | 0,
+                y | 0,
+                safeScaleX,
+                safeScaleY,
+            );
+        }
+        drawBitmapRunGL(
+            glr,
+            font,
+            p.text,
+            cx,
+            by,
+            p.color,
+            1,
+            x | 0,
+            y | 0,
+            safeScaleX,
+            safeScaleY,
+        );
+        cx += font.measure(p.text) | 0;
+    }
 }
