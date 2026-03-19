@@ -2,6 +2,7 @@
  * Teleport spell destinations and metadata.
  * Coordinates are OSRS tile coordinates.
  */
+import { getSpellWidgetId } from "./spellWidgetLoader";
 
 export type TeleportDestination = {
     x: number;
@@ -11,6 +12,7 @@ export type TeleportDestination = {
 };
 
 export type TeleportSpellData = {
+    /** Fallback child id only; live cache spell-button params are authoritative. */
     widgetChildId: number;
     name: string;
     levelRequired: number;
@@ -553,11 +555,19 @@ export function getAllTeleportSpells(): TeleportSpellData[] {
     return [...STANDARD_TELEPORTS, ...ANCIENT_TELEPORTS, ...ARCEUUS_TELEPORTS];
 }
 
+function getResolvedTeleportWidgetChildId(teleportSpell: TeleportSpellData): number {
+    return (
+        getSpellWidgetId(teleportSpell.name, teleportSpell.spellbook) ?? teleportSpell.widgetChildId
+    );
+}
+
 /**
  * Find teleport spell by widget child ID
  */
 export function getTeleportByWidgetId(widgetChildId: number): TeleportSpellData | undefined {
-    return getAllTeleportSpells().find((t) => t.widgetChildId === widgetChildId);
+    return getAllTeleportSpells().find(
+        (teleportSpell) => getResolvedTeleportWidgetChildId(teleportSpell) === widgetChildId,
+    );
 }
 
 /**

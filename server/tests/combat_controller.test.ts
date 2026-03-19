@@ -63,6 +63,10 @@ function createMockNpc(overrides: Partial<NpcState> = {}): NpcState {
         getHitpoints: vi.fn(() => 50),
         engageCombat: vi.fn(),
         setInteraction: vi.fn(),
+        peekNextStep: vi.fn(() => undefined),
+        disengageCombat: vi.fn(),
+        scheduleNextAggressionCheck: vi.fn(),
+        isRecoveringToSpawn: vi.fn(() => false),
         ...overrides,
     } as unknown as NpcState;
 }
@@ -223,6 +227,46 @@ describe("CombatController", () => {
             expect(result.endedEngagements[0].reason).toBe("target_dead");
         });
 
+        it("keeps retaliation combat active without steering the NPC", () => {
+            let queuedStep: { x: number; y: number } | undefined;
+            player = createMockPlayer({ tileX: 3205, tileY: 3200, x: 3205 << 7, y: 3200 << 7 });
+            npc = createMockNpc({
+                tileX: 3201,
+                tileY: 3200,
+                x: 3201 << 7,
+                y: 3200 << 7,
+                peekNextStep: vi.fn(() => queuedStep),
+            });
+
+            controller.startCombat(player, npc, 100);
+            const combatState = controller.getCombatState(player.id);
+            if (!combatState) {
+                throw new Error("expected combat state");
+            }
+            combatState.engagement.retaliationEngaged = true;
+
+            const walkToAttackRange = vi.fn(() => {
+                queuedStep = { x: 3202, y: 3200 };
+                return true;
+            });
+            const ctx = createMockContext({
+                tick: 101,
+                playerLookup: () => player,
+                npcLookup: () => npc,
+                getDistanceToNpc: () => 4,
+                isWithinAttackReach: () => false,
+                walkToAttackRange,
+            });
+
+            const result = controller.processTick(ctx);
+
+            expect(walkToAttackRange).not.toHaveBeenCalled();
+            expect(result.endedEngagements).toHaveLength(0);
+            expect(controller.isInCombat(player.id)).toBe(true);
+            expect((npc.disengageCombat as Mock)).not.toHaveBeenCalled();
+            expect((npc.scheduleNextAggressionCheck as Mock)).not.toHaveBeenCalled();
+        });
+
         it("ends combat when NPC has 0 HP", () => {
             controller.startCombat(player, npc, 0);
             const deadNpc = createMockNpc({ getHitpoints: vi.fn(() => 0) });
@@ -235,6 +279,22 @@ describe("CombatController", () => {
             const result = controller.processTick(ctx);
             expect(result.endedEngagements).toHaveLength(1);
             expect(result.endedEngagements[0].reason).toBe("target_dead");
+        });
+
+        it("ends combat when NPC is returning home", () => {
+            controller.startCombat(player, npc, 0);
+            const recoveringNpc = createMockNpc({
+                isRecoveringToSpawn: vi.fn(() => true),
+            });
+            const ctx = createMockContext({
+                tick: 1,
+                playerLookup: () => player,
+                npcLookup: () => recoveringNpc,
+            });
+
+            const result = controller.processTick(ctx);
+            expect(result.endedEngagements).toHaveLength(1);
+            expect(result.endedEngagements[0].reason).toBe("target_recovering");
         });
 
         it("schedules attack when in range and ready", () => {
@@ -487,8 +547,8 @@ describe("CombatController", () => {
         });
     });
 
-    describe("NPC movement when overlapping", () => {
-        it("routes NPC away when player overlaps before retaliation", () => {
+    describe("NPC movement ownership", () => {
+        it("does not route NPC away when player overlaps before retaliation", () => {
             // Player and NPC on same tile
             const overlappingPlayer = createMockPlayer({ tileX: 3200, tileY: 3200 });
             const overlappingNpc = createMockNpc({ tileX: 3200, tileY: 3200 });
@@ -511,8 +571,8 @@ describe("CombatController", () => {
 
             controller.processTick(ctx);
 
-            // NPC should try to walk to attack range even without retaliation engaged
-            expect(walkToAttackRange).toHaveBeenCalledWith(overlappingNpc, overlappingPlayer, 1);
+            // NpcManager owns NPC movement, not CombatController
+            expect(walkToAttackRange).not.toHaveBeenCalled();
         });
 
         it("does not route NPC when not overlapping", () => {

@@ -556,6 +556,10 @@ export function walkToAttackRange(
     pathService: PathService,
     attackRange: number,
 ): boolean {
+    if (pawn instanceof NpcState && pawn.isRecoveringToSpawn()) {
+        return false;
+    }
+
     // Already in range?
     if (isWithinAttackRange(pawn, target, attackRange)) {
         if (attackRange <= 1) {

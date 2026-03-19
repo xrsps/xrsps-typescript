@@ -15,8 +15,13 @@ import { canNpcAttackPlayerFromCurrentPosition } from "./combat/CombatAction";
 import { resolveNpcAttackRange, resolveNpcAttackType } from "./combat/CombatRules";
 import { StatusHitsplat } from "./combat/HitEffects";
 import { isInWilderness, multiCombatSystem } from "./combat/MultiCombatZones";
-import type { PlayerAggressionState } from "./combat/NpcCombatAI";
 import {
+    AGGRESSION_TIMER_TICKS,
+    type PlayerAggressionState,
+    TARGET_SEARCH_INTERVAL,
+} from "./combat/NpcCombatAI";
+import {
+    DEFAULT_NPC_WANDER_RADIUS,
     DEFAULT_NPC_COMBAT_PROFILE,
     NpcCombatProfile,
     NpcSpawnConfig,
@@ -64,6 +69,28 @@ export interface CombatTargetPlayer {
     isBeingAttacked(): boolean;
     getCombatTarget(): { id: number } | undefined;
 }
+
+type NearbyAggressionPlayer = {
+    id: number;
+    x: number;
+    y: number;
+    level: number;
+    combatLevel: number;
+    inCombat: boolean;
+    aggressionState: PlayerAggressionState;
+};
+
+const DEBUG_NPC_ROAM_TYPE_IDS = (() => {
+    const raw = process.env.DEBUG_NPC_ROAM_TYPES ?? "11917";
+    const ids = new Set<number>();
+    for (const token of raw.split(",")) {
+        const value = Number(token.trim());
+        if (Number.isInteger(value) && value >= 0) {
+            ids.add(value);
+        }
+    }
+    return ids;
+})();
 
 const REGION_SIZE = 32; // tiles; aligns to half a chunk for coarse spatial buckets
 
@@ -169,6 +196,7 @@ export class NpcManager {
         number,
         { despawnTick: number; respawnTick: number; pendingDrops?: PendingNpcDrop[] }
     >();
+    private readonly lastRoamDebugStateByNpcId = new Map<number, string>();
     private npcCombatStats?: Record<string, any>;
 
     // Boss scripts for NPCs with complex combat behaviors
@@ -257,7 +285,7 @@ export class NpcManager {
         const walkSeqId = npcType.getWalkSeqId(this.basTypeLoader);
         const size = Math.max(1, npcType.size);
         const rotationSpeed = Math.max(1, npcType.rotationSpeed);
-        const wanderRadius = Math.max(0, spawn.wanderRadius ?? 5);
+        const wanderRadius = Math.max(0, spawn.wanderRadius ?? DEFAULT_NPC_WANDER_RADIUS);
         this.maxNpcSize = Math.max(this.maxNpcSize, size);
 
         const id = this.allocateNpcId();
@@ -265,9 +293,12 @@ export class NpcManager {
         const combatLevel = npcType.combatLevel ?? -1;
         // OSRS parity: Attack speed is stored in cache param 14
         const attackSpeed = this.deriveAttackSpeed(npcType);
-        // OSRS parity: NPCs with combat level > 0 and "Attack" action are aggressive
-        const isAggressive = this.deriveIsAggressive(npcType);
-        const aggressionRadius = 3; // OSRS default
+        const npcCombatStats = getNpcCombatStats(npcType.id);
+        // Prefer server-authored combat stats for aggression metadata when present.
+        const isAggressive = this.deriveIsAggressive(npcType, npcCombatStats);
+        const aggressionRadius = this.deriveAggressionRadius(npcCombatStats, isAggressive);
+        const aggressionToleranceTicks = this.deriveAggressionToleranceTicks(npcCombatStats);
+        const aggressionSearchDelayTicks = this.deriveAggressionSearchDelayTicks(npcCombatStats);
         // Load combat profile (stats, bonuses, species) - logged warning if missing
         const combatProfile = buildCombatProfile(npcType.id);
 
@@ -291,6 +322,8 @@ export class NpcManager {
                 combatProfile,
                 isAggressive,
                 aggressionRadius,
+                aggressionToleranceTicks,
+                aggressionSearchDelayTicks,
             },
         );
         // Use direction from spawn config if provided, otherwise fall back to NPC type config
@@ -396,7 +429,18 @@ export class NpcManager {
      * OSRS parity: NPCs with combat level > 0 and an "Attack" action are considered aggressive.
      * This is a simplification; actual OSRS uses specific flags and hardcoded lists.
      */
-    private deriveIsAggressive(npcType: NpcType): boolean {
+    private deriveIsAggressive(
+        npcType: NpcType,
+        combatStats?: ReturnType<typeof getNpcCombatStats>,
+    ): boolean {
+        if (combatStats) {
+            if (combatStats.aggressive !== undefined) {
+                return !!combatStats.aggressive;
+            }
+            if ((combatStats.aggressiveRadius ?? 0) > 0) {
+                return true;
+            }
+        }
         // Non-combat NPCs are not aggressive
         if (npcType.combatLevel <= 0) {
             return false;
@@ -410,6 +454,41 @@ export class NpcManager {
             }
         } catch {}
         return false;
+    }
+
+    private deriveAggressionRadius(
+        combatStats: ReturnType<typeof getNpcCombatStats>,
+        isAggressive: boolean,
+    ): number {
+        if (combatStats?.aggressiveRadius !== undefined) {
+            return Math.max(0, combatStats.aggressiveRadius | 0);
+        }
+        return isAggressive ? 3 : 0;
+    }
+
+    private deriveAggressionToleranceTicks(
+        combatStats: ReturnType<typeof getNpcCombatStats>,
+    ): number {
+        if (
+            combatStats?.aggressiveTimer !== undefined &&
+            Number.isFinite(combatStats.aggressiveTimer)
+        ) {
+            return Math.trunc(combatStats.aggressiveTimer);
+        }
+        return AGGRESSION_TIMER_TICKS;
+    }
+
+    private deriveAggressionSearchDelayTicks(
+        combatStats: ReturnType<typeof getNpcCombatStats>,
+    ): number {
+        if (
+            combatStats?.aggroTargetDelay !== undefined &&
+            Number.isFinite(combatStats.aggroTargetDelay) &&
+            combatStats.aggroTargetDelay > 0
+        ) {
+            return Math.trunc(combatStats.aggroTargetDelay);
+        }
+        return TARGET_SEARCH_INTERVAL;
     }
 
     getById(id: number): NpcState | undefined {
@@ -710,16 +789,7 @@ export class NpcManager {
             tileY: number,
             level: number,
             radius: number,
-        ) => Array<{
-            id: number;
-            x: number;
-            y: number;
-            level: number;
-            combatLevel: number;
-            inCombat: boolean;
-            /** OSRS tolerance state for 10-minute aggression timer */
-            aggressionState: PlayerAggressionState;
-        }>,
+        ) => NearbyAggressionPlayer[],
     ): { statusEvents: NpcStatusEvent[]; aggressionEvents: NpcAggressionEvent[] } {
         this.pendingUpdates.length = 0;
         this.processNpcDeaths(currentTick);
@@ -763,9 +833,12 @@ export class NpcManager {
                     }
                 }
 
+                const shouldRecoverToSpawn = this.shouldRecoverToSpawn(npc);
+
                 // 1.5. OSRS NPC Aggression: Check for players to target
                 // Reference: docs/npc-behavior.md - Aggressive NPCs target nearby players
                 if (
+                    !shouldRecoverToSpawn &&
                     getNearbyPlayers &&
                     !npc.isInCombat(currentTick) &&
                     !npc.isDead?.(currentTick)
@@ -785,53 +858,46 @@ export class NpcManager {
                 // 2. Movement processes AFTER timers but BEFORE combat
                 // This allows NPCs to move into attack range before attempting to attack
 
-                // 2a. If NPC has a combat target, chase them instead of roaming
+                // 2a. If NPC has a combat target, pursue them using combat movement.
                 const combatTargetId = npc.getCombatTargetPlayerId();
-                if (combatTargetId !== undefined && playerLookup) {
-                    const targetPlayer = playerLookup(combatTargetId);
-                    if (targetPlayer && !npc.hasPath()) {
-                        // Chase the player - use dumb pathfinding (NPC style)
-                        const targetTileX = targetPlayer.tileX;
-                        const targetTileY = targetPlayer.tileY;
+                if (shouldRecoverToSpawn) {
+                    if (combatTargetId !== undefined) {
+                        npc.disengageCombat();
+                        npc.scheduleNextAggressionCheck(currentTick);
+                    }
+                    this.processRecoveryNpcMovement(npc, currentTick);
+                } else if (
+                    combatTargetId !== undefined &&
+                    npc.isInCombat(currentTick) &&
+                    playerLookup
+                ) {
+                    const targetPlayer = npc.resolveCombatTargetPlayer(playerLookup);
+                    if (targetPlayer) {
                         const attackType = resolveNpcAttackType(npc);
                         const attackRange = resolveNpcAttackRange(npc, attackType);
-                        const canAttackFromCurrentPosition = canNpcAttackPlayerFromCurrentPosition(
-                            npc,
-                            targetPlayer,
-                            attackRange,
-                            attackType,
-                            { pathService: this.pathService },
-                        );
+                        const canAttackFromCurrentPosition =
+                            canNpcAttackPlayerFromCurrentPosition(
+                                npc,
+                                targetPlayer,
+                                attackRange,
+                                attackType,
+                                { pathService: this.pathService },
+                            );
 
                         if (!canAttackFromCurrentPosition) {
-                            // Need to move closer - generate path
-                            const steps: { x: number; y: number }[] = [];
-                            let currentX = npc.tileX;
-                            let currentY = npc.tileY;
-
-                            // Generate a few steps toward the player (dumb pathfinding)
-                            for (let i = 0; i < 8 && steps.length < 2; i++) {
-                                if (currentX === targetTileX && currentY === targetTileY) break;
-
-                                const nextStep = this.pathService.findNpcPathStep(
-                                    { x: currentX, y: currentY, plane: npc.level },
-                                    { x: targetTileX, y: targetTileY },
-                                    npc.size,
-                                );
-                                if (!nextStep) break; // Blocked
-                                steps.push(nextStep);
-                                currentX = nextStep.x;
-                                currentY = nextStep.y;
-                            }
-
-                            if (steps.length > 0) {
-                                npc.setPath(steps, false);
-                            }
+                            this.queueNpcPathToward(
+                                npc,
+                                { x: targetPlayer.tileX, y: targetPlayer.tileY },
+                                { maxQueuedSteps: 2 },
+                            );
                         }
+                    } else {
+                        npc.disengageCombat();
+                        npc.scheduleNextAggressionCheck(currentTick);
+                        this.processIdleNpcMovement(npc, currentTick, roamBudget);
                     }
                 } else {
-                    // No combat target - normal roaming
-                    this.maybeStartRoam(npc, currentTick, roamBudget);
+                    this.processIdleNpcMovement(npc, currentTick, roamBudget);
                 }
 
                 this.prunePathAgainstCurrentCollision(npc);
@@ -843,7 +909,12 @@ export class NpcManager {
 
                 // 3.5. NPC Attack Scheduling: If NPC is in combat, in range, and ready to attack
                 const combatTarget = npc.getCombatTargetPlayerId();
-                if (combatTarget !== undefined && playerLookup && npc.canAttack(currentTick)) {
+                if (
+                    combatTarget !== undefined &&
+                    npc.isInCombat(currentTick) &&
+                    playerLookup &&
+                    npc.canAttack(currentTick)
+                ) {
                     const target = playerLookup(combatTarget);
                     if (target) {
                         const attackType = resolveNpcAttackType(npc);
@@ -869,8 +940,13 @@ export class NpcManager {
                             const blockedBySingleWay =
                                 !inMultiCombat && playerInCombat && !fightingThisNpc;
 
-                            // Single-way: keep the target and wait until the player becomes attackable.
-                            if (!blockedBySingleWay) {
+                            if (blockedBySingleWay) {
+                                // OSRS parity: if an aggro swing fails because the player is
+                                // already occupied in single combat, the NPC drops the chase
+                                // instead of shadowing the player until they become free.
+                                npc.disengageCombat();
+                                npc.scheduleNextAggressionCheck(currentTick);
+                            } else {
                                 // Schedule attack
                                 npc.recordAttack(currentTick);
                                 aggressionEvents.push({
@@ -920,12 +996,9 @@ export class NpcManager {
                     npc.recordBlocked();
                 }
 
-                // OSRS: Reset NPC if stuck too long or lured outside wander radius
-                if (
-                    !npc.isPlayerFollower() &&
-                    (npc.shouldResetDueToStuck() ||
-                        (npc.isOutsideWanderRadius() && !npc.isInCombat(currentTick)))
-                ) {
+                // OSRS parity: walking NPCs should head back toward spawn when lured out,
+                // not hard-teleport immediately. Reserve hard resets for genuinely stuck NPCs.
+                if (!npc.isPlayerFollower() && npc.shouldResetDueToStuck()) {
                     npc.resetToSpawn();
                     this.updateOccupancy(npc);
                     continue; // Skip further processing this tick
@@ -1084,31 +1157,157 @@ export class NpcManager {
     ): void {
         // RSMod parity: Timer-based roaming check
         // canRoam() checks if timer elapsed, not facing pawn, can move, etc.
-        if (!npc.canRoam(currentTick)) return;
+        const blockReason = npc.getRoamBlockReason(currentTick);
+        if (blockReason) {
+            this.logNpcRoamDebug(
+                npc,
+                currentTick,
+                blockReason.logKey,
+                `roam blocked: ${blockReason.detail}`,
+            );
+            return;
+        }
 
         // RSMod parity: Always reschedule timer after attempt, regardless of success
         // Reference: npc_random_walk.plugin.kts - timer is set at end of callback
         npc.scheduleNextRoam(currentTick);
 
         const target = this.pickRandomTarget(npc);
-        if (!target) return;
+        if (!target) {
+            this.logNpcRoamDebug(
+                npc,
+                currentTick,
+                "no_target",
+                "roam attempt found no random target within wander radius after 8 tries",
+            );
+            return;
+        }
 
         if (roamBudget) {
-            if (roamBudget.remaining <= 0) return;
+            if (roamBudget.remaining <= 0) {
+                this.logNpcRoamDebug(
+                    npc,
+                    currentTick,
+                    "budget_exhausted",
+                    "roam attempt skipped because the per-tick roam budget was exhausted",
+                );
+                return;
+            }
             roamBudget.remaining--;
         }
 
-        // OSRS parity: NPCs use "dumb pathfinder" - naive diagonal-then-cardinal approach.
-        // This generates steps one at a time toward the target.
-        // NPCs will NOT path around obstacles (enables safespots).
-        // Reference: docs/npc-behavior.md, docs/pathfinding-details.md
+        const queued = this.queueNpcPathToward(npc, target, { maxQueuedSteps: 8 });
+        if (!queued) {
+            this.logNpcRoamDebug(
+                npc,
+                currentTick,
+                `queue_failed:${target.x}:${target.y}`,
+                `roam target (${target.x}, ${target.y}) could not be queued`,
+            );
+            return;
+        }
+        this.logNpcRoamDebug(
+            npc,
+            currentTick,
+            `queued:${target.x}:${target.y}:${npc.getPathQueue().length}`,
+            `queued roam path toward (${target.x}, ${target.y}) with ${npc.getPathQueue().length} step(s)`,
+        );
+    }
+
+    private processIdleNpcMovement(
+        npc: NpcState,
+        currentTick: number,
+        roamBudget?: { remaining: number },
+    ): void {
+        if (npc.isFacingPawn()) {
+            const interaction = npc.getInteractionTarget();
+            this.logNpcRoamDebug(
+                npc,
+                currentTick,
+                interaction ? `clear_facing:${interaction.type}:${interaction.id}` : "clear_facing",
+                interaction
+                    ? `clearing stale interaction target ${interaction.type} ${interaction.id} before idle roam`
+                    : "clearing stale interaction target before idle roam",
+            );
+            npc.clearInteractionTarget();
+        }
+        this.maybeStartRoam(npc, currentTick, roamBudget);
+    }
+
+    private processRecoveryNpcMovement(npc: NpcState, currentTick: number): void {
+        npc.beginSpawnRecovery();
+        const recoveryReason =
+            npc.level !== npc.spawnLevel
+                ? `recovering to spawn because level ${npc.level} differs from spawn level ${npc.spawnLevel}`
+                : `recovering to spawn because tile (${npc.tileX}, ${npc.tileY}) is outside roam radius ${npc.wanderRadius}`;
+        this.logNpcRoamDebug(
+            npc,
+            currentTick,
+            npc.level !== npc.spawnLevel ? "recover_level" : "recover_bounds",
+            recoveryReason,
+        );
+        this.maybeRecoverToSpawn(npc, currentTick);
+    }
+
+    private maybeRecoverToSpawn(npc: NpcState, currentTick: number): void {
+        if (npc.level !== npc.spawnLevel) {
+            this.logNpcRoamDebug(
+                npc,
+                currentTick,
+                "reset_spawn_level",
+                `resetting directly to spawn because current level ${npc.level} differs from spawn level ${npc.spawnLevel}`,
+            );
+            npc.resetToSpawn();
+            return;
+        }
+        if (npc.tileX === npc.spawnX && npc.tileY === npc.spawnY) {
+            npc.stopSpawnRecovery();
+            this.logNpcRoamDebug(
+                npc,
+                currentTick,
+                "recover_at_spawn",
+                "recovery requested but NPC is already on its spawn tile",
+            );
+            return;
+        }
+        const queued = this.queueNpcPathToward(
+            npc,
+            { x: npc.spawnX, y: npc.spawnY },
+            { maxQueuedSteps: 2 },
+        );
+        if (!queued) {
+            this.logNpcRoamDebug(
+                npc,
+                currentTick,
+                `recover_queue_failed:${npc.spawnX}:${npc.spawnY}`,
+                `failed to queue recovery path back to spawn (${npc.spawnX}, ${npc.spawnY})`,
+            );
+            return;
+        }
+        this.logNpcRoamDebug(
+            npc,
+            currentTick,
+            `recover_queued:${npc.spawnX}:${npc.spawnY}:${npc.getPathQueue().length}`,
+            `queued recovery path back to spawn (${npc.spawnX}, ${npc.spawnY}) with ${npc.getPathQueue().length} step(s)`,
+        );
+    }
+
+    private queueNpcPathToward(
+        npc: NpcState,
+        target: { x: number; y: number },
+        options: { maxPathCalcSteps?: number; maxQueuedSteps?: number } = {},
+    ): boolean {
+        if (npc.hasPath()) return false;
+        const maxPathCalcSteps = Math.max(1, options.maxPathCalcSteps ?? 8);
+        const maxQueuedSteps = Math.max(1, options.maxQueuedSteps ?? maxPathCalcSteps);
         const steps: { x: number; y: number }[] = [];
         let currentX = npc.tileX;
         let currentY = npc.tileY;
         const plane = npc.level;
 
-        // Generate up to a few steps toward the target using dumb pathfinding
-        for (let i = 0; i < 8; i++) {
+        // OSRS parity: NPCs use a naive step-by-step chase path and do not
+        // solve around obstacles, which preserves safespot behavior.
+        for (let i = 0; i < maxPathCalcSteps && steps.length < maxQueuedSteps; i++) {
             if (currentX === target.x && currentY === target.y) {
                 break;
             }
@@ -1118,7 +1317,9 @@ export class NpcManager {
                 npc.size,
             );
             if (!nextStep) {
-                // Blocked - stop generating path (safespot behavior)
+                break;
+            }
+            if (nextStep.x === currentX && nextStep.y === currentY) {
                 break;
             }
             steps.push(nextStep);
@@ -1127,9 +1328,10 @@ export class NpcManager {
         }
 
         if (steps.length === 0) {
-            return;
+            return false;
         }
         npc.setPath(steps, false);
+        return true;
     }
 
     /**
@@ -1154,20 +1356,14 @@ export class NpcManager {
             tileY: number,
             level: number,
             radius: number,
-        ) => Array<{
-            id: number;
-            x: number;
-            y: number;
-            level: number;
-            combatLevel: number;
-            inCombat: boolean;
-            aggressionState: PlayerAggressionState;
-        }>,
+        ) => NearbyAggressionPlayer[],
     ): NpcAggressionEvent | undefined {
-        // Get NPC's combat level from cache type
-        const npcType = this.getNpcType(npc);
-        const npcCombatLevel = npcType?.combatLevel ?? 0;
+        const npcCombatLevel = npc.getCombatLevel();
         if (npcCombatLevel <= 0) return undefined;
+        if (!npc.isAggressionCheckReady(currentTick)) {
+            return undefined;
+        }
+        npc.scheduleNextAggressionCheck(currentTick);
 
         // Check if NPC is in wilderness (special rules apply)
         const npcInWilderness = isInWilderness(npc.tileX, npc.tileY);
@@ -1184,68 +1380,121 @@ export class NpcManager {
         );
 
         if (nearbyPlayers.length === 0) return undefined;
-
-        // Find the closest valid target
-        let bestTarget: { id: number; distance: number } | undefined;
-
+        const playersByTile = new Map<number, NearbyAggressionPlayer[]>();
         for (const player of nearbyPlayers) {
-            // Must be on same level (z-plane)
             if (player.level !== npc.level) continue;
-
-            // Calculate distance (Chebyshev - max of dx, dy)
-            // OSRS uses SW tile of NPC for hunt range calculation
-            const dx = Math.abs(player.x - npc.tileX);
-            const dy = Math.abs(player.y - npc.tileY);
-            const distance = Math.max(dx, dy);
-
-            // Double-check within radius (getNearbyPlayers might be coarse)
-            if (distance > npc.aggressionRadius) continue;
-
-            // OSRS combat level check:
-            // - Skip in wilderness (all NPCs are aggressive regardless of level)
-            // - NPCs with combat level >= 63 are always aggressive (63*2=126 = max player combat)
-            // - Otherwise, player combat level must be <= 2 * NPC combat level
-            if (
-                !npcInWilderness &&
-                npcCombatLevel < 63 &&
-                player.combatLevel > npcCombatLevel * 2
-            ) {
-                continue;
-            }
-
-            // OSRS tolerance timer check:
-            // - Skip in wilderness (NPCs never become tolerant)
-            // - If player has been in area for 10+ minutes, NPCs become tolerant
-            if (!npcInWilderness && player.aggressionState.aggressionExpired) {
-                continue;
-            }
-
-            // Single-way combat check:
-            // - In multi-combat zones, can attack players already in combat
-            // - In single-combat zones, skip players already in combat
-            if (!npcInMultiCombat && player.inCombat) {
-                continue;
-            }
-
-            // Select closest target
-            if (!bestTarget || distance < bestTarget.distance) {
-                bestTarget = { id: player.id, distance };
+            const key = tileKey(player.x, player.y, player.level);
+            const existing = playersByTile.get(key);
+            if (existing) {
+                existing.push(player);
+            } else {
+                playersByTile.set(key, [player]);
             }
         }
 
-        // Return aggression event for the best target
-        if (bestTarget) {
-            // Also set up NPC to track this target
-            npc.engageCombat(bestTarget.id, currentTick);
-            // Record this as the first attack to start the cooldown
-            npc.recordAttack(currentTick);
-            return {
-                npcId: npc.id,
-                targetPlayerId: bestTarget.id,
-            };
+        // RSMod parity: scan the square around the NPC in tile order and stop at the
+        // first tile containing any valid targets, then choose randomly from that tile.
+        const radius = Math.max(0, npc.aggressionRadius);
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                const bucket = playersByTile.get(tileKey(npc.tileX + dx, npc.tileY + dy, npc.level));
+                if (!bucket || bucket.length === 0) {
+                    continue;
+                }
+                const validTargets = bucket.filter((player) =>
+                    this.canNpcAggroPlayer(
+                        npc,
+                        player,
+                        currentTick,
+                        npcCombatLevel,
+                        npcInWilderness,
+                        npcInMultiCombat,
+                    ),
+                );
+                if (validTargets.length === 0) {
+                    continue;
+                }
+                const target =
+                    validTargets[Math.floor(Math.random() * validTargets.length)] ?? validTargets[0];
+                npc.engageCombat(target.id, currentTick);
+                npc.recordAttack(currentTick);
+                return {
+                    npcId: npc.id,
+                    targetPlayerId: target.id,
+                };
+            }
         }
 
         return undefined;
+    }
+
+    private shouldRecoverToSpawn(npc: NpcState): boolean {
+        if (npc.isRecoveringToSpawn()) {
+            if (
+                npc.level === npc.spawnLevel &&
+                npc.tileX === npc.spawnX &&
+                npc.tileY === npc.spawnY &&
+                !npc.hasPath()
+            ) {
+                npc.stopSpawnRecovery();
+                return false;
+            }
+            return (
+                npc.level !== npc.spawnLevel ||
+                npc.tileX !== npc.spawnX ||
+                npc.tileY !== npc.spawnY ||
+                npc.hasPath()
+            );
+        }
+        return npc.level !== npc.spawnLevel || npc.isOutsideRoamArea();
+    }
+
+    private canNpcAggroPlayer(
+        npc: NpcState,
+        player: NearbyAggressionPlayer,
+        currentTick: number,
+        npcCombatLevel: number,
+        npcInWilderness: boolean,
+        npcInMultiCombat: boolean,
+    ): boolean {
+        const dx = Math.abs(player.x - npc.tileX);
+        const dy = Math.abs(player.y - npc.tileY);
+        const distance = Math.max(dx, dy);
+        if (distance > npc.aggressionRadius) {
+            return false;
+        }
+
+        if (!npcInWilderness && npcCombatLevel < 63 && player.combatLevel > npcCombatLevel * 2) {
+            return false;
+        }
+
+        if (
+            !npcInWilderness &&
+            this.hasNpcAggressionToleranceExpired(npc, player.aggressionState, currentTick)
+        ) {
+            return false;
+        }
+
+        if (!npcInMultiCombat && player.inCombat) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private hasNpcAggressionToleranceExpired(
+        npc: NpcState,
+        state: PlayerAggressionState,
+        currentTick: number,
+    ): boolean {
+        const timer = npc.aggressionToleranceTicks | 0;
+        if (timer === 2147483647) {
+            return false;
+        }
+        if (timer === -2147483648) {
+            return true;
+        }
+        return currentTick - state.entryTick >= timer;
     }
 
     private processNpcDeaths(currentTick: number): void {
@@ -1282,6 +1531,33 @@ export class NpcManager {
             return { x: tx, y: ty };
         }
         return undefined;
+    }
+
+    private shouldDebugNpcRoam(npc: NpcState): boolean {
+        return DEBUG_NPC_ROAM_TYPE_IDS.has(npc.typeId);
+    }
+
+    private logNpcRoamDebug(
+        npc: NpcState,
+        currentTick: number,
+        stateKey: string,
+        detail: string,
+    ): void {
+        if (!this.shouldDebugNpcRoam(npc)) {
+            return;
+        }
+        const prev = this.lastRoamDebugStateByNpcId.get(npc.id);
+        if (prev === stateKey) {
+            return;
+        }
+        this.lastRoamDebugStateByNpcId.set(npc.id, stateKey);
+        logger.info(
+            `[npc-roam-debug] tick=${currentTick} npcId=${npc.id} typeId=${npc.typeId} name=${
+                npc.name ?? "unknown"
+            } tile=(${npc.tileX},${npc.tileY},${npc.level}) spawn=(${npc.spawnX},${npc.spawnY},${
+                npc.spawnLevel
+            }) radius=${npc.wanderRadius} ${detail}`,
+        );
     }
 
     private addToRegionIndex(npc: NpcState): void {

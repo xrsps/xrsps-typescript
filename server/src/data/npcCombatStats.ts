@@ -24,6 +24,8 @@ export interface NpcCombatStats {
     maxHit: number;
     aggressive: boolean;
     aggressiveRadius?: number;
+    aggressiveTimer?: number;
+    aggroTargetDelay?: number;
     poisonous?: boolean;
     venomous?: boolean;
     slayerLevel?: number;

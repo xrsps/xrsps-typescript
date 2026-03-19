@@ -15,11 +15,11 @@ function createHandler(): SpellActionHandler {
         getNpcType: () => undefined,
         getSpellData: () => undefined,
         getSpellDataByWidget: (groupId, childId) => {
-            if (groupId === 218 && childId === 8) {
+            if (groupId === 218 && childId === 9) {
                 return { id: 3273, name: "Wind Strike" } as any;
             }
-            if (groupId === 218 && childId === 7) {
-                return { id: 1152, name: "Confuse" } as any;
+            if (groupId === 218 && childId === 8) {
+                return { id: 33138, name: "Minigame Teleport" } as any;
             }
             return undefined;
         },
@@ -67,9 +67,9 @@ function testServerPrefersSelectedSpellChildIndexOverLegacyWidgetChild(): void {
         {
             npcId: 55,
             spellbookGroupId: 218,
-            widgetChildId: 7,
-            selectedSpellWidgetId: (218 << 16) | 8,
-            selectedSpellChildIndex: 8,
+            widgetChildId: 8,
+            selectedSpellWidgetId: (218 << 16) | 9,
+            selectedSpellChildIndex: 9,
             selectedSpellItemId: 50000,
         },
         "npc",

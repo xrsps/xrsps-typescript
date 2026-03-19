@@ -4,6 +4,7 @@ import { EquipmentSlot } from "../../src/rs/config/player/Equipment";
 import { CombatActionHandler } from "../src/game/actions/handlers/CombatActionHandler";
 import { HITMARK_DAMAGE } from "../src/game/combat/HitEffects";
 import { DEFAULT_EQUIP_SLOT_COUNT } from "../src/game/equipment";
+import { PlayerInteractionSystem } from "../src/game/interactions/PlayerInteractionSystem";
 import { NpcState } from "../src/game/npc";
 import { PlayerState } from "../src/game/player";
 
@@ -107,6 +108,71 @@ function testCombatProjectileHitDelayDoesNotBeatImpactTiming(): void {
     );
 }
 
+function testCombatAttackFacingSurvivesInteractionRefresh(): void {
+    const player = createPlayer();
+    const npc = createNpc();
+
+    const handler = new CombatActionHandler({
+        getNpc: (id) => (id === npc.id ? npc : undefined),
+        getPlayerAttackReach: () => 1,
+        getPathService: () => undefined,
+        isWithinAttackRange: () => true,
+        hasDirectMeleeReach: () => true,
+        hasDirectMeleePath: () => true,
+        pickNpcFaceTile: () => ({ x: npc.tileX, y: npc.tileY }),
+        getEquipArray: () => (player.appearance?.equip as number[]) ?? [],
+        normalizeAttackType: (type) =>
+            type === "melee" || type === "ranged" || type === "magic" ? type : undefined,
+        enqueueSpotAnimation: () => {},
+        pickAttackSequence: () => 422,
+        pickCombatSound: () => 0,
+        queueCombatState: () => {},
+        queueChatMessage: () => {},
+        scheduleAction: () => ({ ok: true }),
+        rollRetaliateDamage: () => 0,
+        awardCombatXp: () => {},
+        isActiveFrame: () => true,
+        dispatchActionEffects: () => {},
+        log: () => {},
+        pickHitDelay: () => 1,
+    } as any);
+
+    const result = handler.executeCombatAttackAction(
+        player,
+        {
+            npcId: npc.id,
+            hit: {
+                damage: 1,
+                maxHit: 1,
+                style: HITMARK_DAMAGE,
+                attackDelay: 4,
+                hitDelay: 1,
+                landed: true,
+                attackType: "melee",
+            },
+        },
+        200,
+    );
+
+    assert.ok(result.ok, "combat attack should succeed");
+    assert.ok(player._pendingFace, "combat attack should queue a one-tick face override");
+
+    const interactionSystem = new PlayerInteractionSystem({} as any, {} as any);
+    interactionSystem.applyInteractionFacing({} as any, player, () => npc, 200);
+
+    assert.strictEqual(
+        player._pendingFace,
+        undefined,
+        "interaction refresh should consume the queued face override",
+    );
+    assert.notStrictEqual(
+        player.forcedOrientation,
+        -1,
+        "interaction refresh should preserve combat facing for the attack tick",
+    );
+}
+
 testCombatProjectileHitDelayDoesNotBeatImpactTiming();
+testCombatAttackFacingSurvivesInteractionRefresh();
 
 console.log("Combat projectile hit delay test passed.");

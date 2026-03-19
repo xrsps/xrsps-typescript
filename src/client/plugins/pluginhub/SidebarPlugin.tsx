@@ -2,8 +2,8 @@ import type { ClientSidebarPluginDefinition } from "../../sidebar/pluginTypes";
 
 export const PLUGIN_HUB_SIDEBAR_PLUGIN: ClientSidebarPluginDefinition = Object.freeze({
     id: "plugin_hub",
-    title: "LeagueScape",
-    tooltip: "LeagueScape",
+    title: "xRSPS",
+    tooltip: "Customize your Client",
     priority: 100,
     panelId: "plugin_hub",
     icon: ({ label }: { label: string }) => (

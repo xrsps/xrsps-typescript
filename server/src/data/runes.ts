@@ -50,6 +50,10 @@ export const RUNE_IDS: RuneId = {
     LAVA: 4699, // Earth + Fire
 };
 
+export const ALL_RUNE_ITEM_IDS: number[] = [...new Set(Object.values(RUNE_IDS))].sort(
+    (left, right) => left - right,
+);
+
 export type CombinationRune = {
     itemId: number;
     provides: number[]; // Rune IDs this combination rune can substitute

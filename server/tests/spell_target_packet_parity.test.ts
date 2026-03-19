@@ -19,7 +19,7 @@ function parseSingleMessage(packet: Uint8Array) {
 }
 
 function testNpcSpellPacketParsesWithWidgetReferences(): void {
-    const selection = buildSelectedSpellPayload((218 << 16) | 8, 8);
+    const selection = buildSelectedSpellPayload((218 << 16) | 9, 9);
     assert(selection);
 
     const message = parseSingleMessage(
@@ -29,9 +29,9 @@ function testNpcSpellPacketParsesWithWidgetReferences(): void {
     assert.strictEqual(message.type, "spell_cast_npc");
     assert.strictEqual(message.payload.npcId, 8235);
     assert.strictEqual(message.payload.spellbookGroupId, 218);
-    assert.strictEqual(message.payload.widgetChildId, 8);
-    assert.strictEqual(message.payload.selectedSpellWidgetId, (218 << 16) | 8);
-    assert.strictEqual(message.payload.selectedSpellChildIndex, 8);
+    assert.strictEqual(message.payload.widgetChildId, 9);
+    assert.strictEqual(message.payload.selectedSpellWidgetId, (218 << 16) | 9);
+    assert.strictEqual(message.payload.selectedSpellChildIndex, 9);
     assert.strictEqual(message.payload.selectedSpellItemId, undefined);
     assert.strictEqual(message.payload.modifierFlags, 1);
 }

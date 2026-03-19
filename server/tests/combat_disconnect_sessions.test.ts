@@ -68,6 +68,7 @@ function createNpcStub(): NpcState {
         broadcastSound: () => {},
         scheduleAction: () => ({ ok: true }),
         rollRetaliateDamage: () => 0,
+        awardCombatXp: () => {},
         log: () => {},
         isActiveFrame: () => true,
         dispatchActionEffects: () => {},

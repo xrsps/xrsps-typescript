@@ -11,6 +11,7 @@ import {
     HITMARK_VENOM,
     StatusHitsplat,
 } from "./combat/HitEffects";
+import { AGGRESSION_TIMER_TICKS, TARGET_SEARCH_INTERVAL } from "./combat/NpcCombatAI";
 import { ACTIVE_COMBAT_TIMER_TICKS } from "./model/timer";
 
 /**
@@ -20,6 +21,7 @@ import { ACTIVE_COMBAT_TIMER_TICKS } from "./model/timer";
  */
 export const ROAM_DELAY_MIN_TICKS = 15;
 export const ROAM_DELAY_MAX_TICKS = 30;
+export const DEFAULT_NPC_WANDER_RADIUS = 5;
 
 /**
  * OSRS: How long an NPC can be blocked/stuck before resetting to spawn.
@@ -162,6 +164,16 @@ export class NpcState extends Actor {
      */
     readonly aggressionRadius: number;
     /**
+     * Ticks before this NPC becomes tolerant to a player remaining in the same area.
+     * RSMod default is 1000 ticks (10 minutes) when no npc-specific override exists.
+     */
+    readonly aggressionToleranceTicks: number;
+    /**
+     * Ticks between aggression target searches.
+     * RSMod uses npc.combatDef.aggroTargetDelay for this.
+     */
+    readonly aggressionSearchDelayTicks: number;
+    /**
      * Combat profile with all stats resolved. Source of truth for combat calculations.
      * Loaded at spawn time - no runtime lookups needed.
      */
@@ -179,6 +191,10 @@ export class NpcState extends Actor {
     private lastHitTick: number = 0;
     /** RSMod parity: Timer-based roaming - tick when next roam attempt can occur */
     private nextRoamTick: number = 0;
+    /** RSMod parity: aggressive NPCs search for new targets on a timer, not every tick. */
+    private nextAggressionCheckTick: number = 0;
+    /** True while the NPC is committed to returning to its spawn tile. */
+    private returningToSpawn: boolean = false;
     /** Tracks consecutive ticks NPC has been blocked from moving */
     private stuckTicks: number = 0;
     /** Last tick the NPC successfully moved */
@@ -218,6 +234,10 @@ export class NpcState extends Actor {
             isAggressive?: boolean;
             /** Aggression radius in tiles. Default: 3 */
             aggressionRadius?: number;
+            /** Tolerance timer in ticks before this NPC stops auto-aggroing a player. */
+            aggressionToleranceTicks?: number;
+            /** Delay in ticks between aggro target searches. */
+            aggressionSearchDelayTicks?: number;
             /** Combat profile with all stats. If not provided, uses DEFAULT_NPC_COMBAT_PROFILE */
             combatProfile?: NpcCombatProfile;
         } = {},
@@ -232,7 +252,7 @@ export class NpcState extends Actor {
         this.walkSeqId = walkSeqId;
         this.rotationSpeed = Math.max(1, rotationSpeed);
         // Allow wanderRadius=0 so spawns can explicitly opt out of roaming
-        this.wanderRadius = Math.max(0, options.wanderRadius ?? 5);
+        this.wanderRadius = Math.max(0, options.wanderRadius ?? DEFAULT_NPC_WANDER_RADIUS);
         const maxHp = Math.max(1, options.maxHitpoints ?? 10);
         this.maxHitpoints = maxHp;
         this.hitpoints = maxHp;
@@ -248,6 +268,13 @@ export class NpcState extends Actor {
         this.isAggressive = options.isAggressive ?? false;
         // OSRS default aggression radius is typically 3 tiles
         this.aggressionRadius = Math.max(0, options.aggressionRadius ?? 3);
+        this.aggressionToleranceTicks = Math.trunc(
+            options.aggressionToleranceTicks ?? AGGRESSION_TIMER_TICKS,
+        );
+        this.aggressionSearchDelayTicks = Math.max(
+            1,
+            Math.trunc(options.aggressionSearchDelayTicks ?? TARGET_SEARCH_INTERVAL),
+        );
         // Combat profile - use provided or default
         this.combat = options.combatProfile ?? DEFAULT_NPC_COMBAT_PROFILE;
 
@@ -335,6 +362,7 @@ export class NpcState extends Actor {
         this.lastMoveTick = 0;
         this.nextAttackTick = 0;
         this.nextRoamTick = 0; // RSMod parity: Allow roaming immediately after respawn
+        this.nextAggressionCheckTick = 0;
         this.clearInteractionTarget();
         this.clearPendingSeqs();
         this.hitpoints = this.maxHitpoints;
@@ -344,6 +372,19 @@ export class NpcState extends Actor {
         this.regenEffect = undefined;
         this.freezeExpiryTick = 0;
         this.freezeImmunityUntilTick = 0;
+        this.returningToSpawn = false;
+    }
+
+    beginSpawnRecovery(): void {
+        this.returningToSpawn = true;
+    }
+
+    stopSpawnRecovery(): void {
+        this.returningToSpawn = false;
+    }
+
+    isRecoveringToSpawn(): boolean {
+        return this.returningToSpawn;
     }
 
     /**
@@ -359,6 +400,7 @@ export class NpcState extends Actor {
      */
     recordAttack(currentTick: number): void {
         this.nextAttackTick = currentTick + this.attackSpeed;
+        this.combatTimeoutTick = currentTick + ACTIVE_COMBAT_TIMER_TICKS;
     }
 
     /**
@@ -421,6 +463,7 @@ export class NpcState extends Actor {
     }
 
     engageCombat(playerId: number, currentTick: number): void {
+        if (this.returningToSpawn) return;
         if (this.isDead(currentTick) || this.hitpoints <= 0) return;
         const normalized = playerId;
         const changedTarget = this.combatTargetPlayerId !== normalized;
@@ -449,40 +492,23 @@ export class NpcState extends Actor {
         if (this.combatTargetPlayerId === undefined) {
             return;
         }
+        if (currentTick > this.combatTimeoutTick) {
+            // OSRS parity: drop stale combat after the active-combat window expires
+            // so NPCs do not chase forever without any recent combat activity.
+            this.disengageCombat();
+            this.scheduleNextAggressionCheck(currentTick);
+            return;
+        }
 
         // If playerLookup is provided, verify player is still in range and visible
         if (playerLookup) {
-            const player = playerLookup(this.combatTargetPlayerId);
+            const player = this.resolveCombatTargetPlayer(playerLookup);
             if (!player) {
-                // Player not found (logged out or disconnected)
-                this.combatTargetPlayerId = undefined;
-                this.clearInteractionTarget();
-                return;
-            }
-
-            // Check if player is on a different plane
-            if (player.level !== this.level) {
-                this.combatTargetPlayerId = undefined;
-                this.clearInteractionTarget();
-                return;
-            }
-
-            // OSRS: NPCs disengage if player moves more than 32 tiles away
-            // OSRS parity: Use Chebyshev distance (max of |dx|, |dy|), not Euclidean
-            const MAX_COMBAT_DISTANCE = 32;
-            const dx = Math.abs(player.tileX - this.tileX);
-            const dy = Math.abs(player.tileY - this.tileY);
-            const distance = Math.max(dx, dy);
-            if (distance > MAX_COMBAT_DISTANCE) {
-                this.combatTargetPlayerId = undefined;
-                this.clearInteractionTarget();
+                // Player vanished, moved planes, or ran beyond the hard chase limit.
+                this.disengageCombat();
                 return;
             }
         }
-
-        // Keep combat active while the target remains valid.
-        // This prevents dropping aggression just because the NPC cannot currently hit.
-        this.combatTimeoutTick = currentTick + ACTIVE_COMBAT_TIMER_TICKS;
     }
 
     isInCombat(currentTick: number): boolean {
@@ -493,13 +519,41 @@ export class NpcState extends Actor {
         return this.combatTargetPlayerId;
     }
 
+    resolveCombatTargetPlayer(
+        playerLookup?: (
+            playerId: number,
+        ) => { tileX: number; tileY: number; level: number } | undefined,
+    ): { tileX: number; tileY: number; level: number } | undefined {
+        if (this.combatTargetPlayerId === undefined || !playerLookup) {
+            return undefined;
+        }
+        const player = playerLookup(this.combatTargetPlayerId);
+        if (!player) {
+            return undefined;
+        }
+        if (player.level !== this.level) {
+            return undefined;
+        }
+
+        // OSRS: NPCs disengage if the target moves more than 32 tiles away.
+        const dx = Math.abs(player.tileX - this.tileX);
+        const dy = Math.abs(player.tileY - this.tileY);
+        const distance = Math.max(dx, dy);
+        return distance <= 32 ? player : undefined;
+    }
+
     /**
      * Disengage from combat (clear target without death).
      * Used for explicit combat resets (e.g., scripted transitions).
      */
     disengageCombat(): void {
+        const hadPath = this.hasPath();
         this.combatTargetPlayerId = undefined;
         this.combatTimeoutTick = 0;
+        if (hadPath) {
+            this.forceSyncUpdate = true;
+        }
+        this.clearPath();
         this.clearInteractionTarget();
     }
 
@@ -543,6 +597,17 @@ export class NpcState extends Actor {
         this.nextRoamTick = currentTick + delay;
     }
 
+    isAggressionCheckReady(currentTick: number): boolean {
+        return currentTick >= this.nextAggressionCheckTick;
+    }
+
+    scheduleNextAggressionCheck(
+        currentTick: number,
+        delayTicks: number = this.aggressionSearchDelayTicks,
+    ): void {
+        this.nextAggressionCheckTick = currentTick + Math.max(1, delayTicks);
+    }
+
     /**
      * RSMod parity: Check if this NPC is eligible to start a new idle roam.
      * Reference: npc_random_walk.plugin.kts
@@ -557,13 +622,65 @@ export class NpcState extends Actor {
      * - Has wander radius > 0
      */
     canRoam(currentTick: number): boolean {
-        if (!this.isRoamTimerReady(currentTick)) return false;
-        if (this.isDead(currentTick)) return false;
-        if (this.hasPath()) return false;
-        if (this.isFacingPawn()) return false;
-        if (this.isStationary()) return false;
-        if (this.wanderRadius <= 0) return false;
-        return true;
+        return this.getRoamBlockReason(currentTick) === undefined;
+    }
+
+    getRoamBlockReason(
+        currentTick: number,
+    ):
+        | {
+              code: string;
+              logKey: string;
+              detail: string;
+          }
+        | undefined {
+        if (!this.isRoamTimerReady(currentTick)) {
+            return {
+                code: "timer",
+                logKey: `timer:${this.nextRoamTick}`,
+                detail: `waiting for roam timer (next tick ${this.nextRoamTick})`,
+            };
+        }
+        if (this.isDead(currentTick)) {
+            return {
+                code: "dead",
+                logKey: `dead:${this.deadUntilTick}`,
+                detail: `dead until tick ${this.deadUntilTick}`,
+            };
+        }
+        const queuedPath = this.getPathQueue();
+        if (queuedPath.length > 0) {
+            return {
+                code: "path",
+                logKey: `path:${queuedPath.length}:${queuedPath[0]?.x ?? this.tileX}:${
+                    queuedPath[0]?.y ?? this.tileY
+                }`,
+                detail: `already has queued path with ${queuedPath.length} step(s)`,
+            };
+        }
+        const interaction = this.getInteractionTarget();
+        if (interaction && (interaction.type === "player" || interaction.type === "npc")) {
+            return {
+                code: "facing_pawn",
+                logKey: `facing:${interaction.type}:${interaction.id}`,
+                detail: `facing ${interaction.type} ${interaction.id}`,
+            };
+        }
+        if (this.isStationary()) {
+            return {
+                code: "stationary",
+                logKey: `stationary:${this.walkSeqId}:${this.idleSeqId}`,
+                detail: `walk sequence ${this.walkSeqId} matches idle sequence ${this.idleSeqId}`,
+            };
+        }
+        if (this.wanderRadius <= 0) {
+            return {
+                code: "zero_radius",
+                logKey: "zero_radius",
+                detail: `wander radius is ${this.wanderRadius}`,
+            };
+        }
+        return undefined;
     }
 
     /**
@@ -593,14 +710,29 @@ export class NpcState extends Actor {
     }
 
     /**
-     * Check if NPC is outside their wander radius from spawn point.
-     * OSRS: NPCs should attempt to return to spawn when lured too far.
+     * Check if the NPC has been displaced outside its idle roam area.
+     * This is used for home recovery when an NPC has been lured beyond its roam area.
      */
-    isOutsideWanderRadius(): boolean {
-        const dx = Math.abs(this.tileX - this.spawnX);
-        const dy = Math.abs(this.tileY - this.spawnY);
+    isOutsideRoamArea(): boolean {
+        return this.isTileOutsideRoamArea(this.tileX, this.tileY);
+    }
+
+    isTileOutsideRoamArea(tileX: number, tileY: number): boolean {
+        const dx = Math.abs(tileX - this.spawnX);
+        const dy = Math.abs(tileY - this.spawnY);
         const distance = Math.max(dx, dy); // Chebyshev distance
         return distance > this.wanderRadius;
+    }
+
+    /**
+     * Backwards-compatible alias for older call sites using the data field name.
+     */
+    isOutsideWanderRadius(): boolean {
+        return this.isOutsideRoamArea();
+    }
+
+    isTileOutsideWanderRadius(tileX: number, tileY: number): boolean {
+        return this.isTileOutsideRoamArea(tileX, tileY);
     }
 
     /**

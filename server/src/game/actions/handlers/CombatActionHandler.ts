@@ -634,6 +634,8 @@ export class CombatActionHandler {
         const targetY = (faceTile.y << 7) + 64;
         if (player.x !== targetX || player.y !== targetY) {
             player.setForcedOrientation(this.faceAngleRs(player.x, player.y, targetX, targetY));
+            player._pendingFace = { x: targetX, y: targetY };
+            player.pendingFaceTile = { x: faceTile.x, y: faceTile.y };
         }
         player.markSent();
 

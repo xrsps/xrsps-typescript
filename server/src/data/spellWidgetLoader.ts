@@ -1,171 +1,245 @@
 /**
- * Server-side spell widget loader
- * Uses explicit widget ID mappings from RuneLite's InterfaceID.java for OSRS parity.
- * All spells are in the unified spellbook interface (group 218).
+ * Server-side spell widget loader.
+ * Mirrors the client/CS2 contract: spell buttons come from spell item params in the cache.
  */
+import type { CacheInfo } from "../../../src/rs/cache/CacheInfo";
 import { CacheSystem } from "../../../src/rs/cache/CacheSystem";
+import { getCacheLoaderFactory } from "../../../src/rs/cache/loader/CacheLoaderFactory";
+import type { EnumTypeLoader } from "../../../src/rs/config/enumtype/EnumTypeLoader";
+import type { ObjTypeLoader } from "../../../src/rs/config/objtype/ObjTypeLoader";
 
-// All spells use the unified spellbook interface (group 218)
 export const SPELLBOOK_GROUP_ID = 218;
 
-/**
- * Explicit spell name -> widget child ID mappings from RuneLite InterfaceID.java
- * These are the canonical OSRS widget IDs.
- */
-const SPELL_WIDGET_IDS: Record<string, number> = {
-    // Standard combat spells
-    "Wind Strike": 8,
-    "Water Strike": 11,
-    "Earth Strike": 14,
-    "Fire Strike": 16,
-    "Wind Bolt": 18,
-    "Water Bolt": 22,
-    "Earth Bolt": 25,
-    "Fire Bolt": 28,
-    "Wind Blast": 32,
-    "Water Blast": 35,
-    "Earth Blast": 42,
-    "Fire Blast": 48,
-    "Wind Wave": 55,
-    "Water Wave": 58,
-    "Earth Wave": 62,
-    "Fire Wave": 65,
-    "Wind Surge": 69,
-    "Water Surge": 71,
-    "Earth Surge": 76,
-    "Fire Surge": 78,
+export type SpellbookName = "standard" | "ancient" | "lunar" | "arceuus";
 
-    // Standard utility/debuff spells
-    Confuse: 9,
-    Weaken: 15,
-    Curse: 19,
-    Bind: 20,
-    Snare: 39,
-    Entangle: 66,
-    Vulnerability: 60,
-    Enfeeble: 63,
-    Stun: 67,
-
-    // Standard special combat spells
-    "Crumble Undead": 30,
-    "Iban Blast": 38,
-    "Magic Dart": 40,
-    "Saradomin Strike": 51,
-    "Claws of Guthix": 52,
-    "Flames of Zamorak": 53,
-
-    // Standard item spells
-    "Low Level Alchemy": 21,
-    "High Level Alchemy": 44,
-    "Superheat Item": 33,
-    "Bones to Bananas": 17,
-    "Telekinetic Grab": 27,
-    "Charge Water Orb": 45,
-    "Charge Earth Orb": 49,
-    "Charge Fire Orb": 56,
-    "Charge Air Orb": 59,
-
-    // Ancient Magicks combat spells
-    "Ice Rush": 81,
-    "Ice Blitz": 82,
-    "Ice Burst": 83,
-    "Ice Barrage": 84,
-    "Blood Rush": 85,
-    "Blood Blitz": 86,
-    "Blood Burst": 87,
-    "Blood Barrage": 88,
-    "Smoke Rush": 89,
-    "Smoke Blitz": 90,
-    "Smoke Burst": 91,
-    "Smoke Barrage": 92,
-    "Shadow Rush": 93,
-    "Shadow Blitz": 94,
-    "Shadow Burst": 95,
-    "Shadow Barrage": 96,
-
-    // Arceuus combat spells
-    "Inferior Demonbane": 169,
-    "Superior Demonbane": 170,
-    "Dark Demonbane": 171,
-    "Ghostly Grasp": 173,
-    "Skeletal Grasp": 174,
-    "Undead Grasp": 175,
-    "Lesser Corruption": 177,
-    "Greater Corruption": 178,
-    "Mark of Darkness": 172,
-
-    // Lunar spells (targetable/utility)
-    "Monster Examine": 109,
-    "NPC Contact": 110,
-    "Cure Other": 111,
-    "Cure Me": 115,
-    "Cure Group": 119,
-    "Stat Spy": 120,
-    Dream: 127,
-    "Energy Transfer": 141,
-    "Heal Other": 142,
-    "Vengeance Other": 143,
-    Vengeance: 144,
-    "Heal Group": 145,
-    "Spellbook Swap": 146,
-
-    // Standard teleports
-    "Home Teleport": 7,
-    "Minigame Teleport": 8,
-    "Varrock Teleport": 23,
-    "Lumbridge Teleport": 26,
-    "Falador Teleport": 29,
-    "Teleport to House": 31,
-    "Camelot Teleport": 34,
-    "Kourend Castle Teleport": 36,
-    "Ardougne Teleport": 41,
-    "Watchtower Teleport": 47,
-    "Trollheim Teleport": 54,
-    "Ape Atoll Teleport": 57,
-
-    // Ancient teleports
-    "Paddewwa Teleport": 97,
-    "Senntisten Teleport": 98,
-    "Kharyrll Teleport": 99,
-    "Lassar Teleport": 100,
-    "Dareeyak Teleport": 101,
-    "Carrallangar Teleport": 102,
-    "Annakarl Teleport": 103,
-    "Ghorrock Teleport": 104,
-
-    // Arceuus teleports
-    "Arceuus Home Teleport": 150,
-    "Arceuus Library Teleport": 152,
-    "Draynor Manor Teleport": 156,
-    "Mind Altar Teleport": 158,
-    "Salve Graveyard Teleport": 160,
-    "Fenkenstrain's Castle Teleport": 161,
-    "West Ardougne Teleport": 162,
-    "Harmony Island Teleport": 164,
-    "Barrows Teleport": 166,
-    "Ape Atoll Teleport (Arceuus)": 168,
+export type SpellWidgetInfo = {
+    objectId: number;
+    name: string;
+    groupId: number;
+    fileId: number;
+    spellbook?: SpellbookName;
 };
 
-/**
- * Build a spell name -> (groupId, fileId) lookup.
- * Uses explicit widget ID mappings for reliability.
- */
-export function buildSpellNameToWidgetMap(
-    _cache: CacheSystem,
-): Map<string, { groupId: number; fileId: number }> {
-    const result = new Map<string, { groupId: number; fileId: number }>();
+const SPELLBOOK_ROOT_ENUM_ID = 1981;
+const SPELL_BUTTON_PARAM_ID = 596;
+const SPELL_NAME_PARAM_ID = 601;
 
-    for (const [spellName, fileId] of Object.entries(SPELL_WIDGET_IDS)) {
-        result.set(spellName.toLowerCase(), { groupId: SPELLBOOK_GROUP_ID, fileId });
+const SPELLBOOK_ENUM_KEY_TO_NAME: Record<number, SpellbookName> = {
+    0: "standard",
+    1: "ancient",
+    2: "lunar",
+    3: "arceuus",
+};
+
+const SPELL_NAME_LOOKUP_ALIASES: Record<string, string[]> = {
+    "ape atoll teleport (arceuus)": ["ape atoll teleport"],
+    "carrallangar teleport": ["carrallanger teleport"],
+    "home teleport": ["lumbridge home teleport"],
+    "monster examine": ["monster inspect"],
+};
+
+const spellWidgetsByName = new Map<string, SpellWidgetInfo[]>();
+
+function normalizeSpellName(name: string): string {
+    return name.toLowerCase().trim();
+}
+
+function getSpellNameLookupKeys(spellName: string): string[] {
+    const normalizedName = normalizeSpellName(spellName);
+    const keys = new Set<string>([normalizedName]);
+    for (const alias of SPELL_NAME_LOOKUP_ALIASES[normalizedName] ?? []) {
+        keys.add(normalizeSpellName(alias));
+    }
+    return [...keys];
+}
+
+function safeLoadObjType(objLoader: ObjTypeLoader, objId: number) {
+    try {
+        return objLoader.load(objId);
+    } catch {
+        return undefined;
+    }
+}
+
+function safeLoadEnumType(enumLoader: EnumTypeLoader, enumId: number) {
+    try {
+        return enumLoader.load(enumId);
+    } catch {
+        return undefined;
+    }
+}
+
+function buildSpellWidgetInfo(
+    objLoader: ObjTypeLoader,
+    objId: number,
+    spellbook?: SpellbookName,
+): SpellWidgetInfo | undefined {
+    const objType = safeLoadObjType(objLoader, objId);
+    const componentHash = objType?.params?.get(SPELL_BUTTON_PARAM_ID);
+    if (typeof componentHash !== "number") {
+        return undefined;
     }
 
-    console.log(`[SpellWidgetLoader] Loaded ${result.size} spell widget mappings`);
-    return result;
+    const rawName = objType?.params?.get(SPELL_NAME_PARAM_ID);
+    let name: string | undefined;
+    if (typeof rawName === "string" && rawName.trim().length > 0) {
+        name = rawName.trim();
+    } else if (typeof objType?.name === "string" && objType.name.trim().length > 0) {
+        name = objType.name.trim();
+    }
+    if (!name) {
+        return undefined;
+    }
+
+    return {
+        objectId: objId,
+        name,
+        groupId: (componentHash >>> 16) & 0xffff,
+        fileId: componentHash & 0xffff,
+        spellbook,
+    };
+}
+
+function collectSpellWidgetInfos(
+    enumLoader: EnumTypeLoader,
+    objLoader: ObjTypeLoader,
+    enumId: number,
+    spellbook: SpellbookName | undefined,
+    seenEnums: Set<string>,
+    seenWidgets: Set<string>,
+    output: SpellWidgetInfo[],
+): void {
+    const enumVisitKey = `${spellbook ?? "unknown"}:${enumId}`;
+    if (seenEnums.has(enumVisitKey)) {
+        return;
+    }
+    seenEnums.add(enumVisitKey);
+
+    const enumType = safeLoadEnumType(enumLoader, enumId);
+    if (!enumType?.intValues || !enumType.keys || !enumType.outputCount) {
+        return;
+    }
+
+    for (let index = 0; index < enumType.outputCount; index++) {
+        const value = enumType.intValues[index];
+        if (typeof value !== "number") {
+            continue;
+        }
+
+        const key = enumType.keys[index];
+        const resolvedSpellbook = SPELLBOOK_ENUM_KEY_TO_NAME[key] ?? spellbook;
+        const spellWidget = buildSpellWidgetInfo(objLoader, value, resolvedSpellbook);
+        if (spellWidget) {
+            const widgetKey = `${resolvedSpellbook ?? "unknown"}:${spellWidget.objectId}:${spellWidget.groupId}:${spellWidget.fileId}`;
+            if (seenWidgets.has(widgetKey)) {
+                continue;
+            }
+            seenWidgets.add(widgetKey);
+            output.push(spellWidget);
+            continue;
+        }
+
+        collectSpellWidgetInfos(
+            enumLoader,
+            objLoader,
+            value,
+            resolvedSpellbook,
+            seenEnums,
+            seenWidgets,
+            output,
+        );
+    }
+}
+
+function loadSpellWidgetInfos(cacheInfo: CacheInfo, cache: CacheSystem): SpellWidgetInfo[] {
+    const cacheFactory = getCacheLoaderFactory(cacheInfo, cache);
+    const enumLoader = cacheFactory.getEnumTypeLoader();
+    if (!enumLoader) {
+        console.warn("[SpellWidgetLoader] Enum loader unavailable; spell widget mapping is empty");
+        spellWidgetsByName.clear();
+        return [];
+    }
+
+    const objLoader = cacheFactory.getObjTypeLoader();
+    const spellWidgets: SpellWidgetInfo[] = [];
+    collectSpellWidgetInfos(
+        enumLoader,
+        objLoader,
+        SPELLBOOK_ROOT_ENUM_ID,
+        undefined,
+        new Set<string>(),
+        new Set<string>(),
+        spellWidgets,
+    );
+
+    spellWidgetsByName.clear();
+    for (const spellWidget of spellWidgets) {
+        const normalizedName = normalizeSpellName(spellWidget.name);
+        const existing = spellWidgetsByName.get(normalizedName);
+        if (existing) {
+            existing.push(spellWidget);
+        } else {
+            spellWidgetsByName.set(normalizedName, [spellWidget]);
+        }
+    }
+
+    return spellWidgets;
 }
 
 /**
- * Get widget ID for a spell by name (direct lookup)
+ * Build a spell name -> (groupId, fileId) lookup.
+ * Populates the runtime widget lookup from live cache spell data.
  */
-export function getSpellWidgetId(spellName: string): number | undefined {
-    return SPELL_WIDGET_IDS[spellName];
+export function buildSpellNameToWidgetMap(
+    cacheInfo: CacheInfo,
+    cache: CacheSystem,
+): Map<string, { groupId: number; fileId: number }> {
+    const result = new Map<string, { groupId: number; fileId: number }>();
+    const spellWidgets = loadSpellWidgetInfos(cacheInfo, cache);
+
+    for (const spellWidget of spellWidgets) {
+        const normalizedName = normalizeSpellName(spellWidget.name);
+        if (!result.has(normalizedName)) {
+            result.set(normalizedName, {
+                groupId: spellWidget.groupId,
+                fileId: spellWidget.fileId,
+            });
+        }
+    }
+
+    console.log(
+        `[SpellWidgetLoader] Loaded ${spellWidgets.length} spell widget records (${result.size} unique names)`,
+    );
+    return result;
+}
+
+export function getSpellWidgetInfo(
+    spellName: string,
+    spellbook?: SpellbookName,
+): SpellWidgetInfo | undefined {
+    const lookupKeys = getSpellNameLookupKeys(spellName);
+    for (const lookupKey of lookupKeys) {
+        const spellWidgets = spellWidgetsByName.get(lookupKey);
+        if (!spellWidgets?.length) {
+            continue;
+        }
+
+        if (spellbook) {
+            const spellWidget = spellWidgets.find((candidate) => candidate.spellbook === spellbook);
+            if (spellWidget) {
+                return spellWidget;
+            }
+            continue;
+        }
+
+        return spellWidgets[0];
+    }
+    return undefined;
+}
+
+/**
+ * Get the current widget child ID for a spell button by name.
+ */
+export function getSpellWidgetId(spellName: string, spellbook?: SpellbookName): number | undefined {
+    return getSpellWidgetInfo(spellName, spellbook)?.fileId;
 }

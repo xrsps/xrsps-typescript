@@ -342,8 +342,9 @@ export class PlayerInteractionSystem {
      * and whenever a new click intent replaces an old one.
      *
      * IMPORTANT: For NPC combat, we DON'T delete the state - we just set playerAutoAttack=false.
-     * This allows the NPC to continue chasing/retaliating until aggroHoldTicks expires.
-     * RSMod behavior: Walking away doesn't cancel combat, just stops player's auto-attack.
+     * This preserves the player's combat focus while NpcManager remains authoritative for
+     * any NPC chase/retreat behavior. RSMod behavior: walking away doesn't immediately cancel
+     * combat, it just stops the player's auto-attack.
      */
     clearAllInteractions(ws: any): void {
         const st = this.interactions.get(ws);
@@ -364,11 +365,11 @@ export class PlayerInteractionSystem {
                 combatState.pendingAttackTick = undefined;
                 combatState.holdPositionUntilTick = undefined;
                 combatState.stepLockUntilTick = undefined;
-                // Also notify CombatController to stop auto-attack
+                // Also notify CombatController to stop player auto-attack
                 if (me) {
                     this.onStopAutoAttack?.(me.id);
                 }
-                // Don't delete - let CombatController handle NPC chasing and aggroHoldTicks countdown
+                // Don't delete - preserve player combat state while the NPC remains server-driven
                 this.pendingLocInteractions.delete(ws);
                 return;
             }
@@ -888,6 +889,7 @@ export class PlayerInteractionSystem {
 
         const me = this.players.get(ws);
         if (!me) return;
+        if (npc.isRecoveringToSpawn()) return;
 
         // First hit has now landed - NPC can start retaliating
         if (!st.retaliationEngaged) {

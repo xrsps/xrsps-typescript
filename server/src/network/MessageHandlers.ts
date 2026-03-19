@@ -12,7 +12,7 @@ import {
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../src/shared/input/modifierFlags";
 import { getItemDefinition } from "../data/items";
-import { RUNE_IDS } from "../data/runes";
+import { ALL_RUNE_ITEM_IDS, RUNE_IDS } from "../data/runes";
 import { getCollectionLogItems } from "../game/collectionlog";
 import type { NpcState } from "../game/npc";
 import type { PlayerState } from "../game/player";
@@ -986,6 +986,32 @@ function pickRandomUnownedCollectionLogItemId(player: PlayerState): number | nul
     return candidates[index] ?? null;
 }
 
+type InventoryLoadoutEntry = {
+    itemId: number;
+    quantity: number;
+};
+
+function replaceInventoryContents(
+    player: PlayerState,
+    entries: readonly InventoryLoadoutEntry[],
+): boolean {
+    const slotCount = player.getInventoryEntries().length;
+    if (entries.length > slotCount) {
+        return false;
+    }
+
+    player.clearInventory();
+    for (let slot = 0; slot < entries.length; slot++) {
+        const entry = entries[slot];
+        if (!(entry?.itemId > 0) || !(entry.quantity > 0)) {
+            continue;
+        }
+        player.setInventorySlot(slot, entry.itemId, entry.quantity);
+    }
+
+    return true;
+}
+
 /**
  * Creates the chat handler (complex, extracted for readability)
  */
@@ -1036,6 +1062,49 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         targetPlayerIds: [sender.id],
                     });
                     logger.info(`[cmd] ::clear - Cleared inventory for player ${sender.id}`);
+                    return;
+                }
+
+                if (root === "allrunes") {
+                    const quantityArg = parts[1];
+                    const quantity =
+                        quantityArg === undefined
+                            ? 10000
+                            : Math.floor(Number.parseInt(quantityArg, 10));
+                    if (!Number.isFinite(quantity) || quantity <= 0) {
+                        services.queueChatMessage({
+                            messageType: "game",
+                            text: "Usage: ::allrunes [quantity]",
+                            targetPlayerIds: [sender.id],
+                        });
+                        return;
+                    }
+
+                    try {
+                        services.clearActionsInGroup(sender.id, "inventory");
+                    } catch {}
+
+                    const runeLoadout: InventoryLoadoutEntry[] = ALL_RUNE_ITEM_IDS.map((itemId) => ({
+                        itemId,
+                        quantity,
+                    }));
+                    if (!replaceInventoryContents(sender, runeLoadout)) {
+                        services.queueChatMessage({
+                            messageType: "game",
+                            text: "Unable to load ::allrunes into your inventory.",
+                            targetPlayerIds: [sender.id],
+                        });
+                        return;
+                    }
+
+                    services.queueChatMessage({
+                        messageType: "game",
+                        text: `Replaced your inventory with all ${ALL_RUNE_ITEM_IDS.length} rune types x${quantity}.`,
+                        targetPlayerIds: [sender.id],
+                    });
+                    logger.info(
+                        `[cmd] ::${root} - Loaded player ${sender.id} inventory with ${ALL_RUNE_ITEM_IDS.length} rune types x${quantity}`,
+                    );
                     return;
                 }
 

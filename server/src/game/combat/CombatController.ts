@@ -44,7 +44,6 @@ import {
 } from "../systems/combat/CombatEngine";
 import { type AttackType, normalizeAttackType } from "./AttackType";
 import {
-    canNpcAttackPlayerFromCurrentPosition,
     hasDirectMeleePath,
     hasDirectMeleeReach,
     hasProjectileLineOfSightToNpc,
@@ -524,6 +523,11 @@ export class CombatController {
                 endedEngagements.push({ playerId, reason: "target_dead" });
                 continue;
             }
+            if (npc.isRecoveringToSpawn()) {
+                this.endCombat(playerId, ctx.tick, "target_recovering");
+                endedEngagements.push({ playerId, reason: "target_recovering" });
+                continue;
+            }
 
             const result = this.processPlayerCombatTick(player, npc, state, internalCtx);
             effects.push(...result.effects);
@@ -737,22 +741,8 @@ export class CombatController {
                 break;
         }
 
-        // Handle NPC retaliation
-        if (state.engagement.retaliationEngaged) {
-            npcAttackScheduled = this.processNpcRetaliation(player, npc, state, ctx, effects);
-        } else {
-            // Even before retaliation is engaged, NPC should move away if player overlaps it.
-            // This handles the case where player walks onto NPC's tile before first hit lands.
-            const npcX = npc.tileX;
-            const npcY = npc.tileY;
-            const playerX = player.tileX;
-            const playerY = player.tileY;
-            const overlapping = npcX === playerX && npcY === playerY;
-            if (overlapping && ctx.walkToAttackRange) {
-                // NPC needs to move to an adjacent tile to get into attack range
-                ctx.walkToAttackRange(npc, player, 1);
-            }
-        }
+        // NPC chase/retaliation ownership lives in NpcManager.
+        // CombatController only manages player-facing combat state and attack scheduling.
 
         return {
             effects,
@@ -760,81 +750,6 @@ export class CombatController {
             playerAttackScheduled,
             npcAttackScheduled,
         };
-    }
-
-    /**
-     * Process NPC retaliation logic.
-     * Routes NPC to player and schedules attacks when in range.
-     *
-     * @returns true if NPC attack was scheduled this tick
-     */
-    private processNpcRetaliation(
-        player: PlayerState,
-        npc: NpcState,
-        state: PlayerVsNpcCombatState,
-        ctx: CombatControllerContext,
-        _effects: ActionEffect[],
-    ): boolean {
-        const tick = ctx.tick;
-        let npcAttackScheduled = false;
-
-        // Check if on same plane
-        if (npc.level !== player.level) {
-            return false;
-        }
-
-        // Use actor-agnostic range check for NPC -> player retaliation.
-        const npcAttackType = ctx.getNpcAttackType?.(npc) ?? "melee";
-        const npcAttackRange =
-            ctx.getNpcAttackRange?.(npc, npcAttackType) ??
-            resolveNpcAttackRange(npc, npcAttackType);
-        const npcCanAttackFromCurrentPosition = canNpcAttackPlayerFromCurrentPosition(
-            npc,
-            player,
-            npcAttackRange,
-            npcAttackType,
-            {
-                pathService: ctx.pathService,
-                hasLineOfSight: (attacker, target) =>
-                    ctx.hasNpcLineOfSight?.(attacker, target as PlayerState) ??
-                    ctx.hasLineOfSight?.(target as PlayerState, attacker) ??
-                    true,
-            },
-        );
-
-        if (!npcCanAttackFromCurrentPosition) {
-            if (ctx.walkToAttackRange) {
-                ctx.walkToAttackRange(npc, player, npcAttackRange);
-            }
-            return false;
-        }
-
-        // NPC is in range - check if attack cooldown is ready
-        // OSRS parity: Use NPC's own attack timer, not per-engagement state
-        if (npc.canAttack(tick)) {
-            // OSRS parity: NPC stops moving on the tick it attacks
-            // RSMod pattern: pawn.stopMovement() before attack
-            npc.clearPath();
-
-            // Schedule NPC attack
-            if (ctx.scheduleNpcAttack) {
-                const npcSpeed = ctx.pickNpcAttackSpeed?.(npc, player) ?? npc.attackSpeed;
-                const ok = ctx.scheduleNpcAttack(player, npc, npcSpeed, tick);
-                if (ok) {
-                    npcAttackScheduled = true;
-                    // OSRS parity: Record attack on NPC itself, not per-engagement state
-                    npc.recordAttack(tick);
-                } else {
-                    // Retry next tick
-                    npc.setNextAttackTick(tick + 1);
-                }
-            } else {
-                // No scheduler provided, just update timing
-                npc.recordAttack(tick);
-            }
-        }
-
-        return npcAttackScheduled;
     }
 
     /**
@@ -860,6 +775,7 @@ export class CombatController {
         const state = this.engagements.getState(playerId);
         if (!state) return;
         if (state.engagement.npcId !== npc.id) return;
+        if (npc.isRecoveringToSpawn()) return;
 
         // Record combat engagement for multi-combat tracking
         // Note: multiCombatSystem tracks by Actor, so we use npc directly

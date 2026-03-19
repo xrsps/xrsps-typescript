@@ -1,6 +1,7 @@
 import { EquipmentSlot } from "../../../../../src/rs/config/player/Equipment";
 import { SkillId } from "../../../../../src/rs/skill/skills";
 import { RUNE_IDS } from "../../../data/runes";
+import { getSpellWidgetId } from "../../../data/spellWidgetLoader";
 import {
     canWeaponAutocastSpell,
     getAutocastCompatibilityMessage,
@@ -21,8 +22,6 @@ import {
 import { type ScriptModule, type ScriptServices, type WidgetActionEvent } from "../types";
 
 const SPELLBOOK_GROUP_ID = 218;
-const MINIGAME_TELEPORT_CHILD_ID = 8;
-const CROSSBOW_BOLT_ENCHANTMENTS_CHILD_ID = 10;
 const BOLT_ENCHANT_CHATBOX_GROUP_ID = 270;
 const BOLT_ENCHANT_SCRIPT_ID = 2046;
 const BOLT_ENCHANT_SKILLMULTI_MODE = 19; // enum_1809 -> "Enchant"
@@ -120,6 +119,14 @@ type BoltEnchantUiSession = {
 };
 
 const boltEnchantUiSessions = new WeakMap<PlayerState, BoltEnchantUiSession>();
+
+function getMinigameTeleportChildId(): number | undefined {
+    return getSpellWidgetId("Minigame Teleport");
+}
+
+function getCrossbowBoltEnchantmentsChildId(): number | undefined {
+    return getSpellWidgetId("Crossbow Bolt Enchantments");
+}
 
 /**
  * OSRS parity data from CS2 [proc,skill_guide_data_magic].
@@ -393,12 +400,12 @@ export const spellbookWidgetModule: ScriptModule = {
 
                 // Op1 = Cast spell (teleports, etc.)
                 if (opId === 1) {
-                    if (childId === MINIGAME_TELEPORT_CHILD_ID) {
+                    if (childId === getMinigameTeleportChildId()) {
                         openMinigameTeleportInterface(event.player, services);
                         return;
                     }
 
-                    if (childId === CROSSBOW_BOLT_ENCHANTMENTS_CHILD_ID) {
+                    if (childId === getCrossbowBoltEnchantmentsChildId()) {
                         handleCrossbowBoltEnchantments(event.player, services);
                         return;
                     }

@@ -6658,7 +6658,18 @@ export class WSServer {
             try {
                 let castSeq = -1;
                 if (opts.spellData) {
-                    castSeq = opts.spellData.castAnimId ?? -1;
+                    if (opts.spellData.castAnimId !== undefined) {
+                        castSeq = opts.spellData.castAnimId;
+                    } else if (opts.spellData.id > 0) {
+                        const isAutocast =
+                            !!opts.player.autocastEnabled &&
+                            (opts.player.combatSpellId ?? -1) === opts.spellData.id;
+                        castSeq = this.pickSpellCastSequence(
+                            opts.player,
+                            opts.spellData.id,
+                            isAutocast,
+                        );
+                    }
                 } else {
                     castSeq = this.pickAttackSequence(opts.player);
                 }

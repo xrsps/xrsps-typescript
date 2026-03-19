@@ -128,7 +128,7 @@ function createHarness() {
 
 (function testSpellbookAutocastHandlersRemainRegistered() {
     const harness = createHarness();
-    const handler = harness.registry.findWidgetAction((218 << 16) | 8, 2, undefined);
+    const handler = harness.registry.findWidgetAction((218 << 16) | 9, 2, undefined);
     assert(handler, "spellbook autocast handler should be registered");
 })();
 

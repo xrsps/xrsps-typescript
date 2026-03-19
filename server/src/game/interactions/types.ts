@@ -23,9 +23,9 @@ export interface FollowInteractionState {
  * OSRS Combat Flow:
  * 1. Player clicks Attack -> startNpcAttack() creates this state
  * 2. Player routes toward NPC until within attack reach
- * 3. When in reach, CombatController schedules the attack action
+ * 3. When in reach, CombatController schedules the player's attack action
  * 4. After first hit lands, retaliationEngaged becomes true
- * 5. NPC retaliates based on npcNextAttackTick
+ * 5. NpcManager owns any NPC chase/retaliation using NPC state
  * 6. Combat continues until player moves away or target dies
  */
 export interface NpcCombatInteractionState {

@@ -1,3 +1,4 @@
+import type { CacheInfo } from "../../../src/rs/cache/CacheInfo";
 import { CacheSystem } from "../../../src/rs/cache/CacheSystem";
 import { CombatCategory, getWeaponData } from "../../data/weapons";
 import { applyProjectileDefaults } from "./projectileParams";
@@ -952,7 +953,7 @@ let spellWidgetMappingInitialized = false;
  * This is the proper OSRS approach where widget layout comes from cache, not hardcoded.
  * Must be called after cache is loaded but before spell casting is used.
  */
-export function initSpellWidgetMapping(cache: CacheSystem): void {
+export function initSpellWidgetMapping(cacheInfo: CacheInfo, cache: CacheSystem): void {
     if (spellWidgetMappingInitialized) {
         console.warn("[Spells] Spell-widget mapping already initialized");
         return;
@@ -961,7 +962,7 @@ export function initSpellWidgetMapping(cache: CacheSystem): void {
     console.log("[Spells] Initializing spell-widget mapping from cache...");
 
     // Build name -> widget mapping from cache
-    const nameToWidget = buildSpellNameToWidgetMap(cache);
+    const nameToWidget = buildSpellNameToWidgetMap(cacheInfo, cache);
     console.log(`[Spells] Found ${nameToWidget.size} spell widgets in cache`);
 
     // Match spell data entries to widget positions by name

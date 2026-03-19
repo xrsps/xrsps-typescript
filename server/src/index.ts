@@ -28,7 +28,7 @@ async function main() {
 
     // Initialize spell-widget mappings from cache (OSRS parity)
     logger.info("Boot: initializing spell-widget mappings from cache...");
-    initSpellWidgetMapping(cacheEnv.cacheSystem);
+    initSpellWidgetMapping(cacheEnv.info, cacheEnv.cacheSystem);
     logger.info("Boot: spell-widget mappings initialized");
 
     // Build full scenes like the editor (models included) so server has parity
