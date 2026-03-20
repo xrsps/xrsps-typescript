@@ -92,6 +92,9 @@ export abstract class GameRenderer<T extends MapSquare = MapSquare> extends Rend
             this.osrsClient.mapFileIndex,
             SceneBuilder.fillEmptyTerrain(this.osrsClient.loadedCache.info),
         );
+        if (!this.osrsClient.isLoggedIn()) {
+            return;
+        }
         // Use camera position for initial load (player position not yet available)
         const camera = this.osrsClient.camera;
         this.mapManager.update(

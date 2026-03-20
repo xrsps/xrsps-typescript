@@ -5464,7 +5464,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     override render(time: number, deltaTime: number, resized: boolean): void {
         profiler.startFrame();
         const onLoginScreen = this.osrsClient.isOnLoginScreen();
-        const loginLikeState = this.osrsClient.gameState === GameState.DOWNLOADING || onLoginScreen;
+        const loggedIn = this.osrsClient.isLoggedIn();
+        const loginLikeState = !loggedIn;
         const desiredImageRendering = loginLikeState && isMobileMode ? "pixelated" : "";
         if (this.canvas.style.imageRendering !== desiredImageRendering) {
             this.canvas.style.imageRendering = desiredImageRendering;
@@ -5545,14 +5546,13 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.pendingClientTicks -= clientTicksElapsed;
         }
 
-        // ========== Login Screen Rendering (before game resource checks) ==========
-        // Login screen only needs basic overlay, not game resources like textureArray
+        // ========== Title/Login Rendering (before game resource checks) ==========
+        // Non-game states only need title/login overlays, not world resources like textureArray.
         const inputManager = this.osrsClient.inputManager;
         this.syncMobileLoginInput(false);
-        if (onLoginScreen) {
+        if (!loggedIn) {
             // Transfer click state for this frame (OSRS parity)
             inputManager.onFrameStart();
-            // Keep login input mapping in sync with the current canvas dimensions before click handling.
             const uiMetrics = this.computeUiRenderMetrics(this.app.width, this.app.height);
             this.osrsClient.loginRenderer.syncMobileViewportState(
                 this.osrsClient.loginState,
@@ -5565,70 +5565,76 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 this.app.height,
             );
 
-            // Handle keyboard input for login form
-            let char = inputManager.readChar();
-            while (char !== -1) {
-                this.osrsClient.handleLoginKeyInput("", String.fromCharCode(char));
-                char = inputManager.readChar();
-            }
-            // Handle special keys from key events
-            for (const keyEvent of inputManager.keyEvents) {
-                if (keyEvent.code === "Tab") {
-                    this.osrsClient.handleLoginKeyInput("Tab", "");
-                } else if (keyEvent.code === "Enter" || keyEvent.code === "NumpadEnter") {
-                    // Enter in login form = login button or field switch
-                    const { loginState } = this.osrsClient;
-                    if (loginState.canAttemptLogin()) {
-                        // Update game state to CONNECTING (hides buttons)
-                        loginState.savePersistedLoginState();
-                        this.osrsClient.updateGameState(GameState.CONNECTING);
-                        sendLogin(loginState.username.trim(), loginState.password);
-                    } else {
-                        this.osrsClient.handleLoginKeyInput("Enter", "");
+            if (onLoginScreen) {
+                // Keep login input mapping in sync with the current canvas dimensions before click handling.
+                // Other non-game states (e.g. cache downloading/loading) still use the title overlay path
+                // but must not drive login-form interaction.
+                let char = inputManager.readChar();
+                while (char !== -1) {
+                    this.osrsClient.handleLoginKeyInput("", String.fromCharCode(char));
+                    char = inputManager.readChar();
+                }
+                // Handle special keys from key events
+                for (const keyEvent of inputManager.keyEvents) {
+                    if (keyEvent.code === "Tab") {
+                        this.osrsClient.handleLoginKeyInput("Tab", "");
+                    } else if (keyEvent.code === "Enter" || keyEvent.code === "NumpadEnter") {
+                        // Enter in login form = login button or field switch
+                        const { loginState } = this.osrsClient;
+                        if (loginState.canAttemptLogin()) {
+                            // Update game state to CONNECTING (hides buttons)
+                            loginState.savePersistedLoginState();
+                            this.osrsClient.updateGameState(GameState.CONNECTING);
+                            sendLogin(loginState.username.trim(), loginState.password);
+                        } else {
+                            this.osrsClient.handleLoginKeyInput("Enter", "");
+                        }
+                    } else if (keyEvent.code === "Backspace") {
+                        this.osrsClient.handleLoginKeyInput("Backspace", "");
                     }
-                } else if (keyEvent.code === "Backspace") {
-                    this.osrsClient.handleLoginKeyInput("Backspace", "");
                 }
+                inputManager.keyEvents.length = 0; // Clear processed key events
+
+                // Handle mouse clicks for login buttons
+                if (
+                    inputManager.clickMode3 !== 0 &&
+                    inputManager.saveClickX !== -1 &&
+                    inputManager.saveClickY !== -1
+                ) {
+                    const action = this.osrsClient.handleLoginMouseClick(
+                        inputManager.saveClickX,
+                        inputManager.saveClickY,
+                        inputManager.clickMode3,
+                    );
+                    const shouldRefocusMobileLoginInput =
+                        isMobileMode &&
+                        this.osrsClient.loginState.loginIndex === LoginIndex.LOGIN_FORM &&
+                        this.osrsClient.loginState.virtualKeyboardVisible &&
+                        inputManager.isTouch;
+                    if (shouldRefocusMobileLoginInput) {
+                        this.syncMobileLoginInput(true);
+                    } else {
+                        this.syncMobileLoginInput(false);
+                    }
+                    if (action === "connect") {
+                        // Send login message
+                        const { loginState } = this.osrsClient;
+                        loginState.savePersistedLoginState();
+                        sendLogin(loginState.username.trim(), loginState.password);
+                    }
+                    // Clear click mode to prevent further processing
+                    inputManager.clickMode3 = 0;
+                    inputManager.saveClickX = -1;
+                    inputManager.saveClickY = -1;
+                }
+
+                // Tick login animation
+                this.osrsClient.tickLogin();
+            } else {
+                inputManager.keyEvents.length = 0;
             }
-            inputManager.keyEvents.length = 0; // Clear processed key events
 
-            // Handle mouse clicks for login buttons
-            if (
-                inputManager.clickMode3 !== 0 &&
-                inputManager.saveClickX !== -1 &&
-                inputManager.saveClickY !== -1
-            ) {
-                const action = this.osrsClient.handleLoginMouseClick(
-                    inputManager.saveClickX,
-                    inputManager.saveClickY,
-                    inputManager.clickMode3,
-                );
-                const shouldRefocusMobileLoginInput =
-                    isMobileMode &&
-                    this.osrsClient.loginState.loginIndex === LoginIndex.LOGIN_FORM &&
-                    this.osrsClient.loginState.virtualKeyboardVisible &&
-                    inputManager.isTouch;
-                if (shouldRefocusMobileLoginInput) {
-                    this.syncMobileLoginInput(true);
-                } else {
-                    this.syncMobileLoginInput(false);
-                }
-                if (action === "connect") {
-                    // Send login message
-                    const { loginState } = this.osrsClient;
-                    loginState.savePersistedLoginState();
-                    sendLogin(loginState.username.trim(), loginState.password);
-                }
-                // Clear click mode to prevent further processing
-                inputManager.clickMode3 = 0;
-                inputManager.saveClickX = -1;
-                inputManager.saveClickY = -1;
-            }
-
-            // Tick login animation
-            this.osrsClient.tickLogin();
-
-            // Skip normal input handling when on login screen
+            // Skip normal world rendering while not logged in.
             // But still flush packets. The widget overlay lives on a separate canvas,
             // so explicitly blank it here before we skip the normal post-present pass.
             this.widgetsOverlay?.clearAndHide();
@@ -5682,7 +5688,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             }
 
             profiler.endFrame(deltaTime);
-            return; // Skip rest of render when on login screen
+            return; // Skip rest of render while not logged in
         }
 
         // ========== Game Resource Checks ==========

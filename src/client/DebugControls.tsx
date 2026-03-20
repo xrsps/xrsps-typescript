@@ -304,6 +304,9 @@ export const DebugControls = memo(
                                             0,
                                             Math.min(5, v | 0),
                                         );
+                                        if (!osrsClient.isLoggedIn()) {
+                                            return;
+                                        }
                                         try {
                                             const cam = osrsClient.camera;
                                             renderer.mapManager.update(
@@ -328,6 +331,9 @@ export const DebugControls = memo(
                                     onChange: (v: number) => {
                                         osrsClient.mapRadius = v;
                                         ensureResidentBudgetForRadius(v);
+                                        if (!osrsClient.isLoggedIn()) {
+                                            return;
+                                        }
                                         try {
                                             const cam = osrsClient.camera;
                                             renderer.mapManager.update(
