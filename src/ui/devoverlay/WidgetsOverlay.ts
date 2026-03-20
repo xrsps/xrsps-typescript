@@ -122,6 +122,13 @@ export class WidgetsOverlay implements Overlay {
         this.lastMenuVisualRect = undefined;
     }
 
+    clearAndHide(): void {
+        this.clearOverlayCanvas();
+        if (this.overlayCanvas) {
+            this.overlayCanvas.style.display = "none";
+        }
+    }
+
     init(args: OverlayInitArgs): void {
         this.dispose();
         this.app = args.app;
@@ -379,6 +386,7 @@ export class WidgetsOverlay implements Overlay {
         const hostCanvas = this.app?.gl?.canvas as HTMLCanvasElement | undefined;
         const parent = hostCanvas?.parentElement;
         if (!parent) return;
+        overlayCanvas.style.display = "";
         if (overlayCanvas.parentElement === parent) return;
         if (overlayCanvas.parentElement) {
             try {

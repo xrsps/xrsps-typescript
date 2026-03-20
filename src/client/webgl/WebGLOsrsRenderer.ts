@@ -5629,7 +5629,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.osrsClient.tickLogin();
 
             // Skip normal input handling when on login screen
-            // But still flush packets
+            // But still flush packets. The widget overlay lives on a separate canvas,
+            // so explicitly blank it here before we skip the normal post-present pass.
+            this.widgetsOverlay?.clearAndHide();
             flushPackets();
 
             // Clear default framebuffer for login screen overlay
