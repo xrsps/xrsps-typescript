@@ -122,6 +122,13 @@ export class WidgetsOverlay implements Overlay {
         this.lastMenuVisualRect = undefined;
     }
 
+    clearAndHide(): void {
+        this.clearOverlayCanvas();
+        if (this.overlayCanvas) {
+            this.overlayCanvas.style.display = "none";
+        }
+    }
+
     init(args: OverlayInitArgs): void {
         this.dispose();
         this.app = args.app;
@@ -379,6 +386,7 @@ export class WidgetsOverlay implements Overlay {
         const hostCanvas = this.app?.gl?.canvas as HTMLCanvasElement | undefined;
         const parent = hostCanvas?.parentElement;
         if (!parent) return;
+        overlayCanvas.style.display = "";
         if (overlayCanvas.parentElement === parent) return;
         if (overlayCanvas.parentElement) {
             try {
@@ -537,7 +545,10 @@ export class WidgetsOverlay implements Overlay {
             const menuVisualDirty = menuVisualState.signature !== this.lastMenuVisualSignature;
 
             // Force a full redraw only for root set changes.
-            const forceFullRedraw = this.rootSetChanged;
+            // The Choose Option menu is drawn as part of the shared widget overlay. When it is
+            // open, partial dirty-rect redraws can visibly blink as hover/click state changes
+            // every frame. Redraw the full overlay for the duration of the menu instead.
+            const forceFullRedraw = this.rootSetChanged || menuOpen;
             const shouldRedraw = anyDirty || forceFullRedraw || menuVisualDirty;
 
             // PERF: Track timing breakdown within WidgetsOverlay

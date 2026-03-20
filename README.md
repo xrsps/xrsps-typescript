@@ -30,10 +30,10 @@ This is an active work-in-progress community project, not intended to be a finis
 
 ## Requirements
 
-- Node.js 18+
-- Yarn
+Ensure you have these or you might run into weird issues.
 
-You will also need local game caches available for the client and server.
+- Node.js v22.16+
+- Yarn
 
 ## Getting Started
 

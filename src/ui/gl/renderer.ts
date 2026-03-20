@@ -53,11 +53,11 @@ export class GLRenderer {
     private perfSolidDrawCalls = 0;
     private perfGradientDrawCalls = 0;
     private perfMaskedDrawCalls = 0;
-    private texIndexQuadCapacity = 1;
     private static readonly SOLID_BATCH_RECT_CAPACITY = 2048;
     private solidBatchData = new Float32Array(GLRenderer.SOLID_BATCH_RECT_CAPACITY * 36);
     private solidBatchFloatCount = 0;
     private textureBatchData = new Float32Array(16 * 256);
+    private textureBatchTriangleData = new Float32Array(24 * 256);
     private textureBatchQuadCount = 0;
     private textureBatchTex: Texture | null = null;
     private textureBatchTintStrength = 0;
@@ -725,6 +725,18 @@ void main(){
         this.textureBatchData = next;
     }
 
+    private ensureTextureTriangleBatchCapacity(quadCount: number) {
+        const requiredFloats = quadCount * 24;
+        if (requiredFloats <= this.textureBatchTriangleData.length) return;
+
+        let nextLength = Math.max(24, this.textureBatchTriangleData.length);
+        while (nextLength < requiredFloats) {
+            nextLength <<= 1;
+        }
+
+        this.textureBatchTriangleData = new Float32Array(nextLength);
+    }
+
     private flushSolidBatch() {
         if (this.solidBatchFloatCount === 0) return;
 
@@ -748,7 +760,6 @@ void main(){
         if (this.textureBatchQuadCount === 0 || !this.textureBatchTex?.tex) return;
 
         const gl = this.gl;
-        this.ensureTextureIndexCapacity(this.textureBatchQuadCount);
         gl.useProgram(this.progTex);
         gl.uniformMatrix4fv(this.uProj_tex, false, this.proj);
         gl.activeTexture(gl.TEXTURE0);
@@ -764,43 +775,51 @@ void main(){
         gl.uniform1f(this.uAlpha_tex, this.textureBatchAlpha);
         gl.bindVertexArray(this.vaoTex);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            this.textureBatchData.subarray(0, this.textureBatchQuadCount * 16),
-            gl.DYNAMIC_DRAW,
-        );
-        gl.drawElements(gl.TRIANGLES, this.textureBatchQuadCount * 6, gl.UNSIGNED_SHORT, 0);
+
+        // Some browsers/drivers report intermittent glDrawElements buffer-size failures on the
+        // large shared textured UI batch. Expand quads into triangles and submit with drawArrays
+        // so CS2/widget text does not depend on element-buffer behavior.
+        this.ensureTextureTriangleBatchCapacity(this.textureBatchQuadCount);
+        const src = this.textureBatchData;
+        const dst = this.textureBatchTriangleData;
+        let srcOffset = 0;
+        let dstOffset = 0;
+        for (let i = 0; i < this.textureBatchQuadCount; i++) {
+            dst[dstOffset + 0] = src[srcOffset + 0];
+            dst[dstOffset + 1] = src[srcOffset + 1];
+            dst[dstOffset + 2] = src[srcOffset + 2];
+            dst[dstOffset + 3] = src[srcOffset + 3];
+            dst[dstOffset + 4] = src[srcOffset + 4];
+            dst[dstOffset + 5] = src[srcOffset + 5];
+            dst[dstOffset + 6] = src[srcOffset + 6];
+            dst[dstOffset + 7] = src[srcOffset + 7];
+            dst[dstOffset + 8] = src[srcOffset + 8];
+            dst[dstOffset + 9] = src[srcOffset + 9];
+            dst[dstOffset + 10] = src[srcOffset + 10];
+            dst[dstOffset + 11] = src[srcOffset + 11];
+            dst[dstOffset + 12] = src[srcOffset + 0];
+            dst[dstOffset + 13] = src[srcOffset + 1];
+            dst[dstOffset + 14] = src[srcOffset + 2];
+            dst[dstOffset + 15] = src[srcOffset + 3];
+            dst[dstOffset + 16] = src[srcOffset + 8];
+            dst[dstOffset + 17] = src[srcOffset + 9];
+            dst[dstOffset + 18] = src[srcOffset + 10];
+            dst[dstOffset + 19] = src[srcOffset + 11];
+            dst[dstOffset + 20] = src[srcOffset + 12];
+            dst[dstOffset + 21] = src[srcOffset + 13];
+            dst[dstOffset + 22] = src[srcOffset + 14];
+            dst[dstOffset + 23] = src[srcOffset + 15];
+            srcOffset += 16;
+            dstOffset += 24;
+        }
+        gl.bufferData(gl.ARRAY_BUFFER, dst.subarray(0, dstOffset), gl.DYNAMIC_DRAW);
+        gl.drawArrays(gl.TRIANGLES, 0, this.textureBatchQuadCount * 6);
         this.perfDrawCalls++;
         this.perfTextureDrawCalls++;
+
         this.textureBatchQuadCount = 0;
         this.textureBatchTex = null;
     }
-
-    private ensureTextureIndexCapacity(quadCount: number) {
-        if (quadCount <= this.texIndexQuadCapacity) return;
-
-        let nextCapacity = this.texIndexQuadCapacity;
-        while (nextCapacity < quadCount) {
-            nextCapacity <<= 1;
-        }
-
-        const idx = new Uint16Array(nextCapacity * 6);
-        for (let i = 0; i < nextCapacity; i++) {
-            const baseVertex = i * 4;
-            const baseIndex = i * 6;
-            idx[baseIndex + 0] = baseVertex;
-            idx[baseIndex + 1] = baseVertex + 1;
-            idx[baseIndex + 2] = baseVertex + 2;
-            idx[baseIndex + 3] = baseVertex;
-            idx[baseIndex + 4] = baseVertex + 2;
-            idx[baseIndex + 5] = baseVertex + 3;
-        }
-
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.ibo);
-        this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, idx, this.gl.STATIC_DRAW);
-        this.texIndexQuadCapacity = nextCapacity;
-    }
-
     createTextureFromCanvas(key: string, canvas: HTMLCanvasElement): Texture {
         const gl = this.gl;
         // Check if already cached - avoid recreating

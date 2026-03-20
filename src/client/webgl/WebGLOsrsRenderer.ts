@@ -2609,45 +2609,44 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         this.initTextures();
 
-        // Initialize multi-draw remap texture if extension is available
+        // Keep a small identity remap texture alive even on single-draw renderers so
+        // shader bindings stay valid when programs compile without MULTI_DRAW.
+        const initialCapacity = 256;
+        this.drawIdRemapCapacity = initialCapacity;
+        this.drawIdRemapData = new Int32Array(initialCapacity);
         if (this.hasMultiDraw) {
-            const initialCapacity = 256;
-            this.drawIdRemapCapacity = initialCapacity;
-            this.drawIdRemapData = new Int32Array(initialCapacity);
             this.multiDrawOffsets = new Int32Array(initialCapacity);
             this.multiDrawCounts = new Int32Array(initialCapacity);
             this.multiDrawInstances = new Int32Array(initialCapacity);
-
-            const texWidth = 16;
-            const texHeight = Math.ceil(initialCapacity / texWidth);
-
-            this.drawIdRemapTexture = this.app.createTexture2D(texWidth, texHeight, {
-                internalFormat: PicoGL.R32I,
-                type: PicoGL.INT,
-                minFilter: PicoGL.NEAREST,
-                magFilter: PicoGL.NEAREST,
-                wrapS: PicoGL.CLAMP_TO_EDGE,
-                wrapT: PicoGL.CLAMP_TO_EDGE,
-            });
-
-            // Initialize with identity mapping (0, 1, 2, 3, ...)
-            for (let i = 0; i < initialCapacity; i++) {
-                this.drawIdRemapData[i] = i;
-            }
-
-            this.gl.bindTexture(this.gl.TEXTURE_2D, (this.drawIdRemapTexture as any).texture);
-            this.gl.texSubImage2D(
-                this.gl.TEXTURE_2D,
-                0,
-                0,
-                0,
-                texWidth,
-                texHeight,
-                this.gl.RED_INTEGER,
-                this.gl.INT,
-                this.drawIdRemapData,
-            );
         }
+        const texWidth = 16;
+        const texHeight = Math.ceil(initialCapacity / texWidth);
+        this.drawIdRemapTexture = this.app.createTexture2D(texWidth, texHeight, {
+            internalFormat: PicoGL.R32I,
+            type: PicoGL.INT,
+            minFilter: PicoGL.NEAREST,
+            magFilter: PicoGL.NEAREST,
+            wrapS: PicoGL.CLAMP_TO_EDGE,
+            wrapT: PicoGL.CLAMP_TO_EDGE,
+        });
+
+        // Initialize with identity mapping (0, 1, 2, 3, ...)
+        for (let i = 0; i < initialCapacity; i++) {
+            this.drawIdRemapData[i] = i;
+        }
+
+        this.gl.bindTexture(this.gl.TEXTURE_2D, (this.drawIdRemapTexture as any).texture);
+        this.gl.texSubImage2D(
+            this.gl.TEXTURE_2D,
+            0,
+            0,
+            0,
+            texWidth,
+            texHeight,
+            this.gl.RED_INTEGER,
+            this.gl.INT,
+            this.drawIdRemapData,
+        );
 
         console.log("Renderer init");
 
@@ -2764,14 +2763,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     async initShaders(): Promise<Program[]> {
         const programs = await this.app.createPrograms(
-            createMainProgram(false),
-            createMainProgram(true),
-            createNpcProgram(true),
-            createNpcProgram(false),
-            createProjectileProgram(true),
-            createProjectileProgram(false),
-            createPlayerProgram(true),
-            createPlayerProgram(false),
+            createMainProgram(false, this.hasMultiDraw),
+            createMainProgram(true, this.hasMultiDraw),
+            createNpcProgram(true, this.hasMultiDraw),
+            createNpcProgram(false, this.hasMultiDraw),
+            createProjectileProgram(true, this.hasMultiDraw),
+            createProjectileProgram(false, this.hasMultiDraw),
+            createPlayerProgram(true, this.hasMultiDraw),
+            createPlayerProgram(false, this.hasMultiDraw),
             FRAME_PROGRAM,
             FRAME_FXAA_PROGRAM,
             // hover line program (added at end)
@@ -3263,7 +3262,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             const key = id | 0;
                             if (cache.has(key)) return cache.get(key);
                             const font = BitmapFont.tryLoad(cacheSystem, key);
-                            cache.set(key, font);
+                            // Do not memoize missing fonts forever. During startup the widget overlay
+                            // can probe a font before the cache data is fully ready, and a permanent
+                            // cached undefined would make all later CS2 text for that font invisible.
+                            if (font) {
+                                cache.set(key, font);
+                            }
                             return font;
                         };
                     },
@@ -5459,7 +5463,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     override render(time: number, deltaTime: number, resized: boolean): void {
         profiler.startFrame();
         const onLoginScreen = this.osrsClient.isOnLoginScreen();
-        const loginLikeState = this.osrsClient.gameState === GameState.DOWNLOADING || onLoginScreen;
+        const loggedIn = this.osrsClient.isLoggedIn();
+        const loginLikeState = !loggedIn;
         const desiredImageRendering = loginLikeState && isMobileMode ? "pixelated" : "";
         if (this.canvas.style.imageRendering !== desiredImageRendering) {
             this.canvas.style.imageRendering = desiredImageRendering;
@@ -5540,14 +5545,13 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.pendingClientTicks -= clientTicksElapsed;
         }
 
-        // ========== Login Screen Rendering (before game resource checks) ==========
-        // Login screen only needs basic overlay, not game resources like textureArray
+        // ========== Title/Login Rendering (before game resource checks) ==========
+        // Non-game states only need title/login overlays, not world resources like textureArray.
         const inputManager = this.osrsClient.inputManager;
         this.syncMobileLoginInput(false);
-        if (onLoginScreen) {
+        if (!loggedIn) {
             // Transfer click state for this frame (OSRS parity)
             inputManager.onFrameStart();
-            // Keep login input mapping in sync with the current canvas dimensions before click handling.
             const uiMetrics = this.computeUiRenderMetrics(this.app.width, this.app.height);
             this.osrsClient.loginRenderer.syncMobileViewportState(
                 this.osrsClient.loginState,
@@ -5560,71 +5564,79 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 this.app.height,
             );
 
-            // Handle keyboard input for login form
-            let char = inputManager.readChar();
-            while (char !== -1) {
-                this.osrsClient.handleLoginKeyInput("", String.fromCharCode(char));
-                char = inputManager.readChar();
-            }
-            // Handle special keys from key events
-            for (const keyEvent of inputManager.keyEvents) {
-                if (keyEvent.code === "Tab") {
-                    this.osrsClient.handleLoginKeyInput("Tab", "");
-                } else if (keyEvent.code === "Enter" || keyEvent.code === "NumpadEnter") {
-                    // Enter in login form = login button or field switch
-                    const { loginState } = this.osrsClient;
-                    if (loginState.canAttemptLogin()) {
-                        // Update game state to CONNECTING (hides buttons)
-                        loginState.savePersistedLoginState();
-                        this.osrsClient.updateGameState(GameState.CONNECTING);
-                        sendLogin(loginState.username.trim(), loginState.password);
-                    } else {
-                        this.osrsClient.handleLoginKeyInput("Enter", "");
+            if (onLoginScreen) {
+                // Keep login input mapping in sync with the current canvas dimensions before click handling.
+                // Other non-game states (e.g. cache downloading/loading) still use the title overlay path
+                // but must not drive login-form interaction.
+                let char = inputManager.readChar();
+                while (char !== -1) {
+                    this.osrsClient.handleLoginKeyInput("", String.fromCharCode(char));
+                    char = inputManager.readChar();
+                }
+                // Handle special keys from key events
+                for (const keyEvent of inputManager.keyEvents) {
+                    if (keyEvent.code === "Tab") {
+                        this.osrsClient.handleLoginKeyInput("Tab", "");
+                    } else if (keyEvent.code === "Enter" || keyEvent.code === "NumpadEnter") {
+                        // Enter in login form = login button or field switch
+                        const { loginState } = this.osrsClient;
+                        if (loginState.canAttemptLogin()) {
+                            // Update game state to CONNECTING (hides buttons)
+                            loginState.savePersistedLoginState();
+                            this.osrsClient.updateGameState(GameState.CONNECTING);
+                            sendLogin(loginState.username.trim(), loginState.password);
+                        } else {
+                            this.osrsClient.handleLoginKeyInput("Enter", "");
+                        }
+                    } else if (keyEvent.code === "Backspace") {
+                        this.osrsClient.handleLoginKeyInput("Backspace", "");
                     }
-                } else if (keyEvent.code === "Backspace") {
-                    this.osrsClient.handleLoginKeyInput("Backspace", "");
                 }
+                inputManager.keyEvents.length = 0; // Clear processed key events
+
+                // Handle mouse clicks for login buttons
+                if (
+                    inputManager.clickMode3 !== 0 &&
+                    inputManager.saveClickX !== -1 &&
+                    inputManager.saveClickY !== -1
+                ) {
+                    const action = this.osrsClient.handleLoginMouseClick(
+                        inputManager.saveClickX,
+                        inputManager.saveClickY,
+                        inputManager.clickMode3,
+                    );
+                    const shouldRefocusMobileLoginInput =
+                        isMobileMode &&
+                        this.osrsClient.loginState.loginIndex === LoginIndex.LOGIN_FORM &&
+                        this.osrsClient.loginState.virtualKeyboardVisible &&
+                        inputManager.isTouch;
+                    if (shouldRefocusMobileLoginInput) {
+                        this.syncMobileLoginInput(true);
+                    } else {
+                        this.syncMobileLoginInput(false);
+                    }
+                    if (action === "connect") {
+                        // Send login message
+                        const { loginState } = this.osrsClient;
+                        loginState.savePersistedLoginState();
+                        sendLogin(loginState.username.trim(), loginState.password);
+                    }
+                    // Clear click mode to prevent further processing
+                    inputManager.clickMode3 = 0;
+                    inputManager.saveClickX = -1;
+                    inputManager.saveClickY = -1;
+                }
+
+                // Tick login animation
+                this.osrsClient.tickLogin();
+            } else {
+                inputManager.keyEvents.length = 0;
             }
-            inputManager.keyEvents.length = 0; // Clear processed key events
 
-            // Handle mouse clicks for login buttons
-            if (
-                inputManager.clickMode3 !== 0 &&
-                inputManager.saveClickX !== -1 &&
-                inputManager.saveClickY !== -1
-            ) {
-                const action = this.osrsClient.handleLoginMouseClick(
-                    inputManager.saveClickX,
-                    inputManager.saveClickY,
-                    inputManager.clickMode3,
-                );
-                const shouldRefocusMobileLoginInput =
-                    isMobileMode &&
-                    this.osrsClient.loginState.loginIndex === LoginIndex.LOGIN_FORM &&
-                    this.osrsClient.loginState.virtualKeyboardVisible &&
-                    inputManager.isTouch;
-                if (shouldRefocusMobileLoginInput) {
-                    this.syncMobileLoginInput(true);
-                } else {
-                    this.syncMobileLoginInput(false);
-                }
-                if (action === "connect") {
-                    // Send login message
-                    const { loginState } = this.osrsClient;
-                    loginState.savePersistedLoginState();
-                    sendLogin(loginState.username.trim(), loginState.password);
-                }
-                // Clear click mode to prevent further processing
-                inputManager.clickMode3 = 0;
-                inputManager.saveClickX = -1;
-                inputManager.saveClickY = -1;
-            }
-
-            // Tick login animation
-            this.osrsClient.tickLogin();
-
-            // Skip normal input handling when on login screen
-            // But still flush packets
+            // Skip normal world rendering while not logged in.
+            // But still flush packets. The widget overlay lives on a separate canvas,
+            // so explicitly blank it here before we skip the normal post-present pass.
+            this.widgetsOverlay?.clearAndHide();
             flushPackets();
 
             // Clear default framebuffer for login screen overlay
@@ -5675,7 +5687,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             }
 
             profiler.endFrame(deltaTime);
-            return; // Skip rest of render when on login screen
+            return; // Skip rest of render while not logged in
         }
 
         // ========== Game Resource Checks ==========
@@ -10421,7 +10433,35 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this._accumulate(drawRanges);
         }
 
-        // Always use multi-draw (no fallback)
+        if (!this.hasMultiDraw) {
+            if (this.drawIdRemapTexture) {
+                drawCall.texture("u_drawIdRemap", this.drawIdRemapTexture);
+            }
+            drawCall.uniform("u_useDrawIdRemap", false);
+
+            if (drawIndices && drawIndices.length > 0) {
+                for (let i = 0; i < drawIndices.length; i++) {
+                    const originalIndex = drawIndices[i] | 0;
+                    const range = drawRanges[originalIndex];
+                    if (!range || (range[1] | 0) <= 0 || (range[2] | 0) <= 0) continue;
+                    drawCall.uniform("u_drawIdOverride", originalIndex);
+                    (drawCall as any).drawRanges(range);
+                    drawCall.draw();
+                }
+            } else {
+                for (let i = 0; i < drawRanges.length; i++) {
+                    const range = drawRanges[i];
+                    if (!range || (range[1] | 0) <= 0 || (range[2] | 0) <= 0) continue;
+                    drawCall.uniform("u_drawIdOverride", i);
+                    (drawCall as any).drawRanges(range);
+                    drawCall.draw();
+                }
+            }
+
+            drawCall.uniform("u_drawIdOverride", -1);
+            return;
+        }
+
         if (drawIndices && drawIndices.length > 0) {
             // Filtering needed: use remap texture for correct draw-ID lookup
             this.ensureDrawIdRemap(drawIndices, drawRanges);

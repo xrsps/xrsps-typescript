@@ -14,28 +14,32 @@ export function createProgram(
     vertShader: string,
     fragShader: string,
     discardAlpha: boolean,
+    multiDraw: boolean,
 ): ProgramSource {
-    const defines: string[] = ["MULTI_DRAW"]; // Always use multi-draw
+    const defines: string[] = [];
+    if (multiDraw) {
+        defines.push("MULTI_DRAW");
+    }
     if (discardAlpha) {
         defines.push("DISCARD_ALPHA");
     }
     return [prependDefines(vertShader, defines), prependDefines(fragShader, defines)];
 }
 
-export function createMainProgram(discardAlpha: boolean): ProgramSource {
-    return createProgram(mainVertShader, mainFragShader, discardAlpha);
+export function createMainProgram(discardAlpha: boolean, multiDraw: boolean): ProgramSource {
+    return createProgram(mainVertShader, mainFragShader, discardAlpha, multiDraw);
 }
 
-export function createNpcProgram(discardAlpha: boolean): ProgramSource {
-    return createProgram(npcVertShader, mainFragShader, discardAlpha);
+export function createNpcProgram(discardAlpha: boolean, multiDraw: boolean): ProgramSource {
+    return createProgram(npcVertShader, mainFragShader, discardAlpha, multiDraw);
 }
 
-export function createProjectileProgram(discardAlpha: boolean): ProgramSource {
-    return createProgram(projectileVertShader, mainFragShader, discardAlpha);
+export function createProjectileProgram(discardAlpha: boolean, multiDraw: boolean): ProgramSource {
+    return createProgram(projectileVertShader, mainFragShader, discardAlpha, multiDraw);
 }
 
-export function createPlayerProgram(discardAlpha: boolean): ProgramSource {
-    return createProgram(playerVertShader, playerFragShader, discardAlpha);
+export function createPlayerProgram(discardAlpha: boolean, multiDraw: boolean): ProgramSource {
+    return createProgram(playerVertShader, playerFragShader, discardAlpha, multiDraw);
 }
 
 export const FRAME_PROGRAM = [frameVertShader, frameFragShader];
