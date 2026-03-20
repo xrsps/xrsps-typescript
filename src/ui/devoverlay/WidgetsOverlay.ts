@@ -537,7 +537,10 @@ export class WidgetsOverlay implements Overlay {
             const menuVisualDirty = menuVisualState.signature !== this.lastMenuVisualSignature;
 
             // Force a full redraw only for root set changes.
-            const forceFullRedraw = this.rootSetChanged;
+            // The Choose Option menu is drawn as part of the shared widget overlay. When it is
+            // open, partial dirty-rect redraws can visibly blink as hover/click state changes
+            // every frame. Redraw the full overlay for the duration of the menu instead.
+            const forceFullRedraw = this.rootSetChanged || menuOpen;
             const shouldRedraw = anyDirty || forceFullRedraw || menuVisualDirty;
 
             // PERF: Track timing breakdown within WidgetsOverlay
