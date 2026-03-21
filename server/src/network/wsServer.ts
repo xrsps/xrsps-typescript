@@ -6373,6 +6373,11 @@ export class WSServer {
                 player.setVarpValue(VARP_AUTO_RETALIATE, value);
             }
 
+            // For run mode, derive value from actual runToggle state (not persisted varp which may be stale)
+            if (varpId === VARP_OPTION_RUN) {
+                value = player.wantsToRun() ? 1 : 0;
+            }
+
             // Always send run mode and auto-retaliate (since 0 is valid for "on" state)
             if (varpId === VARP_OPTION_RUN || varpId === VARP_AUTO_RETALIATE || value !== 0) {
                 this.withDirectSendBypass("varp", () =>
@@ -8119,6 +8124,25 @@ export class WSServer {
                 if (level === "error") logger.error(`[death] ${message}`);
                 else if (level === "warn") logger.warn(`[death] ${message}`);
                 else logger.info(`[death] ${message}`);
+            },
+            clearCombat: (player) => {
+                const sock = this.players?.getSocketByPlayerId(player.id);
+                if (sock) {
+                    try { this.players?.clearAllInteractions(sock); } catch {}
+                }
+            },
+            clearNpcTargetsForPlayer: (playerId) => {
+                const nowTick = this.options.ticker.currentTick();
+                this.npcManager?.forEach((npc) => {
+                    try {
+                        if (npc.getCombatTargetPlayerId() === playerId) {
+                            npc.disengageCombat();
+                            // Delay next aggression check by 10 ticks (6s) so the NPC
+                            // does not immediately re-aggro the respawned player
+                            npc.scheduleNextAggressionCheck(nowTick, 10);
+                        }
+                    } catch {}
+                });
             },
         };
         return new PlayerDeathService({ services });

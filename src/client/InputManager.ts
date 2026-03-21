@@ -341,6 +341,11 @@ export class InputManager {
     hasMovedMouse(): boolean {
         return this.lastMouseX !== this.mouseX || this.lastMouseY !== this.mouseY;
     }
+    /** Flush all buffered key events and char queue (call when transitioning away from game) */
+    flushInput(): void {
+        this.readIndex = this.writeIndex;
+        this.keyEvents.length = 0;
+    }
 
     /** Read next character from queue (OSRS: readChar) */
     readChar(): number {

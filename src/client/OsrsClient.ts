@@ -619,7 +619,7 @@ export class OsrsClient {
     hoveredTile?: { tileX: number; tileY: number; plane?: number };
     hoveredTileScreen?: { x: number; y: number };
 
-    runMode: boolean = false; // Start as walk mode to match orb's initial visual state
+    runMode: boolean = true; // Start as run mode to match orb's visual state because run is enabled by default on first login.
     private runEnergyPercent: number = 100; // Run energy 0-100, synced from server
     private runEnergyUnits: number = 10000; // Run energy 0-10000, used by CS2 RUNENERGY opcode
     private playerWeight: number = 0; // Player weight in kg, used by CS2 RUNWEIGHT_VISIBLE opcode
@@ -8631,6 +8631,8 @@ export class OsrsClient {
             this.loadingTracker.reset();
             // Full reset when returning to login screen (clears chat, vars, transmit cycles)
             this.resetWorld(true);
+            // Flush buffered keystrokes so in-game typing does not leak into login fields
+            try { this.inputManager.flushInput(); } catch {}
         }
 
         if (newState === GameState.CONNECTING) {

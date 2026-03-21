@@ -199,4 +199,8 @@ export interface PlayerDeathServices {
     pathService?: PathService;
     /** Logger function */
     log?: (level: "info" | "warn" | "error", message: string) => void;
+    /** Clear all combat and interaction state for a player */
+    clearCombat?: (player: PlayerState) => void;
+    /** Clear any NPC that is targeting this player */
+    clearNpcTargetsForPlayer?: (playerId: number) => void;
 }

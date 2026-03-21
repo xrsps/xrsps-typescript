@@ -499,6 +499,14 @@ export class PlayerDeathService {
 
         // Clear any queued actions
         player.interruptQueues();
+
+        // Clear all combat and interaction state so the player does not auto-re-engage
+        try { this.services.clearCombat?.(player); } catch {}
+        try { player.resetInteractions(); } catch {}
+        try { player.clearInteraction(); } catch {}
+        try { player.clearPath(); } catch {}
+        // Clear any NPCs that are still targeting this player
+        try { this.services.clearNpcTargetsForPlayer?.(player.id); } catch {}
     }
 
     /**
