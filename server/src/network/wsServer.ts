@@ -8090,7 +8090,7 @@ export class WSServer {
             playJingle: (player, jingleId) => {
                 this.soundManager?.sendJingle(player, jingleId);
             },
-            pathService: this.pathService,
+            pathService: this.options.pathService,
             log: (level, message) => {
                 if (level === "error") logger.error(`[death] ${message}`);
                 else if (level === "warn") logger.warn(`[death] ${message}`);
