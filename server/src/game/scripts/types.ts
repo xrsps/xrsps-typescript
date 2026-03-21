@@ -1,4 +1,4 @@
-import type { PrayerName } from "../../../src/rs/prayer/prayers";
+import type { PrayerName } from "../../../../src/rs/prayer/prayers";
 import type { PathService } from "../../pathfinding/PathService";
 import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { WidgetAction } from "../../widgets/WidgetManager";

@@ -99,8 +99,8 @@ type VisibleLocRouteState = {
     sizeY: number;
 };
 
-function normalizePositiveInt(value: number | undefined, fallback = 1): number {
-    if (value === undefined || !Number.isFinite(value)) {
+function normalizePositiveInt(value: unknown, fallback = 1): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
         return fallback;
     }
     return Math.max(1, Math.trunc(value));

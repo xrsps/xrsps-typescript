@@ -349,6 +349,38 @@ export type SoundEffectPayload = {
     volume?: number;
 };
 
+export type LoginResponsePayload = {
+    success: boolean;
+    errorCode?: number;
+    error?: string;
+    displayName?: string;
+};
+
+export type LogoutResponsePayload = {
+    success: boolean;
+    reason?: string;
+};
+
+export type NotificationPayload = {
+    kind?: string;
+    title?: string;
+    message?: string;
+    itemId?: number;
+    quantity?: number;
+    durationMs?: number;
+};
+
+export type CollectionLogSlotMessage = {
+    slot: number;
+    itemId: number;
+    quantity: number;
+};
+
+export type CollectionLogServerPayload = {
+    kind: "snapshot";
+    slots: CollectionLogSlotMessage[];
+};
+
 export type ServerToClient =
     | { type: "welcome"; payload: { tickMs: number; serverTime: number } }
     | { type: "tick"; payload: { tick: number; time: number } }
@@ -480,7 +512,12 @@ export type ServerToClient =
       }
     | { type: "varp"; payload: { varpId: number; value: number } }
     | { type: "varbit"; payload: { varbitId: number; value: number } }
-    | { type: "runClientScript"; payload: { scriptId: number; args: (number | string)[] } };
+    | { type: "runClientScript"; payload: { scriptId: number; args: (number | string)[] } }
+    | { type: "login_response"; payload: LoginResponsePayload }
+    | { type: "logout_response"; payload: LogoutResponsePayload }
+    | { type: "notification"; payload: NotificationPayload }
+    | { type: "smithing"; payload: SmithingServerPayload }
+    | { type: "collection_log"; payload: CollectionLogServerPayload };
 
 export type ClientToServer =
     | { type: "hello"; payload: { client: string; version?: string } }
@@ -560,8 +597,10 @@ export type ClientToServer =
               modifierFlags?: number;
               target:
                   | { kind: "npc"; id?: number; tile?: { x: number; y: number }; plane?: number }
+                  | { kind: "player"; id: number; tile?: { x: number; y: number }; plane?: number }
                   | { kind: "loc"; id: number; tile?: { x: number; y: number }; plane?: number }
-                  | { kind: "obj"; id: number; tile?: { x: number; y: number }; plane?: number };
+                  | { kind: "obj"; id: number; tile?: { x: number; y: number }; plane?: number }
+                  | { kind: "inv"; slot: number; itemId: number };
           };
       }
     | { type: "inventory_move"; payload: { from: number; to: number } }
@@ -622,7 +661,9 @@ export type ClientToServer =
               | { kind: "projectiles_request"; requestId?: number }
               | { kind: "projectiles_snapshot"; requestId: number; snapshot: any }
               | { kind: "anim_request"; requestId?: number }
-              | { kind: "anim_snapshot"; requestId: number; snapshot: any };
+              | { kind: "anim_snapshot"; requestId: number; snapshot: any }
+              | { kind: "set_var"; value?: number; varbit?: number; varp?: number }
+              | { kind: "raw"; raw: string };
       }
     | { type: "logout"; payload?: Record<string, never> };
 
@@ -676,7 +717,7 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
                 const binary = Buffer.from(payload.packet, "base64");
                 packet = new Uint8Array(binary);
             } else {
-                return null;
+                throw new Error("player_sync packet missing payload");
             }
             return serverEncoder.encodePlayerSync(
                 payload.baseX,
@@ -697,7 +738,7 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
                 const binary = Buffer.from(payload.packet, "base64");
                 packet = new Uint8Array(binary);
             } else {
-                return null;
+                throw new Error("npc_info packet missing payload");
             }
             return serverEncoder.encodeNpcInfo(payload.loopCycle, !!payload.large, packet);
         }

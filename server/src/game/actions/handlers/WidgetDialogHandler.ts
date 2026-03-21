@@ -49,6 +49,8 @@ export interface WidgetAction {
     fromSlot?: number;
     /** End slot for set_flags_range */
     toSlot?: number;
+    npcId?: number;
+    animationId?: number;
 }
 
 /** Script dialog request. */

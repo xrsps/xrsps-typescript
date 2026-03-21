@@ -110,7 +110,10 @@ export interface PlayerAppearanceServices {
     /** Get weapon animation overrides map */
     getWeaponAnimOverrides(): Map<number, Record<string, number>>;
     /** Apply weapon animation overrides to player */
-    applyWeaponAnimOverrides(player: PlayerState, animTarget: Record<string, number>): void;
+    applyWeaponAnimOverrides(
+        player: PlayerState,
+        animTarget: Record<string, number | undefined>,
+    ): void;
     /** Log a message */
     log(level: "info" | "warn" | "error" | "debug", message: string): void;
 }

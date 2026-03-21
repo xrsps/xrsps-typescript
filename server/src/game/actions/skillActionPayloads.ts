@@ -20,6 +20,7 @@ export interface SkillFishingActionData {
 
 export interface SkillFiremakingActionData {
     logItemId: number;
+    logLevel?: number;
     tile: { x: number; y: number };
     level: number;
     slot?: number;

@@ -73,6 +73,13 @@ export interface MessageRouterServices {
         messageType: "public" | "game" | "server";
         text: string;
         playerId?: number;
+        from?: string;
+        prefix?: string;
+        playerType?: number;
+        colorId?: number;
+        effectId?: number;
+        pattern?: number[];
+        autoChat?: boolean;
         targetPlayerIds?: number[];
     }) => void;
 
@@ -123,7 +130,7 @@ export class MessageRouter {
         if (this.handlers.has(type)) {
             logger.warn(`[MessageRouter] Overwriting handler for message type: ${type}`);
         }
-        this.handlers.set(type, handler as MessageHandler<RoutedMessageType>);
+        this.handlers.set(type, handler as unknown as MessageHandler<RoutedMessageType>);
     }
 
     /**
@@ -144,7 +151,7 @@ export class MessageRouter {
      * Dispatch a parsed message to its handler.
      * Returns true if a handler was found and executed.
      */
-    dispatch(ws: WebSocket, parsed: { type: string; payload: unknown }): boolean {
+    dispatch(ws: WebSocket, parsed: { type: string; payload?: unknown }): boolean {
         const player = this.services.getPlayer(ws);
 
         // Pre-processing: Close interruptible interfaces for certain actions
@@ -191,7 +198,7 @@ export class MessageRouter {
      * Check if a handler is registered for a message type.
      */
     hasHandler(type: string): boolean {
-        return this.handlers.has(type);
+        return this.handlers.has(type as RoutedMessageType);
     }
 
     /**

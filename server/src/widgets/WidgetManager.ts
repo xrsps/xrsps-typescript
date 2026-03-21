@@ -85,6 +85,13 @@ export type WidgetAction =
           action: "run_script";
           scriptId: number;
           args: (number | string)[];
+          varps?: Record<number, number>;
+          varbits?: Record<number, number>;
+      }
+    | {
+          action: "set_varbit";
+          varbitId: number;
+          value: number;
       };
 
 /**

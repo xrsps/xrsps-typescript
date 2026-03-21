@@ -5,7 +5,7 @@ import type { HitsplatSourceType } from "../combat/OsrsHitsplatIds";
  * Chat message types for broadcast scheduling.
  */
 export interface ChatMessageSnapshot {
-    messageType: "public" | "game" | "server";
+    messageType: "public" | "game" | "server" | "private";
     playerId?: number;
     from?: string;
     prefix?: string;

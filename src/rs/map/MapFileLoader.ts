@@ -1,8 +1,9 @@
-import { XteaMap } from "../../client/Caches";
 import { CacheIndex } from "../cache/CacheIndex";
 import { Bzip2 } from "../compression/Bzip2";
 import { ByteBuffer } from "../io/ByteBuffer";
 import { MapFileIndex } from "./MapFileIndex";
+
+export type XteaMap = Map<number, number[]>;
 
 export class MapFileLoader {
     constructor(

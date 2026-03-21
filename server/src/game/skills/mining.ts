@@ -385,7 +385,7 @@ export function getMiningRockFromMap(
     if (!mapping) return undefined;
     const rock = ROCK_BY_ID.get(mapping.rockId);
     if (!rock) return undefined;
-    const depletedLocId = mapping.depletedLocId;
+    const depletedLocId = mapping.depletedLocId ?? -1;
     if (depletedLocId > 0 && rock.depletedLocId !== depletedLocId) {
         return { ...rock, depletedLocId };
     }

@@ -1,4 +1,4 @@
-import { LocTypeLoader } from "../../rs/config/loctype/LocTypeLoader";
+import { LocTypeLoader } from "../../../src/rs/config/loctype/LocTypeLoader";
 
 export type LocSpotEffect = {
     spotId: number;

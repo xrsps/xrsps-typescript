@@ -83,68 +83,75 @@ export class GatheringSystemManager {
     // ----- Woodcutting -----
 
     isWoodcuttingDepleted(key: string): boolean {
-        return this.woodcuttingTracker.isDepleted?.(key) ?? false;
+        return this.woodcuttingTracker.isDepleted(key);
     }
 
     markWoodcuttingDepleted(
         info: {
+            key: string;
+            locId: number;
+            stumpId: number;
+            treeId: string;
             tile: { x: number; y: number };
             level: number;
-            respawnTicks: number;
-            depletedLocId: number;
+            respawnTicks: { min: number; max: number };
         },
         tick: number,
     ): void {
-        this.woodcuttingTracker.markDepleted?.(info, tick);
+        this.woodcuttingTracker.markDepleted(info, tick);
     }
 
     buildWoodcuttingTileKey(tile: { x: number; y: number }, level: number): string {
-        return (
-            this.woodcuttingTracker.buildTileKey?.(tile, level) ??
-            buildWoodcuttingTileKey(tile, level)
-        );
+        return buildWoodcuttingTileKey(tile, level);
     }
 
     // ----- Mining -----
 
     isMiningDepleted(key: string): boolean {
-        return this.miningTracker.isDepleted?.(key) ?? false;
+        return this.miningTracker.isDepleted(key);
     }
 
     markMiningDepleted(
         info: {
+            key: string;
+            locId: number;
+            rockId: string;
             tile: { x: number; y: number };
             level: number;
-            respawnTicks: number;
-            depletedLocId: number;
+            respawnTicks: { min: number; max: number };
+            depletedLocId?: number;
         },
         tick: number,
     ): void {
-        this.miningTracker.markDepleted?.(info, tick);
+        this.miningTracker.markDepleted(info, tick);
     }
 
     buildMiningTileKey(tile: { x: number; y: number }, level: number): string {
-        return this.miningTracker.buildTileKey?.(tile, level) ?? buildMiningTileKey(tile, level);
+        return buildMiningTileKey(tile, level);
     }
 
     // ----- Firemaking -----
 
     isTileLit(tile: { x: number; y: number }, level: number): boolean {
-        return this.firemakingTracker.isTileLit?.(tile, level) ?? false;
+        return this.firemakingTracker.isTileLit(tile, level);
     }
 
     getFireNode(
         tile: { x: number; y: number },
         level: number,
     ): { fireObjectId: number; expirationTick: number } | undefined {
-        return this.firemakingTracker.getFireNode(tile, level);
+        const node = this.firemakingTracker.getFireNode(tile, level);
+        if (!node) return undefined;
+        return { fireObjectId: node.fireObjectId, expirationTick: node.expiresTick };
     }
 
     getAshNode(
         tile: { x: number; y: number },
         level: number,
     ): { expirationTick: number; previousLocId: number } | undefined {
-        return this.firemakingTracker.getAshNode(tile, level);
+        const node = this.firemakingTracker.getAshNode(tile, level);
+        if (!node) return undefined;
+        return { expirationTick: node.expiresTick, previousLocId: node.previousLocId };
     }
 
     removeAshNode(tile: { x: number; y: number }, level: number): void {
@@ -159,6 +166,11 @@ export class GatheringSystemManager {
         locId: number;
         respawnTicks: number;
     }): void {
-        this.flaxTracker.markDepleted(info);
+        this.flaxTracker.markDepleted({
+            tile: info.tile,
+            level: info.level,
+            locId: info.locId,
+            respawnTick: info.respawnTicks,
+        });
     }
 }

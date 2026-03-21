@@ -31,7 +31,6 @@ export interface PlayerAttackReachOptions {
 
 export interface NpcCombatRuleState {
     getAttackType?: () => AttackType | undefined;
-    attackType?: AttackType;
     attackRange?: number;
     combat?: {
         attackType?: AttackType;
@@ -139,12 +138,13 @@ export function resolveNpcAttackType(state: NpcCombatRuleState, explicit?: Attac
     if (direct === "melee" || direct === "ranged" || direct === "magic") {
         return direct;
     }
+    const rootAttackType = (state as { attackType?: AttackType }).attackType;
     if (
-        state.attackType === "melee" ||
-        state.attackType === "ranged" ||
-        state.attackType === "magic"
+        rootAttackType === "melee" ||
+        rootAttackType === "ranged" ||
+        rootAttackType === "magic"
     ) {
-        return state.attackType;
+        return rootAttackType;
     }
     const profile = state.combat?.attackType;
     if (profile === "melee" || profile === "ranged" || profile === "magic") {
@@ -155,12 +155,12 @@ export function resolveNpcAttackType(state: NpcCombatRuleState, explicit?: Attac
 
 export function resolveNpcAttackRange(state: NpcCombatRuleState, attackType?: AttackType): number {
     const rootConfiguredRange = state.attackRange;
-    if (Number.isFinite(rootConfiguredRange) && rootConfiguredRange > 0) {
+    if (typeof rootConfiguredRange === "number" && rootConfiguredRange > 0) {
         return Math.max(1, rootConfiguredRange);
     }
 
     const configuredRange = state.combat?.attackRange;
-    if (Number.isFinite(configuredRange) && configuredRange > 0) {
+    if (typeof configuredRange === "number" && configuredRange > 0) {
         return Math.max(1, configuredRange);
     }
 

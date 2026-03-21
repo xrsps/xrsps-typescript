@@ -8,9 +8,9 @@ export type CacheFolderSpec = {
 
 export function readFileAsArrayBuffer(filePath: string): ArrayBuffer {
     const buf = fs.readFileSync(filePath);
-    // Node Buffer is backed by ArrayBuffer; slice to exact range
-    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-    return ab;
+    const bytes = new Uint8Array(buf.byteLength);
+    bytes.set(buf);
+    return bytes.buffer;
 }
 
 export function loadDat2CacheFiles(spec: CacheFolderSpec): Map<string, ArrayBuffer> {

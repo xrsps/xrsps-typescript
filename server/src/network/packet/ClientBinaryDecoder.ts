@@ -398,7 +398,7 @@ export function decodeClientPacket(data: Uint8Array | ArrayBuffer): DecodedClien
             const hasTile = reader.readBoolean();
             const tile = hasTile ? { x: reader.readShort(), y: reader.readShort() } : undefined;
             const plane = reader.readByte() || undefined;
-            const target =
+            const target: Extract<RoutedMessage, { type: "inventory_use_on" }>["payload"]["target"] =
                 kind === "inv"
                     ? {
                           kind,
@@ -571,8 +571,8 @@ export function decodeClientPacket(data: Uint8Array | ArrayBuffer): DecodedClien
                 "decline",
                 "confirm_accept",
                 "confirm_decline",
-            ];
-            const action = actions[actionVal] ?? "offer";
+            ] as const;
+            const action: TradeActionClientPayload["action"] = actions[actionVal] ?? "offer";
             const slot = reader.readShort();
             const quantity = reader.readInt();
             const itemIdRaw = reader.readSignedShort();
@@ -618,7 +618,9 @@ export function decodeClientPacket(data: Uint8Array | ArrayBuffer): DecodedClien
 
         case ClientPacketId.DEBUG: {
             const jsonStr = reader.readString();
-            return { type: "debug", payload: parseDebugPayload(jsonStr) };
+            const payload: Extract<RoutedMessage, { type: "debug" }>["payload"] =
+                parseDebugPayload(jsonStr);
+            return { type: "debug", payload };
         }
 
         default:

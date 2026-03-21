@@ -1,5 +1,5 @@
 import { faceAngleRs } from "../../../../../../src/rs/utils/rotation";
-import { SkillId } from "../../../../../src/rs/skill/skills";
+import { SkillId } from "../../../../../../src/rs/skill/skills";
 import {
     FLAX_ITEM_ID,
     FLAX_LOC_IDS,

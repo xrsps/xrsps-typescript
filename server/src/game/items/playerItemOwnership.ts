@@ -40,12 +40,12 @@ export function findOwnedItemLocation(
 
     if (Array.isArray(snapshot.equipment)) {
         for (const entry of snapshot.equipment) {
-            if (Number.isFinite(entry as number)) {
-                const equippedItemId = entry as number;
+            if (typeof entry === "number" && Number.isFinite(entry)) {
+                const equippedItemId = entry;
                 if (equippedItemId === target) return "equipment";
                 continue;
             }
-            if (!entry) continue;
+            if (!entry || typeof entry !== "object") continue;
             if (entry.itemId !== target) continue;
             const quantity = entry.quantity ?? 1;
             if (quantity <= 0) continue;

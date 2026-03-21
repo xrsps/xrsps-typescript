@@ -380,8 +380,12 @@ export class CombatEngine {
             Math.max(0, baseProfile.maxHit + equipmentBonuses.maxHitBonus) *
                 Math.max(0, equipmentBonuses.damageMultiplier),
         );
-        attackRoll = Math.floor(attackRoll * Math.max(0, accuracyMultiplier));
-        maxHit = Math.floor(maxHit * Math.max(0, maxHitMultiplier));
+        attackRoll = Math.floor(
+            attackRoll * Math.max(0, typeof accuracyMultiplier === "number" ? accuracyMultiplier : 1),
+        );
+        maxHit = Math.floor(
+            maxHit * Math.max(0, typeof maxHitMultiplier === "number" ? maxHitMultiplier : 1),
+        );
         const attackProfile = { ...baseProfile, attackRoll, maxHit };
         const defenceRoll = this.computeNpcDefenceRoll(context, attackProfile);
         const forceHit = !!modifiers?.forceHit;
@@ -736,11 +740,19 @@ export class CombatEngine {
 
         if (params) {
             const travelFramesExplicit = params.travelFrames;
-            if (Number.isFinite(travelFramesExplicit) && travelFramesExplicit > 0) {
+            if (
+                typeof travelFramesExplicit === "number" &&
+                Number.isFinite(travelFramesExplicit) &&
+                travelFramesExplicit > 0
+            ) {
                 return Math.max(1, Math.round(travelFramesExplicit / framesPerTick));
             }
             const ticksPerTile = params.ticksPerTile;
-            if (Number.isFinite(ticksPerTile) && ticksPerTile > 0) {
+            if (
+                typeof ticksPerTile === "number" &&
+                Number.isFinite(ticksPerTile) &&
+                ticksPerTile > 0
+            ) {
                 return Math.max(1, Math.round(tiles * ticksPerTile));
             }
             const model = params.lifeModel;

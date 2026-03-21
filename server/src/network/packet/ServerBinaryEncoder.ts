@@ -559,9 +559,9 @@ export class ServerBinaryEncoder {
                 const args = Array.isArray(script.args) ? script.args : [];
                 this.buffer.writeByte(args.length);
                 for (const arg of args) {
-                    if (Number.isFinite(arg as number)) {
+                    if (typeof arg === "number" && Number.isFinite(arg)) {
                         this.buffer.writeByte(1);
-                        this.buffer.writeInt(arg ?? 0);
+                        this.buffer.writeInt(arg);
                     } else {
                         this.buffer.writeByte(0);
                         this.buffer.writeString((arg as string) ?? "");
@@ -754,7 +754,7 @@ export class ServerBinaryEncoder {
         this.buffer.writeShort(scriptId);
         this.buffer.writeByte(args.length);
         for (const arg of args) {
-            if (Number.isFinite(arg as number)) {
+            if (typeof arg === "number" && Number.isFinite(arg)) {
                 this.buffer.writeByte(1); // int type
                 this.buffer.writeInt(arg);
             } else {

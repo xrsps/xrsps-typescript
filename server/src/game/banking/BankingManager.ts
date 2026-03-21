@@ -186,7 +186,7 @@ export class BankingManager {
             // Count items AND placeholders (both occupy slots in OSRS)
             // Skip fillers and empty slots
             if (entry.itemId > 0 && !entry.filler) {
-                const tab = entry.tab;
+                const tab = entry.tab ?? 0;
                 // Tab 0 = "all items" (not counted in varbits)
                 // Tabs 1-9 are counted
                 if (tab >= 1 && tab <= 9) {

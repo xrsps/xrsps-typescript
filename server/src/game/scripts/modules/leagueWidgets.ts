@@ -76,10 +76,13 @@ export type LeagueWsUiBridge = {
 };
 
 function queueLeaguePackedVarpUpdates(
-    services: Pick<LeagueWsUiBridge, "queueVarp">,
+    services: { queueVarp?: (playerId: number, varpId: number, value: number) => void },
     playerId: number,
     updates: Array<{ id: number; value: number }>,
 ): void {
+    if (!services.queueVarp) {
+        return;
+    }
     for (const update of updates) {
         services.queueVarp(playerId, update.id, update.value);
     }
@@ -344,7 +347,7 @@ function getLeagueRelicIndexMap(services: any, leagueType: number): LeagueRelicI
     const tierEnumId = leagueStruct?.params?.get?.(PARAM_LEAGUE_RELIC_TIER_ENUM) as
         | number
         | undefined;
-    if (!(tierEnumId > 0)) {
+    if (typeof tierEnumId !== "number" || tierEnumId <= 0) {
         console.log(
             `[league] getLeagueRelicIndexMap: missing tier enum param in struct ${leagueStructId}`,
         );
@@ -376,7 +379,7 @@ function getLeagueRelicIndexMap(services: any, leagueType: number): LeagueRelicI
         const relicEnumId = tierStruct?.params?.get?.(PARAM_LEAGUE_RELICS_ENUM) as
             | number
             | undefined;
-        if (!(relicEnumId > 0)) return null;
+        if (typeof relicEnumId !== "number" || relicEnumId <= 0) return null;
         const relicEnum = enumLoader.load(relicEnumId);
         if (!relicEnum) return null;
 

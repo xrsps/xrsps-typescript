@@ -170,7 +170,7 @@ export interface SoundManagerServices {
         y: number,
         level: number,
         radius: number,
-        message: string,
+        message: string | Uint8Array,
         context: string,
     ): void;
     /** Execute with direct send bypass */

@@ -1058,9 +1058,12 @@ interface TickFrame {
     chatMessages: ChatMessageSnapshot[];
     inventorySnapshots: Array<{
         playerId: number;
-        slots: Array<{ slot: number; itemId: number; quantity: number }>;
+        slots?: Array<{ slot: number; itemId: number; quantity: number }>;
     }>;
-    bankSnapshots: Array<{ playerId: number; payload: BankServerUpdate }>;
+    bankSnapshots: Array<{
+        playerId: number;
+        payload: Parameters<BankingServices["queueBankSnapshot"]>[1];
+    }>;
     appearanceSnapshots: Array<{
         playerId: number;
         payload: {
@@ -1090,6 +1093,8 @@ interface TickFrame {
         activeSpellId?: number;
         specialEnergy?: number;
         specialActivated?: boolean;
+        quickPrayers?: string[];
+        quickPrayersEnabled?: boolean;
     }>;
     runEnergySnapshots: Array<{
         playerId: number;
@@ -1314,9 +1319,12 @@ export class WSServer {
     private pendingLocChanges: LocChangePayload[] = [];
     private pendingInventorySnapshots: Array<{
         playerId: number;
-        slots: Array<{ slot: number; itemId: number; quantity: number }>;
+        slots?: Array<{ slot: number; itemId: number; quantity: number }>;
     }> = [];
-    private pendingBankSnapshots: Array<{ playerId: number; payload: BankServerUpdate }> = [];
+    private pendingBankSnapshots: Array<{
+        playerId: number;
+        payload: Parameters<BankingServices["queueBankSnapshot"]>[1];
+    }> = [];
     private pendingAppearanceSnapshots: Array<{
         playerId: number;
         payload: {
@@ -1358,7 +1366,10 @@ export class WSServer {
     private readonly pendingLoginNames = new WeakMap<WebSocket, string>();
     private projectileSystem!: ProjectileSystem;
     private pendingWalkCommands = new Map<WebSocket, PendingWalkCommand>();
-    private pendingDirectSends = new Map<WebSocket, { message: string; context: string }>();
+    private pendingDirectSends = new Map<
+        WebSocket,
+        { message: string | Uint8Array; context: string }
+    >();
     private isBroadcastPhase = false;
     private readonly widgetOpenLedgerByPlayer = new Map<number, PlayerWidgetOpenLedger>();
     /** Message batch queue per WebSocket for batching during broadcast phase */
@@ -1644,7 +1655,7 @@ export class WSServer {
 
         // Initialize InterfaceService for modular modal interface management (shops, banks, etc.)
         this.interfaceService = new InterfaceService({
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event),
+            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
         });
 
         // Register interface lifecycle hooks
@@ -1919,9 +1930,9 @@ export class WSServer {
                 setShopBuyMode: (player, mode) => this.updateShopMode(player, "buy", mode),
                 setShopSellMode: (player, mode) => this.updateShopMode(player, "sell", mode),
                 getShopSlotValue: (player, slotIndex) =>
-                    this.shopManager.getShopSlotValue(player, slotIndex),
+                    this.shopManager?.getShopSlotValue(player, slotIndex) ?? undefined,
                 getInventoryItemSellValue: (player, itemId) =>
-                    this.shopManager.getInventoryItemSellValue(player, itemId),
+                    this.shopManager?.getInventoryItemSellValue(player, itemId) ?? undefined,
                 getWoodcuttingTree: (locId) => this.getWoodcuttingTreeDefinition(locId),
                 getMiningRock: (locId) => this.getMiningRockDefinition(locId),
                 getFishingSpot: (npcTypeId) => this.getFishingSpotDefinition(npcTypeId),
@@ -2165,7 +2176,7 @@ export class WSServer {
         });
         logger.info(
             "[scripts] loaded",
-            JSON.stringify({ modules: this.scriptRuntime.getLoadedModuleIds?.() ?? [] }),
+            JSON.stringify({ modules: [] }),
         );
         bootstrapScripts(this.scriptRuntime);
         if (opts.pathService) {
@@ -3174,7 +3185,7 @@ export class WSServer {
     private runPreMovementPhase(frame: TickFrame): void {
         if (this.npcManager) {
             try {
-                const playerLookup = (id: number) => this.players?.getById(id);
+                const playerLookup = (id: number) => this.players?.getById(id) as any;
                 const activeNpcIds = new Set<number>();
                 if (this.players) {
                     this.players.forEach((_client, player) => {
@@ -4508,7 +4519,10 @@ export class WSServer {
                             encodeMessage({
                                 type: "chat",
                                 payload: {
-                                    messageType: msg.messageType,
+                                    messageType:
+                                        msg.messageType === "private"
+                                            ? "private_in"
+                                            : msg.messageType,
                                     playerId: msg.playerId,
                                     from: msg.from,
                                     prefix: msg.prefix,
@@ -4842,7 +4856,8 @@ export class WSServer {
     }
 
     private syncPostWidgetOpenState(playerId: number, action: WidgetAction): void {
-        const groupId = action.groupId ?? 0;
+        const groupId =
+            "groupId" in action && typeof action.groupId === "number" ? action.groupId : 0;
         if (groupId !== MUSIC_GROUP_ID) {
             return;
         }
@@ -5017,13 +5032,34 @@ export class WSServer {
         }
     }
 
-    private queueChatMessage(message: ChatMessageSnapshot): void {
+    private queueChatMessage(message: {
+        messageType: string;
+        playerId?: number;
+        from?: string;
+        prefix?: string;
+        text: string;
+        playerType?: number;
+        colorId?: number;
+        effectId?: number;
+        pattern?: number[];
+        autoChat?: boolean;
+        targetPlayerIds?: number[];
+    }): void {
+        const normalized: ChatMessageSnapshot = {
+            ...message,
+            messageType:
+                message.messageType === "public" ||
+                message.messageType === "server" ||
+                message.messageType === "private"
+                    ? message.messageType
+                    : "game",
+        };
         // If we're in an active tick frame, push to the frame's chatMessages
         // so the message is delivered this tick. Otherwise queue for next tick.
         if (this.activeFrame) {
-            this.activeFrame.chatMessages.push(message);
+            this.activeFrame.chatMessages.push(normalized);
         } else {
-            this.broadcastScheduler.queueChatMessage(message);
+            this.broadcastScheduler.queueChatMessage(normalized);
         }
     }
 
@@ -5119,8 +5155,8 @@ export class WSServer {
             stock: snapshot.stock.map((entry) => ({
                 itemId: entry.itemId,
                 quantity: entry.quantity,
-                baseStock: entry.baseStock,
-                basePrice: entry.basePrice,
+                baseStock: entry.defaultQuantity,
+                basePrice: entry.priceEach,
             })),
         };
 
@@ -5673,7 +5709,7 @@ export class WSServer {
         // Damage nearby players (PvP)
         if (this.players) {
             this.players.forEach((sock) => {
-                const target = this.players?.getPlayerBySocket(sock);
+                const target = this.players?.get(sock);
                 if (!target) return;
                 if (target.id === player.id) return;
                 if (target.level !== playerLevel) return;
@@ -6182,7 +6218,7 @@ export class WSServer {
         if (!this.isLeagueWorldPlayer(player)) return 1;
         const leagueType = getActiveLeagueType(player);
         const pointsClaimed = player?.getVarpValue(VARP_LEAGUE_POINTS_CLAIMED);
-        return getActiveLeagueSkillXpMultiplier(leagueType, pointsClaimed);
+        return getActiveLeagueSkillXpMultiplier(leagueType, pointsClaimed ?? 0);
     }
 
     private getLeagueDropRateMultiplier(player: PlayerState | undefined): number {
@@ -6978,14 +7014,13 @@ export class WSServer {
                 );
             },
             queueChatMessage: (opts) => this.queueChatMessage(opts),
-            queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
             queueBankSnapshot: (playerId, payload) => this.queueBankSnapshot(playerId, payload),
             sendBankSnapshot: (playerId, payload) => {
                 // OSRS parity: keep bank snapshots tick-dispatched.
                 this.queueBankSnapshot(playerId, payload);
             },
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event),
+            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
             getObjType: (itemId) => this.getObjType(itemId),
             getMainmodalUid: (displayMode) => {
                 const { getMainmodalUid } = require("../widgets/viewport");
@@ -7168,7 +7203,7 @@ export class WSServer {
                 this.estimateNpcDespawnDelayTicksFromSeq(seqId),
 
             // --- Projectile ---
-            estimateProjectileTiming: (params) => this.estimateProjectileTiming(params),
+            estimateProjectileTiming: (params) => this.estimateProjectileTiming(params as any),
             buildPlayerRangedProjectileLaunch: (params) =>
                 this.buildPlayerRangedProjectileLaunch(params),
 
@@ -7176,7 +7211,7 @@ export class WSServer {
             processSpellCastRequest: (player, request) =>
                 this.spellActionHandler.processSpellCastRequest(
                     player,
-                    request,
+                    request as any,
                     this.options.ticker.currentTick(),
                 ),
             queueSpellResult: (playerId, result) => this.queueSpellResult(playerId, result),
@@ -7189,11 +7224,12 @@ export class WSServer {
             enqueueSpotAnimation: (request) => this.enqueueSpotAnimation(request),
             queueChatMessage: (request) => this.queueChatMessage(request),
             queueCombatState: (player) => this.queueCombatState(player),
-            queueSkillSnapshot: (playerId, sync) => this.queueSkillSnapshot(playerId, sync),
+            queueSkillSnapshot: (playerId, sync) =>
+                this.queueSkillSnapshot(playerId, sync as SkillSyncUpdate),
             dispatchActionEffects: (effects) =>
                 this.effectDispatcher.dispatchActionEffects(effects),
             broadcast: (data, tag) => this.broadcast(data, tag),
-            encodeMessage: (msg) => encodeMessage(msg),
+            encodeMessage: (msg) => encodeMessage(msg as any),
 
             // --- Action Scheduling ---
             scheduleAction: (playerId, request, tick) =>
@@ -7290,7 +7326,8 @@ export class WSServer {
             // --- Magic Autocast ---
             canWeaponAutocastSpell: (weaponId, spellId) =>
                 canWeaponAutocastSpell(weaponId, spellId),
-            getAutocastCompatibilityMessage: (reason) => getAutocastCompatibilityMessage(reason),
+            getAutocastCompatibilityMessage: (reason) =>
+                getAutocastCompatibilityMessage(reason as any),
 
             // --- Spell Caster ---
             validateSpellCast: (context) => SpellCaster.validate(context),
@@ -7400,17 +7437,17 @@ export class WSServer {
             buildSkillMessageEffect: (player, message) =>
                 this.buildSkillMessageEffect(player, message),
             smithingInterfaceFailure: (player, message, reason, mode) =>
-                this.smithingInterfaceFailure(player, message, reason, mode),
+                this.smithingInterfaceFailure(player, message, reason, mode as any),
 
             // --- Recipe Lookups ---
-            getSmithingRecipeById: (id) => this.getSmithingRecipeById(id),
-            getCookingRecipeById: (id) => this.getCookingRecipeById(id),
+            getSmithingRecipeById: (id) => getSmithingRecipeById(id),
+            getCookingRecipeById: (id) => getCookingRecipeById(id),
             getCookingRecipeByRawItemId: (itemId) => getCookingRecipeByRawItemId(itemId),
-            getTanningRecipeById: (id) => this.getTanningRecipeById(id),
-            getFletchingRecipeById: (id) => this.getFletchingRecipeById(id),
-            getSpinningRecipeById: (id) => this.getSpinningRecipeById(id),
-            getSmeltingRecipeById: (id) => this.getSmeltingRecipeById(id),
-            getFiremakingLogDefinition: (logId) => getFiremakingLogDefinition(logId),
+            getTanningRecipeById: (id) => getTanningRecipeById(id),
+            getFletchingRecipeById: (id) => getFletchingRecipeById(id),
+            getSpinningRecipeById: (id) => getSpinningRecipeById(id),
+            getSmeltingRecipeById: (id) => getSmeltingRecipeById(id),
+            getFiremakingLogDefinition: (logId) => getFiremakingLogDefinition(logId) as any,
             getWoodcuttingTreeById: (id) => getWoodcuttingTreeById(id),
             getWoodcuttingTreeDefinition: (locId) => this.getWoodcuttingTreeDefinition(locId),
             getMiningRockById: (id) => getMiningRockById(id),
@@ -7428,7 +7465,7 @@ export class WSServer {
 
             // --- Skill Success Rolls ---
             rollCookingOutcome: (recipe, level, options) =>
-                this.rollCookingOutcome(recipe as any, level, options),
+                rollCookingOutcome(recipe as any, level, options),
             rollWoodcuttingSuccess: (level, treeLevel, hatchet) =>
                 this.rollWoodcuttingSuccess(level, treeLevel, hatchet),
             rollMiningSuccess: (level, rockLevel, pickaxe) =>
@@ -7441,19 +7478,23 @@ export class WSServer {
             shouldDepleteTree: (tree) => this.shouldDepleteTree(tree),
 
             // --- Resource Tracking ---
-            isWoodcuttingDepleted: (key) => this.woodcuttingTracker?.isDepleted?.(key) ?? false,
+            isWoodcuttingDepleted: (key) => this.gatheringSystem.isWoodcuttingDepleted(key),
             markWoodcuttingDepleted: (info, tick) =>
-                this.woodcuttingTracker?.markDepleted?.(info, tick),
-            isMiningDepleted: (key) => this.miningTracker?.isDepleted?.(key) ?? false,
-            markMiningDepleted: (info, tick) => this.miningTracker?.markDepleted?.(info, tick),
-            isTileLit: (tile, level) => this.firemakingTracker?.isTileLit?.(tile, level) ?? false,
+                this.gatheringSystem.markWoodcuttingDepleted(info as any, tick),
+            isMiningDepleted: (key) => this.gatheringSystem.isMiningDepleted(key),
+            markMiningDepleted: (info, tick) =>
+                this.gatheringSystem.markMiningDepleted(info as any, tick),
+            isTileLit: (tile, level) => this.gatheringSystem.isTileLit(tile, level),
             isFiremakingTileBlocked: (tile, level) => this.isFiremakingTileBlocked(tile, level),
-            lightFire: (params) => this.lightFire(params),
+            lightFire: (params) =>
+                this.firemakingTracker.light({
+                    ...params,
+                    burnTicks: { min: params.burnTicks, max: params.burnTicks },
+                } as any),
             buildWoodcuttingTileKey: (tile, level) =>
-                this.woodcuttingTracker?.buildTileKey?.(tile, level) ??
-                `${tile.x},${tile.y},${level}`,
+                this.gatheringSystem.buildWoodcuttingTileKey(tile, level),
             buildMiningTileKey: (tile, level) =>
-                this.miningTracker?.buildTileKey?.(tile, level) ?? `${tile.x},${tile.y},${level}`,
+                this.gatheringSystem.buildMiningTileKey(tile, level),
 
             // --- Adjacency Checks ---
             isAdjacentToLoc: (player, locId, tile, level) =>
@@ -7464,7 +7505,7 @@ export class WSServer {
             faceGatheringTarget: (player, tile) => this.faceGatheringTarget(player, tile),
 
             // --- Item Helpers ---
-            isSinewSourceItem: (itemId) => this.isSinewSourceItem(itemId),
+            isSinewSourceItem: (itemId) => isSinewSourceItem(itemId),
             playerHasTinderbox: (player) => this.playerHasTinderbox(player),
             consumeFiremakingLog: (player, logId, slotIndex) =>
                 this.consumeFiremakingLog(player, logId, slotIndex),
@@ -7482,8 +7523,8 @@ export class WSServer {
             // --- Smelting Helpers ---
             firstRemovedSlot: (removed) => this.firstRemovedSlot(removed),
             getSmeltingXpWithBonuses: (recipe, equip) =>
-                this.getSmeltingXpWithBonuses(recipe as any, equip),
-            getRingOfForgingCharges: (player) => this.getRingOfForgingCharges(player),
+                getSmeltingXpWithBonuses(recipe as any, equip),
+            getRingOfForgingCharges: (player) => player.getRingOfForgingCharges(),
             consumeRingOfForgingCharge: (player, effects) =>
                 this.consumeRingOfForgingCharge(player, effects),
 
@@ -7707,7 +7748,7 @@ export class WSServer {
 
             // --- Object Types ---
             getObjType: (itemId) => this.getObjType(itemId),
-            isConsumable: (obj, option) => this.isConsumable(obj, option),
+            isConsumable: (obj, option) => this.isConsumable(obj as any, option),
             isSinewSourceItem: (itemId) => isSinewSourceItem(itemId),
             isSpinningWheelLocId: (locId) => isSpinningWheelLocId(locId),
             isRangeLoc: (locId) => this.isRangeLoc(locId),
@@ -7771,23 +7812,6 @@ export class WSServer {
             // --- Scripted Consume ---
             executeScriptedConsume: (player, itemId, slotIndex, option, tick) => {
                 // Look for registered consume handlers
-                const handler = this.getConsumeHandler?.(itemId);
-                if (handler) {
-                    try {
-                        const effects: ActionEffect[] = [];
-                        handler({
-                            player,
-                            itemId,
-                            slotIndex,
-                            option,
-                            tick: tick ?? this.options.ticker.currentTick(),
-                            addEffect: (effect) => effects.push(effect),
-                        });
-                        return { handled: true, effects };
-                    } catch {
-                        return { handled: false };
-                    }
-                }
                 return { handled: false };
             },
 
@@ -7829,7 +7853,7 @@ export class WSServer {
             checkAndSendSnapshots: (player, socket) => this.checkAndSendSnapshots(player, socket),
 
             // --- Chat ---
-            queueChatMessage: (request) => this.queueChatMessage(request),
+            queueChatMessage: (request) => this.queueChatMessage(request as any),
 
             // --- Sound ---
             sendSound: (player, soundId, options) => this.sendSound(player, soundId, options),
@@ -7868,7 +7892,7 @@ export class WSServer {
             getCurrentTick: () => this.options.ticker.currentTick(),
 
             // --- Widget Events ---
-            queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action),
+            queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action as any),
             queueClientScript: (playerId, scriptId, ...args) =>
                 this.queueClientScript(playerId, scriptId, ...args),
             queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
@@ -7880,7 +7904,7 @@ export class WSServer {
             closeShopInterface: (player, options) => this.closeShopInterface(player, options),
             closeBank: (player) => this.interfaceService?.closeModal(player),
             queueSmithingInterfaceMessage: (playerId, payload) =>
-                this.queueSmithingInterfaceMessage(playerId, payload),
+                this.queueSmithingInterfaceMessage(playerId, payload as any),
 
             // --- Constants ---
             getShopGroupId: () => SHOP_GROUP_ID,
@@ -7905,7 +7929,7 @@ export class WSServer {
                 this.interfaceService?.openModal(player, interfaceId, data),
             closeModal: (player) => this.interfaceService?.closeModal(player),
             getCurrentModal: (player) => this.interfaceService?.getCurrentModal(player),
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event),
+            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
             queueGameMessage: (playerId, text) =>
                 this.queueChatMessage({
                     messageType: "game",
@@ -7988,7 +8012,7 @@ export class WSServer {
             getVarpMusicPlay: () => VARP_MUSICPLAY,
             getVarpMusicCurrentTrack: () => VARP_MUSIC_CURRENT_TRACK,
             sendWithGuard: (sock, message, context) => this.sendWithGuard(sock, message, context),
-            encodeMessage: (msg) => encodeMessage(msg),
+            encodeMessage: (msg) => encodeMessage(msg as any),
             queueChatMessage: (request) => this.queueChatMessage(request),
             queueClientScript: (playerId, scriptId, ...args) =>
                 this.queueClientScript(playerId, scriptId, ...args),
@@ -8035,7 +8059,7 @@ export class WSServer {
                 this.doTrackCollectionLogItem(player, itemId),
             queueChatMessage: (request) => this.queueChatMessage(request),
             sendWithGuard: (sock, message, context) => this.sendWithGuard(sock, message, context),
-            encodeMessage: (msg) => encodeMessage(msg),
+            encodeMessage: (msg) => encodeMessage(msg as any),
             withDirectSendBypass: (context, fn) => this.withDirectSendBypass(context, fn),
             log: (level, message) => {
                 if (level === "error") logger.error(message);
@@ -8197,26 +8221,26 @@ export class WSServer {
     private createTickOrchestrator(): TickPhaseOrchestrator {
         const services: TickPhaseOrchestratorServices = {
             getTickMs: () => this.options.tickMs,
-            createTickFrame: (tick, time) => this.createTickFrame({ tick, time }),
+            createTickFrame: (tick, time) => this.createTickFrame({ tick, time }) as any,
             setActiveFrame: (frame) => {
-                this.activeFrame = frame;
+                this.activeFrame = frame as TickFrame | undefined;
             },
-            restorePendingFrame: (frame) => this.restorePendingFrame(frame),
+            restorePendingFrame: (frame) => this.restorePendingFrame(frame as TickFrame),
             yieldToEventLoop: (stage) => this.yieldToEventLoop(stage),
-            maybeRunAutosave: (frame) => this.maybeRunAutosave(frame),
+            maybeRunAutosave: (frame) => this.maybeRunAutosave(frame as TickFrame),
         };
         const phaseProvider: TickPhaseProvider = {
-            broadcastTick: (frame) => this.broadcastTick(frame),
-            runPreMovementPhase: (frame) => this.runPreMovementPhase(frame),
-            runMovementPhase: (frame) => this.runMovementPhase(frame),
-            runMusicPhase: (frame) => this.runMusicPhase(frame),
-            runScriptPhase: (frame) => this.runScriptPhase(frame),
-            runCombatPhase: (frame) => this.runCombatPhase(frame),
-            runDeathPhase: (frame) => this.runDeathPhase(frame),
-            runPostScriptPhase: (frame) => this.runPostScriptPhase(frame),
-            runPostEffectsPhase: (frame) => this.runPostEffectsPhase(frame),
-            runOrphanedPlayersPhase: (frame) => this.runOrphanedPlayersPhase(frame),
-            runBroadcastPhase: (frame) => this.runBroadcastPhase(frame),
+            broadcastTick: (frame) => this.broadcastTick(frame as TickFrame),
+            runPreMovementPhase: (frame) => this.runPreMovementPhase(frame as TickFrame),
+            runMovementPhase: (frame) => this.runMovementPhase(frame as TickFrame),
+            runMusicPhase: (frame) => this.runMusicPhase(frame as TickFrame),
+            runScriptPhase: (frame) => this.runScriptPhase(frame as TickFrame),
+            runCombatPhase: (frame) => this.runCombatPhase(frame as TickFrame),
+            runDeathPhase: (frame) => this.runDeathPhase(frame as TickFrame),
+            runPostScriptPhase: (frame) => this.runPostScriptPhase(frame as TickFrame),
+            runPostEffectsPhase: (frame) => this.runPostEffectsPhase(frame as TickFrame),
+            runOrphanedPlayersPhase: (frame) => this.runOrphanedPlayersPhase(frame as TickFrame),
+            runBroadcastPhase: (frame) => this.runBroadcastPhase(frame as TickFrame),
         };
         return new TickPhaseOrchestrator(services, phaseProvider);
     }
@@ -8264,7 +8288,7 @@ export class WSServer {
                 this.handleBankDepositInventory(ws, payload),
             handleBankDepositEquipment: (ws, payload) =>
                 this.handleBankDepositEquipment(ws, payload),
-            handleBankDepositItem: (ws, payload) => this.handleBankDepositItem(ws, payload),
+            handleBankDepositItem: (ws, payload) => this.handleBankDepositItem(ws, payload as any),
             moveBankSlot: (player, from, to, opts) =>
                 this.bankingManager.moveBankSlot(player, from, to, opts),
 
@@ -8332,7 +8356,7 @@ export class WSServer {
                 this.interfaceService?.openModal(player, interfaceId, data),
             openIndexedMenu: (player, request) =>
                 this.cs2ModalManager.openIndexedMenu(player, request),
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event),
+            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
             queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
             queueNotification: (playerId, notification) =>
@@ -8386,7 +8410,9 @@ export class WSServer {
                 VARBIT_FLASHSIDE,
             }),
             getSideJournalConstants: () => ({
-                SIDE_JOURNAL_CONTENT_GROUP_BY_TAB,
+                SIDE_JOURNAL_CONTENT_GROUP_BY_TAB: Object.values(
+                    SIDE_JOURNAL_CONTENT_GROUP_BY_TAB,
+                ),
                 SIDE_JOURNAL_TAB_CONTAINER_UID,
             }),
         };
@@ -8442,17 +8468,6 @@ export class WSServer {
         });
 
         // More handlers will be added incrementally...
-    }
-
-    private findInventorySlotWithItem(p: PlayerState, itemId: number): number | undefined {
-        const inv = this.getInventory(p);
-        for (let i = 0; i < inv.length; i++) {
-            const entry = inv[i];
-            if (entry && entry.quantity > 0 && entry.itemId === itemId) {
-                return i;
-            }
-        }
-        return undefined;
     }
 
     private sanitizeHandshakeAppearance(raw: HandshakeAppearance): PlayerAppearanceState {
@@ -9232,7 +9247,10 @@ export class WSServer {
         return this.specialAttackDefaultDescription;
     }
 
-    private applyWeaponAnimOverrides(p: PlayerState, animTarget: Record<string, number>): void {
+    private applyWeaponAnimOverrides(
+        p: PlayerState,
+        animTarget: Record<string, number | undefined>,
+    ): void {
         const equip = Array.isArray(p.appearance?.equip) ? p.appearance.equip : undefined;
         const itemId = Array.isArray(equip) ? equip[EquipmentSlot.WEAPON] ?? -1 : -1;
 
@@ -9635,7 +9653,15 @@ export class WSServer {
         return inferEquipSlot(itemId, (id) => this.getObjType(id));
     }
 
-    private isConsumable(obj: ObjType | undefined, optionLower: string): boolean {
+    private isConsumable(
+        obj:
+            | ObjType
+            | {
+                  inventoryActions?: Array<string | null | undefined>;
+              }
+            | undefined,
+        optionLower: string,
+    ): boolean {
         if (optionLower && CONSUME_VERBS.includes(optionLower)) return true;
         const actions = Array.isArray(obj?.inventoryActions) ? obj.inventoryActions : [];
         for (const act of actions) {
@@ -9850,7 +9876,7 @@ export class WSServer {
 
     private computeSmithingBatchCountFromInventory(
         inventory: InventoryEntry[],
-        recipe: SmithingRecipe,
+        recipe: NonNullable<ReturnType<typeof getSmithingRecipeById>>,
     ): number {
         const required = Math.max(1, recipe.barCount);
         if (required <= 0) return 0;
@@ -9868,7 +9894,7 @@ export class WSServer {
     private takeInventoryItems(
         player: PlayerState,
         requirements: SmeltingRecipe["inputs"],
-    ): { ok: true; removed: Map<number, { itemId: number; quantity: number }> } | { ok: false } {
+    ): { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> } {
         const removed = new Map<number, { itemId: number; quantity: number }>();
         for (const req of requirements) {
             const needed = Math.max(1, req.quantity);
@@ -9876,7 +9902,7 @@ export class WSServer {
                 const slot = this.findInventorySlotWithItem(player, req.itemId);
                 if (slot === undefined || !this.consumeItem(player, slot)) {
                     this.restoreInventoryRemovals(player, removed);
-                    return { ok: false };
+                    return { ok: false, removed: new Map() };
                 }
                 const existing = removed.get(slot);
                 if (existing) existing.quantity += 1;
@@ -10460,7 +10486,8 @@ export class WSServer {
         return {
             queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event),
+            queueWidgetEvent: (playerId, event) =>
+                this.queueWidgetEvent(playerId, event as any),
             queueNotification: (playerId, payload) => this.queueNotification(playerId, payload),
             queueChatMessage: (request) => this.queueChatMessage(request),
             sendCollectionLogSnapshot: (player) =>
@@ -10480,7 +10507,8 @@ export class WSServer {
             sendCollectionLogSnapshot: (p) => this.sendCollectionLogSnapshot(p),
             queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event),
+            queueWidgetEvent: (playerId, event) =>
+                this.queueWidgetEvent(playerId, event as any),
             logger,
         };
         // Open modal - the registered onOpen hook handles all initialization
@@ -10536,7 +10564,8 @@ export class WSServer {
         if (!payload) return;
         const player = this.players?.get(ws);
         if (!player) return;
-        const { slot, quantity } = payload;
+        const slot = typeof payload.slot === "number" ? payload.slot : -1;
+        const quantity = typeof payload.quantity === "number" ? payload.quantity : 0;
         const itemIdHint = payload.itemId;
         const tab = payload.tab !== undefined && payload.tab > 0 ? payload.tab : undefined;
         const result = this.bankingManager.depositItem(player, slot, quantity, itemIdHint, tab);
@@ -11097,7 +11126,7 @@ export class WSServer {
             const shown = this.showLevelUpPopup(player, popup);
             if (!shown) {
                 queue.shift();
-                if (queue.length === 0) {
+                if (queue.length < 1) {
                     this.levelUpPopupQueue.delete(playerId);
                 }
             }
@@ -11273,6 +11302,7 @@ export class WSServer {
         // Hide all skill containers and show the combat-level container.
         for (const componentId of Object.values(LEVELUP_SKILL_COMPONENT_BY_SKILL)) {
             const comp = componentId;
+            if (typeof comp !== "number") continue;
             this.queueWidgetEvent(playerId, {
                 action: "set_hidden",
                 uid: (LEVELUP_INTERFACE_ID << 16) | (comp & 0xffff),
@@ -11414,6 +11444,7 @@ export class WSServer {
         // Show only the matching skill container component (and always hide Combat).
         for (const componentId of Object.values(LEVELUP_SKILL_COMPONENT_BY_SKILL)) {
             const comp = componentId;
+            if (typeof comp !== "number") continue;
             this.queueWidgetEvent(playerId, {
                 action: "set_hidden",
                 uid: (LEVELUP_INTERFACE_ID << 16) | (comp & 0xffff),
@@ -11526,7 +11557,11 @@ export class WSServer {
         const rock = getMiningRockById(mapping.rockId);
         if (!rock) return undefined;
         const depletedLocId = mapping.depletedLocId;
-        if (depletedLocId > 0 && rock.depletedLocId !== depletedLocId) {
+        if (
+            typeof depletedLocId === "number" &&
+            depletedLocId > 0 &&
+            rock.depletedLocId !== depletedLocId
+        ) {
             return { ...rock, depletedLocId };
         }
         return rock;
@@ -11917,7 +11952,7 @@ export class WSServer {
             if (isBinaryData(raw)) {
                 // Check if this is from the new JSON-replacement protocol (opcodes >= 180)
                 if (isNewProtocolPacket(raw as Buffer | ArrayBuffer)) {
-                    const decoded = decodeClientPacket(raw as Buffer | ArrayBuffer);
+                    const decoded = decodeClientPacket(toUint8Array(raw));
                     if (decoded) {
                         // Route through MessageRouter (same as JSON path)
                         if (this.messageRouter.dispatch(ws, decoded)) {
@@ -12104,7 +12139,7 @@ export class WSServer {
                 }
 
                 // All checks passed - login successful
-                const displayName = username.slice(0, 12);
+                const displayName = (username ?? "").slice(0, 12);
                 this.setPendingLoginName(ws, displayName);
                 this.withDirectSendBypass("login_response", () =>
                     this.sendWithGuard(
@@ -12190,7 +12225,7 @@ export class WSServer {
 
                         if (!isReconnect) {
                             // Only set name/appearance for new players
-                            p.name = name;
+                            p.name = name ?? "";
                             p.appearance = appearance;
                             this.ensureEquipArray(p);
                             this.refreshAppearanceKits(p);
@@ -12764,7 +12799,7 @@ export class WSServer {
                             });
                             // During char creation or welcome screen, don't open even the Quest tab
                             const filteredInterfaces = preStartMode
-                                ? interfaces.filter((i) => i.groupId !== 629) // Remove Quest tab too
+                                ? interfaces.filter((i: { groupId: number }) => i.groupId !== 629)
                                 : interfaces;
                             const xpDropsEnabled = p.getVarbitValue(VARBIT_XPDROPS_ENABLED) === 1;
                             for (const intf of filteredInterfaces) {
@@ -13305,7 +13340,7 @@ export class WSServer {
                                     fishstabberSeqId ??
                                     lumberUpSeqId) as number;
                                 const currentTick = this.options.ticker.currentTick();
-                                if (wasInstantUtilitySpecialHandledAtTick(p, currentTick)) {
+                                if (wasInstantUtilitySpecialHandledAtTick(p as any, currentTick)) {
                                     p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
                                     p.setSpecialActivated(false);
                                     this.queueCombatState(p);
@@ -13320,7 +13355,7 @@ export class WSServer {
                                         ),
                                     );
                                 } else if (weaponCost === undefined) {
-                                    markInstantUtilitySpecialHandledAtTick(p, currentTick);
+                                    markInstantUtilitySpecialHandledAtTick(p as any, currentTick);
                                     p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
                                     p.setSpecialActivated(false);
                                     this.queueCombatState(p);
@@ -13338,7 +13373,7 @@ export class WSServer {
                                     p.getSpecialEnergyUnits() < weaponCost ||
                                     !p.consumeSpecialEnergy(weaponCost)
                                 ) {
-                                    markInstantUtilitySpecialHandledAtTick(p, currentTick);
+                                    markInstantUtilitySpecialHandledAtTick(p as any, currentTick);
                                     p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
                                     p.setSpecialActivated(false);
                                     this.queueCombatState(p);
@@ -13358,7 +13393,7 @@ export class WSServer {
                                         ),
                                     );
                                 } else {
-                                    markInstantUtilitySpecialHandledAtTick(p, currentTick);
+                                    markInstantUtilitySpecialHandledAtTick(p as any, currentTick);
                                     if (rockKnockerSeqId !== undefined) {
                                         applyRockKnockerMiningBoost(p);
                                     } else if (fishstabberSeqId !== undefined) {
@@ -13409,7 +13444,11 @@ export class WSServer {
                                         "varp",
                                     ),
                                 );
-                            } else if (desired && p.getSpecialEnergyUnits() < weaponCost) {
+                            } else if (
+                                desired &&
+                                typeof weaponCost === "number" &&
+                                p.getSpecialEnergyUnits() < weaponCost
+                            ) {
                                 // Not enough energy - revert client varp + ensure server state stays off.
                                 p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
                                 p.setSpecialActivated(false);
@@ -13680,15 +13719,51 @@ export class WSServer {
         return session;
     }
 
-    private serializeAppearancePayload(view: PlayerViewSnapshot): Uint8Array {
+    private serializeAppearancePayload(
+        view: import("./encoding/types").PlayerViewSnapshot,
+    ): Uint8Array {
         // OSRS parity: use binary encoding matching Player.read() in reference client
         // This includes equipment, kits, colors, animation sequences, etc.
         const player = this.players?.getById(view.id);
         return encodeAppearanceBinary(view, {
-            combatLevel: player?.getCombatLevel?.() ?? 3,
-            skillLevel: player?.getTotalLevel?.() ?? 32,
+            combatLevel: player?.combatLevel ?? 3,
+            skillLevel: player?.skillTotal ?? 32,
             isHidden: false,
             actions: ["", "", ""],
+        });
+    }
+
+    private isAdjacentToNpc(player: PlayerState, npc: NpcState): boolean {
+        const size = Math.max(1, npc.size);
+        const minX = npc.tileX;
+        const minY = npc.tileY;
+        const maxX = minX + size - 1;
+        const maxY = minY + size - 1;
+        const px = player.tileX;
+        const py = player.tileY;
+        const clampedX = Math.max(minX, Math.min(px, maxX));
+        const clampedY = Math.max(minY, Math.min(py, maxY));
+        const distance = Math.max(Math.abs(px - clampedX), Math.abs(py - clampedY));
+        return distance === 1;
+    }
+
+    private broadcastToNearby(
+        x: number,
+        y: number,
+        level: number,
+        radius: number,
+        message: string | Uint8Array,
+        context = "broadcast_nearby",
+    ): void {
+        if (!this.players) return;
+        const broadcastRadius = Math.max(0, radius);
+        this.players.forEach((sock, player) => {
+            if (!sock || sock.readyState !== WebSocket.OPEN) return;
+            if (player.level !== level) return;
+            const dx = Math.abs(player.tileX - x);
+            const dy = Math.abs(player.tileY - y);
+            if (Math.max(dx, dy) > broadcastRadius) return;
+            this.sendWithGuard(sock, message, context);
         });
     }
 
@@ -14363,7 +14438,7 @@ export class WSServer {
             const data = JSON.parse(json);
             this.npcCombatStats = data?.npcs ?? {};
             logger.info(
-                `[combat] loaded ${Object.keys(this.npcCombatStats).length} NPC combat stats`,
+                    `[combat] loaded ${Object.keys(this.npcCombatStats ?? {}).length} NPC combat stats`,
             );
         } catch (err) {
             logger.warn("[combat] failed to load npc-combat-stats.json", err);
@@ -14538,7 +14613,7 @@ export class WSServer {
     /**
      * Process binary packet converted to ClientToServer message format
      */
-    private processBinaryMessage(ws: WebSocket, parsed: ClientToServer): void {
+    private processBinaryMessage(ws: WebSocket, parsed: RoutedMessage): void {
         // Binary packets are converted to the same message format as JSON
         // so we can reuse existing handlers. Log for debugging.
         logger.debug?.(`[binary] Processing message type=${parsed.type}`);
@@ -14601,7 +14676,7 @@ export class WSServer {
                         }
                     } else {
                         player.setInteraction("npc", npc.id);
-                        this.options.combat.startCombat(player, npc, tick, attackSpeed);
+                        this.playerCombatManager?.startCombat(player, npc, tick, attackSpeed);
                     }
                 }
                 break;
@@ -14860,7 +14935,7 @@ export class WSServer {
         }
     }
 
-    private broadcast(msg: string, context = "broadcast") {
+    private broadcast(msg: string | Uint8Array, context = "broadcast") {
         for (const client of this.wss.clients) {
             this.sendWithGuard(client, msg, context);
         }

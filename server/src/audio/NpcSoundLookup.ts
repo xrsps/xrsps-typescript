@@ -60,8 +60,8 @@ export class NpcSoundLookup {
                 const soundNameRaw = sounds[i];
                 const soundIdRaw = sounds[i + 1];
                 const soundName = (soundNameRaw as string | undefined)?.toLowerCase() ?? "";
-                const soundId = soundIdRaw as number | undefined;
-                if (!soundName || !(soundId > 0)) continue;
+                if (!soundName || typeof soundIdRaw !== "number" || soundIdRaw <= 0) continue;
+                const soundId = soundIdRaw;
                 soundPairCount++;
                 if (!this.soundIdByName.has(soundName)) {
                     this.soundIdByName.set(soundName, soundId);

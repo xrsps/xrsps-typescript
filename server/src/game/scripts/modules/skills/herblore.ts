@@ -1,5 +1,6 @@
 import { SkillId } from "../../../../../../src/rs/skill/skills";
 import type { PlayerState } from "../../../player";
+import { logger } from "../../../../utils/logger";
 import { type ScriptModule } from "../../types";
 
 // OSRS-like herblore data sourced from the Elvarg references included in this repo.

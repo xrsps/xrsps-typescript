@@ -623,8 +623,8 @@ export class DoorStateManager {
             ? this.getOpenedTilePosition(x, y, rotation)
             : trackedOpen
             ? {
-                  x: trackedOpen.entry.x,
-                  y: trackedOpen.entry.y,
+                  x: trackedOpen.entry.closedX,
+                  y: trackedOpen.entry.closedY,
               }
             : this.getClosedTilePositionFromOpened(x, y, rotation);
         const newKey = this.makeKey(newTile.x, newTile.y, level);
@@ -1369,7 +1369,7 @@ export class DoorStateManager {
 
     private getOpenedTileFromTrackedEntry(entry: OpenDoorEntry): { x: number; y: number } {
         const originalRotation = (entry.rotation - 1 + 4) & 0x3;
-        return this.getOpenedTilePosition(entry.x, entry.y, originalRotation);
+        return this.getOpenedTilePosition(entry.closedX, entry.closedY, originalRotation);
     }
 
     private findTrackedOpenDoorEntry(

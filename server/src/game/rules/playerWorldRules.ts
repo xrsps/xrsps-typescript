@@ -6,7 +6,7 @@ import {
 
 export interface PlayerWorldRulesState {
     getVarpValue: (id: number) => number;
-    getVarbitValue: (id: number) => number;
+    getVarbitValue?: (id: number) => number;
 }
 
 export interface PlayerMovementCapabilities {
@@ -15,7 +15,7 @@ export interface PlayerMovementCapabilities {
 
 export function getActiveLeagueType(player: PlayerWorldRulesState | undefined): number {
     if (!player) return 0;
-    return player.getVarbitValue(VARBIT_LEAGUE_TYPE) | 0;
+    return player.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
 }
 
 export function isLeagueWorld(player: PlayerWorldRulesState | undefined): boolean {

@@ -9,7 +9,6 @@ export {
     DeathType,
     DEATH_ANIMATION_ID,
     DEATH_ANIMATION_TICKS,
-    DEATH_SOUND_ID,
     DEFAULT_RESPAWN_LOCATIONS,
     type DeathContext,
     type DeathHookResult,

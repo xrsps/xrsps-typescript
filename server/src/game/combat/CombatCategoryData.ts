@@ -1,4 +1,4 @@
-import type { DbRepository } from "../../../src/rs/config/db/DbRepository";
+import type { DbRepository } from "../../../../src/rs/config/db/DbRepository";
 import { AttackType } from "./AttackType";
 
 const COMBAT_DB_TABLE_ID = 78;
@@ -73,17 +73,24 @@ export class CombatCategoryData {
                 const idColumn = row.columns.get(0);
                 const buttonsColumn = row.columns.get(1);
                 if (!idColumn || !buttonsColumn) continue;
-                const categoryId = idColumn.values?.[0] as number | undefined;
-                if (!Number.isFinite(categoryId)) continue;
+                const categoryIdValue = idColumn.values?.[0];
+                if (typeof categoryIdValue !== "number" || !Number.isFinite(categoryIdValue)) {
+                    continue;
+                }
+                const categoryId = categoryIdValue;
                 const stride = buttonsColumn.types.length;
                 if (stride < 4) continue;
                 const slots: AttackType[] = [];
                 const meleeIdx: Array<number | undefined> = [];
                 for (let idx = 0; idx < buttonsColumn.values.length; idx += stride) {
-                    const slot = buttonsColumn.values[idx] as number | undefined;
+                    const slotValue = buttonsColumn.values[idx];
                     const label = String(buttonsColumn.values[idx + 1] ?? "");
                     const tooltip = String(buttonsColumn.values[idx + 2] ?? "");
-                    if (!Number.isFinite(slot)) continue;
+                    const slot =
+                        typeof slotValue === "number" && Number.isInteger(slotValue)
+                            ? slotValue
+                            : undefined;
+                    if (slot === undefined) continue;
                     slots[slot] = parseTooltipForAttackType(tooltip);
                     meleeIdx[slot] = parseMeleeBonusIndex(label, tooltip);
                 }

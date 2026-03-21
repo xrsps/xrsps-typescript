@@ -121,7 +121,16 @@ export function getProjectileParams(
 }
 
 /** Target object that can receive projectile defaults. */
-type ProjectileTarget = Partial<ProjectileParams>;
+type ProjectileAliasTarget = {
+    projectileStartHeight?: number;
+    projectileEndHeight?: number;
+    projectileSlope?: number;
+    projectileStartDelay?: number;
+    projectileTravelTime?: number;
+    projectileSteepness?: number;
+};
+
+type ProjectileTarget = Partial<ProjectileParams> | ProjectileAliasTarget;
 
 export function applyProjectileDefaults<T extends ProjectileTarget>(
     projectileId: number | undefined,
@@ -130,31 +139,71 @@ export function applyProjectileDefaults<T extends ProjectileTarget>(
     if (projectileId === undefined) return target;
     const params = getProjectileParams(projectileId);
     if (!params) return target;
-    if (target.startHeight === undefined) target.startHeight = params.startHeight;
-    if (target.endHeight === undefined) target.endHeight = params.endHeight;
-    if (target.slope === undefined) target.slope = params.slope;
-    if (target.steepness === undefined) target.steepness = params.steepness;
-    if (target.startDelay === undefined && params.startDelay !== undefined) {
-        target.startDelay = params.startDelay;
+    if ("startHeight" in target || !("projectileStartHeight" in target)) {
+        const standardTarget = target as Partial<ProjectileParams>;
+        if (standardTarget.startHeight === undefined) {
+            standardTarget.startHeight = params.startHeight;
+        }
+        if (standardTarget.endHeight === undefined) {
+            standardTarget.endHeight = params.endHeight;
+        }
+        if (standardTarget.slope === undefined) {
+            standardTarget.slope = params.slope;
+        }
+        if (standardTarget.steepness === undefined) {
+            standardTarget.steepness = params.steepness;
+        }
+        if (standardTarget.startDelay === undefined && params.startDelay !== undefined) {
+            standardTarget.startDelay = params.startDelay;
+        }
+        if (standardTarget.travelTime === undefined) {
+            standardTarget.travelTime = params.travelTime;
+        }
+        if (standardTarget.delayFrames === undefined && params.delayFrames !== undefined) {
+            standardTarget.delayFrames = params.delayFrames;
+        }
+        if (standardTarget.lifeModel === undefined && params.lifeModel !== undefined) {
+            standardTarget.lifeModel = params.lifeModel;
+        }
+        if (
+            standardTarget.sourceHeightOffset === undefined &&
+            params.sourceHeightOffset !== undefined
+        ) {
+            standardTarget.sourceHeightOffset = params.sourceHeightOffset;
+        }
+        if (
+            standardTarget.targetHeightOffset === undefined &&
+            params.targetHeightOffset !== undefined
+        ) {
+            standardTarget.targetHeightOffset = params.targetHeightOffset;
+        }
+        if (standardTarget.travelFrames === undefined && params.travelFrames !== undefined) {
+            standardTarget.travelFrames = params.travelFrames;
+        }
+        if (standardTarget.ticksPerTile === undefined && params.ticksPerTile !== undefined) {
+            standardTarget.ticksPerTile = params.ticksPerTile;
+        }
+        return target;
     }
-    if (target.travelTime === undefined) target.travelTime = params.travelTime;
-    if (target.delayFrames === undefined && params.delayFrames !== undefined) {
-        target.delayFrames = params.delayFrames;
+
+    const aliasTarget = target as ProjectileAliasTarget;
+    if (aliasTarget.projectileStartHeight === undefined) {
+        aliasTarget.projectileStartHeight = params.startHeight;
     }
-    if (target.lifeModel === undefined && params.lifeModel !== undefined) {
-        target.lifeModel = params.lifeModel;
+    if (aliasTarget.projectileEndHeight === undefined) {
+        aliasTarget.projectileEndHeight = params.endHeight;
     }
-    if (target.sourceHeightOffset === undefined && params.sourceHeightOffset !== undefined) {
-        target.sourceHeightOffset = params.sourceHeightOffset;
+    if (aliasTarget.projectileSlope === undefined) {
+        aliasTarget.projectileSlope = params.slope;
     }
-    if (target.targetHeightOffset === undefined && params.targetHeightOffset !== undefined) {
-        target.targetHeightOffset = params.targetHeightOffset;
+    if (aliasTarget.projectileSteepness === undefined) {
+        aliasTarget.projectileSteepness = params.steepness;
     }
-    if (target.travelFrames === undefined && params.travelFrames !== undefined) {
-        target.travelFrames = params.travelFrames;
+    if (aliasTarget.projectileStartDelay === undefined && params.startDelay !== undefined) {
+        aliasTarget.projectileStartDelay = params.startDelay;
     }
-    if (target.ticksPerTile === undefined && params.ticksPerTile !== undefined) {
-        target.ticksPerTile = params.ticksPerTile;
+    if (aliasTarget.projectileTravelTime === undefined) {
+        aliasTarget.projectileTravelTime = params.travelTime;
     }
     return target;
 }

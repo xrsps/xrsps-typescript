@@ -58,8 +58,13 @@ function normalizeRawMonster(raw: RawMonsterEntry): ImportedMonsterDefinition | 
         .map((drop) => toEntry(drop))
         .filter((drop): drop is NpcDropEntryDefinition => drop !== undefined);
     if (entries.length === 0) return undefined;
-    const always = entries.filter((entry) => entry.rarity >= 1);
-    const main = entries.filter((entry) => entry.rarity > 0 && entry.rarity < 1);
+    const hasNumericRarity = (
+        entry: NpcDropEntryDefinition,
+    ): entry is NpcDropEntryDefinition & { rarity: number } => typeof entry.rarity === "number";
+    const always = entries.filter((entry) => hasNumericRarity(entry) && entry.rarity >= 1);
+    const main = entries.filter(
+        (entry) => hasNumericRarity(entry) && entry.rarity > 0 && entry.rarity < 1,
+    );
     return {
         name: (raw.name ?? "").trim(),
         combatLevel: raw.combat_level,

@@ -424,6 +424,11 @@ export interface PlayerPersistentVars {
 }
 
 export class PlayerState extends Actor {
+    [key: symbol]: unknown;
+
+    __leagueRelicPendingSelection?: unknown;
+    __leagueMasteryPendingSelection?: unknown;
+
     override readonly isPlayer = true;
     widgets: PlayerWidgetManager;
     visibleNpcIds: Set<number> = new Set();
@@ -736,6 +741,7 @@ export class PlayerState extends Actor {
         if (!LockStateChecks.canMove(this._lockState)) return false;
         if (this.timers.has(FROZEN_TIMER)) return false;
         if (this.timers.has(STUN_TIMER)) return false;
+        if (!this.hasCompletedLeagueTutorial()) return false;
         return true;
     }
 
@@ -871,8 +877,6 @@ export class PlayerState extends Actor {
     private appearanceDirty: boolean = false;
     private combatStateDirty: boolean = false;
     public appearance: PlayerAppearance;
-    /** Animation set for player movement/idle states. */
-    public anim: Record<string, number> = {};
     /** Server-only onboarding progression (project-specific). */
     public accountStage: number = 1;
     /**
@@ -1136,6 +1140,12 @@ export class PlayerState extends Actor {
         return this.aggressionState?.aggressionExpired ?? false;
     }
 
+    private hasCompletedLeagueTutorial(): boolean {
+        const tutorialStep = this.getVarbitValue?.(10037) ?? 0;
+        const leagueType = this.getVarbitValue?.(10038) ?? 0;
+        return tutorialStep >= (leagueType === 3 ? 14 : 12);
+    }
+
     /**
      * Override teleport to reset aggression state.
      * OSRS: Teleporting to a new area resets the aggression tolerance timer.
@@ -1149,37 +1159,11 @@ export class PlayerState extends Actor {
     }
 
     /**
-     * Check if the player is allowed to move.
-     * Returns false during tutorial, character creation, or other blocking states.
-     */
-    public canMove(): boolean {
-        // Block movement during the league tutorial
-        // Tutorial is complete when varbit reaches 12 (L5) or 14 (L3)
-        const tutorialStep = this.getVarbitValue?.(10037) ?? 0; // VARBIT_LEAGUE_TUTORIAL_COMPLETED
-        const leagueType = this.getVarbitValue?.(10038) ?? 0; // VARBIT_LEAGUE_TYPE
-        const tutorialCompleteStep = leagueType === 3 ? 14 : 12;
-        if (tutorialStep < tutorialCompleteStep) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
      * Check if player can interact with NPCs, objects, ground items, etc.
      * Blocked during the league tutorial until completion.
      */
     public canInteract(): boolean {
-        // Block interactions during the league tutorial
-        // Tutorial is complete when varbit reaches 12 (L5) or 14 (L3)
-        const tutorialStep = this.getVarbitValue?.(10037) ?? 0; // VARBIT_LEAGUE_TUTORIAL_COMPLETED
-        const leagueType = this.getVarbitValue?.(10038) ?? 0; // VARBIT_LEAGUE_TYPE
-        const tutorialCompleteStep = leagueType === 3 ? 14 : 12;
-        if (tutorialStep < tutorialCompleteStep) {
-            return false;
-        }
-
-        return true;
+        return this.hasCompletedLeagueTutorial();
     }
 
     public override setPath(steps: Tile[], run: boolean): void {
@@ -1915,7 +1899,7 @@ export class PlayerState extends Actor {
         for (const entry of bank) {
             // Count items AND placeholders (both keep tabs visible in OSRS)
             if (entry.itemId > 0 && !entry.filler) {
-                const tab = entry.tab;
+                const tab = entry.tab ?? 0;
                 if (tab >= 1 && tab <= 9 && tab > maxTab) {
                     maxTab = tab;
                 }
@@ -2005,7 +1989,7 @@ export class PlayerState extends Actor {
         const sizes = [0, 0, 0, 0, 0, 0, 0, 0, 0];
         for (const entry of bank) {
             if (entry.itemId > 0 && !entry.filler) {
-                const tab = entry.tab;
+                const tab = entry.tab ?? 0;
                 if (tab >= 1 && tab <= 9) {
                     sizes[tab - 1]++;
                 }

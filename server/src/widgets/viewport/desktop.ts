@@ -107,8 +107,6 @@ export function getDesktopInterfaces(
     // via script 1213. When bank/shop closes, tabs reappear because sidemodal is empty.
 
     for (const mapping of TAB_INTERFACE_MAPPINGS) {
-        if (mapping.groupId === -1) continue;
-
         // In tutorial mode, only include the Quest tab
         if (options?.tutorialMode && mapping.tabIndex !== QUEST_TAB_INDEX) {
             continue;
@@ -134,7 +132,6 @@ export function getRemainingTabInterfaces(displayMode: DisplayMode): InterfaceMo
     const interfaces: InterfaceMount[] = [];
 
     for (const mapping of TAB_INTERFACE_MAPPINGS) {
-        if (mapping.groupId === -1) continue;
         // Skip Quest tab - it's already open
         if (mapping.tabIndex === QUEST_TAB_INDEX) continue;
 

@@ -829,11 +829,11 @@ export class Cs2ModalManager {
             "__voteSiteNextVoteAt",
             "__voteNextVoteAt",
         ]);
-        if (!Number.isFinite(rawValue as number)) {
+        if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
             return 0;
         }
 
-        const value = rawValue > 0 ? Math.floor(rawValue as number) : 0;
+        const value = rawValue > 0 ? Math.floor(rawValue) : 0;
         if (value <= 0) return 0;
 
         // Epoch ms timestamp

@@ -542,10 +542,10 @@ export class InterfaceService {
 
         // Add varbits (include chatmodal_unclamp unless skipChatmodalUnclamp is true)
         // RSMod parity: itemMessageBox (sprite dialog) doesn't set this varbit
-        const varbits: Record<number, number> = {
-            ...(options?.skipChatmodalUnclamp ? {} : { [VARBIT_CHATMODAL_UNCLAMP]: 1 }),
-            ...(options?.varbits ?? {}),
-        };
+        const varbits: Record<number, number> = { ...(options?.varbits ?? {}) };
+        if (!options?.skipChatmodalUnclamp) {
+            varbits[VARBIT_CHATMODAL_UNCLAMP] = 1;
+        }
         player.widgets.open(interfaceId, {
             targetUid: chatboxTargetUid,
             type: 0,

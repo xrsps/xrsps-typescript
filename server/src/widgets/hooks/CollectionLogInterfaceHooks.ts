@@ -133,10 +133,13 @@ function initializeCollectionLog(player: PlayerState, services: CollectionLogOpe
         queueVarp: services.queueVarp,
         queueVarbit: services.queueVarbit,
         queueWidgetEvent: services.queueWidgetEvent,
+        queueNotification: () => {},
         queueChatMessage: () => {},
         sendCollectionLogSnapshot: () => {},
         getMainmodalUid: () => 0,
-        logger: services.logger,
+        logger: services.logger?.info
+            ? { info: (...args: unknown[]) => services.logger!.info!(...args) }
+            : undefined,
     });
 
     // Dynamic category rows are created by script 2731 under per-tab click layers.

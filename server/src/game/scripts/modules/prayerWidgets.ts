@@ -364,7 +364,7 @@ function handlePrayerOrbClick(
     player: any,
     services: Parameters<ScriptModule["register"]>[1],
 ): void {
-    const quick = Array.from(player.getQuickPrayers());
+    const quick = Array.from(player.getQuickPrayers() as Iterable<PrayerName>);
 
     if (option === "activate") {
         if (quick.length === 0) {
@@ -413,14 +413,14 @@ function handleQuickPrayerAction(
 ): void {
     const normalized = normalizeQuickOption(option);
     if (normalized === QUICK_ACTION_SET) {
-        const next = Array.from(player.getActivePrayers());
+        const next = Array.from(player.getActivePrayers() as Iterable<PrayerName>);
         player.setQuickPrayers(next);
         player.setQuickPrayersEnabled(false);
         services.queueCombatState?.(player);
         return;
     }
     if (normalized === QUICK_ACTION_TOGGLE) {
-        const quick = Array.from(player.getQuickPrayers());
+        const quick = Array.from(player.getQuickPrayers() as Iterable<PrayerName>);
         if (quick.length === 0) {
             player.setQuickPrayersEnabled(false);
             services.sendGameMessage(player, "You haven't selected any quick-prayers.");

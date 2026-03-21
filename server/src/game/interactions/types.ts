@@ -42,6 +42,7 @@ export interface NpcInteractPassiveState {
     lastRouteTick: number;
     lastNpcTileX: number;
     lastNpcTileY: number;
+    unreachableSinceTick?: number;
     completedAt?: number;
 }
 

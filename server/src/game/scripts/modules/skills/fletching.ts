@@ -190,18 +190,19 @@ export const fletchingModule: ScriptModule = {
 
         const registerStringingHandler = (unstrungId: number) => {
             const recipe = getStringingRecipeByUnstrungId(unstrungId);
-            if (!recipe || !recipe.secondaryItemId) return;
+            const secondaryItemId = recipe?.secondaryItemId;
+            if (!recipe || !secondaryItemId) return;
             const handler = ({ player, source, target, tick }: any) => {
                 const sourceIsUnstrung = source.itemId === unstrungId;
                 const targetIsUnstrung = target.itemId === unstrungId;
                 if (!sourceIsUnstrung && !targetIsUnstrung) return;
                 const other = sourceIsUnstrung ? target : source;
-                if (other.itemId !== recipe.secondaryItemId) {
+                if (other.itemId !== secondaryItemId) {
                     return;
                 }
                 const inventory = getInventoryItems(player);
                 const availableUnstrung = countItemQuantity(inventory, unstrungId);
-                const availableStrings = countItemQuantity(inventory, recipe.secondaryItemId);
+                const availableStrings = countItemQuantity(inventory, secondaryItemId);
                 if (availableUnstrung <= 0) {
                     services.sendGameMessage(player, "You need unstrung bows in your inventory.");
                     return;
@@ -267,12 +268,13 @@ export const fletchingModule: ScriptModule = {
                     services.sendGameMessage(player, "You're too busy to fletch right now.");
                 }
             };
-            registry.registerItemOnItem(unstrungId, recipe.secondaryItemId, handler);
-            registry.registerItemOnItem(recipe.secondaryItemId, unstrungId, handler);
+            registry.registerItemOnItem(unstrungId, secondaryItemId, handler);
+            registry.registerItemOnItem(secondaryItemId, unstrungId, handler);
         };
 
         const registerCombineHandler = (recipe: FletchingProductDefinition) => {
-            if (!recipe.secondaryItemId) return;
+            const secondaryId = recipe.secondaryItemId;
+            if (!secondaryId) return;
             const handler = ({ player, source, target, tick }: any) => {
                 const sourceIsPrimary = source.itemId === recipe.inputItemId;
                 const targetIsPrimary = target.itemId === recipe.inputItemId;
@@ -280,7 +282,7 @@ export const fletchingModule: ScriptModule = {
                     return;
                 }
                 const other = sourceIsPrimary ? target : source;
-                if (other.itemId !== recipe.secondaryItemId) {
+                if (other.itemId !== secondaryId) {
                     return;
                 }
                 const inventory = getInventoryItems(player);
@@ -290,7 +292,7 @@ export const fletchingModule: ScriptModule = {
                     services.sendGameMessage(player, `You need ${label} in your inventory.`);
                     return;
                 }
-                const secondaryCount = countItemQuantity(inventory, recipe.secondaryItemId);
+                const secondaryCount = countItemQuantity(inventory, secondaryId);
                 const secondaryIsTool = recipe.secondaryIsTool === true;
                 if (secondaryCount <= 0) {
                     const label = recipe.secondaryLabel ?? "the other ingredient";
@@ -383,8 +385,10 @@ export const fletchingModule: ScriptModule = {
                     services.sendGameMessage(player, "You're too busy to fletch right now.");
                 }
             };
-            registry.registerItemOnItem(recipe.inputItemId, recipe.secondaryItemId, handler);
-            registry.registerItemOnItem(recipe.secondaryItemId, recipe.inputItemId, handler);
+            if (typeof secondaryId === "number" && secondaryId > 0) {
+                registry.registerItemOnItem(recipe.inputItemId, secondaryId, handler);
+                registry.registerItemOnItem(secondaryId, recipe.inputItemId, handler);
+            }
         };
 
         for (const logId of FLETCHING_LOG_IDS) {

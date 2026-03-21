@@ -716,16 +716,23 @@ export class CombatActionHandler {
             player.queueOneShotSeq(attackSeq, 0);
         }
         const specialSpotId = specialVisual?.spotId;
-        if (specialActivated && Number.isFinite(specialSpotId) && specialSpotId > 0) {
+        if (
+            specialActivated &&
+            typeof specialSpotId === "number" &&
+            Number.isFinite(specialSpotId) &&
+            specialSpotId > 0
+        ) {
             const scheduleTick = Number.isFinite(tick)
                 ? (tick as number)
                 : this.services.getCurrentTick();
+            const spotHeight =
+                typeof specialVisual?.spotHeight === "number" ? specialVisual.spotHeight : 0;
             this.services.enqueueSpotAnimation({
                 tick: scheduleTick,
                 playerId: player.id,
                 spotId: specialSpotId,
                 delay: 0,
-                height: specialVisual.spotHeight,
+                height: spotHeight,
             });
         }
 
@@ -1140,14 +1147,16 @@ export class CombatActionHandler {
         // Magic-specific effects
         if (isMagicAttack) {
             const resolvedSpellId =
-                Number.isFinite(explicitSpellIdRaw) && explicitSpellIdRaw > 0
+                typeof explicitSpellIdRaw === "number" &&
+                Number.isFinite(explicitSpellIdRaw) &&
+                explicitSpellIdRaw > 0
                     ? explicitSpellIdRaw
                     : player.combatSpellId ?? -1;
             this.handleMagicPvpEffects(
                 player,
                 target,
                 targetId,
-                landed,
+                didLand,
                 hitsplatTick,
                 effects,
                 resolvedSpellId,
@@ -1300,7 +1309,9 @@ export class CombatActionHandler {
         // Magic spell effects
         if (isMagicAttack) {
             const resolvedSpellId =
-                Number.isFinite(explicitSpellIdRaw) && explicitSpellIdRaw > 0
+                typeof explicitSpellIdRaw === "number" &&
+                Number.isFinite(explicitSpellIdRaw) &&
+                explicitSpellIdRaw > 0
                     ? explicitSpellIdRaw
                     : player.combatSpellId ?? -1;
             this.handleMagicNpcEffects(
@@ -1342,7 +1353,7 @@ export class CombatActionHandler {
             }
         } else {
             // Combat sounds (includes ranged impact sound for projectile attacks)
-            this.playCombatSounds(player, npc, landed, style, attackTypeHint);
+            this.playCombatSounds(player, npc, hitLanded, style, attackTypeHint);
         }
 
         // Handle NPC death
@@ -1942,7 +1953,7 @@ export class CombatActionHandler {
 
         if (!ammoEffect) return;
 
-        if ((ammoEffect.graphicId ?? 0) > 0) {
+        if (typeof ammoEffect.graphicId === "number" && ammoEffect.graphicId > 0) {
             this.services.enqueueSpotAnimation({
                 tick: hitsplatTick,
                 npcId: npc.id,
@@ -1982,19 +1993,29 @@ export class CombatActionHandler {
 
         // Freeze
         const freezeTicks = se.freezeTicks;
-        if (Number.isFinite(freezeTicks) && freezeTicks > 0) {
+        if (typeof freezeTicks === "number" && Number.isFinite(freezeTicks) && freezeTicks > 0) {
             npc.applyFreeze(freezeTicks, tick);
         }
 
         // Heal on damage
         const healFraction = se.healFraction;
-        if (dealt > 0 && Number.isFinite(healFraction) && healFraction > 0) {
+        if (
+            dealt > 0 &&
+            typeof healFraction === "number" &&
+            Number.isFinite(healFraction) &&
+            healFraction > 0
+        ) {
             player.applyHitpointsHeal(Math.floor(dealt * healFraction));
         }
 
         // Prayer restore
         const prayerFraction = se.prayerFraction;
-        if (dealt > 0 && Number.isFinite(prayerFraction) && prayerFraction > 0) {
+        if (
+            dealt > 0 &&
+            typeof prayerFraction === "number" &&
+            Number.isFinite(prayerFraction) &&
+            prayerFraction > 0
+        ) {
             const restore = Math.floor(dealt * prayerFraction);
             if (restore > 0) {
                 const current = player.getPrayerLevel();

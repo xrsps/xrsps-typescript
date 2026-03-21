@@ -1258,7 +1258,10 @@ export class SkillActionHandler {
                 nextEchoMinedCount = hasEchoPickaxePerk ? echoMinedCount + 1 : 0;
                 const canDeplete = !hasEchoPickaxePerk || nextEchoMinedCount >= 4;
                 if (canDeplete) {
-                    const depletedLocId = actionDepletedLocId > 0 ? actionDepletedLocId : undefined;
+                    const depletedLocId =
+                        typeof actionDepletedLocId === "number" && actionDepletedLocId > 0
+                            ? actionDepletedLocId
+                            : undefined;
 
                     this.services.markMiningDepleted(
                         {
@@ -2009,7 +2012,6 @@ export class SkillActionHandler {
                     data: {
                         logItemId: logDef.logId,
                         logLevel: logDef.level,
-                        xp: logDef.xp,
                         tile: { ...tile },
                         level: plane,
                         slot: slotIndex,

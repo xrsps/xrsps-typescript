@@ -132,14 +132,14 @@ export class EquipmentHandler {
             slotCount: EQUIP_SLOT_COUNT,
         });
 
-        if (result) {
+        if (result.ok) {
             player.markInventoryDirty();
             player.markEquipmentDirty();
             this.services.refreshCombatWeaponCategory(player);
             this.services.refreshAppearanceKits(player);
         }
 
-        return result;
+        return result.ok;
     }
 
     /**

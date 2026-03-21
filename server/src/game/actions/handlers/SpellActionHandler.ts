@@ -243,7 +243,7 @@ export interface SpellActionServices {
         weaponItemId: number,
         autoRetaliate: boolean,
         styleSlot: number,
-        activePrayers: number[],
+        activePrayers: string[],
         specialPercent?: number,
     ): void;
     pickAttackSequence(player: PlayerState): number;

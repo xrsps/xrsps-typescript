@@ -78,7 +78,7 @@ export class ScriptRuntime {
         this.logger.info(`[script] loaded module: ${module.id}`);
     }
 
-    queueNpcInteraction(event: NpcInteractionEvent): boolean {
+    queueNpcInteraction(event: Omit<NpcInteractionEvent, "services">): boolean {
         const scriptEvent: NpcInteractionEvent = { ...event, services: this.services };
         const npcId = scriptEvent.npc.id;
         const npcTypeId = scriptEvent.npc.typeId;
@@ -117,7 +117,7 @@ export class ScriptRuntime {
         return true;
     }
 
-    queueLocInteraction(event: LocInteractionEvent): boolean {
+    queueLocInteraction(event: Omit<LocInteractionEvent, "services">): boolean {
         const scriptEvent: LocInteractionEvent = { ...event, services: this.services };
         const locId = scriptEvent.locId;
         const tick = scriptEvent.tick;
@@ -137,7 +137,7 @@ export class ScriptRuntime {
         return true;
     }
 
-    runLocInteractionNow(event: LocInteractionEvent): boolean {
+    runLocInteractionNow(event: Omit<LocInteractionEvent, "services">): boolean {
         const scriptEvent: LocInteractionEvent = { ...event, services: this.services };
         const locId = scriptEvent.locId;
         const handler = this.registry.findLocInteraction(locId, scriptEvent.action);
@@ -174,7 +174,7 @@ export class ScriptRuntime {
         return true;
     }
 
-    queueItemOnItem(event: ItemOnItemEvent): boolean {
+    queueItemOnItem(event: Omit<ItemOnItemEvent, "services">): boolean {
         const scriptEvent: ItemOnItemEvent = { ...event, services: this.services };
         const sourceItemId = scriptEvent.source.itemId;
         const targetItemId = scriptEvent.target.itemId;
@@ -204,7 +204,7 @@ export class ScriptRuntime {
         return true;
     }
 
-    queueItemOnLoc(event: ItemOnLocEvent): boolean {
+    queueItemOnLoc(event: Omit<ItemOnLocEvent, "services">): boolean {
         const scriptEvent: ItemOnLocEvent = { ...event, services: this.services };
         const sourceItemId = scriptEvent.source.itemId;
         const locId = scriptEvent.target.locId;
@@ -265,7 +265,7 @@ export class ScriptRuntime {
         return true;
     }
 
-    queueEquipmentAction(event: EquipmentActionEvent): boolean {
+    queueEquipmentAction(event: Omit<EquipmentActionEvent, "services">): boolean {
         const normalizedOption = (event.option || "").trim().toLowerCase();
         const scriptEvent: EquipmentActionEvent = {
             tick: event.tick,

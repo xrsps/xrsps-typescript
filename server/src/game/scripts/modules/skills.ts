@@ -84,7 +84,7 @@ const enqueueSkillAction = (
         sendMessage(player, ACTION_FAILURE_MESSAGES[kind]);
         return false;
     }
-    const resolvedTick = Number.isFinite(tick) ? (tick as number) : undefined;
+    const resolvedTick = Number.isFinite(tick) ? (tick as number) : 0;
     let result: ReturnType<RequestActionFn> | undefined;
 
     if (kind === "cook") {
