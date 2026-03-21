@@ -14,6 +14,12 @@ import type {
 
 const ITEM_NAME_ALIASES = new Map<string, string>([["coins", "Coins"]]);
 
+/**
+ * Explicit name→ID overrides for items whose canonical name collides with
+ * non-stackable quest variants (e.g. "Coins" = 617 vs 995).
+ */
+const ITEM_NAME_ID_OVERRIDES = new Map<string, number>([["coins", 995]]);
+
 let cachedItemIdsByName: Map<string, number> | undefined;
 
 function getItemIdsByName(): Map<string, number> {
@@ -42,7 +48,11 @@ export function resolveItemId(def: NpcDropEntryDefinition): number | undefined {
     if (def.itemId !== undefined && def.itemId > 0) return def.itemId;
     const rawName = String(def.itemName ?? "").trim();
     if (!rawName) return undefined;
-    const aliasName = ITEM_NAME_ALIASES.get(normalizeName(rawName)) ?? rawName;
+    const normalized = normalizeName(rawName);
+    // Check explicit ID overrides first (handles ambiguous names like "Coins")
+    const overrideId = ITEM_NAME_ID_OVERRIDES.get(normalized);
+    if (overrideId !== undefined) return overrideId;
+    const aliasName = ITEM_NAME_ALIASES.get(normalized) ?? rawName;
     return getItemIdsByName().get(normalizeName(aliasName));
 }
 
