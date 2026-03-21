@@ -3945,7 +3945,7 @@ export class WSServer {
                 const seqData = player.popPendingSeq() as
                     | { seqId: number; delay: number }
                     | undefined;
-                if (seqData && seqData.seqId >= 0) {
+                if (seqData && seqData.seqId >= -1) {
                     frame.pendingSequences.set(player.id, {
                         seqId: seqData.seqId,
                         delay: Math.max(0, seqData.delay),
