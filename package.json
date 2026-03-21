@@ -38,7 +38,7 @@
     "xxhash-wasm": "^1.0.2"
   },
   "scripts": {
-    "start": "craco start",
+    "start": "node scripts/start-client.js",
     "build": "craco build",
     "lint": "prettier --write \"./**/*.{js,ts,jsx,tsx,css,md}\"",
     "prepare": "husky install",

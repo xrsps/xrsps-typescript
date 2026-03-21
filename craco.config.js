@@ -1,7 +1,12 @@
 const { when, whenDev, addBeforeLoader, loaderByName } = require("@craco/craco");
+const fs = require("fs");
 const path = require("path");
 
 const JsonMinimizerPlugin = require("json-minimizer-webpack-plugin");
+const evalSourceMapMiddleware = require("react-dev-utils/evalSourceMapMiddleware");
+const noopServiceWorkerMiddleware = require("react-dev-utils/noopServiceWorkerMiddleware");
+const redirectServedPath = require("react-dev-utils/redirectServedPathMiddleware");
+const paths = require("react-scripts/config/paths");
 
 const express = require("express");
 
@@ -70,33 +75,49 @@ module.exports = {
             return webpackConfig;
         },
     },
-    devServer: {
-        hot: false,
-        liveReload: false,
-        headers: {
-            "Cross-Origin-Opener-Policy": "same-origin",
-            "Cross-Origin-Embedder-Policy": "require-corp",
-        },
-        client: {
-            overlay: {
-                errors: true,
-                warnings: false,
-                runtimeErrors: (error) => {
-                    if (error instanceof DOMException && error.name === "AbortError") {
-                        return false;
-                    }
-                    return true;
+    devServer: (devServerConfig) => {
+        delete devServerConfig.onBeforeSetupMiddleware;
+        delete devServerConfig.onAfterSetupMiddleware;
+
+        return {
+            ...devServerConfig,
+            hot: false,
+            liveReload: false,
+            headers: {
+                "Cross-Origin-Opener-Policy": "same-origin",
+                "Cross-Origin-Embedder-Policy": "require-corp",
+            },
+            client: {
+                ...devServerConfig.client,
+                overlay: {
+                    ...devServerConfig.client?.overlay,
+                    errors: true,
+                    warnings: false,
+                    runtimeErrors: (error) => {
+                        if (error instanceof DOMException && error.name === "AbortError") {
+                            return false;
+                        }
+                        return true;
+                    },
                 },
             },
-        },
-        setupMiddlewares: (middlewares, devServer) => {
-            if (!devServer) {
-                throw new Error("webpack-dev-server is not defined");
-            }
+            setupMiddlewares: (middlewares, devServer) => {
+                if (!devServer) {
+                    throw new Error("webpack-dev-server is not defined");
+                }
 
-            devServer.app.use("/caches", express.static("caches"));
+                devServer.app.use(evalSourceMapMiddleware(devServer));
 
-            return middlewares;
-        },
+                if (fs.existsSync(paths.proxySetup)) {
+                    require(paths.proxySetup)(devServer.app);
+                }
+
+                devServer.app.use(redirectServedPath(paths.publicUrlOrPath));
+                devServer.app.use(noopServiceWorkerMiddleware(paths.publicUrlOrPath));
+                devServer.app.use("/caches", express.static("caches"));
+
+                return middlewares;
+            },
+        };
     },
 };
