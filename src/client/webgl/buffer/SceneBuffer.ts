@@ -18,7 +18,6 @@ export enum ContourGroundType {
     CENTER_TILE = 0,
     VERTEX = 1,
     NONE = 2,
-    TILT = 3,
 }
 
 export type ModelInfo = {
