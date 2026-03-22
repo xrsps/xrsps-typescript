@@ -531,14 +531,16 @@ export function drawTextGL(
     // OSRS parity: text alignment can overflow widget width (used by runmode 116:30)
     // so we expand the cached texture bounds instead of clipping to widget width.
     let txRaw = 0;
-    if (xAlign === 1) txRaw = Math.round((logicalW - totalWidth) / 2);
+    // OSRS parity: Java integer division truncates toward zero.
+    if (xAlign === 1) txRaw = ((logicalW - totalWidth) / 2) | 0;
     else if (xAlign === 2) txRaw = logicalW - totalWidth;
+    // OSRS parity: AbstractFont.drawLines vertical alignment (single-line case).
+    // Java integer division truncates toward zero — replicate with `| 0`.
     const ascent = (font.maxAscent || font.ascent || 0) | 0;
     const descent = (font.maxDescent || 0) | 0;
-    const total = ascent + descent;
     let baselineY = ascent;
-    if (yAlign === 1) baselineY = Math.round((logicalH - total) / 2 + ascent) - 1;
-    else if (yAlign === 2) baselineY = Math.max(0, logicalH - descent);
+    if (yAlign === 1) baselineY = ascent + (((logicalH - ascent - descent) / 2) | 0);
+    else if (yAlign === 2) baselineY = logicalH - descent;
     drawBitmapSegmentsGL(
         glr,
         font,
@@ -567,7 +569,9 @@ export function wrapTextToWidth(
     for (const para of paragraphs) {
         const p = para;
         const words = p.split(/\s+/);
-        if (words.length === 1 && words[0] === "") {
+        // OSRS parity: whitespace-only paragraphs (e.g. from "Public<br> ")
+        // must still produce a line so the line count is preserved for centering.
+        if (!p.trim()) {
             out.push("");
             continue;
         }
@@ -689,15 +693,22 @@ export function drawWrappedTextGL(
     for (let i = 0; i < lines.length; i++) {
         const tw = lineWidths[i] ?? 0;
         let txRaw = 0;
-        if (xAlign === 1) txRaw = Math.round((logicalW - tw) / 2);
+        // OSRS parity: Java integer division truncates toward zero.
+        if (xAlign === 1) txRaw = ((logicalW - tw) / 2) | 0;
         else if (xAlign === 2) txRaw = logicalW - tw;
         lineOffsetsRaw[i] = txRaw;
     }
+    // OSRS parity: AbstractFont.drawLines vertical alignment (multiline).
+    // Java integer division truncates toward zero — replicate with `| 0`.
     const ascent = (font.maxAscent || font.ascent || 0) | 0;
-    const totalH = Math.max(resolvedLineHeight, lines.length * resolvedLineHeight);
+    const descent = (font.maxDescent ?? 0) | 0;
     let baseY0 = ascent;
-    if (yAlign === 1) baseY0 = Math.round((logicalH - totalH) / 2) + ascent - 1;
-    else if (yAlign === 2) baseY0 = Math.max(0, logicalH - totalH) + ascent - 1;
+    if (yAlign === 1) {
+        const space = logicalH - ascent - descent - resolvedLineHeight * (lines.length - 1);
+        baseY0 = ascent + ((space / 2) | 0);
+    } else if (yAlign === 2) {
+        baseY0 = logicalH - descent - resolvedLineHeight * (lines.length - 1);
+    }
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const by = baseY0 + i * resolvedLineHeight;
@@ -782,12 +793,12 @@ export function drawRichTextGL(
         parts.push({ text, color: defaultColor });
     }
 
+    // OSRS parity: AbstractFont.drawLines vertical alignment (single-line case).
     const ascent = (font.maxAscent || font.ascent || 0) | 0;
     const descent = (font.maxDescent || 0) | 0;
-    const total = ascent + descent;
     let by = ascent;
-    if (yAlign === 1) by = Math.round((logicalH - total) / 2 + ascent) - 1;
-    else if (yAlign === 2) by = Math.max(0, logicalH - descent);
+    if (yAlign === 1) by = ascent + (((logicalH - ascent - descent) / 2) | 0);
+    else if (yAlign === 2) by = logicalH - descent;
 
     let totalWidth = 0;
     for (const p of parts) {
@@ -795,7 +806,7 @@ export function drawRichTextGL(
     }
 
     let cx = 0;
-    if (xAlign === 1) cx = Math.round((logicalW - totalWidth) / 2);
+    if (xAlign === 1) cx = ((logicalW - totalWidth) / 2) | 0;
     else if (xAlign === 2) cx = logicalW - totalWidth;
 
     for (const p of parts) {
