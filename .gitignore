@@ -49,7 +49,6 @@ references/deobfuscator/deob-report.json
 references/deobfuscator/cache
 public/map-images
 .idea
-yarn.lock
 references
 mcp
 AGENTS.md
