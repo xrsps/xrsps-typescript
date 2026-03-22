@@ -697,16 +697,27 @@ export function registerClientOps(handlers: HandlerMap): void {
     });
 
     // === Mouse position ===
+    // OSRS parity: returns mouse position in widget-logical coordinates.
+    // InputManager coordinates are in canvas-buffer space; divide by the UI
+    // render scale so CS2 scripts see positions matching the widget layout.
     handlers.set(Opcodes.MOUSE_GETX, (ctx) => {
         const osrsClient = (ctx.widgetManager as any)?.osrsClient;
         const mouseX = osrsClient?.inputManager?.mouseX;
-        ctx.pushInt(typeof mouseX === "number" ? mouseX | 0 : -1);
+        if (typeof mouseX !== "number") { ctx.pushInt(-1); return; }
+        const layoutW = ctx.widgetManager?.canvasWidth ?? 0;
+        const bufW: number = osrsClient?.renderer?.canvas?.width ?? layoutW;
+        const scale = layoutW > 0 && bufW > 0 ? bufW / layoutW : 1;
+        ctx.pushInt(scale > 1 ? Math.round(mouseX / scale) : mouseX | 0);
     });
 
     handlers.set(Opcodes.MOUSE_GETY, (ctx) => {
         const osrsClient = (ctx.widgetManager as any)?.osrsClient;
         const mouseY = osrsClient?.inputManager?.mouseY;
-        ctx.pushInt(typeof mouseY === "number" ? mouseY | 0 : -1);
+        if (typeof mouseY !== "number") { ctx.pushInt(-1); return; }
+        const layoutH = ctx.widgetManager?.canvasHeight ?? 0;
+        const bufH: number = osrsClient?.renderer?.canvas?.height ?? layoutH;
+        const scale = layoutH > 0 && bufH > 0 ? bufH / layoutH : 1;
+        ctx.pushInt(scale > 1 ? Math.round(mouseY / scale) : mouseY | 0);
     });
 
     // === Database operations (enhanced client - stubs for tooltip system) ===

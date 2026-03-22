@@ -1954,12 +1954,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             clickedWidgetUid !== null && ((w.uid as number) | 0) === clickedWidgetUid;
         const rawVisualX = isDragActive ? (w as any)._dragVisualX ?? w.x : w.x;
         const rawVisualY = isDragActive ? (w as any)._dragVisualY ?? w.y : w.y;
-        const visualX = isDragActive
-            ? Math.round((Number(rawVisualX) || 0) / rootScaleX)
-            : rawVisualX | 0;
-        const visualY = isDragActive
-            ? Math.round((Number(rawVisualY) || 0) / rootScaleY)
-            : rawVisualY | 0;
+        const visualX = (Number(rawVisualX) || 0) | 0;
+        const visualY = (Number(rawVisualY) || 0) | 0;
         const logicalX = ox + visualX;
         const logicalY = oy + visualY;
         const logicalWidth = Math.max(1, w.width | 0);
@@ -3716,8 +3712,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             // Temporarily set visual position to absolute coords and use ox=0
             const origVisualX = (d.w as any)._dragVisualX;
             const origVisualY = (d.w as any)._dragVisualY;
-            (d.w as any)._dragVisualX = ((d.w as any)._dragAbsX ?? 0) - rootOffsetX;
-            (d.w as any)._dragVisualY = ((d.w as any)._dragAbsY ?? 0) - rootOffsetY;
+            (d.w as any)._dragVisualX = (((d.w as any)._dragAbsX ?? 0) - rootOffsetX) / rootScaleX | 0;
+            (d.w as any)._dragVisualY = (((d.w as any)._dragAbsY ?? 0) - rootOffsetY) / rootScaleY | 0;
             drawNode(d.w, 0, 0, d.parentVisible, d.inSelected, fullClip, false);
             // Restore original values for other code that might use them
             (d.w as any)._dragVisualX = origVisualX;

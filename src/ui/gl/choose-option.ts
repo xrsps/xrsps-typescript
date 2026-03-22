@@ -3,6 +3,7 @@ import { BitmapFont } from "../../rs/font/BitmapFont";
 import { FONT_BOLD_12 } from "../fonts";
 import type { MenuClickContext } from "../menu/MenuEngine";
 import { MenuState } from "../menu/MenuState";
+import { getUiScale } from "../UiScale";
 import { drawTextGL as UI_drawTextGL } from "../widgets/components/TextRenderer";
 import { GLRenderer } from "./renderer";
 
@@ -135,15 +136,23 @@ function getMenuAnchorPoint(
     return scaleInputPoint(canvas, (menu?.x ?? 0) | 0, (menu?.y ?? 0) | 0);
 }
 
+/** Scale a logical pixel constant by the UI scale factor, rounding to at least 1. */
+function sp(logicalPx: number, scale: number): number {
+    return Math.max(1, Math.round(logicalPx * scale));
+}
+
 export function getChooseOptionMenuRect(
     fontLoader: FontLoader,
     menu: ChooseOptionMenuLike | undefined,
     hostW: number,
     hostH: number,
+    uiScale: number = 1,
 ): { x: number; y: number; w: number; h: number } | undefined {
     if (!(menu && menu.open && Array.isArray(menu.entries) && menu.entries.length > 0)) {
         return undefined;
     }
+
+    const s = uiScale > 0 ? uiScale : 1;
 
     let contentW = measureMenuText(fontLoader, "Choose Option", FONT_TITLE);
     for (const e of menu.entries) {
@@ -154,8 +163,8 @@ export function getChooseOptionMenuRect(
         if (w > contentW) contentW = w;
     }
 
-    const boxW = (contentW + MENU_WIDTH_PADDING_PX) | 0;
-    const boxH = ((menu.entries.length * MENU_ROW_HEIGHT_PX + MENU_HEIGHT_BASE_PX) | 0) as number;
+    const boxW = (sp(contentW, s) + sp(MENU_WIDTH_PADDING_PX, s)) | 0;
+    const boxH = ((menu.entries.length * sp(MENU_ROW_HEIGHT_PX, s) + sp(MENU_HEIGHT_BASE_PX, s)) | 0) as number;
 
     let left = ((menu.x | 0) - ((boxW / 2) | 0)) | 0;
     if (left + boxW > (hostW | 0)) left = (hostW | 0) - boxW;
@@ -303,6 +312,9 @@ export function drawChooseOptionMenu(
     const COL_TEXT_DEFAULT = 0xffffff;
     const COL_TEXT_HOVER = 0xffff00;
 
+    const cssW = canvas?.clientWidth || canvas?.offsetWidth || 0;
+    const cssH = canvas?.clientHeight || canvas?.offsetHeight || 0;
+    const s = getUiScale(cssW, cssH);
     const hostW = glr.width | 0;
     const hostH = glr.height | 0;
     const anchor = getMenuAnchorPoint(canvas, menu);
@@ -315,6 +327,7 @@ export function drawChooseOptionMenu(
         },
         hostW,
         hostH,
+        s,
     );
     if (!menuRect) {
         unregisterMenuTargets(prevCount);
@@ -350,11 +363,12 @@ export function drawChooseOptionMenu(
 
         // Close menu when moving off it (no selection click this frame).
         if (lastButton !== ClickMode.LEFT) {
+            const closeMargin = sp(MENU_CLOSE_MARGIN_PX, s);
             if (
-                mx < ((left - MENU_CLOSE_MARGIN_PX) | 0) ||
-                mx > ((left + boxW + MENU_CLOSE_MARGIN_PX) | 0) ||
-                my < ((top - MENU_CLOSE_MARGIN_PX) | 0) ||
-                my > ((top + boxH + MENU_CLOSE_MARGIN_PX) | 0)
+                mx < ((left - closeMargin) | 0) ||
+                mx > ((left + boxW + closeMargin) | 0) ||
+                my < ((top - closeMargin) | 0) ||
+                my > ((top + boxH + closeMargin) | 0)
             ) {
                 // If a right-click happened this frame, also consume it so it doesn't open a new menu.
                 if (lastButton === ClickMode.RIGHT) {
@@ -391,15 +405,19 @@ export function drawChooseOptionMenu(
             );
             const pressX = pressPoint.x | 0;
             const pressY = pressPoint.y | 0;
+            const sRowH = sp(MENU_ROW_HEIGHT_PX, s);
+            const sFirstRowBase = sp(MENU_FIRST_ROW_BASELINE_OFFSET_PX, s);
+            const sHitTop = sp(MENU_ROW_HIT_TOP_OFFSET_PX, s);
+            const sHitBot = sp(MENU_ROW_HIT_BOTTOM_OFFSET_PX, s);
             let pickedIndex = -1;
             for (let i = 0; i < menu.entries.length; i++) {
                 const baselineY =
-                    (top + MENU_FIRST_ROW_BASELINE_OFFSET_PX + i * MENU_ROW_HEIGHT_PX) | 0;
+                    (top + sFirstRowBase + i * sRowH) | 0;
                 if (
                     pressX > left &&
                     pressX < left + boxW &&
-                    pressY > baselineY - MENU_ROW_HIT_TOP_OFFSET_PX &&
-                    pressY < baselineY + MENU_ROW_HIT_BOTTOM_OFFSET_PX
+                    pressY > baselineY - sHitTop &&
+                    pressY < baselineY + sHitBot
                 ) {
                     pickedIndex = i;
                 }
@@ -444,25 +462,41 @@ export function drawChooseOptionMenu(
     // Keep menu target count in sync for cleanup if the menu closes.
     ui.__menuTargetCount = menu.entries.length;
 
+    // Scaled layout constants for drawing
+    const sInset = sp(MENU_TITLE_BG_INSET_PX, s);
+    const sTitleBgH = sp(MENU_TITLE_BG_HEIGHT_PX, s);
+    const sOutlineY = sp(MENU_OPTIONS_OUTLINE_Y_OFFSET_PX, s);
+    const sOutlineHSub = sp(MENU_OPTIONS_OUTLINE_HEIGHT_SUB_PX, s);
+    const sTitleTextX = sp(MENU_TITLE_TEXT_X_OFFSET_PX, s);
+    const sTitleTextBase = sp(MENU_TITLE_TEXT_BASELINE_OFFSET_PX, s);
+    const sTextX = sp(MENU_TEXT_X_OFFSET_PX, s);
+    const sTextWPad = sp(MENU_TEXT_WIDTH_PADDING_PX, s);
+    const sRowHeight = sp(MENU_ROW_HEIGHT_PX, s);
+    const sFirstRowBase = sp(MENU_FIRST_ROW_BASELINE_OFFSET_PX, s);
+    const sHitTop = sp(MENU_ROW_HIT_TOP_OFFSET_PX, s);
+    const sHitBot = sp(MENU_ROW_HIT_BOTTOM_OFFSET_PX, s);
+    const sHitInset = sp(MENU_HIT_TEST_INSET_PX, s);
+    const sStroke = sp(1, s);
+
     // Menu background fill (0x5D5447)
     glr.drawRect(left, top, boxW, boxH, COL_MENU_BG);
     // Title background (black) at (x+1, y+1, w-2, 16)
     glr.drawRect(
-        left + MENU_TITLE_BG_INSET_PX,
-        top + MENU_TITLE_BG_INSET_PX,
-        boxW - MENU_TITLE_BG_INSET_PX * 2,
-        MENU_TITLE_BG_HEIGHT_PX,
+        left + sInset,
+        top + sInset,
+        boxW - sInset * 2,
+        sTitleBgH,
         COL_BLACK,
     );
     // Options area outline (black) at (x+1, y+18, w-2, h-19)
-    const optX0 = left + MENU_TITLE_BG_INSET_PX;
-    const optY0 = top + MENU_OPTIONS_OUTLINE_Y_OFFSET_PX;
-    const optW = boxW - MENU_TITLE_BG_INSET_PX * 2;
-    const optH = boxH - MENU_OPTIONS_OUTLINE_HEIGHT_SUB_PX;
-    glr.drawRect(optX0, optY0, optW, 1, COL_BLACK);
-    glr.drawRect(optX0, optY0 + optH - 1, optW, 1, COL_BLACK);
-    glr.drawRect(optX0, optY0, 1, optH, COL_BLACK);
-    glr.drawRect(optX0 + optW - 1, optY0, 1, optH, COL_BLACK);
+    const optX0 = left + sInset;
+    const optY0 = top + sOutlineY;
+    const optW = boxW - sInset * 2;
+    const optH = boxH - sOutlineHSub;
+    glr.drawRect(optX0, optY0, optW, sStroke, COL_BLACK);
+    glr.drawRect(optX0, optY0 + optH - sStroke, optW, sStroke, COL_BLACK);
+    glr.drawRect(optX0, optY0, sStroke, optH, COL_BLACK);
+    glr.drawRect(optX0 + optW - sStroke, optY0, sStroke, optH, COL_BLACK);
 
     // Title text baseline at (x+3, y+14)
     {
@@ -473,15 +507,19 @@ export function drawChooseOptionMenu(
             glr,
             opts.fontLoader,
             "Choose Option",
-            left + MENU_TITLE_TEXT_X_OFFSET_PX,
-            (top + MENU_TITLE_TEXT_BASELINE_OFFSET_PX - maxAscent) | 0,
-            Math.max(1, boxW - MENU_TEXT_WIDTH_PADDING_PX),
-            Math.max(1, h),
+            left + sTitleTextX,
+            (top + sTitleTextBase - Math.round(maxAscent * s)) | 0,
+            Math.max(1, boxW - sTextWPad),
+            Math.max(1, Math.round(h * s)),
             FONT_TITLE,
             COL_TITLE_TEXT,
             0,
             0,
             false,
+            1,
+            undefined,
+            s,
+            s,
         );
     }
 
@@ -513,15 +551,15 @@ export function drawChooseOptionMenu(
         const fullText = target.length ? `${option} ${target}` : option;
 
         // OSRS: baseline at menuY + MENU_FIRST_ROW_BASELINE_OFFSET_PX + (i * MENU_ROW_HEIGHT_PX) (top-to-bottom).
-        const baselineY = (top + MENU_FIRST_ROW_BASELINE_OFFSET_PX + i * MENU_ROW_HEIGHT_PX) | 0;
-        const textY = (baselineY - optMaxAscent) | 0;
+        const baselineY = (top + sFirstRowBase + i * sRowHeight) | 0;
+        const textY = (baselineY - Math.round(optMaxAscent * s)) | 0;
 
         // Hover/click region in OSRS uses strict comparisons; emulate with a 1px inset.
         const rowRect = {
-            x: (left + MENU_HIT_TEST_INSET_PX) | 0,
-            y: (baselineY - MENU_ROW_HIT_TOP_OFFSET_PX + MENU_HIT_TEST_INSET_PX) | 0,
-            w: Math.max(1, boxW - MENU_HIT_TEST_INSET_PX),
-            h: MENU_ROW_HEIGHT_PX,
+            x: (left + sHitInset) | 0,
+            y: (baselineY - sHitTop + sHitInset) | 0,
+            w: Math.max(1, boxW - sHitInset),
+            h: sRowHeight,
         };
         const id = `__menu_opt_${i}`;
 
@@ -543,22 +581,26 @@ export function drawChooseOptionMenu(
         const hover =
             ui.mouseX > left &&
             ui.mouseX < left + boxW &&
-            ui.mouseY > baselineY - MENU_ROW_HIT_TOP_OFFSET_PX &&
-            ui.mouseY < baselineY + MENU_ROW_HIT_BOTTOM_OFFSET_PX;
+            ui.mouseY > baselineY - sHitTop &&
+            ui.mouseY < baselineY + sHitBot;
 
         UI_drawTextGL(
             glr,
             opts.fontLoader,
             fullText,
-            left + MENU_TEXT_X_OFFSET_PX,
+            left + sTextX,
             textY,
-            Math.max(1, boxW - MENU_TEXT_WIDTH_PADDING_PX),
-            Math.max(1, optH1),
+            Math.max(1, boxW - sTextWPad),
+            Math.max(1, Math.round(optH1 * s)),
             FONT_OPT,
             hover ? COL_TEXT_HOVER : COL_TEXT_DEFAULT,
             0,
             0,
             true,
+            1,
+            undefined,
+            s,
+            s,
         );
     }
 }

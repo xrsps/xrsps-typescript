@@ -10,6 +10,7 @@ import { BitmapFont } from "../../rs/font/BitmapFont";
 import { isTouchDevice } from "../../util/DeviceUtil";
 import { GLRenderer } from "../gl/renderer";
 import { getChooseOptionMenuRect } from "../gl/choose-option";
+import { getUiScale } from "../UiScale";
 import {
     GLRenderOpts,
     beginWidgetUiFrame,
@@ -459,6 +460,9 @@ export class WidgetsOverlay implements Overlay {
         const fontLoader = this.ctx.getFontLoader?.() || (() => undefined);
         const hostW = this.glRenderer?.width || this.app.width;
         const hostH = this.glRenderer?.height || this.app.height;
+        const hostCanvas = this.app?.gl?.canvas as HTMLCanvasElement | undefined;
+        const cssW = hostCanvas?.clientWidth || hostCanvas?.offsetWidth || 0;
+        const cssH = hostCanvas?.clientHeight || hostCanvas?.offsetHeight || 0;
         const anchor = this.getMenuAnchorPoint(menu);
         const rect = getChooseOptionMenuRect(
             fontLoader,
@@ -469,6 +473,7 @@ export class WidgetsOverlay implements Overlay {
             },
             hostW,
             hostH,
+            getUiScale(cssW, cssH),
         );
         const mx = (sharedUi?.mouseX ?? 0) | 0;
         const my = (sharedUi?.mouseY ?? 0) | 0;

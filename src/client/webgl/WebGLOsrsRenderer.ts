@@ -90,6 +90,7 @@ import {
     isTouchDevice,
     isWebGL2Supported,
 } from "../../util/DeviceUtil";
+import { getUiScale } from "../../ui/UiScale";
 import { clamp } from "../../util/MathUtil";
 import { ClientState } from "../ClientState";
 import { GameRenderer } from "../GameRenderer";
@@ -879,6 +880,19 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         if (!isLoginLikeState) {
             if (!isMobileGameplayRoot) {
+                const desktopUiScale = getUiScale(cssW, cssH);
+                if (desktopUiScale > 1) {
+                    const layoutW = Math.max(1, Math.round(safeBufW / desktopUiScale));
+                    const layoutH = Math.max(1, Math.round(safeBufH / desktopUiScale));
+                    return {
+                        layoutW,
+                        layoutH,
+                        renderScaleX: safeBufW / layoutW,
+                        renderScaleY: safeBufH / layoutH,
+                        renderOffsetX: 0,
+                        renderOffsetY: 0,
+                    };
+                }
                 return {
                     layoutW: safeBufW,
                     layoutH: safeBufH,
