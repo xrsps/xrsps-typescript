@@ -222,6 +222,29 @@
       },
       "species": ["human"]
     },
+    "6818": {
+      "name": "Man",
+      "combatLevel": 2,
+      "hitpoints": 7,
+      "attackLevel": 1,
+      "strengthLevel": 1,
+      "defenceLevel": 1,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 1,
+      "aggressive": false,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": ["human"]
+    },
     "178": {
       "name": "Black Knight",
       "combatLevel": 33,

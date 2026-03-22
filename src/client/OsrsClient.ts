@@ -10089,14 +10089,8 @@ export class OsrsClient {
         }
 
         const decodeBase = localState
-            ? {
-                  tileX: localState.tileX | 0,
-                  tileY: localState.tileY | 0,
-                  level: localState.level | 0,
-              }
-            : localId < 0
-            ? this.lastNpcDecodeBase
-            : undefined;
+            ? { tileX: localState.tileX, tileY: localState.tileY, level: localState.level }
+            : this.lastNpcDecodeBase;  // use last known base regardless of localId
         if (!decodeBase) return;
         this.lastNpcDecodeBase = {
             tileX: decodeBase.tileX | 0,

@@ -4,11 +4,25 @@
  */
 
 /**
+ * Which way a single door rotates when it opens.
+ * - "cw"  (clockwise):         rotation + 1 — default for most OSRS doors
+ * - "ccw" (counter-clockwise): rotation - 1 — used for doors that swing the other way
+ *
+ *   CW  rotation 0 (W wall) → shifts West  | CCW → shifts South
+ *   CW  rotation 1 (N wall) → shifts North | CCW → shifts West
+ *   CW  rotation 2 (E wall) → shifts East  | CCW → shifts North
+ *   CW  rotation 3 (S wall) → shifts South | CCW → shifts East
+ */
+export type DoorOpenDir = "cw" | "ccw";
+
+/**
  * Single door definition - maps closed loc ID to opened loc ID
  */
 export interface SingleDoorDef {
     closed: number;
     opened: number;
+    /** Which way the door rotates when opening. Defaults to "cw". */
+    openDir?: DoorOpenDir;
 }
 
 /**

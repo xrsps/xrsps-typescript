@@ -63,10 +63,18 @@ function normalizeSingleDoors(value: unknown): SingleDoorDef[] {
         return [];
     }
     return value
-        .map((entry) => ({
-            closed: (entry as SingleDoorDef | undefined)?.closed ?? -1,
-            opened: (entry as SingleDoorDef | undefined)?.opened ?? -1,
-        }))
+        .map((entry) => {
+            const e = entry as SingleDoorDef | undefined;
+            const normalized: SingleDoorDef = {
+                closed: e?.closed ?? -1,
+                opened: e?.opened ?? -1,
+            };
+            // Preserve optional openDir field — "cw" is the default and can be omitted.
+            if (e?.openDir === "cw" || e?.openDir === "ccw") {
+                normalized.openDir = e.openDir;
+            }
+            return normalized;
+        })
         .filter((entry) => entry.closed > 0 && entry.opened > 0 && entry.closed !== entry.opened)
         .sort((a, b) => a.closed - b.closed || a.opened - b.opened);
 }

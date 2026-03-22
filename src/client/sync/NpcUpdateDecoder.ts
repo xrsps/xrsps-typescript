@@ -80,8 +80,11 @@ export class NpcUpdateDecoder {
                 removals.push(this.npcIndices[i] | 0);
             }
         }
-        if (count > this.npcIndices.length) {
-            throw new RangeError(`npc_info: count grew ${count} > ${this.npcIndices.length}`);
+        if (count !== this.npcIndices.length) {
+            // Desync detected — reset local list and let server re-add everything
+            for (const id of this.npcIndices) removals.push(id | 0);
+            this.npcIndices = [];
+            return { spawns: [], removals, movements: [], updateBlocks: new Map(), localNpcIds: [] };
         }
 
         const nextIndices: number[] = [];

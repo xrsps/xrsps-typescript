@@ -71,6 +71,8 @@ type OpenDoorEntry = {
     rotation: number;
     locType: number;
     openedAtTick: number;
+    /** Whether the door opened clockwise (true) or counter-clockwise (false). */
+    openCw: boolean;
     partnerKey?: string; // For double doors
 };
 
@@ -562,6 +564,7 @@ export class DoorStateManager {
                 newRotation,
                 locType,
                 currentTick,
+                true,
                 openPartnerKey,
             );
             // Track partner door too
@@ -578,6 +581,7 @@ export class DoorStateManager {
                     partnerResult.newRotation,
                     partnerLocType,
                     currentTick,
+                    true,
                     mainNewKey,
                 );
             }
@@ -605,7 +609,7 @@ export class DoorStateManager {
      */
     private handleSingleDoorExplicit(
         params: ResolvedDoorToggleParams,
-        singleDef: { closed: number; opened: number },
+        singleDef: { closed: number; opened: number; openDir?: "cw" | "ccw" },
         key: string,
     ): DoorToggleResult {
         const { x, y, level, currentId, rotation, locType, currentTick } = params;
@@ -616,17 +620,17 @@ export class DoorStateManager {
             ? this.findTrackedOpenDoorEntry(x, y, level, currentId)
             : undefined;
 
-        // Calculate new rotation and position
-        const newRotation = isClosed ? (rotation + 1) & 3 : (rotation - 1 + 4) & 3;
+        // OSRS parity: doors can swing clockwise (default) or counter-clockwise.
+        const openCw = singleDef.openDir !== "ccw";
+        const newRotation = isClosed
+            ? openCw ? (rotation + 1) & 3 : (rotation - 1 + 4) & 3
+            : openCw ? (rotation - 1 + 4) & 3 : (rotation + 1) & 3;
 
         const newTile = isClosed
-            ? this.getOpenedTilePosition(x, y, rotation)
+            ? this.getOpenedTilePosition(x, y, rotation, openCw)
             : trackedOpen
-            ? {
-                  x: trackedOpen.entry.closedX,
-                  y: trackedOpen.entry.closedY,
-              }
-            : this.getClosedTilePositionFromOpened(x, y, rotation);
+            ? { x: trackedOpen.entry.closedX, y: trackedOpen.entry.closedY }
+            : this.getClosedTilePositionFromOpened(x, y, rotation, openCw);
         const newKey = this.makeKey(newTile.x, newTile.y, level);
         const oldLoc: LocInfo = { x, y, level, locId: currentId, rotation, locType };
         const newLoc: LocInfo = {
@@ -665,6 +669,7 @@ export class DoorStateManager {
                 newRotation,
                 locType,
                 currentTick,
+                openCw,
             );
         } else {
             // Door was closed - untrack
@@ -722,18 +727,24 @@ export class DoorStateManager {
         x: number,
         y: number,
         rotation: number,
+        openCw: boolean = true,
     ): { x: number; y: number } {
-        switch (rotation & 3) {
-            case 0:
-                return { x: x - 1, y }; // West wall opens westward
-            case 1:
-                return { x, y: y + 1 }; // North wall opens northward
-            case 2:
-                return { x: x + 1, y }; // East wall opens eastward
-            case 3:
-                return { x, y: y - 1 }; // South wall opens southward
-            default:
-                return { x, y };
+        if (openCw) {
+            switch (rotation & 3) {
+                case 0: return { x: x - 1, y };
+                case 1: return { x, y: y + 1 };
+                case 2: return { x: x + 1, y };
+                case 3: return { x, y: y - 1 };
+                default: return { x, y };
+            }
+        } else {
+            switch (rotation & 3) {
+                case 0: return { x: x + 1, y };
+                case 1: return { x, y: y + 1 };   // ← changed
+                case 2: return { x: x - 1, y };
+                case 3: return { x, y: y + 1 };
+                default: return { x, y };
+            }
         }
     }
 
@@ -745,19 +756,26 @@ export class DoorStateManager {
         x: number,
         y: number,
         openedRotation: number,
+        openCw: boolean = true,
     ): { x: number; y: number } {
-        const closedRotation = (openedRotation - 1 + 4) & 0x3;
-        switch (closedRotation) {
-            case 0:
-                return { x: x + 1, y: y };
-            case 1:
-                return { x: x, y: y - 1 };
-            case 2:
-                return { x: x - 1, y: y };
-            case 3:
-                return { x: x, y: y + 1 };
-            default:
-                return { x: x, y: y };
+        if (openCw) {
+            const closedRotation = (openedRotation - 1 + 4) & 3;
+            switch (closedRotation) {
+                case 0: return { x: x + 1, y };
+                case 1: return { x, y: y - 1 };
+                case 2: return { x: x - 1, y };
+                case 3: return { x, y: y + 1 };
+                default: return { x, y };
+            }
+        } else {
+            const closedRotation = (openedRotation + 1) & 3;
+            switch (closedRotation) {
+                case 0: return { x: x - 1, y };
+                case 1: return { x, y: y + 1 };
+                case 2: return { x, y: y - 1 };   // ← changed
+                case 3: return { x, y: y - 1 };
+                default: return { x, y };
+            }
         }
     }
 
@@ -1594,20 +1612,14 @@ export class DoorStateManager {
         rotation: number,
         locType: number,
         currentTick: number,
+        openCw: boolean = true,
         partnerKey?: string,
     ): void {
         this.openDoors.set(key, {
-            key,
-            closedX,
-            closedY,
-            currentX,
-            currentY,
-            level,
-            closedId,
-            openedId,
-            rotation,
-            locType,
+            key, closedX, closedY, currentX, currentY,
+            level, closedId, openedId, rotation, locType,
             openedAtTick: currentTick,
+            openCw,
             partnerKey,
         });
     }
@@ -1643,7 +1655,9 @@ export class DoorStateManager {
         for (const [key, entry] of this.openDoors.entries()) {
             if (currentTick - entry.openedAtTick >= DOOR_AUTO_CLOSE_TICKS) {
                 // Auto-close this door
-                const newRotation = (entry.rotation - 1 + 4) & 3; // Closing rotates counter-clockwise
+                const newRotation = entry.openCw
+                    ? (entry.rotation - 1 + 4) & 3  // CW open → CCW close
+                    : (entry.rotation + 1) & 3;     // CCW open → CW close
                 const newTile = { x: entry.closedX, y: entry.closedY }; // Closing returns to original position
                 this.transitionLocCollision(
                     {
@@ -1680,7 +1694,9 @@ export class DoorStateManager {
                 if (entry.partnerKey) {
                     const partnerEntry = this.openDoors.get(entry.partnerKey);
                     if (partnerEntry) {
-                        const partnerNewRotation = (partnerEntry.rotation - 1 + 4) & 3;
+                        const partnerNewRotation = (partnerEntry.openCw ?? true)
+                            ? (partnerEntry.rotation - 1 + 4) & 3
+                            : (partnerEntry.rotation + 1) & 3;
                         const partnerNewTile = {
                             x: partnerEntry.closedX,
                             y: partnerEntry.closedY,

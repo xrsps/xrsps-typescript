@@ -10,10 +10,10 @@ import { readDoorCatalog, resolveDoorCatalogPath } from "./DoorCatalogFile";
 import { DoubleDoorDef, GateDef, SingleDoorDef } from "./DoorDefinitions";
 
 export class DoorDefinitionLoader {
-    // closedId -> openedId for single doors
-    private singleDoors: Map<number, number> = new Map();
-    // openedId -> closedId for reverse lookup
-    private singleDoorsReverse: Map<number, number> = new Map();
+    // closedId -> full SingleDoorDef
+    private singleDoors: Map<number, SingleDoorDef> = new Map();
+    // openedId -> full SingleDoorDef (reverse lookup)
+    private singleDoorsReverse: Map<number, SingleDoorDef> = new Map();
     // any gate ID in gate set -> full definition
     private gates: Map<number, GateDef> = new Map();
     // any door ID in double door set -> full definition
@@ -55,8 +55,8 @@ export class DoorDefinitionLoader {
                     );
                     continue;
                 }
-                this.singleDoors.set(def.closed, def.opened);
-                this.singleDoorsReverse.set(def.opened, def.closed);
+                this.singleDoors.set(def.closed, def);
+                this.singleDoorsReverse.set(def.opened, def);
             }
             logger.debug(
                 `[DoorDefinitionLoader] Loaded ${this.singleDoors.size} single door mappings`,
@@ -168,19 +168,15 @@ export class DoorDefinitionLoader {
      * Get the single door pair for a loc ID.
      * Returns both closed and opened IDs regardless of which was passed.
      */
-    getSingleDoorPair(locId: number): { closed: number; opened: number } | undefined {
+    getSingleDoorPair(locId: number): SingleDoorDef | undefined {
         const id = locId;
-        // Check if this is an opened door
-        const asClosed = this.singleDoorsReverse.get(id);
-        if (asClosed !== undefined) {
-            return { closed: asClosed, opened: id };
+        // Check if this is an opened door (reverse lookup)
+        const byOpened = this.singleDoorsReverse.get(id);
+        if (byOpened !== undefined) {
+            return byOpened;
         }
         // Check if this is a closed door
-        const asOpened = this.singleDoors.get(id);
-        if (asOpened !== undefined) {
-            return { closed: id, opened: asOpened };
-        }
-        return undefined;
+        return this.singleDoors.get(id);
     }
 
     /**
@@ -253,11 +249,7 @@ export class DoorDefinitionLoader {
      * Get all single door definitions (for debugging/export).
      */
     getAllSingleDoors(): SingleDoorDef[] {
-        const result: SingleDoorDef[] = [];
-        for (const [closed, opened] of this.singleDoors) {
-            result.push({ closed, opened });
-        }
-        return result;
+        return Array.from(this.singleDoors.values());
     }
 
     /**
