@@ -1179,11 +1179,9 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.CC_GETX, (ctx, intOp) => {
         const w = getTargetWidget(ctx, intOp);
         if (w) ensureWidgetLayout(ctx, w);
-        // Return drag visual position if widget is being dragged, otherwise computed x
-        let x =
-            (w as any)?._isDragActive && typeof (w as any)?._dragVisualX === "number"
-                ? ((w as any)._dragVisualX as number)
-                : w?.x ?? 0;
+        // OSRS parity: cc_getx always returns the widget's layout-computed x position,
+        // even during drag. The drag visual position is separate from the stored position.
+        let x = w?.x ?? 0;
         // OSRS PARITY: When running scripts for a mounted (InterfaceParent) sub-interface,
         // the mount container acts as the local origin (0,0) for those scripts.
         //
@@ -1205,11 +1203,8 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.IF_GETX, (ctx) => {
         const w = getWidgetFromStack(ctx);
         if (w) ensureWidgetLayout(ctx, w);
-        // Return drag visual position if widget is being dragged, otherwise computed x
-        let x =
-            (w as any)?._isDragActive && typeof (w as any)?._dragVisualX === "number"
-                ? ((w as any)._dragVisualX as number)
-                : w?.x ?? 0;
+        // OSRS parity: if_getx always returns the widget's layout-computed x position.
+        let x = w?.x ?? 0;
         const currentGroupId = getCurrentWidgetGroupId(ctx);
         const mount = w ? ctx.widgetManager.interfaceParents.get(w.uid) : undefined;
         if (mount && (mount.group | 0) === (currentGroupId | 0)) {
@@ -1221,12 +1216,10 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.CC_GETY, (ctx, intOp) => {
         const w = getTargetWidget(ctx, intOp);
         if (w) ensureWidgetLayout(ctx, w);
-        // Return drag visual position if widget is being dragged, otherwise computed y.
-        // This ensures scrollbar top/bottom decorations follow the dragger during drag.
-        let y =
-            (w as any)?._isDragActive && typeof (w as any)?._dragVisualY === "number"
-                ? ((w as any)._dragVisualY as number)
-                : w?.y ?? 0;
+        // OSRS parity: cc_gety always returns the widget's layout-computed y position,
+        // even during drag. The drag visual position is separate from the widget's stored
+        // position. CS2 scrollbar scripts use event_mousey (not cc_gety) to track drag.
+        let y = w?.y ?? 0;
         const currentGroupId = getCurrentWidgetGroupId(ctx);
         const mount = w ? ctx.widgetManager.interfaceParents.get(w.uid) : undefined;
         if (mount && (mount.group | 0) === (currentGroupId | 0)) {
@@ -1238,11 +1231,8 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.IF_GETY, (ctx) => {
         const w = getWidgetFromStack(ctx);
         if (w) ensureWidgetLayout(ctx, w);
-        // Return drag visual position if widget is being dragged, otherwise computed y
-        let y =
-            (w as any)?._isDragActive && typeof (w as any)?._dragVisualY === "number"
-                ? ((w as any)._dragVisualY as number)
-                : w?.y ?? 0;
+        // OSRS parity: if_gety always returns the widget's layout-computed y position.
+        let y = w?.y ?? 0;
         const currentGroupId = getCurrentWidgetGroupId(ctx);
         const mount = w ? ctx.widgetManager.interfaceParents.get(w.uid) : undefined;
         if (mount && (mount.group | 0) === (currentGroupId | 0)) {

@@ -1351,9 +1351,13 @@ export class OsrsClient {
                     // Set clickedWidget to the dragged widget so drag handling works
                     this.clickedWidget = widget;
                     this.clickedWidgetParent = this.resolveClickedWidgetParent(widget);
-                    // Use the pickup offset as the click offset within the widget
-                    this.clickedWidgetX = (widget as any)._dragPickupOffsetX ?? 0;
-                    this.clickedWidgetY = (widget as any)._dragPickupOffsetY ?? 0;
+                    // Use the pickup offset as the click offset within the widget.
+                    // cc_dragpickup provides offsets in logical (widget) coordinates, but
+                    // clickedWidgetX/Y are subtracted from pixel-space mouse coordinates,
+                    // so scale them to pixel space.
+                    const [pickupScaleX, pickupScaleY] = this.getUiRenderScale();
+                    this.clickedWidgetX = ((widget as any)._dragPickupOffsetX ?? 0) * pickupScaleX;
+                    this.clickedWidgetY = ((widget as any)._dragPickupOffsetY ?? 0) * pickupScaleY;
 
                     // Determine the drag render area for coordinate calculations
                     // Priority: explicit dragRenderArea > parent widget > widget itself
@@ -3296,6 +3300,21 @@ export class OsrsClient {
         // OSRS parity: Do NOT fall back to parentUid for drag clamping
         // Widgets without explicit drag parent (like bank items) should drag freely
         return null;
+    }
+
+    /**
+     * Get the UI render scale that maps logical widget coordinates to canvas pixel coordinates.
+     * Returns [scaleX, scaleY]. At scale 1 (no UI scaling), both are 1.
+     */
+    private getUiRenderScale(): [number, number] {
+        const canvas = this.inputManager?.element as HTMLCanvasElement | undefined;
+        const layoutW = this.widgetManager?.canvasWidth || 0;
+        const layoutH = this.widgetManager?.canvasHeight || 0;
+        const bufW = canvas?.width || 0;
+        const bufH = canvas?.height || 0;
+        const sx = layoutW > 0 && bufW > 0 ? bufW / layoutW : 1;
+        const sy = layoutH > 0 && bufH > 0 ? bufH / layoutH : 1;
+        return [sx, sy];
     }
 
     /**
@@ -6543,6 +6562,12 @@ export class OsrsClient {
                 const widgetWidth = w.width ?? 0;
                 const widgetHeight = w.height ?? 0;
 
+                // UI render scale: maps logical widget coordinates to canvas pixel coordinates.
+                // All absolute positions (_absX/_absY, mouse coords) are in pixel space,
+                // but widget dimensions (width/height) and CS2 script coordinates are in
+                // logical space. We need the scale to convert between them.
+                const [renderScaleX, renderScaleY] = this.getUiRenderScale();
+
                 // Calculate target absolute position (Mouse - Offset)
                 let targetAbsX = mx - this.clickedWidgetX;
                 let targetAbsY = my - this.clickedWidgetY;
@@ -6563,13 +6588,19 @@ export class OsrsClient {
                     parentScrollY = renderArea.scrollY ?? 0;
 
                     // Clamp to parent bounds (only when explicit drag parent is set)
+                    // parentAbsX/Y are in pixel space; widget dimensions are logical so
+                    // scale them to pixel space for consistent clamping.
+                    const widgetPixelW = widgetWidth * renderScaleX;
+                    const widgetPixelH = widgetHeight * renderScaleY;
+                    const parentPixelW = parentWidth * renderScaleX;
+                    const parentPixelH = parentHeight * renderScaleY;
                     if (targetAbsX < parentAbsX) targetAbsX = parentAbsX;
-                    if (targetAbsX + widgetWidth > parentAbsX + parentWidth)
-                        targetAbsX = parentAbsX + parentWidth - widgetWidth;
+                    if (targetAbsX + widgetPixelW > parentAbsX + parentPixelW)
+                        targetAbsX = parentAbsX + parentPixelW - widgetPixelW;
 
                     if (targetAbsY < parentAbsY) targetAbsY = parentAbsY;
-                    if (targetAbsY + widgetHeight > parentAbsY + parentHeight)
-                        targetAbsY = parentAbsY + parentHeight - widgetHeight;
+                    if (targetAbsY + widgetPixelH > parentAbsY + parentPixelH)
+                        targetAbsY = parentAbsY + parentPixelH - widgetPixelH;
                 }
 
                 // Calculate visual position relative to the widget's ACTUAL RENDER PARENT
@@ -6607,6 +6638,10 @@ export class OsrsClient {
                 // (e.g., bankmain_dragscroll) subtracts if_gety(container) which returns
                 // position relative to parent, so event_mousey must also be relative to
                 // the same coordinate space.
+                //
+                // The pixel-space difference is divided by renderScale to convert to logical
+                // widget coordinates, which is what CS2 scripts expect. Scroll offsets are
+                // already in logical space.
                 const scriptParentAbsX = hasExplicitDragParent ? parentAbsX : actualParentAbsX;
                 const scriptParentAbsY = hasExplicitDragParent ? parentAbsY : actualParentAbsY;
                 const scriptParentScrollX = hasExplicitDragParent
@@ -6615,8 +6650,8 @@ export class OsrsClient {
                 const scriptParentScrollY = hasExplicitDragParent
                     ? parentScrollY
                     : actualParent?.scrollY ?? 0;
-                const scriptX = targetAbsX - scriptParentAbsX + scriptParentScrollX;
-                const scriptY = targetAbsY - scriptParentAbsY + scriptParentScrollY;
+                const scriptX = ((targetAbsX - scriptParentAbsX) / renderScaleX + scriptParentScrollX) | 0;
+                const scriptY = ((targetAbsY - scriptParentAbsY) / renderScaleY + scriptParentScrollY) | 0;
 
                 // Store visual position for renderer to use
                 // The widget's actual .x/.y stays unchanged until dragComplete
@@ -6634,13 +6669,20 @@ export class OsrsClient {
                 (w as any)._dragAbsX = targetAbsX;
                 (w as any)._dragAbsY = targetAbsY;
 
+                // Store visual position in LOGICAL (widget-layout) coordinates so it uses
+                // the same coordinate space as CS2 script positions (event_mousey, cc_setposition).
+                // This avoids rounding mismatches between the dragged widget and script-positioned
+                // siblings (e.g., scrollbar cap sprites).
+                const logicalVisualX = (visualPosX / renderScaleX) | 0;
+                const logicalVisualY = (visualPosY / renderScaleY) | 0;
+
                 // PERF: Only invalidate render if position actually changed
                 const prevVisualX = (w as any)._dragVisualX;
                 const prevVisualY = (w as any)._dragVisualY;
-                const positionChanged = prevVisualX !== visualPosX || prevVisualY !== visualPosY;
+                const positionChanged = prevVisualX !== logicalVisualX || prevVisualY !== logicalVisualY;
 
-                (w as any)._dragVisualX = visualPosX;
-                (w as any)._dragVisualY = visualPosY;
+                (w as any)._dragVisualX = logicalVisualX;
+                (w as any)._dragVisualY = logicalVisualY;
                 (w as any)._isDragActive = true;
 
                 // OSRS parity: dragged widget is invalidated every tick during drag (FaceNormal.invalidateWidget).
@@ -6686,6 +6728,19 @@ export class OsrsClient {
                 } else if (w.onDrag) {
                     this.executeScriptListener(w, w.onDrag, dragCtx);
                 }
+
+                // OSRS PARITY: For scrollbar widgets (dragRenderBehaviour=1), sync the
+                // drag visual position with the script-computed w.y AFTER the onDrag
+                // handler runs. The CS2 scrollbar_vertical_setdragger script positions
+                // the dragger body via cc_setposition and then positions the decorative
+                // caps relative to cc_gety (= w.y). If the renderer uses a different
+                // position (_dragVisualY from mouse math) for the dragger body, the caps
+                // and dragger can desync by ±1 logical pixel due to integer division in
+                // the scroll computation, causing visible flicker at scaled resolutions.
+                if ((w as any).dragRenderBehaviour === 1) {
+                    (w as any)._dragVisualX = w.x;
+                    (w as any)._dragVisualY = w.y;
+                }
             }
 
             // Fire onClickRepeat / onHold (always, unless suppressed by drag? OSRS might suppress)
@@ -6729,6 +6784,7 @@ export class OsrsClient {
 
                 const widgetWidth = w.width ?? 0;
                 const widgetHeight = w.height ?? 0;
+                const [renderScaleX, renderScaleY] = this.getUiRenderScale();
 
                 let targetAbsX = mx - this.clickedWidgetX;
                 let targetAbsY = my - this.clickedWidgetY;
@@ -6747,16 +6803,22 @@ export class OsrsClient {
                     parentScrollX = renderArea.scrollX ?? 0;
                     parentScrollY = renderArea.scrollY ?? 0;
 
+                    // Scale logical dimensions to pixel space for consistent clamping
+                    const widgetPixelW = widgetWidth * renderScaleX;
+                    const widgetPixelH = widgetHeight * renderScaleY;
+                    const parentPixelW = parentWidth * renderScaleX;
+                    const parentPixelH = parentHeight * renderScaleY;
                     if (targetAbsX < parentAbsX) targetAbsX = parentAbsX;
-                    if (targetAbsX + widgetWidth > parentAbsX + parentWidth)
-                        targetAbsX = parentAbsX + parentWidth - widgetWidth;
+                    if (targetAbsX + widgetPixelW > parentAbsX + parentPixelW)
+                        targetAbsX = parentAbsX + parentPixelW - widgetPixelW;
                     if (targetAbsY < parentAbsY) targetAbsY = parentAbsY;
-                    if (targetAbsY + widgetHeight > parentAbsY + parentHeight)
-                        targetAbsY = parentAbsY + parentHeight - widgetHeight;
+                    if (targetAbsY + widgetPixelH > parentAbsY + parentPixelH)
+                        targetAbsY = parentAbsY + parentPixelH - widgetPixelH;
                 }
 
-                const scriptX = targetAbsX - parentAbsX + parentScrollX;
-                const scriptY = targetAbsY - parentAbsY + parentScrollY;
+                // Convert pixel-space difference to logical coordinates for CS2 scripts
+                const scriptX = ((targetAbsX - parentAbsX) / renderScaleX + parentScrollX) | 0;
+                const scriptY = ((targetAbsY - parentAbsY) / renderScaleY + parentScrollY) | 0;
 
                 const dragCompleteCtx: Partial<ScriptEvent> = {
                     mouseX: scriptX,
