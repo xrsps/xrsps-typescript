@@ -6671,10 +6671,27 @@ export class OsrsClient {
 
                 // Store visual position in LOGICAL (widget-layout) coordinates so it uses
                 // the same coordinate space as CS2 script positions (event_mousey, cc_setposition).
-                // This avoids rounding mismatches between the dragged widget and script-positioned
-                // siblings (e.g., scrollbar cap sprites).
-                const logicalVisualX = (visualPosX / renderScaleX) | 0;
-                const logicalVisualY = (visualPosY / renderScaleY) | 0;
+                //
+                // OSRS PARITY: When the drag parent differs from the actual parent (e.g.,
+                // scrollbar dragger clamped to track but parented to container), scriptY and
+                // the naive logicalVisualY are truncated independently from different reference
+                // points. At fractional pixel offsets this causes ±1 logical pixel misalignment
+                // between the dragged widget and script-positioned siblings (cap sprites).
+                // Fix: derive logicalVisualY from scriptY + the drag parent's logical offset
+                // from the actual parent, sharing one truncation point.
+                let logicalVisualX: number;
+                let logicalVisualY: number;
+                if (hasExplicitDragParent && actualParent && renderArea !== actualParent) {
+                    const scriptParentLogicalY = (renderArea as any)?._absLogicalY ?? 0;
+                    const actualParentLogicalY = (actualParent as any)?._absLogicalY ?? 0;
+                    const scriptParentLogicalX = (renderArea as any)?._absLogicalX ?? 0;
+                    const actualParentLogicalX = (actualParent as any)?._absLogicalX ?? 0;
+                    logicalVisualX = scriptX - scriptParentScrollX + (scriptParentLogicalX - actualParentLogicalX);
+                    logicalVisualY = scriptY - scriptParentScrollY + (scriptParentLogicalY - actualParentLogicalY);
+                } else {
+                    logicalVisualX = (visualPosX / renderScaleX) | 0;
+                    logicalVisualY = (visualPosY / renderScaleY) | 0;
+                }
 
                 // PERF: Only invalidate render if position actually changed
                 const prevVisualX = (w as any)._dragVisualX;
@@ -6729,23 +6746,14 @@ export class OsrsClient {
                     this.executeScriptListener(w, w.onDrag, dragCtx);
                 }
 
-                // OSRS PARITY: For scrollbar widgets (dragRenderBehaviour=1), sync the
-                // drag visual position with the script-computed w.y AFTER the onDrag
-                // handler runs. The CS2 scrollbar_vertical_setdragger script positions
-                // the dragger body via cc_setposition and then positions the decorative
-                // caps relative to cc_gety (= w.y). If the renderer uses a different
-                // position (_dragVisualY from mouse math) for the dragger body, the caps
-                // and dragger can desync by ±1 logical pixel due to integer division in
-                // the scroll computation, causing visible flicker at scaled resolutions.
-                if ((w as any).dragRenderBehaviour === 1) {
-                    (w as any)._dragVisualX = w.x;
-                    (w as any)._dragVisualY = w.y;
-                }
             }
 
-            // Fire onClickRepeat / onHold (always, unless suppressed by drag? OSRS might suppress)
-            // OSRS Client.java doesn't seem to suppress repeat/hold based on drag in the main loop,
-            // but logic is complex. For now, keep them running.
+        }
+
+        // Fire onClickRepeat / onHold for ANY held widget, not just draggable ones.
+        // OSRS parity: onHold fires every tick while the widget is held (e.g., scrollbar arrows).
+        // Reference: Client.java - onHoldListener is processed independently of drag state.
+        if (this.clickedWidget && isHolding) {
             const holdCtx: Partial<ScriptEvent> = {
                 mouseX: mx - (this.clickedWidget._absX ?? this.clickedWidget.x ?? 0),
                 mouseY: my - (this.clickedWidget._absY ?? this.clickedWidget.y ?? 0),
