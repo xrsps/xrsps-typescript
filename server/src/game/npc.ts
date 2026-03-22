@@ -361,7 +361,8 @@ export class NpcState extends Actor {
         this.stuckTicks = 0;
         this.lastMoveTick = 0;
         this.nextAttackTick = 0;
-        this.nextRoamTick = 0; // RSMod parity: Allow roaming immediately after respawn
+        // nextRoamTick is set by the caller (processNpcRespawns) to prevent
+        // same-tick roaming which causes a visible teleport on the client.
         this.nextAggressionCheckTick = 0;
         this.clearInteractionTarget();
         this.clearPendingSeqs();

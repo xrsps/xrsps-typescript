@@ -1493,6 +1493,10 @@ export class NpcManager {
             const npc = entry.npc;
             this.pendingRespawns.delete(npcId);
             npc.resetToSpawn();
+            // Prevent roaming on the same tick as respawn — without this,
+            // the NPC spawns and moves in the same update, appearing as a
+            // teleport to the client.
+            npc.scheduleNextRoam(currentTick);
             this.npcs.set(npc.id, npc);
             this.addOccupancyFootprint(npc);
             this.addToRegionIndex(npc);

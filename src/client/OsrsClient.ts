@@ -10277,7 +10277,15 @@ export class OsrsClient {
             if (block.seq) {
                 const seqId = block.seq.id | 0;
                 if (seqId >= 0) {
-                    const ticks = this.estimateSeqDurationTicks(seqId);
+                    // OSRS parity: Add a hold buffer (1 server tick = 30 cycles)
+                    // so seqTicksLeft outlasts the animation frames. This prevents
+                    // NPCs from flashing back to idle between their death animation
+                    // ending and the server despawn arriving.
+                    // NOTE: The canonical OSRS fix is a very long hold frame (65535
+                    // cycles) on the last frame of every death animation in the cache.
+                    // This client-side buffer is a workaround until cache animations
+                    // include proper hold frames.
+                    const ticks = this.estimateSeqDurationTicks(seqId) + 30;
                     this.npcEcs.handleServerSequence(ecsId, seqId, ticks, block.seq.delay | 0);
                     this.npcEcs.setFrameIndex(ecsId, 0);
                     this.npcEcs.setAnimTick(ecsId, 0);

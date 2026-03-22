@@ -1020,6 +1020,168 @@ function replaceInventoryContents(
     return true;
 }
 
+// ========== Quest unlock data ==========
+// Maps quest names to their varp ID and completion value.
+// Varp-based quests set the varp to the completion value.
+// Varbit-based quests use negative varpId as a signal (handled separately).
+const QUEST_DATA: Array<{
+    name: string;
+    aliases: string[];
+    varpId: number;
+    completionValue: number;
+    varbitEntries?: Array<{ varbitId: number; value: number }>;
+    unlocks: string;
+}> = [
+    {
+        name: "Desert Treasure",
+        aliases: ["dt", "desert", "deserttreasure"],
+        varpId: 440,
+        completionValue: 15,
+        unlocks: "Ancient Magicks spellbook",
+    },
+    {
+        name: "Lunar Diplomacy",
+        aliases: ["lunar", "lunardiplomacy"],
+        varpId: 823,
+        completionValue: 190,
+        unlocks: "Lunar spellbook",
+    },
+    {
+        name: "Legend's Quest",
+        aliases: ["legends", "legendsquest"],
+        varpId: 139,
+        completionValue: 180,
+        unlocks: "Charge spell",
+    },
+    {
+        name: "Underground Pass",
+        aliases: ["undergroundpass", "underground", "iban"],
+        varpId: 161,
+        completionValue: 110,
+        varbitEntries: [{ varbitId: 9133, value: 1 }], // Iban book read
+        unlocks: "Iban Blast",
+    },
+    {
+        name: "Mage Arena",
+        aliases: ["magearena", "ma1"],
+        varpId: 267,
+        completionValue: 8,
+        unlocks: "God spells (Claws of Guthix, Flames of Zamorak, Saradomin Strike)",
+    },
+    {
+        name: "Mage Arena II",
+        aliases: ["magearena2", "ma2", "magearenaii"],
+        varpId: -1, // varbit only
+        completionValue: 0,
+        varbitEntries: [{ varbitId: 6067, value: 6 }],
+        unlocks: "Enhanced god spells",
+    },
+    {
+        name: "Eadgar's Ruse",
+        aliases: ["eadgar", "eadgarsruse", "eadgars"],
+        varpId: 335,
+        completionValue: 110,
+        unlocks: "Trollheim Teleport",
+    },
+    {
+        name: "Watchtower",
+        aliases: ["watchtower"],
+        varpId: 212,
+        completionValue: 13,
+        unlocks: "Watchtower Teleport",
+    },
+    {
+        name: "Plague City",
+        aliases: ["plaguecity", "plague"],
+        varpId: 165,
+        completionValue: 29,
+        unlocks: "Ardougne Teleport (prerequisite)",
+    },
+    {
+        name: "Biohazard",
+        aliases: ["biohazard"],
+        varpId: 68,
+        completionValue: 16,
+        unlocks: "Ardougne Teleport",
+    },
+    {
+        name: "Client of Kourend",
+        aliases: ["clientofkourend", "kourend", "cok"],
+        varpId: -1,
+        completionValue: 0,
+        varbitEntries: [{ varbitId: 5619, value: 9 }],
+        unlocks: "Kourend Castle Teleport",
+    },
+    {
+        name: "Dream Mentor",
+        aliases: ["dreammentor", "dream"],
+        varpId: -1,
+        completionValue: 0,
+        varbitEntries: [{ varbitId: 3618, value: 28 }],
+        unlocks: "Spellbook Swap, extra Lunar spells",
+    },
+    {
+        name: "Arceuus Favour",
+        aliases: ["arceuus", "arceuusfavour", "arceuusfavor"],
+        varpId: -1,
+        completionValue: 0,
+        varbitEntries: [
+            { varbitId: 4896, value: 1000 },
+            { varbitId: 9631, value: 1 },
+        ],
+        unlocks: "Arceuus spellbook",
+    },
+];
+
+function handleQuestCommand(
+    sender: PlayerState,
+    args: string[],
+    services: Pick<MessageHandlerServices, "queueChatMessage" | "queueVarp" | "queueVarbit">,
+): void {
+    const reply = (text: string) =>
+        services.queueChatMessage({
+            messageType: "game",
+            text,
+            targetPlayerIds: [sender.id],
+        });
+
+    if (args.length === 0 || args[0] === "list") {
+        reply("Available quests: " + QUEST_DATA.map((q) => q.name).join(", "));
+        reply("Usage: ::quest <name> — e.g. ::quest desert treasure");
+        return;
+    }
+
+    // Join args and normalize for matching
+    const search = args.join("").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    // Try alias match first, then fuzzy name match
+    const quest =
+        QUEST_DATA.find((q) => q.aliases.includes(search)) ??
+        QUEST_DATA.find((q) => q.name.toLowerCase().replace(/[^a-z0-9]/g, "").includes(search));
+
+    if (!quest) {
+        reply(`Unknown quest "${args.join(" ")}". Use ::quest list to see available quests.`);
+        return;
+    }
+
+    // Set varp if applicable
+    if (quest.varpId >= 0) {
+        sender.setVarpValue(quest.varpId, quest.completionValue);
+        services.queueVarp(sender.id, quest.varpId, quest.completionValue);
+    }
+
+    // Set varbits if applicable
+    if (quest.varbitEntries) {
+        for (const { varbitId, value } of quest.varbitEntries) {
+            sender.setVarbitValue(varbitId, value);
+            services.queueVarbit(sender.id, varbitId, value);
+        }
+    }
+
+    reply(`Completed "${quest.name}" — unlocks: ${quest.unlocks}`);
+    logger.info(`[cmd] ::quest - Player ${sender.id} completed "${quest.name}"`);
+}
+
 /**
  * Creates the chat handler (complex, extracted for readability)
  */
@@ -1268,6 +1430,11 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     return;
                 }
 
+                if (root === "quest") {
+                    handleQuestCommand(sender, parts.slice(1), services);
+                    return;
+                }
+
                 if (cmd === "levelup") {
                     const skillIds = [
                         0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
@@ -1317,6 +1484,50 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                 } else if (cmd === "kill") {
                     logger.info(`[cmd] ::kill - Player ${sender.id} killed themselves`);
                     sender.setHitpointsCurrent(0);
+                } else if (
+                    root === "standard" ||
+                    root === "ancient" ||
+                    root === "lunar" ||
+                    root === "arceuus"
+                ) {
+                    // Varbit 4070 controls the active spellbook in CS2 scripts
+                    // 0 = standard, 1 = ancient, 2 = lunar, 3 = arceuus
+                    // Note: "::normal" is intercepted client-side by the OSRS CS2 chatbox
+                    // script (it toggles display mode), so we use "::standard" instead.
+                    const VARBIT_ACTIVE_SPELLBOOK = 4070;
+                    const SPELLBOOK_VALUES: Record<string, number> = {
+                        standard: 0,
+                        ancient: 1,
+                        lunar: 2,
+                        arceuus: 3,
+                    };
+                    const value = SPELLBOOK_VALUES[root]!;
+                    // Update server-side state
+                    sender.setVarbitValue(VARBIT_ACTIVE_SPELLBOOK, value);
+                    // Transmit varbit to client
+                    services.queueVarbit(sender.id, VARBIT_ACTIVE_SPELLBOOK, value);
+                    // Run CS2 script 2610 to redraw the spellbook interface,
+                    // passing the varbit inline so the script sees it immediately
+                    const SCRIPT_MAGIC_SPELLBOOK_REDRAW = 2610;
+                    const SPELLBOOK_REDRAW_ARGS: (number | string)[] = [
+                        14286851, 14287045, 14287054, 14286849, 14287051,
+                        14287052, 14287053, 14286850, 14287047, 14287050,
+                        0, "Info", "Filters",
+                    ];
+                    services.queueWidgetEvent(sender.id, {
+                        action: "run_script",
+                        scriptId: SCRIPT_MAGIC_SPELLBOOK_REDRAW,
+                        args: SPELLBOOK_REDRAW_ARGS,
+                        varbits: { [VARBIT_ACTIVE_SPELLBOOK]: value },
+                    });
+                    services.queueChatMessage({
+                        messageType: "game",
+                        text: `Switched to the ${root} spellbook.`,
+                        targetPlayerIds: [sender.id],
+                    });
+                    logger.info(
+                        `[cmd] ::${root} - Player ${sender.id} switched to ${root} spellbook`,
+                    );
                 }
                 return;
             }

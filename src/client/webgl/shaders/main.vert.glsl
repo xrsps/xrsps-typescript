@@ -7,7 +7,6 @@
 #define CONTOUR_GROUND_CENTER_TILE 0.0
 #define CONTOUR_GROUND_VERTEX 1.0
 #define CONTOUR_GROUND_NONE 2.0
-
 #define FOG_CORNER_ROUNDING 8.0
 
 precision highp float;
