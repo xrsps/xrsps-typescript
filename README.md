@@ -1,6 +1,7 @@
 # xrsps-typescript
 
 xRSPS is intended to explore OSRS in a similar spirit to Jagex's abandoned Project Zanaris.
+Latest cache supported: osrs-236_2026-03-18
 
 Discord: https://discord.gg/3dzttF2q73
 
