@@ -9818,8 +9818,31 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         true,
                     );
 
+                    // OSRS parity: When a one-shot animation finishes, hold the
+                    // last frame while seqTicksLeft > 0 instead of immediately
+                    // reverting to idle. This prevents the NPC from flashing back
+                    // to its idle pose between the death animation ending and the
+                    // server despawn packet arriving.
+                    // NOTE: In OSRS, death animations have a very long hold frame
+                    // (65535 cycles) on their final frame in the cache data, which
+                    // keeps the corpse pose visible until the server removes the NPC.
+                    // This client-side seqTicksLeft buffer is a workaround for
+                    // animations that lack proper cache hold frames. The proper fix
+                    // is adding hold frames to death SeqTypes in the cache.
+                    const ticksLeft = ecs.getSeqTicksLeft(id) | 0;
+                    if (ticksLeft > 0) {
+                        ecs.setSeqTicksLeft(id, (ticksLeft - 1) | 0);
+                    }
+
                     if (actionStep.cleared) {
-                        ecs.clearSeq(id);
+                        if (ticksLeft > 0) {
+                            // Hold last frame until seqTicksLeft expires
+                            ecs.setFrameIndex(id, Math.max(0, (actionFrameCount - 1) | 0));
+                            ecs.setAnimTick(id, 0);
+                            ecs.setLoopCount(id, actionStep.loopCount | 0);
+                        } else {
+                            ecs.clearSeq(id);
+                        }
                     } else {
                         ecs.setFrameIndex(id, actionStep.frameIndex | 0);
                         ecs.setAnimTick(id, actionStep.animTick | 0);

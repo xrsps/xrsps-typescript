@@ -37,7 +37,57 @@ const GOBLIN_BONES_ONLY_NPC_TYPE_IDS = [
     2245, 2246, 2247, 2248, 2249, 2485, 2486, 2487, 2488, 2489, 3046,
 ] as const;
 
+// Imp NPC type IDs (level 2)
+const IMP_NPC_TYPE_IDS = [5007, 3134] as const;
+
+// Scorpion NPC type IDs (level 14 + variants)
+const SCORPION_NPC_TYPE_IDS = [3024, 5242, 2480, 2479] as const;
+
 export const MANUAL_NPC_DROP_OVERRIDES: ManualNpcDropOverride[] = [
+    // Imp drops (OSRS wiki)
+    {
+        npcTypeIds: [...IMP_NPC_TYPE_IDS],
+        table: {
+            always: [drop("Fiendish ashes", 1, "Always")],
+            pools: [
+                {
+                    kind: "weighted",
+                    category: "main",
+                    entries: [
+                        drop("Black bead", 1, "1/8"),
+                        drop("Red bead", 1, "1/8"),
+                        drop("White bead", 1, "1/8"),
+                        drop("Yellow bead", 1, "1/8"),
+                        drop("Mind talisman", 1, "1/42"),
+                        drop("Coins", 6, "26/128"),
+                        drop("Coins", 12, "7/128"),
+                        drop("Earth rune", 6, "6/128"),
+                        drop("Fire rune", 6, "6/128"),
+                        drop("Body rune", 2, "5/128"),
+                        drop("Mind rune", 9, "3/128"),
+                        drop("Law rune", 1, "1/128"),
+                        drop("Bread", 1, "8/128"),
+                        drop("Ball of wool", 1, "1/128"),
+                        drop("Burnt meat", 1, "7/128"),
+                        drop("Chef's hat", 1, "1/128"),
+                    ],
+                },
+                {
+                    kind: "independent",
+                    category: "tertiary",
+                    entries: [
+                        drop("Ensouled imp head", 1, "1/35"),
+                        { itemName: "Clue scroll (easy)", quantity: 1, rarity: "1/128" },
+                    ],
+                },
+            ],
+        },
+    },
+    // Scorpion drops (OSRS - only drops bones, no other loot)
+    {
+        npcTypeIds: [...SCORPION_NPC_TYPE_IDS],
+        table: alwaysTable(drop("Bones", 1, "Always")),
+    },
     {
         npcTypeIds: [...GOBLIN_LEVEL_2_NPC_TYPE_IDS],
         table: {

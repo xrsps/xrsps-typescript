@@ -1566,6 +1566,230 @@
         "death": 172
       }
     },
+    "1173": {
+      "name": "Chicken",
+      "anims": {
+        "attack": 5387,
+        "block": 5388,
+        "death": 5389
+      }
+    },
+    "1174": {
+      "name": "Chicken",
+      "anims": {
+        "attack": 5387,
+        "block": 5388,
+        "death": 5389
+      }
+    },
+    "2804": {
+      "name": "Chicken",
+      "anims": {
+        "attack": 5387,
+        "block": 5388,
+        "death": 5389
+      }
+    },
+    "2805": {
+      "name": "Chicken",
+      "anims": {
+        "attack": 5387,
+        "block": 5388,
+        "death": 5389
+      }
+    },
+    "2806": {
+      "name": "Chicken",
+      "anims": {
+        "attack": 5387,
+        "block": 5388,
+        "death": 5389
+      }
+    },
+    "3316": {
+      "name": "Chicken",
+      "anims": {
+        "attack": 5387,
+        "block": 5388,
+        "death": 5389
+      }
+    },
+    "2479": {
+      "name": "Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "2480": {
+      "name": "Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "3024": {
+      "name": "Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "3025": {
+      "name": "Poison Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "3026": {
+      "name": "Pit Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "3027": {
+      "name": "King Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "5228": {
+      "name": "Kharid Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "5229": {
+      "name": "Kharid Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "5230": {
+      "name": "Kharid Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "5242": {
+      "name": "Scorpion",
+      "anims": {
+        "attack": 6254,
+        "block": 6255,
+        "death": 6256
+      }
+    },
+    "2477": {
+      "name": "Giant Spider",
+      "anims": {
+        "attack": 5319,
+        "block": 5320,
+        "death": 5321
+      }
+    },
+    "2478": {
+      "name": "Spider",
+      "anims": {
+        "attack": 5327,
+        "block": 5328,
+        "death": 5329
+      }
+    },
+    "3016": {
+      "name": "Shadow Spider",
+      "anims": {
+        "attack": 5327,
+        "block": 5328,
+        "death": 5329
+      }
+    },
+    "3017": {
+      "name": "Giant Spider",
+      "anims": {
+        "attack": 5319,
+        "block": 5320,
+        "death": 5321
+      }
+    },
+    "3018": {
+      "name": "Giant Spider",
+      "anims": {
+        "attack": 5319,
+        "block": 5320,
+        "death": 5321
+      }
+    },
+    "3019": {
+      "name": "Spider",
+      "anims": {
+        "attack": 5327,
+        "block": 5328,
+        "death": 5329
+      }
+    },
+    "3020": {
+      "name": "Jungle Spider",
+      "anims": {
+        "attack": 5327,
+        "block": 5328,
+        "death": 5329
+      }
+    },
+    "3021": {
+      "name": "Deadly Red Spider",
+      "anims": {
+        "attack": 5319,
+        "block": 5320,
+        "death": 5321
+      }
+    },
+    "3022": {
+      "name": "Ice Spider",
+      "anims": {
+        "attack": 5319,
+        "block": 5320,
+        "death": 5321
+      }
+    },
+    "3023": {
+      "name": "Poison Spider",
+      "anims": {
+        "attack": 5319,
+        "block": 5320,
+        "death": 5321
+      }
+    },
+    "1683": {
+      "name": "Crypt Spider",
+      "anims": {
+        "attack": 5327,
+        "block": 5328,
+        "death": 5329
+      }
+    },
+    "1684": {
+      "name": "Giant Crypt Spider",
+      "anims": {
+        "attack": 5319,
+        "block": 5320,
+        "death": 5321
+      }
+    },
     "11911": {
       "name": "Guard",
       "anims": {

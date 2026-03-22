@@ -545,12 +545,7 @@ export class GroundItemHandler {
             this.services.sendPickupSound(player),
         );
 
-        // Send loot notification
-        this.services.withDirectSendBypass("notification", () =>
-            this.services.sendLootNotification(player, itemId, added),
-        );
-
-        // Track for collection log
+        // Track for collection log (sends "new item" notification only for new collection log items)
         this.services.trackCollectionLogItem(player, itemId);
 
         // Force ground item update for this player
