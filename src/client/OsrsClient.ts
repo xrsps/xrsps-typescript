@@ -6753,20 +6753,28 @@ export class OsrsClient {
         // Fire onClickRepeat / onHold for ANY held widget, not just draggable ones.
         // OSRS parity: onHold fires every tick while the widget is held (e.g., scrollbar arrows).
         // Reference: Client.java - onHoldListener is processed independently of drag state.
-        if (this.clickedWidget && isHolding) {
+        // OSRS parity: hold events are suppressed while a widget drag is active.
+        // Reference: InterfaceUpdateHandler.java line 465 — draggedWidget != null suppresses var46/var47.
+        if (this.clickedWidget && isHolding && !this.isDraggingWidget) {
             const holdCtx: Partial<ScriptEvent> = {
                 mouseX: mx - (this.clickedWidget._absX ?? this.clickedWidget.x ?? 0),
                 mouseY: my - (this.clickedWidget._absY ?? this.clickedWidget.y ?? 0),
             };
 
-            if (this.clickedWidget.eventHandlers?.onClickRepeat) {
-                this.cs2Vm.invokeEventHandler(this.clickedWidget, "onClickRepeat", holdCtx);
-            } else if (this.clickedWidget.onClickRepeat) {
-                this.executeScriptListener(
-                    this.clickedWidget,
-                    this.clickedWidget.onClickRepeat,
-                    holdCtx,
-                );
+            // OSRS parity: onClickRepeat requires isClicked (set by onClick on the previous frame).
+            // On the first frame of a click, onClick fires and sets isClicked — onClickRepeat
+            // only starts firing from the next frame onward. Using !isNewClick as the guard
+            // achieves the same one-frame delay.
+            if (!isNewClick) {
+                if (this.clickedWidget.eventHandlers?.onClickRepeat) {
+                    this.cs2Vm.invokeEventHandler(this.clickedWidget, "onClickRepeat", holdCtx);
+                } else if (this.clickedWidget.onClickRepeat) {
+                    this.executeScriptListener(
+                        this.clickedWidget,
+                        this.clickedWidget.onClickRepeat,
+                        holdCtx,
+                    );
+                }
             }
 
             if (this.clickedWidget.eventHandlers?.onHold) {

@@ -302,6 +302,7 @@ export class InputManager {
         this.element.removeEventListener("touchend", this.onTouchEnd);
         this.element.removeEventListener("contextmenu", this.onContextMenu);
         this.element.removeEventListener("focusout", this.onFocusOut);
+        this.removeDocumentGrab();
 
         this.element = undefined;
     }
@@ -470,6 +471,7 @@ export class InputManager {
             this.mouseWheelX = x;
             this.mouseWheelY = y;
             event.preventDefault();
+            this.installDocumentGrab();
             return;
         }
 
@@ -489,6 +491,7 @@ export class InputManager {
         this.mouseX = x;
         this.mouseY = y;
         this.isTouch = false;
+        this.installDocumentGrab();
     };
 
     /**
@@ -509,6 +512,7 @@ export class InputManager {
         this._dragStartY = -1;
         this.mouseX = x;
         this.mouseY = y;
+        this.removeDocumentGrab();
     };
 
     /**
@@ -545,12 +549,69 @@ export class InputManager {
 
     /**
      * Mouse exited - OSRS GameApplet.mouseExited
+     * OSRS parity: only sets coordinates to -1, does NOT reset button state.
+     * Java AWT's implicit mouse grab means mouseReleased still fires outside
+     * the component — our document-level grab listeners handle that.
      */
     private onMouseLeave = (_event: MouseEvent) => {
         this.idleTime = 0;
         this.lastInputTimeMs = this.nowMs();
         this.mouseX = -1;
         this.mouseY = -1;
+    };
+
+    // ── Document-level mouse grab (Java AWT implicit grab parity) ──
+    // Java AWT delivers mouseDragged/mouseReleased to the component even when
+    // the cursor is outside it, as long as a button was pressed on that component.
+    // The web only fires these events on the element itself, so we install
+    // temporary document-level listeners while a button is held.
+
+    private _docGrabInstalled = false;
+
+    private installDocumentGrab() {
+        if (this._docGrabInstalled) return;
+        this._docGrabInstalled = true;
+        document.addEventListener("mousemove", this.onDocGrabMove, true);
+        document.addEventListener("mouseup", this.onDocGrabUp, true);
+    }
+
+    private removeDocumentGrab() {
+        if (!this._docGrabInstalled) return;
+        this._docGrabInstalled = false;
+        document.removeEventListener("mousemove", this.onDocGrabMove, true);
+        document.removeEventListener("mouseup", this.onDocGrabUp, true);
+    }
+
+    /** Document-level mousemove — only updates coords when cursor is outside the canvas. */
+    private onDocGrabMove = (event: MouseEvent) => {
+        if (!this.element) return;
+        // If the event target is within our element, the element's own onMouseMove handles it.
+        if (this.element.contains(event.target as Node)) return;
+
+        const [x, y] = getMousePos(this.element, event);
+        this.idleTime = 0;
+        this.lastInputTimeMs = this.nowMs();
+        this.mouseX = x;
+        this.mouseY = y;
+    };
+
+    /** Document-level mouseup — catches releases that occur outside the canvas. */
+    private onDocGrabUp = (event: MouseEvent) => {
+        this.removeDocumentGrab();
+        if (!this.element) return;
+        // If released inside our element, the element's own onMouseUp handles it.
+        if (this.element.contains(event.target as Node)) return;
+
+        const [x, y] = getMousePos(this.element, event);
+        this.shiftDown = event.shiftKey === true;
+        this.idleTime = 0;
+        this.lastInputTimeMs = this.nowMs();
+        this.clickMode2 = ClickMode.NONE;
+        this.mouseWheelDown = false;
+        this._dragStartX = -1;
+        this._dragStartY = -1;
+        this.mouseX = x;
+        this.mouseY = y;
     };
 
     private onWheel = (event: WheelEvent) => {
@@ -820,6 +881,7 @@ export class InputManager {
         this.mouseWheelDown = false;
         this._dragStartX = -1;
         this._dragStartY = -1;
+        this.removeDocumentGrab();
     }
 
     /**
