@@ -16,7 +16,6 @@ in vec2 v_texCoord;
 flat in uint v_texId;
 flat in float v_alphaCutOff;
 in float v_fogAmount;
-in float v_skyLerp;
 flat in float v_plane;
 flat in uint v_priority;
 

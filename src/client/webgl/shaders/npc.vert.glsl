@@ -38,7 +38,6 @@ out vec2 v_texCoord;
 flat out uint v_texId;
 flat out float v_alphaCutOff;
 out float v_fogAmount;
-out float v_skyLerp;
 flat out float v_plane;
 
 #include "./includes/branchless-logic.glsl";
@@ -55,6 +54,7 @@ struct NpcInfo {
     vec2 tilePos;
     uint plane;
     uint rotation;
+    vec4 hslOverride; // per-actor HSL override (hue, sat, lum, amount)
 };
 
 ivec2 getDataTexCoordFromIndex(int index) {
@@ -66,13 +66,24 @@ float decodeSignedU16(uint value) {
 }
 
 NpcInfo decodeNpcInfo(int offset) {
-    uvec4 data = texelFetch(u_npcDataTexture, getDataTexCoordFromIndex(offset + gl_InstanceID), 0);
+    int baseTexel = (offset + gl_InstanceID) * 2;
+    uvec4 data = texelFetch(u_npcDataTexture, getDataTexCoordFromIndex(baseTexel), 0);
+    uvec4 data1 = texelFetch(u_npcDataTexture, getDataTexCoordFromIndex(baseTexel + 1), 0);
 
     NpcInfo info;
 
     info.tilePos = vec2(decodeSignedU16(data.r), decodeSignedU16(data.g));
     info.plane = data.b & 0x3u;
     info.rotation = data.b >> 2;
+
+    // Unpack per-actor HSL override from 2nd texel
+    // R: hue(7) | sat(7) << 7,  G: lum(7) | amount(8) << 7
+    info.hslOverride = vec4(
+        float(int(data1.r) & 0x7F),           // hue (0-127)
+        float((int(data1.r) >> 7) & 0x7F),    // sat (0-127)
+        float(int(data1.g) & 0x7F),           // lum (0-127)
+        float((int(data1.g) >> 7) & 0xFF)     // amount (0-255)
+    );
 
     return info;
 }
@@ -85,7 +96,8 @@ mat4 rotationY( in float angle ) {
 }
 
 void main() {
-    Vertex vertex = decodeVertex(a_vertex.x, a_vertex.y, a_vertex.z, u_brightness);
+    NpcInfo npcInfo = decodeNpcInfo(getDrawId() + u_npcDataOffset);
+    Vertex vertex = decodeVertex(a_vertex.x, a_vertex.y, a_vertex.z, u_brightness, npcInfo.hslOverride);
 
     v_color = vertex.color;
 
@@ -99,8 +111,6 @@ void main() {
     }
     v_texId = vertex.textureId;
     v_alphaCutOff = material.alphaCutOff;
-
-    NpcInfo npcInfo = decodeNpcInfo(getDrawId() + u_npcDataOffset);
 
     vec4 localPos = vec4(vertex.pos, 1.0) * rotationY(float(npcInfo.rotation) * RS_TO_RADIANS) + vec4(npcInfo.tilePos.x, 0, npcInfo.tilePos.y, 0.0);
 
@@ -124,7 +134,6 @@ void main() {
 
     // View-space position
     vec4 viewPos = u_viewMatrix * localPos;
-    v_skyLerp = clamp(0.5 + viewPos.y * 0.25, 0.0, 1.0);
 
     // Depth layering (pre-projection)
     const float PLANE_LAYER_EPSILON      = 0.01;     // plane separation

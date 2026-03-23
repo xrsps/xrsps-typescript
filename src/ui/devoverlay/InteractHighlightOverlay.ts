@@ -35,6 +35,7 @@ uniform SceneUniforms {
     mat4 u_viewMatrix;
     mat4 u_projectionMatrix;
     vec4 u_skyColor;
+    vec4 u_sceneHslOverride;
     vec2 u_cameraPos;
     vec2 u_playerPos;
     float u_renderDistance;

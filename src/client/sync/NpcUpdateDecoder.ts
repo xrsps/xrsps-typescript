@@ -31,6 +31,14 @@ export type NpcUpdateBlock = {
     healthBars?: HealthBarUpdate[];
     spotAnims?: NpcSpotAnimUpdate[];
     seq?: { id: number; delay: number };
+    colorOverride?: {
+        startCycle: number;
+        endCycle: number;
+        hue: number;
+        sat: number;
+        lum: number;
+        amount: number;
+    };
 };
 
 export type NpcInfoFrame = {
@@ -47,7 +55,7 @@ export type NpcInfoFrame = {
  * Notes:
  * - Maintains a local NPC id list internally (like Client.npcIndices).
  * - Only decodes the subset of update blocks that our server currently emits:
- *   FACE_ENTITY (0x8), HIT_MASK (0x20), SPOTANIM2 (0x20000), SEQUENCE (0x10).
+ *   FACE_ENTITY (0x8), HIT_MASK (0x20), COLOR_OVERRIDE (0x100), SPOTANIM2 (0x20000), SEQUENCE (0x10).
  */
 export class NpcUpdateDecoder {
     private npcIndices: number[] = [];
@@ -280,6 +288,17 @@ export class NpcUpdateDecoder {
 
                 if (hits.length > 0) block.hitsplats = hits;
                 if (bars.length > 0) block.healthBars = bars;
+            }
+
+            // COLOR_OVERRIDE (0x100)
+            if ((mask & 0x100) !== 0) {
+                const startCycle = ((opts.clientCycle | 0) + (stream.readUnsignedShortAdd() | 0)) | 0;
+                const endCycle = ((opts.clientCycle | 0) + (stream.readUnsignedShortAdd() | 0)) | 0;
+                const hue = stream.readByteNeg();
+                const sat = stream.readByteSub();
+                const lum = stream.readByteNeg();
+                const amount = ((stream.readUnsignedByteSub() << 24) >> 24); // cast to signed byte
+                block.colorOverride = { startCycle, endCycle, hue, sat, lum, amount };
             }
 
             // SPOT_ANIM2 list (0x20000)

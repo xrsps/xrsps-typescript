@@ -547,10 +547,16 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     // Settings
     maxLevel: number = Scene.MAX_LEVELS - 1;
 
-    skyColor: vec4 = vec4.fromValues(50 / 255, 65 / 255, 95 / 255, 1); // Dusk blue
+    skyColor: vec4 = vec4.fromValues(0, 0, 0, 1); // Black (OSRS parity — vanilla has no skybox)
     fogDepth: number = 24; // Fog starts at 24 tiles (OSRS fog is subtle until near max distance)
     autoFogDepth: boolean = true;
     autoFogDepthFactor: number = 0.7;
+
+    // Scene-level HSL override matching OSRS Scene.Scene_cameraY / HslOverride.
+    // Reference: HslOverride.java, Scene.java beginDraw, AbstractRasterizer.applyHslOverride
+    // Values: [hue (-1=no override, 0-63), sat (-1=no override, 0-7),
+    //          lum (-1=no override, 0-127), amount (0-255, 0=disabled)]
+    sceneHslOverride: vec4 = vec4.fromValues(-1, -1, -1, 0);
 
     brightness: number = 0.8;
     colorBanding: number = 255;
@@ -639,7 +645,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     unifiedActorData: boolean = true;
     // ECS is authoritative for actors (NPCs and Players migrated)
     actorRenderCount: number = 0;
-    actorRenderData: Uint16Array = new Uint16Array(16 * 4);
+    actorRenderData: Uint16Array = new Uint16Array(16 * 8);
     // OSRS parity: mirror sceneDrawCycleMarker/tileDrawCycleMarkers submission dedupe
     // for tile-centered single-tile actors. Submission order matches the deob actor pass.
     private frameActorTileSelectionId: number = -1;
@@ -2607,6 +2613,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             PicoGL.FLOAT_MAT4, // mat4 u_viewMatrix;
             PicoGL.FLOAT_MAT4, // mat4 u_projectionMatrix;
             PicoGL.FLOAT_VEC4, // vec4 u_skyColor;
+            PicoGL.FLOAT_VEC4, // vec4 u_sceneHslOverride;
             PicoGL.FLOAT_VEC2, // vec2 u_cameraPos;
             PicoGL.FLOAT_VEC2, // vec2 u_playerPos;
             PicoGL.FLOAT, // float u_renderDistance;
@@ -2749,12 +2756,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             FRAME_FXAA_PROGRAM,
             // hover line program (added at end)
             [
-                `#version 300 es\n\nlayout(std140, column_major) uniform;\n\nprecision highp float;\n\n// Inline SceneUniforms (can't use #include in runtime strings)\nuniform SceneUniforms {\n    mat4 u_viewProjMatrix;\n    mat4 u_viewMatrix;\n    mat4 u_projectionMatrix;\n    vec4 u_skyColor;\n    vec2 u_cameraPos;\n    vec2 u_playerPos;\n    float u_renderDistance;\n    float u_fogDepth;\n    float u_currentTime;\n    float u_brightness;\n    float u_colorBanding;\n    float u_isNewTextureAnim;\n};\n\nlayout(location=0) in vec3 a_position;\n\nvoid main(){\n    vec4 pos = u_viewMatrix * vec4(a_position, 1.0);\n    gl_Position = u_projectionMatrix * pos;\n}`,
+                `#version 300 es\n\nlayout(std140, column_major) uniform;\n\nprecision highp float;\n\n// Inline SceneUniforms (can't use #include in runtime strings)\nuniform SceneUniforms {\n    mat4 u_viewProjMatrix;\n    mat4 u_viewMatrix;\n    mat4 u_projectionMatrix;\n    vec4 u_skyColor;\n    vec4 u_sceneHslOverride;\n    vec2 u_cameraPos;\n    vec2 u_playerPos;\n    float u_renderDistance;\n    float u_fogDepth;\n    float u_currentTime;\n    float u_brightness;\n    float u_colorBanding;\n    float u_isNewTextureAnim;\n};\n\nlayout(location=0) in vec3 a_position;\n\nvoid main(){\n    vec4 pos = u_viewMatrix * vec4(a_position, 1.0);\n    gl_Position = u_projectionMatrix * pos;\n}`,
                 `#version 300 es\n\nprecision mediump float;\n\nuniform vec4 u_color;\n\nout vec4 fragColor;\nvoid main(){\n    fragColor = u_color;\n}`,
             ],
             // hitsplat textured quad anchored in world (clip-space offset)
             [
-                `#version 300 es\n\nlayout(std140, column_major) uniform;\nprecision highp float;\n\nuniform SceneUniforms {\n    mat4 u_viewProjMatrix;\n    mat4 u_viewMatrix;\n    mat4 u_projectionMatrix;\n    vec4 u_skyColor;\n    vec2 u_cameraPos;\n    vec2 u_playerPos;\n    float u_renderDistance;\n    float u_fogDepth;\n    float u_currentTime;\n    float u_brightness;\n    float u_colorBanding;\n    float u_isNewTextureAnim;\n};\n\nlayout(location=0) in vec2 a_position; // pixel offset from anchor\nlayout(location=1) in vec2 a_texCoord;\n\nout vec2 v_uv;\n\nuniform vec2 u_screenSize;\nuniform vec3 u_centerWorld;\n\nvoid main(){\n    vec4 centerClip = u_projectionMatrix * (u_viewMatrix * vec4(u_centerWorld, 1.0));\n    if (centerClip.w <= 0.0) {\n        gl_Position = vec4(2.0, 2.0, 1.0, 1.0);\n        v_uv = a_texCoord;\n        return;\n    }\n\n    vec2 snappedOffset = floor(a_position + vec2(0.5, 0.5));\n    vec2 px = snappedOffset / u_screenSize;\n    vec2 ndcOffset = vec2(px.x * 2.0, -px.y * 2.0);\n    gl_Position = vec4(centerClip.xy + ndcOffset * centerClip.w, centerClip.z, centerClip.w);\n    v_uv = a_texCoord;\n}`,
+                `#version 300 es\n\nlayout(std140, column_major) uniform;\nprecision highp float;\n\nuniform SceneUniforms {\n    mat4 u_viewProjMatrix;\n    mat4 u_viewMatrix;\n    mat4 u_projectionMatrix;\n    vec4 u_skyColor;\n    vec4 u_sceneHslOverride;\n    vec2 u_cameraPos;\n    vec2 u_playerPos;\n    float u_renderDistance;\n    float u_fogDepth;\n    float u_currentTime;\n    float u_brightness;\n    float u_colorBanding;\n    float u_isNewTextureAnim;\n};\n\nlayout(location=0) in vec2 a_position; // pixel offset from anchor\nlayout(location=1) in vec2 a_texCoord;\n\nout vec2 v_uv;\n\nuniform vec2 u_screenSize;\nuniform vec3 u_centerWorld;\n\nvoid main(){\n    vec4 centerClip = u_projectionMatrix * (u_viewMatrix * vec4(u_centerWorld, 1.0));\n    if (centerClip.w <= 0.0) {\n        gl_Position = vec4(2.0, 2.0, 1.0, 1.0);\n        v_uv = a_texCoord;\n        return;\n    }\n\n    vec2 snappedOffset = floor(a_position + vec2(0.5, 0.5));\n    vec2 px = snappedOffset / u_screenSize;\n    vec2 ndcOffset = vec2(px.x * 2.0, -px.y * 2.0);\n    gl_Position = vec4(centerClip.xy + ndcOffset * centerClip.w, centerClip.z, centerClip.w);\n    v_uv = a_texCoord;\n}`,
                 `#version 300 es\n\nprecision mediump float;\n\nin vec2 v_uv;\n\nuniform sampler2D u_sprite;\nuniform vec4 u_tint;\n\nout vec4 fragColor;\n\nvoid main(){\n    vec4 c = texture(u_sprite, v_uv);\n    if (c.a < 0.01) discard;\n    fragColor = vec4(c.rgb * u_tint.rgb, c.a * u_tint.a);\n}`,
             ],
             // screen-space textured quad for UI overlays
@@ -5318,6 +5325,48 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.skyColor[2] = b / 255;
     }
 
+    /**
+     * Set the scene-level HSL color override (OSRS Scene.Scene_cameraY).
+     * Tints all rendered geometry by lerping HSL vertex colors toward the target.
+     * Reference: HslOverride.java, AbstractRasterizer.applyHslOverride
+     *
+     * @param hue       Override hue target (-1 = no hue override, 0-63)
+     * @param sat       Override saturation target (-1 = no sat override, 0-7)
+     * @param lum       Override luminance target (-1 = no lum override, 0-127)
+     * @param amount    Override strength (0 = disabled, 1-255 = lerp strength, 127 = full in OSRS)
+     */
+    setSceneHslOverride(hue: number, sat: number, lum: number, amount: number): void {
+        this.sceneHslOverride[0] = hue;
+        this.sceneHslOverride[1] = sat;
+        this.sceneHslOverride[2] = lum;
+        this.sceneHslOverride[3] = amount;
+    }
+
+    /**
+     * Set the scene-level HSL override from a packed HSL short (as used by WorldEntityConfig.sceneTintHsl).
+     * Reference: WorldEntity.java lines 221-226
+     *
+     * @param packedHsl  Packed 16-bit HSL value (hue[15:10], sat[9:7], lum[6:0])
+     * @param amount     Override strength (0-255, typically 127 for full override)
+     */
+    setSceneHslOverrideFromPacked(packedHsl: number, amount: number): void {
+        const hue = (packedHsl >> 10) & 63;
+        const sat = (packedHsl >> 7) & 7;
+        const lum = packedHsl & 127;
+        this.setSceneHslOverride(hue, sat, lum, amount);
+    }
+
+    /**
+     * Clear the scene-level HSL override (restore normal rendering).
+     * Reference: HslOverride.clear()
+     */
+    clearSceneHslOverride(): void {
+        this.sceneHslOverride[0] = -1;
+        this.sceneHslOverride[1] = -1;
+        this.sceneHslOverride[2] = -1;
+        this.sceneHslOverride[3] = 0;
+    }
+
     setSmoothTerrain(enabled: boolean): void {
         const updated = this.smoothTerrain !== enabled;
         this.smoothTerrain = enabled;
@@ -5836,14 +5885,15 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             .set(1, camera.viewMatrix as Float32Array)
             .set(2, camera.projectionMatrix as Float32Array)
             .set(3, this.skyColor as Float32Array)
-            .set(4, this.cameraPosUni as Float32Array)
-            .set(5, this.playerPosUni as Float32Array)
-            .set(6, fogEnd as any)
-            .set(7, fogDepth as any)
-            .set(8, timeSec as any)
-            .set(9, this.brightness as any)
-            .set(10, this.colorBanding as any)
-            .set(11, this.osrsClient.isNewTextureAnim as any)
+            .set(4, this.sceneHslOverride as Float32Array)
+            .set(5, this.cameraPosUni as Float32Array)
+            .set(6, this.playerPosUni as Float32Array)
+            .set(7, fogEnd as any)
+            .set(8, fogDepth as any)
+            .set(9, timeSec as any)
+            .set(10, this.brightness as any)
+            .set(11, this.colorBanding as any)
+            .set(12, this.osrsClient.isNewTextureAnim as any)
             .update();
         profiler.endPhase();
 
@@ -10082,8 +10132,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
             const baseOffset = this.actorRenderCount;
             const required = baseOffset + npcCount;
-            if (this.actorRenderData.length / 4 < required) {
-                const newData = new Uint16Array(Math.ceil((required * 2) / 16) * 16 * 4);
+            if (this.actorRenderData.length / 8 < required) {
+                const newData = new Uint16Array(Math.ceil((required * 2) / 16) * 16 * 8);
                 newData.set(this.actorRenderData);
                 this.actorRenderData = newData;
             }
@@ -10092,12 +10142,16 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
             for (let i = 0; i < npcCount; i++) {
                 const id = ids[i] | 0;
-                const offset = (baseOffset + i) * 4;
+                const offset = (baseOffset + i) * 8;
                 if (!this.shouldRenderNpcFromMap(map, id)) {
                     this.actorRenderData[offset + 0] = 0;
                     this.actorRenderData[offset + 1] = 0;
                     this.actorRenderData[offset + 2] = 0;
                     this.actorRenderData[offset + 3] = 0;
+                    this.actorRenderData[offset + 4] = 0;
+                    this.actorRenderData[offset + 5] = 0;
+                    this.actorRenderData[offset + 6] = 0;
+                    this.actorRenderData[offset + 7] = 0;
                     continue;
                 }
                 // NPC geometry ownership can lag one map refresh behind ECS ownership while an NPC
@@ -10113,11 +10167,29 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     localTileX,
                     localTileY,
                 );
+                // Texel 0: position, plane|rotation, interactionId
                 this.actorRenderData[offset + 0] = npcX;
                 this.actorRenderData[offset + 1] = npcY;
                 this.actorRenderData[offset + 2] = renderPlane | (ecs.getRotation(id) << 2);
-                // Store serverId (not npcTypeId) for precise NPC instance targeting
                 this.actorRenderData[offset + 3] = ecs.getServerId(id);
+                // Texel 1: per-actor HSL override
+                const npcOverride = ecs.getColorOverride(id);
+                const clientCycle = getClientCycle() | 0;
+                if (
+                    npcOverride.amount !== 0 &&
+                    clientCycle >= npcOverride.startCycle &&
+                    clientCycle < npcOverride.endCycle
+                ) {
+                    this.actorRenderData[offset + 4] =
+                        (npcOverride.hue & 0x7f) | ((npcOverride.sat & 0x7f) << 7);
+                    this.actorRenderData[offset + 5] =
+                        (npcOverride.lum & 0x7f) | ((npcOverride.amount & 0xff) << 7);
+                } else {
+                    this.actorRenderData[offset + 4] = 0;
+                    this.actorRenderData[offset + 5] = 0;
+                }
+                this.actorRenderData[offset + 6] = 0;
+                this.actorRenderData[offset + 7] = 0;
             }
 
             this.actorRenderCount = required;
@@ -10153,9 +10225,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const baseOffset = this.actorRenderCount;
         const required = baseOffset + projCount;
 
-        // Ensure buffer capacity (4 uint16s per actor - shared with NPCs/Players)
-        if (required * 4 > this.actorRenderData.length) {
-            const newCap = Math.max(required * 4, this.actorRenderData.length * 2);
+        // Ensure buffer capacity (8 uint16s per entry = 2 texels - shared with NPCs/Players)
+        if (required * 8 > this.actorRenderData.length) {
+            const newCap = Math.max(required * 8, this.actorRenderData.length * 2);
             const newBuf = new Uint16Array(newCap);
             newBuf.set(this.actorRenderData);
             this.actorRenderData = newBuf;
@@ -10173,7 +10245,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         for (let i = 0; i < projCount; i++) {
             const proj = projectiles[i];
-            const offset = (baseOffset + i) * 4;
+            const offset = (baseOffset + i) * 8;
             const pos = proj.getPosition();
 
             // Convert from 128-unit coordinates to sub-tile coordinates (relative to map)
@@ -10206,16 +10278,17 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
             const plane = renderPlane & 0x3;
 
-            // Pack data:
-            // offset+0: X position (16 bits)
-            // offset+1: Y position (16 bits)
-            // offset+2: plane (2 bits) | yaw (11 bits, shifted left 2) | pitch hi (3 bits, at bits 13-15)
-            // offset+3: projectileId (9 bits) | pitch lo (4 bits, at bits 9-12) | roll (3 bits, at bits 13-15)
+            // Texel 0: position, rotation, projectile ID
             this.actorRenderData[offset + 0] = baseRelativeX & 0xffff;
             this.actorRenderData[offset + 1] = baseRelativeY & 0xffff;
             this.actorRenderData[offset + 2] = (plane | (yawOsrs << 2) | (pitchHi << 13)) & 0xffff;
             this.actorRenderData[offset + 3] =
                 ((proj.projectileId & 0x1ff) | (pitchLo << 9) | (rollShifted << 13)) & 0xffff;
+            // Texel 1: unused for projectiles
+            this.actorRenderData[offset + 4] = 0;
+            this.actorRenderData[offset + 5] = 0;
+            this.actorRenderData[offset + 6] = 0;
+            this.actorRenderData[offset + 7] = 0;
         }
 
         this.actorRenderCount = required;
@@ -10232,8 +10305,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
         const baseOffset = this.actorRenderCount;
         const required = baseOffset + instances.length;
-        if (this.actorRenderData.length / 4 < required) {
-            const newData = new Uint16Array(Math.ceil((required * 2) / 16) * 16 * 4);
+        if (this.actorRenderData.length / 8 < required) {
+            const newData = new Uint16Array(Math.ceil((required * 2) / 16) * 16 * 8);
             newData.set(this.actorRenderData);
             this.actorRenderData = newData;
         }
@@ -10256,11 +10329,16 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 localTileX,
                 localTileY,
             );
-            const offset = (baseOffset + i) * 4;
+            const offset = (baseOffset + i) * 8;
             this.actorRenderData[offset + 0] = localX;
             this.actorRenderData[offset + 1] = localY;
             this.actorRenderData[offset + 2] = renderPlane;
             this.actorRenderData[offset + 3] = 0;
+            // Texel 1: HSL override (zeroed — world GFX have no actor override)
+            this.actorRenderData[offset + 4] = 0;
+            this.actorRenderData[offset + 5] = 0;
+            this.actorRenderData[offset + 6] = 0;
+            this.actorRenderData[offset + 7] = 0;
             world.mapId = map.id;
             world.slot = i;
         }
@@ -10274,7 +10352,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     updateActorDataTexture() {
         const texWidth = 16;
-        const texHeight = Math.max(Math.ceil(this.actorRenderCount / texWidth), 1);
+        // 2 texels per actor (position + HSL override data)
+        const texelCount = this.actorRenderCount * 2;
+        const texHeight = Math.max(Math.ceil(texelCount / texWidth), 1);
 
         // PicoGL allocates immutable storage via texStorage2D, so the upload buffer must be large enough
         // for the full texture (including padding to the 16-wide grid), not just actorRenderCount entries.
@@ -10285,7 +10365,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.actorRenderData = newData;
         }
         // Ensure padding texels (up to the next 16-wide row) don't leak stale values.
-        const writtenU16 = (this.actorRenderCount * 4) | 0;
+        const writtenU16 = (this.actorRenderCount * 8) | 0;
         if (writtenU16 < requiredU16) {
             this.actorRenderData.fill(0, writtenU16, requiredU16);
         }

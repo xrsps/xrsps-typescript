@@ -156,6 +156,23 @@ export class BitStream {
         return this.readUnsignedShortLEA();
     }
 
+    /** OSRS `readUnsignedShortAdd` (big-endian; low byte is Add). */
+    readUnsignedShortAdd(): number {
+        return this.readUnsignedShortBEA();
+    }
+
+    /** OSRS `readByteNeg`: signed result of (0 - value). */
+    readByteNeg(): number {
+        const v = this.readUnsignedByte();
+        return ((0 - v) << 24) >> 24;
+    }
+
+    /** OSRS `readByteSub`: signed result of (128 - value). */
+    readByteSub(): number {
+        const v = this.readUnsignedByte();
+        return ((128 - v) << 24) >> 24;
+    }
+
     readUnsignedShortBEA(): number {
         const high = this.readUnsignedByte();
         const low = (this.readUnsignedByte() - 128) & 0xff;

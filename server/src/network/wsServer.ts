@@ -1113,6 +1113,14 @@ interface TickFrame {
     varps?: Array<{ playerId: number; varpId: number; value: number }>;
     varbits?: Array<{ playerId: number; varbitId: number; value: number }>;
     clientScripts?: Array<{ playerId: number; scriptId: number; args: (number | string)[] }>;
+    colorOverrides: Map<
+        number,
+        { hue: number; sat: number; lum: number; amount: number; durationTicks: number }
+    >;
+    npcColorOverrides: Map<
+        number,
+        { hue: number; sat: number; lum: number; amount: number; durationTicks: number }
+    >;
 }
 
 // Level-up UI/effects (OSRS parity)
@@ -3179,6 +3187,8 @@ export class WSServer {
             varps,
             varbits,
             clientScripts,
+            colorOverrides: new Map(),
+            npcColorOverrides: new Map(),
         };
     }
 
@@ -3304,6 +3314,16 @@ export class WSServer {
                     }
                     frame.npcUpdates = Array.from(mergedByNpcId.values());
                 }
+                // Collect NPC color overrides (consumed once, shared across all observers)
+                this.npcManager.forEach((npc) => {
+                    if (npc.consumeColorOverrideDirty()) {
+                        const co = npc.getColorOverride();
+                        if (co && co.amount > 0) {
+                            frame.npcColorOverrides.set(npc.id, co);
+                        }
+                    }
+                });
+
                 if (this.players) {
                     this.players.forEach((_client, player) => {
                         this.npcSyncManager.updateNpcViewForPlayer(player);
@@ -3593,6 +3613,14 @@ export class WSServer {
                 npcLookup,
             });
             frame.interactionIndices.set(player.id, interactionIndex);
+
+            // Collect pending color override
+            if (player.consumeColorOverrideDirty()) {
+                const co = player.getColorOverride();
+                if (co && co.amount > 0) {
+                    frame.colorOverrides.set(player.id, co);
+                }
+            }
 
             this.updateRunEnergy(
                 player,
@@ -4330,6 +4358,7 @@ export class WSServer {
                         chatMessages: frame.chatMessages,
                         pendingSequences: frame.pendingSequences,
                         interactionIndices: frame.interactionIndices,
+                        colorOverrides: frame.colorOverrides,
                     };
                     const packet = this.playerPacketEncoder.buildPlayerSyncPacket(
                         session,
@@ -4365,6 +4394,7 @@ export class WSServer {
                                 hitsplats: frame.hitsplats,
                                 npcEffectEvents: frame.npcEffectEvents,
                                 spotAnimations: frame.spotAnimations,
+                                colorOverrides: frame.npcColorOverrides,
                             };
                             const built = this.npcPacketEncoder.buildNpcSyncPacket(
                                 player,

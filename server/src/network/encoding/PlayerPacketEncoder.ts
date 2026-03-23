@@ -110,6 +110,16 @@ export interface PlayerTickFrameData {
     }>;
     pendingSequences: Map<number, { seqId: number; delay: number; startTick: number }>;
     interactionIndices: Map<number, number>;
+    colorOverrides: Map<
+        number,
+        {
+            hue: number;
+            sat: number;
+            lum: number;
+            amount: number;
+            durationTicks: number;
+        }
+    >;
 }
 
 /**
@@ -303,6 +313,20 @@ export class PlayerPacketEncoder {
                 damage2: hasSecondary ? this.clampUShortSmart(damage2Raw) : undefined,
                 delayCycles: delayCycles,
             });
+        }
+
+        // Actor HSL color overrides (poison/freeze/venom tints)
+        for (const [pid, co] of frame.colorOverrides) {
+            if (pid < 0 || co.amount <= 0) continue;
+            const entry = markMask(pid, PLAYER_MASKS.FIELD512);
+            entry.field512 = {
+                field1180: tick, // startCycle = current tick
+                field1233: tick + co.durationTicks, // endCycle
+                field1234: co.hue,
+                field1193: co.sat,
+                field1204: co.lum,
+                field1237: co.amount,
+            };
         }
 
         // Public chat messages
