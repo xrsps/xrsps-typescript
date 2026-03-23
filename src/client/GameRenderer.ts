@@ -272,8 +272,18 @@ export abstract class GameRenderer<T extends MapSquare = MapSquare> extends Rend
         const deltaCamX = inputManager.getDeltaCameraX();
         const deltaCamY = inputManager.getDeltaCameraY();
         if (deltaCamX !== 0 || deltaCamY !== 0) {
-            camera.updatePitch(camera.pitch, deltaCamY * 0.9);
+            camera.updatePitch(camera.pitch, deltaCamY * -0.9);
             camera.updateYaw(camera.yaw, deltaCamX * -0.9);
+        }
+
+        // Middle-mouse held + scroll: rotate camera (RuneLite parity).
+        const wheelCamX = inputManager.wheelCamDeltaX;
+        const wheelCamY = inputManager.wheelCamDeltaY;
+        if (wheelCamX !== 0 || wheelCamY !== 0) {
+            const scale = 0.005;
+            camera.updatePitch(camera.pitch, wheelCamY * scale);
+            camera.updateYaw(camera.yaw, wheelCamX * -scale);
+            camera.updated = true;
         }
 
         // Scroll wheel zoom.

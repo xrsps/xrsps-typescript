@@ -146,6 +146,9 @@ export class InputManager {
     mouseWheelX: number = -1;
     /** Middle mouse drag start Y */
     mouseWheelY: number = -1;
+    /** Per-frame accumulated middle-mouse drag delta for camera rotation. */
+    private _cameraDragDeltaX: number = 0;
+    private _cameraDragDeltaY: number = 0;
 
     /** Frames since last user input */
     idleTime: number = 0;
@@ -161,6 +164,8 @@ export class InputManager {
 
     /** Accumulated wheel delta for current frame */
     wheelDeltaY: number = 0;
+    wheelCamDeltaX: number = 0;
+    wheelCamDeltaY: number = 0;
 
     // === Pinch-to-zoom state ===
     /** Whether a pinch gesture is active (2 fingers on screen) */
@@ -388,19 +393,11 @@ export class InputManager {
     }
 
     getDeltaCameraX(): number {
-        if (this.isCameraDragging()) {
-            const delta = this.mouseWheelX - this.mouseX;
-            return delta;
-        }
-        return 0;
+    return this._cameraDragDeltaX;
     }
 
     getDeltaCameraY(): number {
-        if (this.isCameraDragging()) {
-            const delta = this.mouseWheelY - this.mouseY;
-            return delta;
-        }
-        return 0;
+        return this._cameraDragDeltaY;
     }
 
     getGamepad(): Gamepad | null {
@@ -535,10 +532,12 @@ export class InputManager {
             this.deltaMouseY -= event.movementY;
         }
 
-        // Update camera drag position while middle-dragging (OSRS: mouseDragged)
+        // Update camera drag position while middle-dragging (OSRS: mouseDragged) - Fixed
         if (this.mouseWheelDown) {
             const deltaX = this.mouseWheelX - x;
             const deltaY = this.mouseWheelY - y;
+            this._cameraDragDeltaX += deltaX;
+            this._cameraDragDeltaY += deltaY;
             this.mouseWheelDragged(deltaX, -deltaY);
             this.mouseWheelX = x;
             this.mouseWheelY = y;
@@ -619,7 +618,12 @@ export class InputManager {
         // OSRS parity: mouse wheel input resets idle timer (prevents AFK logout while scrolling).
         this.idleTime = 0;
         this.lastInputTimeMs = this.nowMs();
-        this.wheelDeltaY += event.deltaY;
+        if (this.mouseWheelDown) {
+            this.wheelCamDeltaX += event.deltaX;
+            this.wheelCamDeltaY += event.deltaY;
+        } else {
+            this.wheelDeltaY += event.deltaY;
+        }
     };
 
     // Callback for mouse wheel camera drag (can be overridden)
@@ -926,6 +930,10 @@ export class InputManager {
         this.deltaMouseX = 0;
         this.deltaMouseY = 0;
         this.wheelDeltaY = 0;
+        this.wheelCamDeltaX = 0;
+        this.wheelCamDeltaY = 0;
+        this._cameraDragDeltaX = 0;
+        this._cameraDragDeltaY = 0;
         this.pinchZoomDelta = 0;
         this.lastMouseX = this.mouseX;
         this.lastMouseY = this.mouseY;
