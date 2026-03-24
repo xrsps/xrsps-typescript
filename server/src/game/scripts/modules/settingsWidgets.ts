@@ -160,10 +160,10 @@ export const settingsWidgetsModule: ScriptModule = {
             });
         }
 
-        // Handle "Close" button click in settings modal (widget 134)
-        // Closes the settings modal
+        // Handle close button click in settings modal (widget 134, child 4, op 1)
+        // The close button fires op=1 with an empty option string (runs clientscript if_close).
         registry.registerWidgetAction({
-            option: "Close",
+            widgetId: (SETTINGS_MODAL_GROUP_ID << 16) | 4,
             handler: ({ player, groupId, services: svc }) => {
                 // Only handle clicks on settings modal
                 if (groupId !== SETTINGS_MODAL_GROUP_ID) return;
