@@ -7880,7 +7880,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         return { tileX: tileCoords.tileX, tileY: tileCoords.tileY, plane: tileCoords.plane };
     }
 
-    private worldToScreen(x: number, y: number, z: number): vec2 | undefined {
+    private worldToScreen(x: number, y: number, z: number): number[] | Float32Array | undefined {
         const camera = this.osrsClient.camera;
         const p = vec4.fromValues(x, y, z, 1);
         const out = vec4.create();
@@ -7893,7 +7893,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const screenHeight = camera.screenHeight || this.app.height;
         const sx = (ndcX + 1) * 0.5 * screenWidth;
         const sy = (1 - (ndcY + 1) * 0.5) * screenHeight;
-        return vec2.fromValues(sx, sy);
+        // Return as array instead of vec2
+        return [sx, sy];
     }
 
     // Convert a DOM mouse event or current menu/input anchor to canvas coords.
