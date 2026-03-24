@@ -168,6 +168,7 @@ import {
     VARP_OPTION_ATTACK_PRIORITY_PLAYER,
     VARP_OPTION_RUN,
     VARP_SOUND_EFFECTS_VOLUME,
+    VARBIT_ROOF_REMOVAL,
 } from "../shared/vars";
 import { ClickRegistry } from "../ui/gl/click-registry";
 import { cleanupInterfaceClickTargets } from "../ui/gl/widgets-gl";
@@ -865,6 +866,26 @@ export class OsrsClient {
     // When true, force roofs hidden everywhere (toggleroof equivalent).
     roofsAlwaysHidden: boolean = false;
     // Removed custom pitch intensity to mirror vanilla OSRS camera distance mapping.
+
+    /**
+     * Set the hide roofs setting (from settings toggle)
+     * @param hideRoofs - true to hide roofs, false to show them normally
+     */
+    setHideRoofs(hideRoofs: boolean): void {
+        // When hideRoofs is true, we want removeRoofsAll to be false
+        // (because removeRoofsAll=true means "remove roofs" is OFF)
+        this.removeRoofsAll = !hideRoofs;
+        
+        // Force a roof state recalculation
+        if (this.renderer) {
+            // Invalidate the cached roof state so it recomputes next frame
+            (this.renderer as any).roofState = undefined;
+            // Force a re-render
+            this.widgetManager?.invalidateAll();
+        }
+        
+        console.log(`[OsrsClient] Hide roofs setting changed: ${hideRoofs} (removeRoofsAll=${this.removeRoofsAll})`);
+    }
 
     private unsubscribeWidgetEvents?: () => void;
     private unsubscribeHitsplats?: () => void;
@@ -9684,7 +9705,27 @@ export class OsrsClient {
                 } else if (varpId === VARP_OPTION_ATTACK_PRIORITY_NPC) {
                     ClientState.npcAttackOption = clamp(newValue | 0, 0, 3);
                 }
+                // Check for roof varbit changes
+                // Varbit 12378 is stored in varp 12378's bits
+                // Since varbit changes trigger the underlying varp, we need to check the varbit value
+                try {
+                    const varbitValue = this.varManager.getVarbit(VARBIT_ROOF_REMOVAL);
+                    if (varbitValue !== undefined) {
+                        // When varbit is 1, hide roofs; when 0, show roofs normally
+                        this.setHideRoofs(varbitValue === 1);
+                    }
+                } catch {}
             };
+            // Initialize roof state from current varbit
+            try {
+                const initialRoofVarbit = this.varManager.getVarbit(VARBIT_ROOF_REMOVAL);
+                if (initialRoofVarbit !== undefined) {
+                    this.setHideRoofs(initialRoofVarbit === 1);
+                    console.log(`[OsrsClient] Initial roof state: hideRoofs=${initialRoofVarbit === 1}`);
+                }
+            } catch (err) {
+                console.warn("[OsrsClient] Failed to init roof state", err);
+            }
             ClientState.playerAttackOption = clamp(
                 (this.varManager.getVarp(VARP_OPTION_ATTACK_PRIORITY_PLAYER) ?? 0) | 0,
                 0,
