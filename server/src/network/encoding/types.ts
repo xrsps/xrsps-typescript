@@ -179,6 +179,14 @@ export interface NpcUpdateInfo {
     spotAnims?: SpotAnimBlock[];
     hitsplats?: HitsplatBlock[];
     healthBars?: HealthBarBlock[];
+    colorOverride?: {
+        startCycleOffset: number;
+        endCycleOffset: number;
+        hue: number;
+        sat: number;
+        lum: number;
+        amount: number;
+    };
 }
 
 /**

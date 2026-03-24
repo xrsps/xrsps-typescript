@@ -95,6 +95,9 @@ export const VARP_COMBAT_TARGET_PLAYER_INDEX = 1075;
 
 // ========== VARBITS (Bit-packed variables) ==========
 
+/** HAM Hideout trapdoor multiloc control (varbit 235). Session-only; resets on logout. */
+export const VARBIT_HAM_TRAPDOOR = 235;
+
 /** Side journal tab selection (quest list, achievement diary, etc.) */
 export const VARBIT_SIDE_JOURNAL_TAB = 8168;
 

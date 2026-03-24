@@ -297,6 +297,17 @@ export interface ScriptServices {
             newRotation?: number;
         },
     ) => void;
+    /**
+     * Send a loc_change to a single player only (no global broadcast, no server state mutation).
+     * Used for per-player multiloc visual updates driven by varbits.
+     */
+    sendLocChangeToPlayer?: (
+        player: PlayerState,
+        oldId: number,
+        newId: number,
+        tile: { x: number; y: number },
+        level: number,
+    ) => void;
     logger?: {
         info: (...args: unknown[]) => void;
         warn: (...args: unknown[]) => void;

@@ -333,6 +333,8 @@ export class NpcState extends Actor {
         this.freezeExpiryTick = expires;
         this.lockMovementUntil(expires);
         this.clearPath();
+        // OSRS: Ice blue tint for freeze duration
+        this.setColorOverride(42, 5, 80, 30, Math.max(1, durationTicks));
         return true;
     }
 
@@ -916,6 +918,8 @@ export class NpcState extends Actor {
         if (currentTick < effect.nextTick) return undefined;
         const amount = Math.max(1, Math.floor(effect.potency));
         const result = this.applyDamage(amount);
+        // OSRS: Green tint flash on poison damage
+        this.setColorOverride(21, 7, 50, 40, 1);
         // OSRS: Poison potency only decreases every 5 hits
         effect.hitsSinceDecrease++;
         if (effect.hitsSinceDecrease >= 5) {
@@ -945,6 +949,8 @@ export class NpcState extends Actor {
         if (currentTick < effect.nextTick) return undefined;
         const amount = Math.max(1, Math.floor(effect.stage));
         const result = this.applyDamage(amount);
+        // OSRS: Dark green tint flash on venom damage
+        this.setColorOverride(21, 7, 30, 50, 1);
         if (result.current <= 0) {
             this.venomEffect = undefined;
         } else {

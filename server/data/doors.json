@@ -3,6 +3,10 @@
   "definitions": {
     "singleDoors": [
       {
+        "closed": 881,
+        "opened": 882
+      },
+      {
         "closed": 1518,
         "opened": 1519
       },

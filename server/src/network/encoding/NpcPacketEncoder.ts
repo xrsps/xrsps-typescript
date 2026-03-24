@@ -64,6 +64,10 @@ export interface NpcTickFrameData {
         height?: number;
         delay?: number;
     }>;
+    colorOverrides: Map<
+        number,
+        { hue: number; sat: number; lum: number; amount: number; durationTicks: number }
+    >;
 }
 
 /**
@@ -140,6 +144,9 @@ export class NpcPacketEncoder {
         // Process spot animations
         const spotsByNpc = this.processSpotAnimations(frame, desiredSet, cyclesPerTick);
 
+        // Color overrides from frame (already collected per-tick to avoid consume-once bug)
+        const colorOverridesByNpc = frame.colorOverrides;
+
         // Ensure NPC bar map exists
         const ensureNpcBarMap = (npcId: number): Map<number, number> => {
             let map = player.lastNpcHealthBarScaled.get(npcId);
@@ -187,6 +194,20 @@ export class NpcPacketEncoder {
             if (spots && spots.length > 0) {
                 info.mask |= NPC_MASKS.SPOT_ANIM;
                 info.spotAnims = spots.slice();
+            }
+
+            // COLOR_OVERRIDE (0x100) — read from frame, not NPC state, so all observers get it
+            const frameOverride = colorOverridesByNpc.get(id);
+            if (frameOverride && frameOverride.amount > 0) {
+                info.mask |= NPC_MASKS.COLOR_OVERRIDE;
+                info.colorOverride = {
+                    startCycleOffset: 0,
+                    endCycleOffset: frameOverride.durationTicks * cyclesPerTick,
+                    hue: frameOverride.hue,
+                    sat: frameOverride.sat,
+                    lum: frameOverride.lum,
+                    amount: frameOverride.amount,
+                };
             }
 
             // HIT_MASK (0x20)
@@ -642,6 +663,17 @@ export class NpcPacketEncoder {
                 }
             }
 
+            // COLOR_OVERRIDE (0x100)
+            if (rawMask & NPC_MASKS.COLOR_OVERRIDE) {
+                const co = info.colorOverride;
+                this.writeShortAdd(writer, co?.startCycleOffset ?? 0);
+                this.writeShortAdd(writer, co?.endCycleOffset ?? 0);
+                writer.writeByteC((co?.hue ?? -1) & 0xff); // readByteNeg
+                this.writeByteSub(writer, (co?.sat ?? -1) & 0xff); // readByteSub
+                writer.writeByteC((co?.lum ?? -1) & 0xff); // readByteNeg
+                this.writeByteSub(writer, (co?.amount ?? 0) & 0xff); // readUnsignedByteSub cast to byte
+            }
+
             // SPOTANIM (0x20000)
             if (rawMask & NPC_MASKS.SPOT_ANIM) {
                 const spots = info.spotAnims ?? [];
@@ -705,5 +737,12 @@ export class NpcPacketEncoder {
         const v = value & 0xffff;
         writer.writeByte(((v & 0xff) + 128) & 0xff);
         writer.writeByte((v >> 8) & 0xff);
+    }
+
+    /** OSRS readUnsignedShortAdd: big-endian with low byte +128. */
+    private writeShortAdd(writer: BitWriter, value: number): void {
+        const v = value & 0xffff;
+        writer.writeByte((v >> 8) & 0xff);
+        writer.writeByte(((v & 0xff) + 128) & 0xff);
     }
 }

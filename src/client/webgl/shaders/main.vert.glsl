@@ -35,7 +35,6 @@ out vec2 v_texCoord;
 flat out uint v_texId;
 flat out float v_alphaCutOff;
 out float v_fogAmount;
-out float v_skyLerp;
 flat out float v_plane;
 
 #include "./includes/branchless-logic.glsl";
@@ -79,7 +78,7 @@ ModelInfo decodeModelInfo(int offset) {
 void main() {
     int offset = int(texelFetch(u_modelInfoTexture, getDataTexCoordFromIndex(getDrawId() + u_drawIdOffset), 0).r);
 
-    Vertex vertex = decodeVertex(a_vertex.x, a_vertex.y, a_vertex.z, u_brightness);
+    Vertex vertex = decodeVertex(a_vertex.x, a_vertex.y, a_vertex.z, u_brightness, vec4(-1, -1, -1, 0));
 
     v_color = vertex.color;
 
@@ -133,7 +132,6 @@ void main() {
 
     // View-space position
     vec4 viewPos = u_viewMatrix * vec4(localPos, 1.0);
-    v_skyLerp = clamp(0.5 + viewPos.y * 0.25, 0.0, 1.0);
 
     // Small, view-space epsilons (tune gently if needed)
     const float PLANE_LAYER_EPSILON     = 0.001;   // plane/level separation

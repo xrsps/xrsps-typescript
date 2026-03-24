@@ -10512,6 +10512,19 @@ export class OsrsClient {
             }
         }
 
+        if (block.colorOverride && ecsId !== undefined) {
+            const co = block.colorOverride;
+            this.npcEcs.setColorOverride(
+                ecsId,
+                co.hue | 0,
+                co.sat | 0,
+                co.lum | 0,
+                co.amount | 0,
+                co.startCycle | 0,
+                co.endCycle | 0,
+            );
+        }
+
         if (Array.isArray(block.spotAnims)) {
             for (const spot of block.spotAnims) {
                 // OSRS parity: spot animation delay is in client cycles (Client.cycle units).

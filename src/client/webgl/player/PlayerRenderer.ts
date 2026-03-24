@@ -1613,11 +1613,11 @@ export class PlayerRenderer {
             const tileX = (px / 128) | 0;
             const tileY = (py / 128) | 0;
 
-            // Ensure capacity
+            // Ensure capacity (8 uint16 per actor = 2 texels)
             if (r.unifiedActorData) {
                 const newCount = r.actorRenderCount + 1;
-                if (r.actorRenderData.length / 4 < newCount) {
-                    const newData = new Uint16Array(Math.ceil((newCount * 2) / 16) * 16 * 4);
+                if (r.actorRenderData.length / 8 < newCount) {
+                    const newData = new Uint16Array(Math.ceil((newCount * 2) / 16) * 16 * 8);
                     newData.set(r.actorRenderData);
                     r.actorRenderData = newData;
                 }
@@ -1643,11 +1643,31 @@ export class PlayerRenderer {
                 (playerEcs.getRotation(i) + ((r as any).playerRotationBiasUnits ?? 0)) & 2047;
 
             if (r.unifiedActorData) {
-                let offset = r.actorRenderCount * 4;
-                r.actorRenderData[offset++] = localX;
-                r.actorRenderData[offset++] = localY;
-                r.actorRenderData[offset++] = renderPlane | (rot << 2);
-                r.actorRenderData[offset++] = PLAYER_INTERACT_BASE + (indexInMap & 0x7fff);
+                const offset = r.actorRenderCount * 8;
+                // Texel 0: position, plane|rotation, interactionId
+                r.actorRenderData[offset + 0] = localX;
+                r.actorRenderData[offset + 1] = localY;
+                r.actorRenderData[offset + 2] = renderPlane | (rot << 2);
+                r.actorRenderData[offset + 3] = PLAYER_INTERACT_BASE + (indexInMap & 0x7fff);
+                // Texel 1: per-actor HSL override
+                // Pack: R = hue(7) | sat(7) << 7, G = lum(7) | amount(8) << 7
+                const override = playerEcs.getColorOverride(i);
+                const clientCycle = (r.osrsClient as any).clientCycle | 0;
+                if (
+                    override.amount !== 0 &&
+                    clientCycle >= override.startCycle &&
+                    clientCycle < override.endCycle
+                ) {
+                    r.actorRenderData[offset + 4] =
+                        (override.hue & 0x7f) | ((override.sat & 0x7f) << 7);
+                    r.actorRenderData[offset + 5] =
+                        (override.lum & 0x7f) | ((override.amount & 0xff) << 7);
+                } else {
+                    r.actorRenderData[offset + 4] = 0;
+                    r.actorRenderData[offset + 5] = 0;
+                }
+                r.actorRenderData[offset + 6] = 0;
+                r.actorRenderData[offset + 7] = 0;
                 r.actorRenderCount++;
             }
             indexInMap++;

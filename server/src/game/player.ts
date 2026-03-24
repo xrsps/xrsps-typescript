@@ -16,6 +16,7 @@ import {
     getXpForLevel,
 } from "../../../src/rs/skill/skills";
 import {
+    VARBIT_HAM_TRAPDOOR,
     VARBIT_LEAGUE_AREA_LAST_VIEWED,
     VARBIT_LEAGUE_AREA_SELECTION_0,
     VARBIT_LEAGUE_AREA_SELECTION_1,
@@ -236,6 +237,10 @@ const ZERO_PERSISTENT_VARPS = new Set<number>([
     VARP_MASTER_VOLUME,
 ]);
 const NON_PERSISTENT_VARPS = new Set<number>([VARP_COMBAT_TARGET_PLAYER_INDEX]);
+/** Varbits that are session-only and must NOT be saved to disk (e.g. multiloc toggles). */
+const NON_PERSISTENT_VARBITS = new Set<number>([
+    VARBIT_HAM_TRAPDOOR, // HAM Hideout trapdoor — resets on logout like OSRS
+]);
 const ZERO_PERSISTENT_VARBITS = new Set<number>([
     // Persist explicit OFF/ON state for XP drops orb/total tracker toggle.
     VARBIT_XPDROPS_ENABLED,
@@ -1520,6 +1525,8 @@ export class PlayerState extends Actor {
         this.lockMovementUntil(expires);
         this.clearPath();
         this.running = false;
+        // OSRS: Ice blue tint for freeze duration
+        this.setColorOverride(42, 5, 80, 30, Math.max(1, durationTicks));
         return true;
     }
 
@@ -2628,6 +2635,9 @@ export class PlayerState extends Actor {
             }
         }
         for (const [id, value] of this.varbitValues.entries()) {
+            if (NON_PERSISTENT_VARBITS.has(id)) {
+                continue;
+            }
             if (value !== 0 || ZERO_PERSISTENT_VARBITS.has(id)) {
                 varbits[id] = value;
             }
@@ -2776,7 +2786,7 @@ export class PlayerState extends Actor {
         if (state.varbits) {
             for (const [key, value] of Object.entries(state.varbits)) {
                 const id = parseInt(key, 10);
-                if (!Number.isNaN(id)) {
+                if (!Number.isNaN(id) && !NON_PERSISTENT_VARBITS.has(id)) {
                     this.setVarbitValue(id, value);
                 }
             }
@@ -3346,6 +3356,8 @@ export class PlayerState extends Actor {
         if (currentTick < effect.nextTick) return undefined;
         const amount = Math.max(1, Math.floor(effect.potency));
         const result = this.applyHitpointsDamage(amount);
+        // OSRS: Green tint flash on poison damage
+        this.setColorOverride(21, 7, 50, 40, 1);
         effect.potency = Math.max(0, effect.potency - 1);
         if (effect.potency <= 0 || result.current <= 0) {
             this.poisonEffect = undefined;
@@ -3370,6 +3382,8 @@ export class PlayerState extends Actor {
         if (currentTick < effect.nextTick) return undefined;
         const amount = Math.max(1, Math.floor(effect.stage));
         const result = this.applyHitpointsDamage(amount);
+        // OSRS: Dark green tint flash on venom damage
+        this.setColorOverride(21, 7, 30, 50, 1);
         if (result.current <= 0) {
             this.venomEffect = undefined;
         } else {

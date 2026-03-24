@@ -84,6 +84,14 @@ export class NpcEcs {
     private currentStepRot: Uint16Array; // 0xffff = unset
     private movementDelayCounter: Uint8Array; // Actor.dq-style movement hold counter
 
+    // Color override (damage/poison/freeze tints) — mirrors Actor.colorOverride in OSRS
+    private colorOverrideHue!: Uint8Array; // Override hue (0-127, -1 encoded as 127 = no override)
+    private colorOverrideSat!: Uint8Array; // Override saturation (0-127)
+    private colorOverrideLum!: Uint8Array; // Override luminance (0-127)
+    private colorOverrideAmount!: Uint8Array; // Override amount (0-255, 0=none, 255=full)
+    private colorOverrideStartCycle!: Int32Array; // Start cycle
+    private colorOverrideEndCycle!: Int32Array; // End cycle
+
     // Spawn/meta
     private spawnTileX: Uint8Array; // 0..63
     private spawnTileY: Uint8Array; // 0..63
@@ -165,6 +173,12 @@ export class NpcEcs {
         this.currentStepRot = new Uint16Array(this.capacity);
         this.currentStepRot.fill(0xffff);
         this.movementDelayCounter = new Uint8Array(this.capacity);
+        this.colorOverrideHue = new Uint8Array(this.capacity);
+        this.colorOverrideSat = new Uint8Array(this.capacity);
+        this.colorOverrideLum = new Uint8Array(this.capacity);
+        this.colorOverrideAmount = new Uint8Array(this.capacity);
+        this.colorOverrideStartCycle = new Int32Array(this.capacity);
+        this.colorOverrideEndCycle = new Int32Array(this.capacity);
     }
 
     private ensureCapacity(id: number): void {
@@ -261,6 +275,12 @@ export class NpcEcs {
         newStepRot.fill(0xffff, this.capacity, newCap);
         this.currentStepRot = newStepRot;
         this.movementDelayCounter = grow(this.movementDelayCounter, newCap);
+        this.colorOverrideHue = grow(this.colorOverrideHue, newCap);
+        this.colorOverrideSat = grow(this.colorOverrideSat, newCap);
+        this.colorOverrideLum = grow(this.colorOverrideLum, newCap);
+        this.colorOverrideAmount = grow(this.colorOverrideAmount, newCap);
+        this.colorOverrideStartCycle = grow(this.colorOverrideStartCycle, newCap);
+        this.colorOverrideEndCycle = grow(this.colorOverrideEndCycle, newCap);
         this.occTileX = grow(this.occTileX, newCap);
         this.occTileY = grow(this.occTileY, newCap);
         this.occPlane = grow(this.occPlane, newCap);
@@ -1207,5 +1227,46 @@ export class NpcEcs {
     private getSeqForcedPriority(seqId: number): number {
         const seqType: any = this.seqTypeLoader?.load?.(seqId | 0);
         return Math.max(0, (seqType?.forcedPriority ?? 5) | 0);
+    }
+
+    // ── Color override (Actor HSL tint) ──────────────────────────────────
+    getColorOverride(i: number): {
+        hue: number;
+        sat: number;
+        lum: number;
+        amount: number;
+        startCycle: number;
+        endCycle: number;
+    } {
+        return {
+            hue: (this.colorOverrideHue?.[i] ?? 0) | 0,
+            sat: (this.colorOverrideSat?.[i] ?? 0) | 0,
+            lum: (this.colorOverrideLum?.[i] ?? 0) | 0,
+            amount: (this.colorOverrideAmount?.[i] ?? 0) | 0,
+            startCycle: (this.colorOverrideStartCycle?.[i] ?? 0) | 0,
+            endCycle: (this.colorOverrideEndCycle?.[i] ?? 0) | 0,
+        };
+    }
+
+    setColorOverride(
+        i: number,
+        hue: number,
+        sat: number,
+        lum: number,
+        amount: number,
+        startCycle: number,
+        endCycle: number,
+    ): void {
+        if (this.colorOverrideHue) this.colorOverrideHue[i] = (hue | 0) & 0x7f;
+        if (this.colorOverrideSat) this.colorOverrideSat[i] = (sat | 0) & 0x7f;
+        if (this.colorOverrideLum) this.colorOverrideLum[i] = (lum | 0) & 0x7f;
+        if (this.colorOverrideAmount) this.colorOverrideAmount[i] = (amount | 0) & 0xff;
+        if (this.colorOverrideStartCycle)
+            this.colorOverrideStartCycle[i] = startCycle | 0;
+        if (this.colorOverrideEndCycle) this.colorOverrideEndCycle[i] = endCycle | 0;
+    }
+
+    clearColorOverride(i: number): void {
+        if (this.colorOverrideAmount) this.colorOverrideAmount[i] = 0;
     }
 }

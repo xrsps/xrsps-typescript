@@ -119,6 +119,16 @@ export abstract class Actor {
     private interactionDirty: boolean = false;
     public pendingFaceTile?: { x: number; y: number };
 
+    // OSRS parity: Actor HSL color override (poison/freeze/venom tints)
+    private _colorOverride: {
+        hue: number;
+        sat: number;
+        lum: number;
+        amount: number;
+        durationTicks: number;
+    } | null = null;
+    private _colorOverrideDirty: boolean = false;
+
     // OSRS parity: run is off by default and is toggled via varp 173 / run orb.
     runToggle: boolean = false;
     runEnergy: number = RUN_ENERGY_MAX;
@@ -384,6 +394,50 @@ export abstract class Actor {
     consumeInteractionDirty(): boolean {
         const dirty = this.interactionDirty;
         this.interactionDirty = false;
+        return dirty;
+    }
+
+    /**
+     * Apply a timed HSL color override to this actor.
+     * OSRS parity: Actor.colorOverride / HslOverride.
+     * @param hue HSL hue component (-1 = no override, 0-63 packed range)
+     * @param sat HSL saturation component (-1 = no override, 0-7 packed range)
+     * @param lum HSL lightness component (-1 = no override, 0-127 packed range)
+     * @param amount Lerp amount (0-255, 0=none, 255=full)
+     * @param durationTicks Duration in server ticks
+     */
+    setColorOverride(
+        hue: number,
+        sat: number,
+        lum: number,
+        amount: number,
+        durationTicks: number,
+    ): void {
+        this._colorOverride = { hue, sat, lum, amount, durationTicks };
+        this._colorOverrideDirty = true;
+    }
+
+    clearColorOverride(): void {
+        this._colorOverride = null;
+    }
+
+    getColorOverride(): {
+        hue: number;
+        sat: number;
+        lum: number;
+        amount: number;
+        durationTicks: number;
+    } | null {
+        return this._colorOverride;
+    }
+
+    isColorOverrideDirty(): boolean {
+        return this._colorOverrideDirty;
+    }
+
+    consumeColorOverrideDirty(): boolean {
+        const dirty = this._colorOverrideDirty;
+        this._colorOverrideDirty = false;
         return dirty;
     }
 

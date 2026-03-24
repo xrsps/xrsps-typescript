@@ -1113,6 +1113,14 @@ interface TickFrame {
     varps?: Array<{ playerId: number; varpId: number; value: number }>;
     varbits?: Array<{ playerId: number; varbitId: number; value: number }>;
     clientScripts?: Array<{ playerId: number; scriptId: number; args: (number | string)[] }>;
+    colorOverrides: Map<
+        number,
+        { hue: number; sat: number; lum: number; amount: number; durationTicks: number }
+    >;
+    npcColorOverrides: Map<
+        number,
+        { hue: number; sat: number; lum: number; amount: number; durationTicks: number }
+    >;
 }
 
 // Level-up UI/effects (OSRS parity)
@@ -1683,6 +1691,8 @@ export class WSServer {
                 doorManager: this.doorManager,
                 emitLocChange: (oldId, newId, tile, level, opts) =>
                     this.emitLocChange(oldId, newId, tile, level, opts),
+                sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
+                    this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
                 getObjType: (id) => this.getObjType(id),
                 getLocDefinition: (id) => {
                     try {
@@ -2990,6 +3000,34 @@ export class WSServer {
         this.withDirectSendBypass("loc_change", () => this.broadcast(msg, "loc_change"));
     }
 
+    /**
+     * Send a loc_change to a single player only.
+     * Does NOT update doorManager/dynamicLocState — used for per-player multiloc
+     * visual refreshes driven by varbits.
+     */
+    private sendLocChangeToPlayer(
+        player: PlayerState,
+        oldId: number,
+        newId: number,
+        tile: { x: number; y: number },
+        level: number,
+    ): void {
+        const payload: LocChangePayload = {
+            oldId,
+            newId,
+            tile: { x: tile.x, y: tile.y },
+            level,
+            oldTile: { x: tile.x, y: tile.y },
+            newTile: { x: tile.x, y: tile.y },
+        };
+        const ws = this.players?.getSocketByPlayerId(player.id);
+        if (!ws) return;
+        const msg = encodeMessage({ type: "loc_change", payload });
+        this.withDirectSendBypass("loc_change_player", () =>
+            this.sendWithGuard(ws, msg, "loc_change"),
+        );
+    }
+
     private getGroundChunkKey(player: PlayerState): number {
         const mapX = player.tileX >> 6;
         const mapY = player.tileY >> 6;
@@ -3179,6 +3217,8 @@ export class WSServer {
             varps,
             varbits,
             clientScripts,
+            colorOverrides: new Map(),
+            npcColorOverrides: new Map(),
         };
     }
 
@@ -3304,6 +3344,16 @@ export class WSServer {
                     }
                     frame.npcUpdates = Array.from(mergedByNpcId.values());
                 }
+                // Collect NPC color overrides (consumed once, shared across all observers)
+                this.npcManager.forEach((npc) => {
+                    if (npc.consumeColorOverrideDirty()) {
+                        const co = npc.getColorOverride();
+                        if (co && co.amount > 0) {
+                            frame.npcColorOverrides.set(npc.id, co);
+                        }
+                    }
+                });
+
                 if (this.players) {
                     this.players.forEach((_client, player) => {
                         this.npcSyncManager.updateNpcViewForPlayer(player);
@@ -3593,6 +3643,14 @@ export class WSServer {
                 npcLookup,
             });
             frame.interactionIndices.set(player.id, interactionIndex);
+
+            // Collect pending color override
+            if (player.consumeColorOverrideDirty()) {
+                const co = player.getColorOverride();
+                if (co && co.amount > 0) {
+                    frame.colorOverrides.set(player.id, co);
+                }
+            }
 
             this.updateRunEnergy(
                 player,
@@ -4330,6 +4388,7 @@ export class WSServer {
                         chatMessages: frame.chatMessages,
                         pendingSequences: frame.pendingSequences,
                         interactionIndices: frame.interactionIndices,
+                        colorOverrides: frame.colorOverrides,
                     };
                     const packet = this.playerPacketEncoder.buildPlayerSyncPacket(
                         session,
@@ -4365,6 +4424,7 @@ export class WSServer {
                                 hitsplats: frame.hitsplats,
                                 npcEffectEvents: frame.npcEffectEvents,
                                 spotAnimations: frame.spotAnimations,
+                                colorOverrides: frame.npcColorOverrides,
                             };
                             const built = this.npcPacketEncoder.buildNpcSyncPacket(
                                 player,

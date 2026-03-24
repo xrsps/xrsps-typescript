@@ -37,7 +37,6 @@ out vec2 v_texCoord;
 flat out uint v_texId;
 flat out float v_alphaCutOff;
 out float v_fogAmount;
-out float v_skyLerp;
 flat out float v_plane;
 
 #include "./includes/branchless-logic.glsl";
@@ -67,7 +66,8 @@ float decodeSignedU16(uint value) {
 }
 
 ProjectileInfo decodeProjectileInfo(int offset) {
-    uvec4 data = texelFetch(u_npcDataTexture, getDataTexCoordFromIndex(offset + gl_InstanceID), 0);
+    int baseTexel = (offset + gl_InstanceID) * 2;
+    uvec4 data = texelFetch(u_npcDataTexture, getDataTexCoordFromIndex(baseTexel), 0);
 
     ProjectileInfo info;
 
@@ -110,7 +110,7 @@ mat4 rotationZ(in float angle) {
 }
 
 void main() {
-    Vertex vertex = decodeVertex(a_vertex.x, a_vertex.y, a_vertex.z, u_brightness);
+    Vertex vertex = decodeVertex(a_vertex.x, a_vertex.y, a_vertex.z, u_brightness, vec4(-1, -1, -1, 0));
 
     v_color = vertex.color;
 
@@ -161,7 +161,6 @@ void main() {
         (1.0 - isLoading) * v_fogAmount;
 
     vec4 viewPos = u_viewMatrix * localPos;
-    v_skyLerp = clamp(0.5 + viewPos.y * 0.25, 0.0, 1.0);
     gl_Position = u_projectionMatrix * viewPos;
     v_plane = float(projInfo.plane);
 }

@@ -376,6 +376,21 @@ export class PlayerSyncManager {
             }
         });
 
+        // Actor HSL color override (poison/freeze/venom tints)
+        actions.colorOverrides.forEach((override, serverId) => {
+            const ecsIndex = this.playerEcs.getIndexForServerId(serverId);
+            if (ecsIndex === undefined) return;
+            this.playerEcs.setColorOverride(
+                ecsIndex,
+                override.field1234 | 0, // hue
+                override.field1193 | 0, // sat
+                override.field1204 | 0, // lum
+                override.field1237 | 0, // amount
+                override.field1180 | 0, // startCycle
+                override.field1233 | 0, // endCycle
+            );
+        });
+
         // OSRS parity: apply deferred movement after update blocks are decoded.
         // (SoundSystem.method877 final `if (field1124) ... method2429/resetPath`).
         for (const movement of actions.movementsPost) {

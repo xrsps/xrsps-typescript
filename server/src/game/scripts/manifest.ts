@@ -27,6 +27,11 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/climbing.ts")],
     },
     {
+        id: "content.picklock",
+        load: loadModule("modules/picklock", "picklockModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/picklock.ts")],
+    },
+    {
         id: "content.doors",
         load: loadModule("modules/doors", "doorInteractionsModule"),
         watch: [path.resolve(MODULE_DIR, "modules/doors.ts")],
