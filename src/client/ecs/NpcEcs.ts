@@ -89,8 +89,8 @@ export class NpcEcs {
     private colorOverrideSat!: Uint8Array; // Override saturation (0-127)
     private colorOverrideLum!: Uint8Array; // Override luminance (0-127)
     private colorOverrideAmount!: Uint8Array; // Override amount (0-255, 0=none, 255=full)
-    private colorOverrideStartCycle!: Uint16Array; // Start cycle
-    private colorOverrideEndCycle!: Uint16Array; // End cycle
+    private colorOverrideStartCycle!: Int32Array; // Start cycle
+    private colorOverrideEndCycle!: Int32Array; // End cycle
 
     // Spawn/meta
     private spawnTileX: Uint8Array; // 0..63
@@ -177,8 +177,8 @@ export class NpcEcs {
         this.colorOverrideSat = new Uint8Array(this.capacity);
         this.colorOverrideLum = new Uint8Array(this.capacity);
         this.colorOverrideAmount = new Uint8Array(this.capacity);
-        this.colorOverrideStartCycle = new Uint16Array(this.capacity);
-        this.colorOverrideEndCycle = new Uint16Array(this.capacity);
+        this.colorOverrideStartCycle = new Int32Array(this.capacity);
+        this.colorOverrideEndCycle = new Int32Array(this.capacity);
     }
 
     private ensureCapacity(id: number): void {
@@ -1262,8 +1262,8 @@ export class NpcEcs {
         if (this.colorOverrideLum) this.colorOverrideLum[i] = (lum | 0) & 0x7f;
         if (this.colorOverrideAmount) this.colorOverrideAmount[i] = (amount | 0) & 0xff;
         if (this.colorOverrideStartCycle)
-            this.colorOverrideStartCycle[i] = (startCycle | 0) & 0xffff;
-        if (this.colorOverrideEndCycle) this.colorOverrideEndCycle[i] = (endCycle | 0) & 0xffff;
+            this.colorOverrideStartCycle[i] = startCycle | 0;
+        if (this.colorOverrideEndCycle) this.colorOverrideEndCycle[i] = endCycle | 0;
     }
 
     clearColorOverride(i: number): void {

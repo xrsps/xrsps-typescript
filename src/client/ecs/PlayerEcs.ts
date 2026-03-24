@@ -215,8 +215,8 @@ export class PlayerEcs {
     private colorOverrideSat!: Uint8Array; // field1193: Override saturation (0-127)
     private colorOverrideLum!: Uint8Array; // field1204: Override luminance (0-127)
     private colorOverrideAmount!: Uint8Array; // field1237: Override amount (0-255, 0=none, 255=full)
-    private colorOverrideStartCycle!: Uint16Array; // field1180: Start cycle
-    private colorOverrideEndCycle!: Uint16Array; // field1233: End cycle
+    private colorOverrideStartCycle!: Int32Array; // field1180: Start cycle
+    private colorOverrideEndCycle!: Int32Array; // field1233: End cycle
 
     private seqTypeLoader?: SeqTypeLoader;
 
@@ -544,8 +544,8 @@ export class PlayerEcs {
         this.colorOverrideSat = grow(this.colorOverrideSat, Uint8Array);
         this.colorOverrideLum = grow(this.colorOverrideLum, Uint8Array);
         this.colorOverrideAmount = grow(this.colorOverrideAmount, Uint8Array);
-        this.colorOverrideStartCycle = grow(this.colorOverrideStartCycle, Uint16Array);
-        this.colorOverrideEndCycle = grow(this.colorOverrideEndCycle, Uint16Array);
+        this.colorOverrideStartCycle = grow(this.colorOverrideStartCycle, Int32Array);
+        this.colorOverrideEndCycle = grow(this.colorOverrideEndCycle, Int32Array);
         // Server interpolation buffers
         // Interaction indices
         this.interactionIndex = grow(this.interactionIndex, Int32Array);
@@ -777,8 +777,8 @@ export class PlayerEcs {
         if (this.colorOverrideLum) this.colorOverrideLum[i] = (lum | 0) & 0x7f;
         if (this.colorOverrideAmount) this.colorOverrideAmount[i] = (amount | 0) & 0xff;
         if (this.colorOverrideStartCycle)
-            this.colorOverrideStartCycle[i] = (startCycle | 0) & 0xffff;
-        if (this.colorOverrideEndCycle) this.colorOverrideEndCycle[i] = (endCycle | 0) & 0xffff;
+            this.colorOverrideStartCycle[i] = startCycle | 0;
+        if (this.colorOverrideEndCycle) this.colorOverrideEndCycle[i] = endCycle | 0;
     }
     clearColorOverride(i: number): void {
         if (this.colorOverrideAmount) this.colorOverrideAmount[i] = 0;
