@@ -91,12 +91,13 @@ export function computeRoofPlaneCutoff<T extends MapSquare>(
         input.playerTile,
     );
 
-    if (!context.osrsClient.removeRoofsAll) {
-        return 3;
-    }
-
-    if (context.osrsClient.roofsAlwaysHidden) {
-        return playerRoofPlane;
+    // Inverted logic: when removeRoofsAll is false, hide roofs (toggle ON)
+    // When removeRoofsAll is true, use normal behavior (toggle OFF)
+    const hideRoofsSetting = context.osrsClient.removeRoofsAll === false;
+    
+    if (hideRoofsSetting) {
+        // Hide ALL roofs regardless of player position
+        return Math.min(playerRoofPlane, 3);
     }
 
     const samplingPlane = playerRoofPlane;
@@ -130,7 +131,7 @@ export function computeRoofPlaneCutoff<T extends MapSquare>(
         shouldHide = true;
     }
 
-    // When hiding roofs, show appropriate planes based on effective plane (OSRS behavior)
+    // When hiding roofs (player inside building), show appropriate planes
     if (shouldHide) {
         return Math.min(playerRoofPlane, 3);
     }

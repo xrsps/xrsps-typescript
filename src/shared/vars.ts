@@ -360,6 +360,15 @@ export const VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME = 12933;
 /** Client of Kourend quest progress (0-9, 9 = complete) - unlocks Kourend Castle Teleport */
 export const VARBIT_CLIENT_OF_KOUREND = 5619;
 
+// ========== ROOF SETTINGS ==========
+
+/**
+ * Hide roofs toggle varbit.
+ * 0 = show roofs normally, 1 = hide all roofs.
+ * Controlled by settings modal toggle.
+ */
+export const VARBIT_ROOF_REMOVAL = 12378; // OSRS hide roofs varbit
+
 // ========== TELEPORT SPELL UNLOCK VARPS ==========
 
 /** Eadgar's Ruse quest progress - required for Trollheim Teleport */
