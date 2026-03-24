@@ -127,6 +127,11 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/settingsWidgets.ts")],
     },
     {
+        id: "content.quest-journal-widgets",
+        load: loadModule("modules/questJournalWidgets", "questJournalWidgetsModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/questJournalWidgets.ts")],
+    },
+    {
         id: "content.account-summary-widgets",
         load: loadModule("modules/accountSummaryWidgets", "accountSummaryWidgetsModule"),
         watch: [path.resolve(MODULE_DIR, "modules/accountSummaryWidgets.ts")],

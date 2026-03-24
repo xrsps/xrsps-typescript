@@ -362,7 +362,7 @@ export class Model2DRenderer {
         // Clamp max dimensions to prevent OOM when projection produces extreme values
         // (e.g., vertices very close to near plane causing huge screen coords)
         // Account for border in the max (2048 - 6 = 2042 for bbox, 2048 total)
-        const MAX_BBOX = 512; // Reduced from 2042 - most UI models should be <256
+        const MAX_BBOX = 1024; // UI models (chatheads, quest journal) can reach ~600px
         const rawBboxW = Math.ceil(maxX - minX);
         const rawBboxH = Math.ceil(maxY - minY);
         if (rawBboxW > MAX_BBOX || rawBboxH > MAX_BBOX) {
@@ -436,8 +436,8 @@ export class Model2DRenderer {
         depthTest: boolean = false,
     ): Uint8ClampedArray {
         // Sanity check: prevent OOM from extreme dimensions
-        // Max 518x518 = ~1MB for Int32Array (matches MAX_BBOX=512 + BORDER*2=6)
-        const MAX_PIXELS = 518 * 518;
+        // Max 1030x1030 = ~4MB for Int32Array (matches MAX_BBOX=1024 + BORDER*2=6)
+        const MAX_PIXELS = 1030 * 1030;
         if (sw * sh > MAX_PIXELS || sw <= 0 || sh <= 0) {
             console.warn(
                 `[Model2DRenderer] Refusing to allocate ${sw}x${sh} (${

@@ -13068,6 +13068,26 @@ export class WSServer {
                                     flags: EQUIPMENT_FLAGS,
                                 });
                             }
+
+                            // ============================================================
+                            // OSRS Parity: IF_SETEVENTS for quest list dynamic children
+                            // ============================================================
+                            // Quest list (399:7) dynamic children need transmit flags for
+                            // ops 1-6 (View info, Read journal, Show on map, Wiki guide,
+                            // Wiki quick guide, Pin journal).
+                            // Without this, clicking a quest entry doesn't send a packet.
+                            const QUEST_LIST_GROUP_ID = 399;
+                            const QUEST_LIST_COMPONENT = 7;
+                            const QUEST_LIST_MAX_SLOT = 199; // generous upper bound for all quests
+                            const QUEST_LIST_FLAGS = 0x7e; // ops 1-6 transmit (bits 1-6)
+
+                            this.queueWidgetEvent(p.id, {
+                                action: "set_flags_range",
+                                uid: (QUEST_LIST_GROUP_ID << 16) | QUEST_LIST_COMPONENT,
+                                fromSlot: 0,
+                                toSlot: QUEST_LIST_MAX_SLOT,
+                                flags: QUEST_LIST_FLAGS,
+                            });
                         }
 
                         // Onboarding: open PlayerDesign (679) in mainmodal so the player can choose
