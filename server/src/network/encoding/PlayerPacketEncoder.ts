@@ -320,8 +320,8 @@ export class PlayerPacketEncoder {
             if (pid < 0 || co.amount <= 0) continue;
             const entry = markMask(pid, PLAYER_MASKS.FIELD512);
             entry.field512 = {
-                field1180: tick, // startCycle = current tick
-                field1233: tick + co.durationTicks, // endCycle
+                field1180: frame.tick, // startCycle = current tick
+                field1233: frame.tick + co.durationTicks, // endCycle
                 field1234: co.hue,
                 field1193: co.sat,
                 field1204: co.lum,

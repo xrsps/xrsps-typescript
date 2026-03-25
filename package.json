@@ -38,17 +38,16 @@
     "xxhash-wasm": "^1.0.2"
   },
   "scripts": {
-    "start": "craco start",
+    "start": "npx tsx scripts/ensure-cache.ts && craco start",
+    "ensure-cache": "npx tsx scripts/ensure-cache.ts",
     "build": "craco build",
     "lint": "prettier --write \"./**/*.{js,ts,jsx,tsx,css,md}\"",
     "prepare": "husky install",
-    "download-caches": "node scripts/download-caches.js",
     "export-textures": "npx tsx scripts/cache/export-textures.ts",
     "export-height-map": "npx tsx scripts/cache/export-height-map.ts",
     "export-items": "npx tsx scripts/cache/export-items.ts osrs-232_2025-08-27",
     "export-map-images": "npx tsx scripts/cache/export-map-images.ts --force",
-    "server:start": "npx tsx server/src/index.ts",
-    "server:dev": "npx tsx watch server/src/index.ts",
+    "server:start": "npx tsx scripts/ensure-cache.ts && npx tsx server/src/index.ts",
     "server:build": "tsc -p server/tsconfig.json",
     "server:build-collision": "npx tsx server/scripts/build-collision-cache.ts --include-models --force"
   },
@@ -128,6 +127,7 @@
   "devDependencies": {
     "@craco/craco": "^7.1.0",
     "@trivago/prettier-plugin-sort-imports": "^4.3.0",
+    "@types/adm-zip": "^0.5.8",
     "@types/file-saver": "^2.0.7",
     "@types/gzip-js": "^0.3.3",
     "@types/pako": "^2.0.3",

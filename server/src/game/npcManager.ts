@@ -82,9 +82,6 @@ type NearbyAggressionPlayer = {
 
 const REGION_SIZE = 32; // tiles; aligns to half a chunk for coarse spatial buckets
 
-/** Track NPCs we've warned about missing combat stats */
-const warnedMissingStats = new Set<number>();
-
 /**
  * Build NpcCombatProfile from loaded stats or use defaults.
  * Logs a warning once per NPC type when stats are missing.
@@ -92,12 +89,6 @@ const warnedMissingStats = new Set<number>();
 function buildCombatProfile(npcTypeId: number): NpcCombatProfile {
     const stats = getNpcCombatStats(npcTypeId);
     if (!stats) {
-        if (!warnedMissingStats.has(npcTypeId)) {
-            warnedMissingStats.add(npcTypeId);
-            console.warn(
-                `[NpcManager] NPC type ${npcTypeId} has no combat stats - using defaults. Add to npc-combat-stats.json`,
-            );
-        }
         return DEFAULT_NPC_COMBAT_PROFILE;
     }
     return {

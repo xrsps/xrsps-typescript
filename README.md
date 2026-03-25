@@ -2,7 +2,7 @@
 
 xRSPS is intended to explore OSRS in a similar spirit to Jagex's abandoned Project Zanaris.
 
-Latest cache supported: osrs-236_2026-03-18
+Latest cache supported: osrs-237_2026-03-25
 
 Discord: https://discord.gg/3dzttF2q73
 
@@ -43,12 +43,6 @@ Install dependencies:
 
 ```bash
 yarn install
-```
-
-Download caches:
-
-```bash
-yarn download-caches
 ```
 
 Build the server collision cache:
