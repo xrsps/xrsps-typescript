@@ -36,6 +36,12 @@ export class IdkType extends Type {
             }
         } else if (opcode === 3) {
             this.nonSelectable = true;
+        } else if (opcode === 5) {
+            const modelCount = buffer.readUnsignedByte();
+            this.modelIds = new Array<number>(modelCount);
+            for (let i = 0; i < modelCount; i++) {
+                this.modelIds[i] = buffer.readInt();
+            }
         } else if (opcode === 40) {
             const count = buffer.readUnsignedByte();
             this.recolorFrom = new Array<number>(count);
@@ -54,6 +60,8 @@ export class IdkType extends Type {
             }
         } else if (opcode >= 60 && opcode < 70) {
             this.ifModelIds[opcode - 60] = buffer.readUnsignedShort();
+        } else if (opcode >= 70 && opcode < 80) {
+            this.ifModelIds[opcode - 70] = buffer.readInt();
         }
     }
 }
