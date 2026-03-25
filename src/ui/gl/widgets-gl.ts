@@ -3160,8 +3160,28 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             let ry = (w.rotationY ?? 0) | 0; // 0..2047
             let rz = (w.rotationZ ?? 0) | 0; // 0..2047
             const rawSeqId = (cs1Result ? w.sequenceId2 : w.sequenceId) ?? -1;
-            const sequenceId =
+            let sequenceId =
                 typeof rawSeqId === "number" && rawSeqId >= 0 ? rawSeqId | 0 : undefined;
+            // OSRS parity: contentType=328 (modelType=5, modelId=1) renders via
+            // localPlayer.getModelInternal() which bakes in the live idle animation.
+            // Inject the local player's movement sequence so the widget model animates.
+            let liveMovementFrame: number | undefined;
+            if (
+                sequenceId === undefined &&
+                ((w.contentType ?? 0) | 0) === 328
+            ) {
+                try {
+                    const ac = osrsClient?.playerAnimController;
+                    const sid = osrsClient?.controlledPlayerServerId;
+                    if (ac && typeof sid === "number" && sid >= 0) {
+                        const ms = ac.getMovementSequenceState(sid);
+                        if (ms && (ms.seqId | 0) >= 0) {
+                            sequenceId = ms.seqId | 0;
+                            liveMovementFrame = ms.frame | 0;
+                        }
+                    }
+                } catch {}
+            }
             // Replicate client zoom normalization
             let zoom = Math.max(1, (w.modelZoom ?? 0) | 0 || 2000);
             let offX = (w.modelOffsetX ?? 0) | 0;
@@ -3322,7 +3342,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                         orthographic: ortho,
                         widget: w,
                         sequenceId,
-                        sequenceFrame: (w.modelFrame ?? 0) | 0,
+                        sequenceFrame: liveMovementFrame !== undefined ? liveMovementFrame : (w.modelFrame ?? 0) | 0,
                         depthTest: true,
                     },
                     width,
