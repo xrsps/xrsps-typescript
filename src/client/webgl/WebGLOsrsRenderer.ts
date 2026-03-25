@@ -1367,7 +1367,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 this.syncMobileLoginInput(false);
                 state.savePersistedLoginState();
                 this.osrsClient.updateGameState(GameState.CONNECTING);
-                sendLogin(state.username.trim(), state.password);
+                sendLogin(state.username.trim(), state.password, this.osrsClient.loadedCache?.info?.revision ?? 0);
             } else {
                 this.osrsClient.handleLoginKeyInput("Enter", "");
                 this.syncMobileLoginInput(true);
@@ -5639,7 +5639,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             // Update game state to CONNECTING (hides buttons)
                             loginState.savePersistedLoginState();
                             this.osrsClient.updateGameState(GameState.CONNECTING);
-                            sendLogin(loginState.username.trim(), loginState.password);
+                            sendLogin(loginState.username.trim(), loginState.password, this.osrsClient.loadedCache?.info?.revision ?? 0);
                         } else {
                             this.osrsClient.handleLoginKeyInput("Enter", "");
                         }
@@ -5674,7 +5674,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         // Send login message
                         const { loginState } = this.osrsClient;
                         loginState.savePersistedLoginState();
-                        sendLogin(loginState.username.trim(), loginState.password);
+                        sendLogin(loginState.username.trim(), loginState.password, this.osrsClient.loadedCache?.info?.revision ?? 0);
                     }
                     // Clear click mode to prevent further processing
                     inputManager.clickMode3 = 0;

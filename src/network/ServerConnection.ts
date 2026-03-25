@@ -583,6 +583,7 @@ let loginConnectAttemptId = 0;
 // Session credentials for automatic re-login on reconnect
 let sessionUsername: string | null = null;
 let sessionPassword: string | null = null;
+let sessionRevision: number = 0;
 let currentTick = 0;
 const tickListeners = new Set<(tick: number, time: number) => void>();
 // Server-timing state for cross-client tick/phase alignment
@@ -1461,7 +1462,7 @@ export function initServerConnection(url: string = DEFAULT_URL) {
                 console.log("[ws] Reconnected - attempting session resumption...");
                 send({
                     type: "login",
-                    payload: { username: sessionUsername, password: sessionPassword },
+                    payload: { username: sessionUsername, password: sessionPassword, revision: sessionRevision },
                 } as any);
             }
             // Only auto-send handshake if flag is set (for backwards compatibility)
@@ -3023,10 +3024,11 @@ export function subscribeLogoutResponse(
  * Send login credentials to server.
  * If the socket isn't open (e.g., after logout), this will reconnect first.
  */
-export function sendLogin(username: string, password: string): void {
+export function sendLogin(username: string, password: string, revision: number = 0): void {
     // Store credentials for session resumption on reconnect
     sessionUsername = username;
     sessionPassword = password;
+    sessionRevision = revision;
     const attemptId = ++loginConnectAttemptId;
 
     // Clear suppress flag - user is intentionally logging in
@@ -3038,7 +3040,7 @@ export function sendLogin(username: string, password: string): void {
     const sendLoginPayload = () => {
         send({
             type: "login",
-            payload: { username, password },
+            payload: { username, password, revision },
         } as any);
     };
 

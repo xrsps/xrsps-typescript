@@ -256,6 +256,7 @@ export function decodeClientPacket(data: Uint8Array | ArrayBuffer): DecodedClien
                 payload: {
                     username: reader.readString(),
                     password: reader.readString(),
+                    revision: reader.readInt(),
                 },
             };
 

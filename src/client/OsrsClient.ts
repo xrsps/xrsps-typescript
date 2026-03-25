@@ -9319,7 +9319,7 @@ export class OsrsClient {
             this.loginState.loginIndex = LoginIndex.LOGIN_FORM;
             this.loginState.savePersistedLoginState();
             this.updateGameState(GameState.CONNECTING);
-            sendLogin(username.trim(), password);
+            sendLogin(username.trim(), password, this.loadedCache?.info?.revision ?? 0);
         } catch {}
     }
 

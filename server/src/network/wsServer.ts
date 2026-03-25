@@ -12182,7 +12182,7 @@ export class WSServer {
             // Fall through to legacy handlers for messages not yet migrated to MessageRouter
             if (parsed.type === "login") {
                 // Handle login request with proper validation
-                const { username, password } = parsed.payload;
+                const { username, password, revision } = parsed.payload;
                 const normalizedUsername = (username || "").trim().toLowerCase();
 
                 // Helper to send login error response
@@ -12203,6 +12203,13 @@ export class WSServer {
                 // Get client IP for rate limiting (fallback to ws identifier)
                 const clientIp = this.getSocketRemoteAddress(ws) ?? "ws-unknown";
                 logger.info(`Login attempt from: ${username} (${clientIp})`);
+
+                // 0. Check client revision matches server
+                const serverRevision = this.cacheEnv?.info?.revision ?? 0;
+                if (serverRevision > 0 && revision !== serverRevision) {
+                    sendLoginError(6, "Please close the client and reload to update.");
+                    return;
+                }
 
                 // 1. Check rate limiting first
                 if (this.checkLoginRateLimit(clientIp)) {
