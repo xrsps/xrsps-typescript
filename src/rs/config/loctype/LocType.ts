@@ -247,6 +247,27 @@ export class LocType extends Type {
                     }
                 }
             }
+        } else if (opcode === 6) {
+            const count = buffer.readUnsignedByte();
+            if (count > 0) {
+                this.models = new Array(count);
+                this.types = new Array(count);
+                for (let i = 0; i < count; i++) {
+                    this.models[i] = new Array(1);
+                    this.models[i][0] = buffer.readInt();
+                    this.types[i] = buffer.readUnsignedByte();
+                }
+            }
+        } else if (opcode === 7) {
+            const count = buffer.readUnsignedByte();
+            if (count > 0) {
+                this.types = undefined;
+                this.models = new Array(1);
+                this.models[0] = new Array(count);
+                for (let i = 0; i < count; i++) {
+                    this.models[0][i] = buffer.readInt();
+                }
+            }
         } else if (opcode === 14) {
             this.sizeX = buffer.readUnsignedByte();
         } else if (opcode === 15) {
@@ -446,12 +467,24 @@ export class LocType extends Type {
             const cursor1op = buffer.readUnsignedByte();
             const cursor1 = buffer.readUnsignedShort();
         } else if (opcode === 100) {
-            const cursor2op = buffer.readUnsignedByte();
-            const cursor2 = buffer.readUnsignedShort();
+            const index = buffer.readUnsignedByte();
+            const subId = buffer.readUnsignedByte();
+            this.readString(buffer);
         } else if (opcode === 101) {
-            const mapSceneRotationOff = buffer.readUnsignedByte();
+            const index = buffer.readUnsignedByte();
+            const varp = buffer.readUnsignedShort();
+            const varb = buffer.readUnsignedShort();
+            const min = buffer.readInt();
+            const max = buffer.readInt();
+            this.readString(buffer);
         } else if (opcode === 102) {
-            this.mapSceneId = buffer.readUnsignedShort();
+            const index = buffer.readUnsignedByte();
+            const subId = buffer.readUnsignedShort();
+            const varp = buffer.readUnsignedShort();
+            const varb = buffer.readUnsignedShort();
+            const min = buffer.readInt();
+            const max = buffer.readInt();
+            this.readString(buffer);
         } else if (opcode === 103) {
             const occludeType = 0;
         } else if (opcode === 104) {

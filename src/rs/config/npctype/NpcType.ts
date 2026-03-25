@@ -237,6 +237,18 @@ export class NpcType extends Type {
                     this.chatheadModelIds[i] = buffer.readUnsignedShort();
                 }
             }
+        } else if (opcode === 61) {
+            const count = buffer.readUnsignedByte();
+            this.modelIds = new Array<number>(count);
+            for (let i = 0; i < count; i++) {
+                this.modelIds[i] = buffer.readInt();
+            }
+        } else if (opcode === 62) {
+            const count = buffer.readUnsignedByte();
+            this.chatheadModelIds = new Array<number>(count);
+            for (let i = 0; i < count; i++) {
+                this.chatheadModelIds[i] = buffer.readInt();
+            }
         } else if (opcode === 74) {
             const v = buffer.readUnsignedShort();
             this.attackLevel = v === 65535 ? -1 : v;
@@ -487,6 +499,25 @@ export class NpcType extends Type {
             const v = buffer.readUnsignedByte();
         } else if (opcode >= 170 && opcode < 176) {
             buffer.readUnsignedShort();
+        } else if (opcode === 251) {
+            const index = buffer.readUnsignedByte();
+            const subId = buffer.readUnsignedByte();
+            this.readString(buffer);
+        } else if (opcode === 252) {
+            const index = buffer.readUnsignedByte();
+            const varp = buffer.readUnsignedShort();
+            const varb = buffer.readUnsignedShort();
+            const min = buffer.readInt();
+            const max = buffer.readInt();
+            this.readString(buffer);
+        } else if (opcode === 253) {
+            const index = buffer.readUnsignedByte();
+            const subId = buffer.readUnsignedShort();
+            const varp = buffer.readUnsignedShort();
+            const varb = buffer.readUnsignedShort();
+            const min = buffer.readInt();
+            const max = buffer.readInt();
+            this.readString(buffer);
         } else if (opcode === 249) {
             this.params = Type.readParamsMap(buffer, this.params);
         } else {

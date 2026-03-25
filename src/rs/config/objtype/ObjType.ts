@@ -196,16 +196,12 @@ export class ObjType extends Type {
             this.isMembers = true;
         } else if (opcode === 23) {
             this.maleModel = this.readModelId(buffer);
-            if (this.cacheInfo.revision < 503) {
-                this.maleOffset = buffer.readUnsignedByte();
-            }
+            this.maleOffset = buffer.readUnsignedByte();
         } else if (opcode === 24) {
             this.maleModel1 = this.readModelId(buffer);
         } else if (opcode === 25) {
             this.femaleModel = this.readModelId(buffer);
-            if (this.cacheInfo.revision < 503) {
-                this.femaleOffset = buffer.readUnsignedByte();
-            }
+            this.femaleOffset = buffer.readUnsignedByte();
         } else if (opcode === 26) {
             this.femaleModel1 = this.readModelId(buffer);
         } else if (opcode === 27) {
@@ -238,11 +234,38 @@ export class ObjType extends Type {
         } else if (opcode === 42) {
             this.shiftClickIndex = buffer.readByte();
         } else if (opcode === 43) {
-            // OSRS newer: unknown short field (e.g., render property)
-            // Consume to keep stream alignment.
-            buffer.readUnsignedShort();
-        } else if (opcode === 44 || opcode === 45) {
-            buffer.readUnsignedShort();
+            const opId = buffer.readUnsignedByte();
+            while (true) {
+                const subopId = buffer.readUnsignedByte() - 1;
+                if (subopId === -1) {
+                    break;
+                }
+                this.readString(buffer);
+            }
+        } else if (opcode === 44) {
+            this.model = buffer.readInt();
+        } else if (opcode === 45) {
+            this.maleModel = buffer.readInt();
+            this.maleOffset = buffer.readUnsignedByte();
+        } else if (opcode === 46) {
+            this.maleModel1 = buffer.readInt();
+        } else if (opcode === 47) {
+            this.maleModel2 = buffer.readInt();
+        } else if (opcode === 48) {
+            this.femaleModel = buffer.readInt();
+            this.femaleOffset = buffer.readUnsignedByte();
+        } else if (opcode === 49) {
+            this.femaleModel1 = buffer.readInt();
+        } else if (opcode === 50) {
+            this.femaleModel2 = buffer.readInt();
+        } else if (opcode === 51) {
+            this.maleHeadModel = buffer.readInt();
+        } else if (opcode === 52) {
+            this.maleHeadModel2 = buffer.readInt();
+        } else if (opcode === 53) {
+            this.femaleHeadModel = buffer.readInt();
+        } else if (opcode === 54) {
+            this.femaleHeadModel2 = buffer.readInt();
         } else if (opcode === 65) {
             this.isTradable = true;
         } else if (opcode === 69) {
@@ -406,6 +429,25 @@ export class ObjType extends Type {
             this.placeholderTemplate = buffer.readUnsignedShort();
         } else if (opcode >= 150 && opcode < 155) {
             buffer.readUnsignedShort();
+        } else if (opcode === 200) {
+            const index = buffer.readUnsignedByte();
+            const subId = buffer.readUnsignedByte();
+            this.readString(buffer);
+        } else if (opcode === 201) {
+            const index = buffer.readUnsignedByte();
+            const varp = buffer.readUnsignedShort();
+            const varb = buffer.readUnsignedShort();
+            const min = buffer.readInt();
+            const max = buffer.readInt();
+            this.readString(buffer);
+        } else if (opcode === 202) {
+            const index = buffer.readUnsignedByte();
+            const subId = buffer.readUnsignedShort();
+            const varp = buffer.readUnsignedShort();
+            const varb = buffer.readUnsignedShort();
+            const min = buffer.readInt();
+            const max = buffer.readInt();
+            this.readString(buffer);
         } else if (opcode === 249) {
             this.params = Type.readParamsMap(buffer, this.params);
         } else {
