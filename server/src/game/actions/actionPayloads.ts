@@ -210,6 +210,9 @@ export interface MovementTeleportActionData {
     arriveSoundRadius?: number;
     arriveSoundVolume?: number;
     arriveMessage?: string;
+    arriveSeqId?: number;
+    arriveFaceTileX?: number;
+    arriveFaceTileY?: number;
 }
 
 export interface EmotePlayActionData {

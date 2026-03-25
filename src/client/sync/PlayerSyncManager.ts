@@ -255,6 +255,12 @@ export class PlayerSyncManager {
                     tileY,
                     typeof movement.level === "number" ? movement.level : 0,
                 );
+                if (movement.serverId === ClientState.localPlayerIndex) {
+                    ClientState.destinationX = 0;
+                    ClientState.destinationY = 0;
+                    ClientState.destinationWorldX = 0;
+                    ClientState.destinationWorldY = 0;
+                }
             }
             movementContext.set(movement.serverId, movement);
         }
@@ -442,6 +448,12 @@ export class PlayerSyncManager {
                     tileY,
                     typeof movement.level === "number" ? movement.level : 0,
                 );
+                if (movement.serverId === ClientState.localPlayerIndex) {
+                    ClientState.destinationX = 0;
+                    ClientState.destinationY = 0;
+                    ClientState.destinationWorldX = 0;
+                    ClientState.destinationWorldY = 0;
+                }
             }
         }
 

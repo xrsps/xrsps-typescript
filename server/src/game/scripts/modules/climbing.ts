@@ -23,7 +23,8 @@ import { type LocInteractionEvent, type ScriptModule } from "../types";
 // ---------------------------------------------------------------------------
 
 // -- Animations (from animation_names.txt) -----------------------------------
-const LADDER_CLIMB_ANIM = 828; // human_reachforladder
+const LADDER_CLIMB_UP_ANIM = 828;   // human_reachforladder
+const LADDER_CLIMB_DOWN_ANIM = 833; // human_reachforladdertop
 
 // -- Sounds (from osrs-synths.json) ------------------------------------------
 const STAIR_SOUND = 2420; // up_and_down_stairs
@@ -163,6 +164,39 @@ class IntermapLinkIndex {
 
         return bestEntry?.to;
     }
+
+    /**
+     * Find the source (from) position of the closest intermap link near (tileX, tileY, level).
+     * Used to locate the return loc at a destination so the player can face it.
+     */
+    findSourceTile(tileX: number, tileY: number, level: number): { x: number; y: number } | undefined {
+        const r = INTERMAP_SEARCH_RADIUS;
+        const minBX = (tileX - r) >> 3;
+        const maxBX = (tileX + r) >> 3;
+        const minBY = (tileY - r) >> 3;
+        const maxBY = (tileY + r) >> 3;
+
+        let bestDist = r + 1;
+        let bestEntry: IntermapLinkEntry | undefined;
+
+        for (let bx = minBX; bx <= maxBX; bx++) {
+            for (let by = minBY; by <= maxBY; by++) {
+                const bucket = this.buckets.get(`${level}:${bx}:${by}`);
+                if (!bucket) continue;
+                for (const entry of bucket) {
+                    const dx = Math.abs(entry.fromX - tileX);
+                    const dy = Math.abs(entry.fromY - tileY);
+                    const dist = Math.max(dx, dy);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestEntry = entry;
+                    }
+                }
+            }
+        }
+
+        return bestEntry ? { x: bestEntry.fromX, y: bestEntry.fromY } : undefined;
+    }
 }
 
 function loadIntermapLinks(): IntermapLinkIndex {
@@ -213,22 +247,41 @@ function resolveDestination(
     return { x: event.player.tileX, y: event.player.tileY, level: targetLevel };
 }
 
+/**
+ * Ticks to wait after arrival before teleporting.
+ * Gives the client time to finish walk interpolation so the player
+ * visually reaches the loc before disappearing.
+ */
+const CLIMB_DELAY_TICKS = 2;
+
 function executeTraversal(
     event: LocInteractionEvent,
     dest: TraversalDestination,
+    direction: "up" | "down" = "up",
 ): void {
     const { player, tile, level, services } = event;
 
-    // OSRS parity: teleport and animation are in the same tick's player_info
-    // block.  teleportPlayer() calls stopAnimation() which clears pending seqs,
-    // so we must queue the animation AFTER the teleport.
-    services.teleportPlayer?.(player, dest.x, dest.y, dest.level);
-    services.playPlayerSeq?.(player, LADDER_CLIMB_ANIM);
-    services.playAreaSound?.({
-        soundId: STAIR_SOUND,
-        tile,
-        level,
-        radius: 1,
+    const anim = direction === "down" ? LADDER_CLIMB_DOWN_ANIM : LADDER_CLIMB_UP_ANIM;
+
+    // Look up the return traversal loc at the destination so the player
+    // faces it on arrival (e.g. the ladder you'd climb back up).
+    const returnLoc = intermapLinks.findSourceTile(dest.x, dest.y, dest.level);
+
+    // Schedule a delayed teleport.  The climb animation, sound, and face
+    // direction all fire at the destination via arrive* fields so they land
+    // in the same tick as the teleport snap (OSRS parity).
+    services.requestTeleportAction?.(player, {
+        x: dest.x,
+        y: dest.y,
+        level: dest.level,
+        delayTicks: CLIMB_DELAY_TICKS,
+        arriveSeqId: anim,
+        arriveSoundId: STAIR_SOUND,
+        arriveSoundRadius: 1,
+        arriveFaceTileX: returnLoc?.x,
+        arriveFaceTileY: returnLoc?.y,
+        requireCanTeleport: false,
+        replacePending: true,
     });
 }
 
@@ -243,7 +296,7 @@ export const climbingModule: ScriptModule = {
         registry.registerLocAction("climb-up", (event) => {
             const dest = resolveDestination(event, +1);
             if (!dest) return;
-            executeTraversal(event, dest);
+            executeTraversal(event, dest, "up");
         });
 
         // ---- climb-down / descend: default plane - 1 ----
@@ -251,7 +304,7 @@ export const climbingModule: ScriptModule = {
             registry.registerLocAction(action, (event) => {
                 const dest = resolveDestination(event, -1);
                 if (!dest) return;
-                executeTraversal(event, dest);
+                executeTraversal(event, dest, "down");
             });
         }
 
@@ -263,7 +316,8 @@ export const climbingModule: ScriptModule = {
                 event.services.sendGameMessage(event.player, "Nothing interesting happens.");
                 return;
             }
-            executeTraversal(event, link);
+            const dir = link.level < event.level ? "down" : "up";
+            executeTraversal(event, link, dir);
         });
 
         // ---- climb (ambiguous): show dialogue asking up or down ----
@@ -274,7 +328,8 @@ export const climbingModule: ScriptModule = {
             // Check intermap link first — if present, use it directly (no ambiguity)
             const link = intermapLinks.find(event.tile.x, event.tile.y, level);
             if (link) {
-                executeTraversal(event, link);
+                const dir = link.level < level ? "down" : "up";
+                executeTraversal(event, link, dir);
                 return;
             }
 
@@ -291,14 +346,17 @@ export const climbingModule: ScriptModule = {
                     title: "Climb up or down?",
                     options: ["Climb-up.", "Climb-down."],
                     onSelect: (choiceIndex: number) => {
-                        const dest = choiceIndex === 0 ? upDest : downDest;
-                        if (dest) executeTraversal(event, dest);
+                        if (choiceIndex === 0 && upDest) {
+                            executeTraversal(event, upDest, "up");
+                        } else if (downDest) {
+                            executeTraversal(event, downDest, "down");
+                        }
                     },
                 });
             } else if (upDest) {
-                executeTraversal(event, upDest);
+                executeTraversal(event, upDest, "up");
             } else if (downDest) {
-                executeTraversal(event, downDest);
+                executeTraversal(event, downDest, "down");
             }
         });
     },

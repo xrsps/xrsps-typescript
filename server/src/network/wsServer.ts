@@ -885,6 +885,9 @@ type TeleportActionRequest = {
     arriveSoundRadius?: number;
     arriveSoundVolume?: number;
     arriveMessage?: string;
+    arriveSeqId?: number;
+    arriveFaceTileX?: number;
+    arriveFaceTileY?: number;
     requireCanTeleport?: boolean;
     rejectIfPending?: boolean;
     replacePending?: boolean;
@@ -5953,6 +5956,9 @@ export class WSServer {
         if (request.arriveMessage && request.arriveMessage.length > 0) {
             data.arriveMessage = request.arriveMessage;
         }
+        if (request.arriveSeqId !== undefined) data.arriveSeqId = request.arriveSeqId;
+        if (request.arriveFaceTileX !== undefined) data.arriveFaceTileX = request.arriveFaceTileX;
+        if (request.arriveFaceTileY !== undefined) data.arriveFaceTileY = request.arriveFaceTileY;
 
         const result = this.actionScheduler.requestAction(
             playerId,
@@ -6089,6 +6095,17 @@ export class WSServer {
                     text: data.arriveMessage,
                     targetPlayerIds: [player.id],
                 });
+            }
+
+            if (data.arriveFaceTileX !== undefined && data.arriveFaceTileY !== undefined) {
+                player.faceTile(data.arriveFaceTileX, data.arriveFaceTileY);
+            }
+
+            if (data.arriveSeqId !== undefined && data.arriveSeqId >= 0) {
+                // teleportPlayer() queues a stop animation (-1). Clear it so
+                // the arrive animation lands in the same player_info frame.
+                player.clearPendingSeqs();
+                player.queueOneShotSeq(data.arriveSeqId, 0);
             }
 
             return { ok: true };

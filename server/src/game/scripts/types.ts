@@ -552,6 +552,9 @@ export interface ScriptServices {
             arriveSoundRadius?: number;
             arriveSoundVolume?: number;
             arriveMessage?: string;
+            arriveSeqId?: number;
+            arriveFaceTileX?: number;
+            arriveFaceTileY?: number;
             requireCanTeleport?: boolean;
             rejectIfPending?: boolean;
             replacePending?: boolean;
