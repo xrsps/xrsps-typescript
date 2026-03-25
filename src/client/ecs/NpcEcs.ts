@@ -54,6 +54,10 @@ export class NpcEcs {
     private serverPlane: Uint8Array;
     private interactionIndex: Int32Array; // -1 when none
 
+    // Overhead text (forced chat / say)
+    private overheadText: (string | undefined)[];
+    private overheadCycle: Int32Array; // remaining client cycles
+
     // Animation state (per-frame)
     private frameIndex: Uint16Array; // action sequence frame
     private seqId: Int32Array; // current action/sequence override (-1 = none)
@@ -135,6 +139,8 @@ export class NpcEcs {
         this.serverPlane = new Uint8Array(this.capacity);
         this.interactionIndex = new Int32Array(this.capacity);
         this.interactionIndex.fill(NO_INTERACTION);
+        this.overheadText = new Array(this.capacity);
+        this.overheadCycle = new Int32Array(this.capacity);
         this.frameIndex = new Uint16Array(this.capacity);
         this.seqId = new Int32Array(this.capacity);
         this.seqTicksLeft = new Int16Array(this.capacity);
@@ -204,6 +210,8 @@ export class NpcEcs {
         const newInteractionIndex = grow(this.interactionIndex, newCap);
         newInteractionIndex.fill(NO_INTERACTION, this.capacity, newCap);
         this.interactionIndex = newInteractionIndex;
+        this.overheadText.length = newCap;
+        this.overheadCycle = grow(this.overheadCycle, newCap);
         this.frameIndex = grow(this.frameIndex, newCap);
         this.seqId = grow(this.seqId, newCap);
         this.seqTicksLeft = grow(this.seqTicksLeft, newCap);
@@ -324,6 +332,8 @@ export class NpcEcs {
         this.serverId[id] = 0;
         this.hasServerState[id] = 0;
         this.interactionIndex[id] = NO_INTERACTION;
+        this.overheadText[id] = undefined;
+        this.overheadCycle[id] = 0;
         this.serverPathLen[id] = 0;
         this.targetX[id] = x | 0;
         this.targetY[id] = y | 0;
@@ -506,6 +516,25 @@ export class NpcEcs {
     getNpcTypeId(id: number): number {
         return this.npcTypeId[id] | 0;
     }
+    setOverheadText(id: number, text: string, durationCycles: number = 100): void {
+        this.overheadText[id] = text;
+        this.overheadCycle[id] = durationCycles | 0;
+    }
+    getOverheadText(id: number): { text: string; remaining: number } | undefined {
+        const text = this.overheadText[id];
+        if (!text || text.length === 0) return undefined;
+        const remaining = this.overheadCycle[id] | 0;
+        if (remaining <= 0) return undefined;
+        return { text, remaining };
+    }
+    tickOverheadText(id: number): void {
+        if ((this.overheadCycle[id] | 0) > 0) {
+            this.overheadCycle[id]--;
+            if ((this.overheadCycle[id] | 0) <= 0) {
+                this.overheadText[id] = undefined;
+            }
+        }
+    }
     getMapId(id: number): number {
         return this.mapId[id] | 0;
     }
@@ -535,6 +564,18 @@ export class NpcEcs {
     }
     isActive(id: number): boolean {
         return this.active[id] === 1;
+    }
+    getActiveCount(): number {
+        let count = 0;
+        for (let i = 1; i < this.capacity; i++) {
+            if (this.active[i] === 1) count++;
+        }
+        return count;
+    }
+    forEachActive(fn: (id: number) => void): void {
+        for (let i = 1; i < this.capacity; i++) {
+            if (this.active[i] === 1) fn(i);
+        }
     }
     getFrameIndex(id: number): number {
         return this.frameIndex[id] | 0;
@@ -724,6 +765,7 @@ export class NpcEcs {
             for (const idRaw of this.serverIdLookup.values()) {
                 const id = idRaw | 0;
                 if (!this.isActive(id)) continue;
+                this.tickOverheadText(id);
                 if (!this.isStepActive(id) && !this.ensureActiveStep(id)) {
                     this.useWalkAnim[id] = 0;
                     this.movementDelayCounter[id] = 0;

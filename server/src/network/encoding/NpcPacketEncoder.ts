@@ -10,6 +10,7 @@ import {
     resolveHitsplatTypeForObserver,
     type HitsplatSourceType,
 } from "../../game/combat/OsrsHitsplatIds";
+import { encodeCp1252Bytes } from "./Cp1252";
 import type { NpcState, NpcUpdateDelta } from "../../game/npc";
 import type { PlayerState } from "../../game/player";
 import { BitWriter } from "../BitWriter";
@@ -208,6 +209,13 @@ export class NpcPacketEncoder {
                     lum: frameOverride.lum,
                     amount: frameOverride.amount,
                 };
+            }
+
+            // SAY (0x40)
+            if (npc.pendingSay) {
+                info.mask |= NPC_MASKS.SAY;
+                info.say = npc.pendingSay;
+                npc.pendingSay = undefined;
             }
 
             // HIT_MASK (0x20)
@@ -661,6 +669,14 @@ export class NpcPacketEncoder {
                         }
                     }
                 }
+            }
+
+            // SAY (0x40) — NPC forced overhead chat
+            if (rawMask & NPC_MASKS.SAY) {
+                const text = info.say ?? "";
+                const bytes = encodeCp1252Bytes(text);
+                writer.writeBytes(bytes);
+                writer.writeByte(0);
             }
 
             // COLOR_OVERRIDE (0x100)

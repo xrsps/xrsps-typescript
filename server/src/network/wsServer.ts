@@ -2,6 +2,7 @@ import JavaRandom from "java-random";
 import { performance } from "perf_hooks";
 import { TextEncoder } from "util";
 import { WebSocket, WebSocketServer } from "ws";
+import { config } from "../config";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
@@ -1250,8 +1251,9 @@ export interface WSServerOptions {
     ticker: GameTicker;
     pathService?: PathService;
     npcManager?: NpcManager;
-    // Optional: reuse an already-initialized cache environment to avoid double loading
     cacheEnv?: CacheEnv;
+    serverName?: string;
+    maxPlayers?: number;
 }
 
 export class WSServer {
@@ -1494,6 +1496,28 @@ export class WSServer {
         });
         this.wss.on("listening", () => {
             logger.info(`WS listening on ws://${opts.host}:${opts.port}`);
+
+            const httpServer = (this.wss as any)._server;
+            if (httpServer) {
+                httpServer.removeAllListeners("request");
+                httpServer.on("request", (req: any, res: any) => {
+                    if (req.url === "/status") {
+                        const count = this.players?.getRealPlayerCount() ?? 0;
+                        res.writeHead(200, {
+                            "Content-Type": "application/json",
+                            "Access-Control-Allow-Origin": "*",
+                        });
+                        res.end(JSON.stringify({
+                            serverName: opts.serverName ?? config.serverName,
+                            playerCount: count,
+                            maxPlayers: opts.maxPlayers ?? config.maxPlayers,
+                        }));
+                    } else {
+                        res.writeHead(426);
+                        res.end();
+                    }
+                });
+            }
         });
         const autosaveEnvRaw = process.env.PLAYER_AUTOSAVE_TICKS;
         const autosaveEnv = autosaveEnvRaw?.trim()
@@ -6014,12 +6038,13 @@ export class WSServer {
         level: number,
         _forceRebuild: boolean = false,
     ): void {
-        // Clear any ongoing actions
+        // Clear any ongoing actions and walk destination
         try {
             this.actionScheduler.clearActionsInGroup(player.id, "skill.woodcut");
             this.actionScheduler.clearActionsInGroup(player.id, "inventory");
             player.clearInteraction();
             player.stopAnimation();
+            player.clearWalkDestination();
         } catch {}
 
         // Teleport and update
@@ -6039,21 +6064,19 @@ export class WSServer {
                 view.level = level;
                 view.snap = true;
                 view.moved = true;
-                view.directions = undefined; // Clear any step directions
-                // Update appearance to reflect any equipment changes (e.g., death item loss)
+                view.directions = undefined;
+                view.traversals = undefined;
                 view.appearance = player.appearance;
             }
+            // Clear any movement steps that were consumed before the teleport fired.
+            // The teleport supersedes all movement for this tick.
+            this.activeFrame.playerSteps.delete(player.id);
         }
 
-        // Queue appearance update with snap flag for instant position sync
-        this.queueAppearanceSnapshot(player, {
-            x: worldX,
-            y: worldY,
-            level,
-            snap: true,
-            moved: false,
-            turned: false,
-        });
+        // The view is already patched in-place above. Do NOT queue an appearance
+        // snapshot with snap/position here — it would be drained into the NEXT
+        // tick's frame (createTickFrame runs before combat) and overwrite the
+        // fresh movement-phase view with stale teleport coordinates.
     }
 
     private executeMovementTeleportAction(
@@ -7645,7 +7668,7 @@ export class WSServer {
                 this.emitLocChange(fromLocId, toLocId, tile, level),
             enqueueSoundBroadcast: (soundId, x, y, level) =>
                 this.enqueueSoundBroadcast(soundId, x, y, level),
-            sendSound: (player, soundId) => this.sendSound(player, soundId),
+            sendSound: (player, soundId, opts) => this.sendSound(player, soundId, opts),
 
             // --- Varbit / Loc Change ---
             setPlayerVarbit: (player, varbitId, value) => {
@@ -7661,6 +7684,12 @@ export class WSServer {
             stunPlayer: (player, ticks) => {
                 player.timers.set(STUN_TIMER, ticks);
             },
+            isPlayerStunned: (player) => {
+                return player.timers.has(STUN_TIMER);
+            },
+            isPlayerInCombat: (player) => {
+                return player.isBeingAttacked();
+            },
             broadcastPlayerSpot: (player, spotId, height = 0, delay = 0) => {
                 const tick = this.options.ticker.currentTick();
                 this.enqueueSpotAnimation({
@@ -7671,14 +7700,26 @@ export class WSServer {
                     delay,
                 });
             },
-            queueNpcForcedChat: (_npc, _text) => {
-                // TODO: NPC forced overhead chat (npc_info say block) not yet implemented
+            queueNpcForcedChat: (npc, text) => {
+                npc.pendingSay = text;
             },
             queueNpcSeq: (npc, seqId) => {
                 npc.queueOneShotSeq(seqId);
             },
             faceNpcToPlayer: (npc, player) => {
                 npc.faceTile(player.tileX, player.tileY);
+            },
+            queueClientScript: (player, scriptId, ...args) => {
+                this.queueClientScript(player.id, scriptId, ...args);
+            },
+            setPickpocketVarbit: (player, varbitId, value) => {
+                player.setVarbitValue(varbitId, value);
+                this.queueVarbit(player.id, varbitId, value);
+            },
+            clearPlayerFaceTarget: (player) => {
+                try {
+                    player.clearInteraction();
+                } catch {}
             },
             // --- Logging ---
             log: (level, message, data) => {

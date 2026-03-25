@@ -62,6 +62,8 @@ export type HitsplatEffect = {
     tick?: number;
     /** Client-side delay in ticks before displaying the hitsplat. */
     delayTicks?: number;
+    /** When true, the EffectDispatcher will not auto-play damage/block sounds for this hitsplat. */
+    skipAutoSound?: boolean;
 };
 
 export type BaseActionEffect =

@@ -140,6 +140,7 @@ type RegenerationEffectState = {
 export class NpcState extends Actor {
     readonly typeId: number;
     readonly name?: string;
+    pendingSay?: string;
     readonly spawnX: number;
     readonly spawnY: number;
     readonly spawnLevel: number;

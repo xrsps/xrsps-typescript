@@ -132,6 +132,22 @@ const MOCK_WORLDS: World[] = [
 ];
 
 /**
+ * Server list entry for the server browser.
+ */
+export interface ServerListEntry {
+    name: string;
+    address: string;
+    secure: boolean;
+    playerCount: number | null;
+    maxPlayers: number;
+}
+
+const PLACEHOLDER_SERVERS: ServerListEntry[] = [
+    { name: "Local Development", address: "localhost:43594", secure: false, playerCount: null, maxPlayers: 2047 },
+    { name: "Grizz Island", address: "grizzisland.playit.plus:48165", secure: false, playerCount: null, maxPlayers: 2047 },
+];
+
+/**
  * Login screen renderer.
  * Instance-based class that renders login screens based on LoginState.
  * Sprites, fonts, and canvas are instance properties.
@@ -260,6 +276,45 @@ export class LoginRenderer {
 
     /** Mouse Y position for hover detection */
     mouseY: number = 0;
+
+    /** Server list entries */
+    serverList: ServerListEntry[] = PLACEHOLDER_SERVERS;
+
+    /** Whether a server probe is currently in flight */
+    probing: boolean = false;
+
+    /** Whether servers have been probed at least once */
+    probed: boolean = false;
+
+    refreshServerList(): void {
+        if (this.probing) return;
+        this.probed = false;
+        this.probing = true;
+
+        const promises = this.serverList.map(async (server) => {
+            const protocol = server.secure ? "https" : "http";
+            try {
+                const res = await fetch(`${protocol}://${server.address}/status`, {
+                    signal: AbortSignal.timeout(3000),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    server.playerCount = typeof data.playerCount === "number" ? data.playerCount : null;
+                    if (typeof data.maxPlayers === "number") server.maxPlayers = data.maxPlayers;
+                    if (typeof data.serverName === "string") server.name = data.serverName;
+                } else {
+                    server.playerCount = null;
+                }
+            } catch {
+                server.playerCount = null;
+            }
+        });
+
+        Promise.all(promises).finally(() => {
+            this.probing = false;
+            this.probed = true;
+        });
+    }
 
     /** World sorting option (0=world, 1=players, 2=location, 3=type) */
     worldSortOption: number = 0;
@@ -642,6 +697,32 @@ export class LoginRenderer {
         return hoverResult.index;
     }
 
+    computeHoveredServerIndex(state: LoginState): number {
+        if (!state.serverListOpen || !this.probed) return -1;
+
+        const servers = this.serverList;
+        const rowH = 24;
+        const headerH = 30;
+        const panelW = 350;
+        const panelH = headerH + servers.length * rowH;
+        const panelX = Math.floor((this.canvasWidth - panelW) / 2);
+        const panelY = Math.floor((this.canvasHeight - panelH) / 2);
+
+        const rowStartY = panelY + headerH;
+        const mx = this.mouseX;
+        const my = this.mouseY;
+
+        if (mx >= panelX + 4 && mx <= panelX + panelW - 4) {
+            for (let i = 0; i < servers.length; i++) {
+                const ry = rowStartY + i * rowH;
+                if (my >= ry && my < ry + rowH) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
     /** Update mouse position for hover detection */
     setMousePosition(x: number, y: number): void {
         const mapped = this.toLayoutPoint(x, y);
@@ -974,10 +1055,14 @@ export class LoginRenderer {
             }
         }
 
-        // World select button (opens world selector)
+        // Server list overlay handling (when open) - check before button
+        if (state.serverListOpen) {
+            return this.handleServerListClick(state, x, y);
+        }
+
+        // Server list button (bottom left, replaces world select button)
         if (
             gameState >= GameState.LOGIN_SCREEN &&
-            state.clientLanguage === 0 &&
             this.worldSelectButtonSprite
         ) {
             const buttonX = this.containerX + 5;
@@ -985,7 +1070,7 @@ export class LoginRenderer {
             const buttonW = this.worldSelectButtonSprite.subWidth || 100;
             const buttonH = this.worldSelectButtonSprite.subHeight || 35;
             if (x >= buttonX && x <= buttonX + buttonW && y >= buttonY && y <= buttonY + buttonH) {
-                return LoginActions.OPEN_WORLD_SELECT;
+                return LoginActions.OPEN_SERVER_LIST;
             }
         }
 
@@ -1227,6 +1312,49 @@ export class LoginRenderer {
             return LoginActions.BACK;
         }
         return undefined;
+    }
+
+    private handleServerListClick(
+        state: LoginState,
+        x: number,
+        y: number,
+    ): LoginAction | undefined {
+        const panelW = 350;
+        const contentH = this.probed ? this.serverList.length * 24 : 30;
+        const panelH = 30 + contentH;
+        const panelX = Math.floor((this.canvasWidth - panelW) / 2);
+        const panelY = Math.floor((this.canvasHeight - panelH) / 2);
+
+        // Refresh button (below panel, left)
+        const btnY = panelY + panelH + 30;
+        if (this.isButtonHit(x, y, panelX + panelW / 2 - 80, btnY)) {
+            return LoginActions.REFRESH_SERVER_LIST;
+        }
+
+        // Close button (below panel, right)
+        if (this.isButtonHit(x, y, panelX + panelW / 2 + 80, btnY)) {
+            return LoginActions.CLOSE_SERVER_LIST;
+        }
+
+        // Server row clicks (only when probed)
+        if (this.probed) {
+            const rowStartY = panelY + 30;
+            const rowH = 24;
+            for (let i = 0; i < this.serverList.length; i++) {
+                const ry = rowStartY + i * rowH;
+                if (x >= panelX + 4 && x <= panelX + panelW - 4 && y >= ry && y < ry + rowH) {
+                    return { type: "select_server", index: i };
+                }
+            }
+        }
+
+        // Click inside panel consumes the event (don't pass through)
+        if (x >= panelX && x <= panelX + panelW && y >= panelY && y <= panelY + panelH) {
+            return undefined;
+        }
+
+        // Click outside panel closes it
+        return LoginActions.CLOSE_SERVER_LIST;
     }
 
     private handleWorldSelectClick(
@@ -1498,18 +1626,20 @@ export class LoginRenderer {
                     // Draw title background
                     this.drawTitleBackgroundToCtx(cacheCtx);
 
-                    // Loading state (gameState 0) - shows progress bar
-                    if (gameState === GameState.LOADING) {
-                        this.drawLoadingBarToCtx(cacheCtx, state);
-                    }
+                    if (!state.serverListOpen) {
+                        // Loading state (gameState 0) - shows progress bar
+                        if (gameState === GameState.LOADING) {
+                            this.drawLoadingBarToCtx(cacheCtx, state);
+                        }
 
-                    // Login screen (gameState 10, 20, or 50) - shows loginIndex-based views
-                    if (
-                        gameState === GameState.LOGIN_SCREEN ||
-                        gameState === GameState.CONNECTING ||
-                        gameState === GameState.SPECIAL_LOGIN
-                    ) {
-                        this.drawLoginScreenToCtx(cacheCtx, state, gameState);
+                        // Login screen (gameState 10, 20, or 50) - shows loginIndex-based views
+                        if (
+                            gameState === GameState.LOGIN_SCREEN ||
+                            gameState === GameState.CONNECTING ||
+                            gameState === GameState.SPECIAL_LOGIN
+                        ) {
+                            this.drawLoginScreenToCtx(cacheCtx, state, gameState);
+                        }
                     }
 
                     // Rune animations (only on login screen - gameState >= 10)
@@ -1537,34 +1667,39 @@ export class LoginRenderer {
                         cacheCtx.restore();
                     }
 
-                    // Logo
-                    this.drawLogoToCtx(cacheCtx);
+                    if (!state.serverListOpen) {
+                        // Logo
+                        this.drawLogoToCtx(cacheCtx);
 
-                    // Mute button (only when gameState >= 10)
-                    if (gameState >= GameState.LOGIN_SCREEN) {
-                        this.drawTitleMuteButton(cacheCtx, state.titleMusicDisabled);
+                        // Mute button (only when gameState >= 10)
+                        if (gameState >= GameState.LOGIN_SCREEN) {
+                            this.drawTitleMuteButton(cacheCtx, state.titleMusicDisabled);
+                        }
                     }
 
-                    // World select button (hidden for now)
-                    // TODO: Re-enable when world switching is implemented
-                    // if (
-                    //     gameState >= GameState.LOGIN_SCREEN &&
-                    //     state.clientLanguage === 0 &&
-                    //     this.worldSelectButtonSprite &&
-                    //     this.fontBold12
-                    // ) {
-                    //     const buttonX = this.containerX + 5;
-                    //     const buttonY = 463;
-                    //     this.drawSprite(cacheCtx, this.worldSelectButtonSprite, buttonX, buttonY);
-                    //     this.drawCenteredText(
-                    //         cacheCtx,
-                    //         this.fontBold12,
-                    //         `World ${state.worldId}`,
-                    //         buttonX + 50,
-                    //         buttonY + 22,
-                    //         0xffffff,
-                    //     );
-                    // }
+                    // Server list button (bottom left)
+                    if (
+                        gameState >= GameState.LOGIN_SCREEN &&
+                        this.worldSelectButtonSprite &&
+                        this.fontPlain11
+                    ) {
+                        const buttonX = this.containerX + 5;
+                        const buttonY = 463;
+                        this.drawSprite(cacheCtx, this.worldSelectButtonSprite, buttonX, buttonY);
+                        this.drawCenteredText(
+                            cacheCtx,
+                            this.fontPlain11,
+                            state.serverName,
+                            buttonX + (this.worldSelectButtonSprite.subWidth >> 1),
+                            buttonY + 22,
+                            0xffffff,
+                        );
+                    }
+
+                    // Server list overlay
+                    if (state.serverListOpen) {
+                        this.drawServerListOverlay(cacheCtx, state);
+                    }
 
                     // World select grid (without hover) - uses its own cache
                     if (state.worldSelectOpen) {
@@ -1611,7 +1746,7 @@ export class LoginRenderer {
             state.password.length
         }|${state.otp.length}|${state.currentLoginField}|${state.onMobile}|${
             state.virtualKeyboardVisible
-        }|${state.worldSelectOpen}|${state.worldSelectPage}|${state.loadingPercent}|${
+        }|${state.serverListOpen}|${state.hoveredServerIndex}|${state.serverName}|${this.probing}|${this.probed}|${this.serverList.map(s => s.playerCount).join(",")}|${state.worldSelectOpen}|${state.worldSelectPage}|${state.loadingPercent}|${
             state.rememberUsername
         }|${state.isUsernameHidden}|${state.trustComputer}|${state.titleMusicDisabled}|${
             state.worldId
@@ -2458,6 +2593,114 @@ export class LoginRenderer {
         );
         this.drawButton(ctx, this.loginBoxCenter - 80, 321, "Continue");
         this.drawButton(ctx, this.loginBoxCenter + 80, 321, "Cancel");
+    }
+
+    private drawServerListOverlay(ctx: RenderContext, state: LoginState): void {
+        if (!this.fontBold12 || !this.fontPlain12) return;
+
+        const servers = this.serverList;
+        const rowH = 24;
+        const headerH = 30;
+        const panelW = 350;
+        const showRows = this.probed;
+        const contentH = showRows ? servers.length * rowH : 30;
+        const panelH = headerH + contentH;
+        const panelX = Math.floor((this.canvasWidth - panelW) / 2);
+        const panelY = Math.floor((this.canvasHeight - panelH) / 2);
+
+        // Dim background - cover full canvas by inverting the render transform
+        const dimScale = this.renderScale || 1;
+        const dimOffX = this.renderOffsetX || 0;
+        const dimOffY = this.renderOffsetY || 0;
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(
+            -dimOffX / dimScale,
+            -dimOffY / dimScale,
+            this.renderSurfaceWidth / dimScale + 1,
+            this.renderSurfaceWidth / dimScale + 1,
+        );
+
+        // Panel background
+        ctx.fillStyle = "#2b2013";
+        ctx.fillRect(panelX, panelY, panelW, panelH);
+
+        // Panel border
+        ctx.strokeStyle = "#6b5a3e";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(panelX + 1, panelY + 1, panelW - 2, panelH - 2);
+
+        // Header background
+        this.drawGradientRect(ctx, panelX + 2, panelY + 2, panelW - 4, headerH - 2, 0x5c4a30, 0x3d2e1a);
+
+        // Column headers
+        const col1X = panelX + 10;
+        const col2X = panelX + 140;
+        const col3X = panelX + 265;
+        const headerTextY = panelY + 20;
+        this.drawText(ctx, this.fontBold12, "Server Name", col1X, headerTextY, 0xffcc00);
+        this.drawText(ctx, this.fontBold12, "Address", col2X, headerTextY, 0xffcc00);
+        this.drawText(ctx, this.fontBold12, "Players", col3X, headerTextY, 0xffcc00);
+
+        // Separator line
+        ctx.fillStyle = "#6b5a3e";
+        ctx.fillRect(panelX + 4, panelY + headerH, panelW - 8, 1);
+
+        if (!showRows) {
+            // First probe not yet complete — show loading
+            this.drawCenteredText(
+                ctx, this.fontPlain12, "Loading servers...",
+                panelX + panelW / 2, panelY + headerH + 18, 0xaaaaaa,
+            );
+        } else {
+            // Refreshing indicator
+            if (this.probing) {
+                this.drawText(ctx, this.fontPlain12, "Refreshing...", col3X - 30, panelY + panelH - 4, 0xffcc00);
+            }
+
+            // Server rows
+            const rowStartY = panelY + headerH;
+            for (let i = 0; i < servers.length; i++) {
+                const server = servers[i];
+                const ry = rowStartY + i * rowH;
+
+                // Hover highlight
+                if (state.hoveredServerIndex === i) {
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+                    ctx.fillRect(panelX + 4, ry, panelW - 8, rowH);
+                }
+
+                // Alternating row tint
+                if (i % 2 === 0) {
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
+                    ctx.fillRect(panelX + 4, ry, panelW - 8, rowH);
+                }
+
+                const textY = ry + 16;
+                const nameMaxW = col2X - col1X - 4;
+                const addrMaxW = col3X - col2X - 4;
+                this.drawText(ctx, this.fontPlain12, this.ellipsis(server.name, nameMaxW), col1X, textY, 0xffffff);
+                this.drawText(ctx, this.fontPlain12, this.ellipsis(server.address, addrMaxW), col2X, textY, 0xaaaaaa);
+                if (server.playerCount === null) {
+                    this.drawText(ctx, this.fontPlain12, "Offline", col3X, textY, 0xff0000);
+                } else {
+                    const playersStr = `${server.playerCount}/${server.maxPlayers}`;
+                    this.drawText(ctx, this.fontPlain12, playersStr, col3X, textY, 0x00ff00);
+                }
+            }
+        }
+
+        ctx.restore();
+
+        // Discord notice
+        this.drawCenteredText(
+            ctx, this.fontPlain12!, "Get your server added through the Discord",
+            panelX + panelW / 2, panelY - 8, 0xaaaaaa,
+        );
+
+        // Buttons below the panel
+        this.drawButton(ctx, panelX + panelW / 2 - 80, panelY + panelH + 30, "Refresh");
+        this.drawButton(ctx, panelX + panelW / 2 + 80, panelY + panelH + 30, "Close");
     }
 
     private drawWorldSelect(
@@ -3614,6 +3857,17 @@ export class LoginRenderer {
             str = str.substring(1);
         }
         return str;
+    }
+
+    private ellipsis(str: string, maxWidth: number): string {
+        if (!this.fontPlain12) return str;
+        if (this.fontPlain12.measure(str) <= maxWidth) return str;
+        const ellip = "...";
+        const ellipW = this.fontPlain12.measure(ellip);
+        while (this.fontPlain12.measure(str) + ellipW > maxWidth && str.length > 0) {
+            str = str.slice(0, -1);
+        }
+        return str + ellip;
     }
 
     // ========== Resource Cleanup ==========

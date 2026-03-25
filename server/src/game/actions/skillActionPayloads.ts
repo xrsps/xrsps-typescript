@@ -101,11 +101,13 @@ export interface SkillPickpocketActionData {
         maxAmount: number;
         weight: number;
     }>;
+    coinPouchId?: number;
     minDamage: number;
     maxDamage: number;
     stunTicks: number;
     displayName?: string;
-    started: boolean;
+    /** 0=attempt, 1=resolve, 2=stun_visual, 3=stun_damage */
+    phase: number;
 }
 
 export interface SkillBoltEnchantActionData {

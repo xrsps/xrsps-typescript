@@ -3903,6 +3903,10 @@ export class PlayerManager implements PlayerRepository {
         return this.players.size + this.orphanedPlayers.size + this.bots.length;
     }
 
+    getRealPlayerCount(): number {
+        return this.players.size + this.orphanedPlayers.size;
+    }
+
     /**
      * Process orphaned players each tick.
      * Removes players who can now logout or have exceeded max orphan time.

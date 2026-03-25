@@ -2,6 +2,7 @@ import { LoginIndex } from "./GameState";
 import { isIosStandalonePwa } from "../../util/DeviceUtil";
 
 const STORAGE_KEY_TITLE_MUSIC_DISABLED = "osrs:titleMusicDisabled";
+const STORAGE_KEY_LAST_SERVER = "osrs:lastServer";
 const STORAGE_KEY_IOS_PWA_LOGIN_STATE = "osrs:iosPwaLoginState";
 const IOS_PWA_LOGIN_STATE_VERSION = 1;
 
@@ -32,9 +33,16 @@ export class LoginState {
             if (musicDisabled !== null) {
                 this.titleMusicDisabled = musicDisabled === "true";
             }
-        } catch {
-            // localStorage not available (e.g., private browsing)
-        }
+        } catch {}
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY_LAST_SERVER);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed.name === "string") this.serverName = parsed.name;
+                if (typeof parsed.address === "string") this.serverAddress = parsed.address;
+                if (typeof parsed.secure === "boolean") this.serverSecure = parsed.secure;
+            }
+        } catch {}
     }
 
     /** Save title music disabled setting to localStorage */
@@ -196,6 +204,34 @@ export class LoginState {
     /** DOB entry available (desktop only) */
     dobEntryAvailable: boolean = true;
 
+    // ========== Server List ==========
+
+    /** Server list overlay open */
+    serverListOpen: boolean = false;
+
+    /** Currently hovered server index (-1 = none) */
+    hoveredServerIndex: number = -1;
+
+    /** Current server address displayed on the button */
+    serverAddress: string = "localhost:43594";
+
+    /** Current server name displayed on the button */
+    serverName: string = "Local Development";
+
+    /** Whether the current server uses secure WebSocket */
+    serverSecure: boolean = false;
+
+    /** Persist the last selected server to localStorage */
+    saveLastServer(): void {
+        try {
+            localStorage.setItem(STORAGE_KEY_LAST_SERVER, JSON.stringify({
+                name: this.serverName,
+                address: this.serverAddress,
+                secure: this.serverSecure,
+            }));
+        } catch {}
+    }
+
     // ========== World Select ==========
 
     /** World selection overlay open */
@@ -277,6 +313,8 @@ export class LoginState {
         this.response2 = "";
         this.response3 = "";
         this.currentLoginField = 0;
+        this.serverListOpen = false;
+        this.hoveredServerIndex = -1;
         this.worldSelectOpen = false;
         this.hoveredWorldId = -1;
         this.worldSelectPage = 0;

@@ -383,7 +383,7 @@ export interface SkillActionServices {
     // --- Location Changes ---
     emitLocChange(fromLocId: number, toLocId: number, tile: Vec2, level: number): void;
     enqueueSoundBroadcast(soundId: number, x: number, y: number, level: number): void;
-    sendSound(player: PlayerState, soundId: number): void;
+    sendSound(player: PlayerState, soundId: number, opts?: { delay?: number }): void;
 
     // --- Varbit / Loc Change ---
     setPlayerVarbit(player: PlayerState, varbitId: number, value: number): void;
@@ -414,6 +414,16 @@ export interface SkillActionServices {
     stunPlayer(player: PlayerState, ticks: number): void;
 
     /**
+     * Check if a player is in combat (being attacked or attacking).
+     */
+    isPlayerInCombat(player: PlayerState): boolean;
+
+    /**
+     * Check if a player is currently stunned.
+     */
+    isPlayerStunned(player: PlayerState): boolean;
+
+    /**
      * Broadcast a spot animation (graphic) on a player.
      */
     broadcastPlayerSpot(player: PlayerState, spotId: number, height?: number, delay?: number): void;
@@ -432,6 +442,21 @@ export interface SkillActionServices {
      * Make an NPC face a player.
      */
     faceNpcToPlayer(npc: NpcState, player: PlayerState): void;
+
+    /**
+     * Queue a client script to run on the player's client.
+     */
+    queueClientScript(player: PlayerState, scriptId: number, ...args: (number | string)[]): void;
+
+    /**
+     * Set a varbit value on a player and send the update.
+     */
+    setPickpocketVarbit(player: PlayerState, varbitId: number, value: number): void;
+
+    /**
+     * Clear the player's face/interaction target.
+     */
+    clearPlayerFaceTarget(player: PlayerState): void;
 
     // --- Logging ---
     log(level: "info" | "warn" | "error", message: string, data?: unknown): void;
@@ -2635,21 +2660,23 @@ export class SkillActionHandler {
     // ========================================================================
 
     // Network-verified constants (OSRS r237 packet capture)
-    private static readonly PICKPOCKET_ANIM = 881;          // human_pickpocket
-    private static readonly PICKPOCKET_STUN_ANIM = 424;     // human_unarmedblock
-    private static readonly PICKPOCKET_NPC_ATTACK_ANIM = 390; // human_sword_slash (NPC plays this on fail)
-    private static readonly PICKPOCKET_STUN_GFX = 245;      // stunned_thieving
+    private static readonly PICKPOCKET_ANIM = 881;            // human_pickpocket
+    private static readonly PICKPOCKET_STUN_ANIM = 424;       // human_unarmedblock
+    private static readonly PICKPOCKET_NPC_ATTACK_ANIM = 390; // human_sword_slash
+    private static readonly PICKPOCKET_STUN_GFX = 245;        // stunned_thieving
     private static readonly PICKPOCKET_STUN_GFX_HEIGHT = 124;
     private static readonly PICKPOCKET_SUCCESS_SOUND = 2581;
     private static readonly PICKPOCKET_STUN_SOUND = 2727;
     private static readonly PICKPOCKET_DAMAGE_SOUND = 519;
     private static readonly PICKPOCKET_DAMAGE_SOUND_DELAY = 20;
     private static readonly PICKPOCKET_HIT_STYLE = 16;
-    private static readonly PICKPOCKET_CYCLE_TICKS = 2;
+    private static readonly PICKPOCKET_BUSY_VARBIT = 12393;
+    private static readonly PICKPOCKET_NOTIFY_SCRIPT = 7192;
     private static readonly GLOVES_OF_SILENCE_ID = 10075;
     private static readonly GLOVES_OF_SILENCE_BONUS = 5;
     private static readonly EQUIPMENT_SLOT_GLOVES = 9;
     private static readonly THIEVING_SKILL_ID = 17;
+    private static readonly COINS_ITEM_ID = 995;
 
     executeSkillPickpocketAction(
         player: PlayerState,
@@ -2657,37 +2684,55 @@ export class SkillActionHandler {
         tick: number,
     ): ActionExecutionResult {
         const effects: ActionEffect[] = [];
-        const thievingSkill = this.services.getSkill(
-            player,
-            SkillActionHandler.THIEVING_SKILL_ID,
-        );
-        const thievingLevel = thievingSkill?.baseLevel ?? 1;
         const npc = this.services.getNpc(data.npcId);
         const npcName = data.displayName ?? npc?.name ?? "NPC";
         const npcNameLower = npcName.toLowerCase();
 
-        if (thievingLevel < data.reqLevel) {
-            effects.push(
-                this.services.buildSkillMessageEffect(
-                    player,
-                    `You need to be level ${data.reqLevel} to pickpocket the ${npcNameLower}.`,
-                ),
+        // Phase 0: Attempt — prechecks + attempt message
+        if (data.phase === 0) {
+            const thievingSkill = this.services.getSkill(
+                player,
+                SkillActionHandler.THIEVING_SKILL_ID,
             );
-            return { ok: true, effects };
-        }
+            const thievingLevel = thievingSkill?.baseLevel ?? 1;
 
-        if (!this.services.hasInventorySlot(player)) {
-            effects.push(
-                this.services.buildSkillMessageEffect(
-                    player,
-                    "You don't have enough inventory space to do that.",
-                ),
-            );
-            return { ok: true, effects };
-        }
+            if (thievingLevel < data.reqLevel) {
+                effects.push(
+                    this.services.buildSkillMessageEffect(
+                        player,
+                        `You need to be level ${data.reqLevel} to pickpocket the ${npcNameLower}.`,
+                    ),
+                );
+                return { ok: true, effects };
+            }
 
-        // Tick N: attempt message (no animation yet — anim plays on result tick)
-        if (!data.started) {
+            if (this.services.isPlayerStunned(player)) {
+                effects.push(
+                    this.services.buildSkillMessageEffect(player, "You're stunned!"),
+                );
+                return { ok: true, effects };
+            }
+
+            if (this.services.isPlayerInCombat(player)) {
+                effects.push(
+                    this.services.buildSkillMessageEffect(
+                        player,
+                        "You can't do that during combat.",
+                    ),
+                );
+                return { ok: true, effects };
+            }
+
+            if (!this.services.hasInventorySlot(player)) {
+                effects.push(
+                    this.services.buildSkillMessageEffect(
+                        player,
+                        "You don't have enough inventory space to do that.",
+                    ),
+                );
+                return { ok: true, effects };
+            }
+
             effects.push(
                 this.services.buildSkillMessageEffect(
                     player,
@@ -2699,7 +2744,7 @@ export class SkillActionHandler {
                 player.id,
                 {
                     kind: "skill.pickpocket",
-                    data: { ...data, started: true },
+                    data: { ...data, phase: 1 },
                     delayTicks: 1,
                     cooldownTicks: 1,
                     groups: ["skill.pickpocket"],
@@ -2709,47 +2754,103 @@ export class SkillActionHandler {
             return { ok: true, cooldownTicks: 1, effects };
         }
 
-        // Tick N+1: resolve success/fail
-        const success = this.rollPickpocketSuccess(thievingLevel, data.reqLevel, player);
-
-        if (success) {
-            player.queueOneShotSeq(SkillActionHandler.PICKPOCKET_ANIM);
-            this.services.sendSound(player, SkillActionHandler.PICKPOCKET_SUCCESS_SOUND);
-
-            const reward = this.rollPickpocketLoot(data.lootTable);
-            if (reward) {
-                this.services.addItemToInventory(player, reward.itemId, reward.quantity);
-                effects.push({ type: "inventorySnapshot", playerId: player.id });
-            }
-
-            this.services.awardSkillXp(
+        // Phase 1: Resolve success/fail
+        if (data.phase === 1) {
+            const thievingSkill = this.services.getSkill(
                 player,
                 SkillActionHandler.THIEVING_SKILL_ID,
-                data.xp,
             );
-            effects.push(
-                this.services.buildSkillMessageEffect(
+            const thievingLevel = thievingSkill?.baseLevel ?? 1;
+            const success = this.rollPickpocketSuccess(thievingLevel, data.reqLevel, player);
+
+            if (success) {
+                player.queueOneShotSeq(SkillActionHandler.PICKPOCKET_ANIM);
+                this.services.clearPlayerFaceTarget(player);
+                this.services.sendSound(player, SkillActionHandler.PICKPOCKET_SUCCESS_SOUND);
+
+                const reward = this.rollPickpocketLoot(data.lootTable);
+                if (reward) {
+                    const itemId =
+                        reward.itemId === SkillActionHandler.COINS_ITEM_ID && data.coinPouchId
+                            ? data.coinPouchId
+                            : reward.itemId;
+                    const qty =
+                        itemId === data.coinPouchId ? 1 : reward.quantity;
+                    this.services.addItemToInventory(player, itemId, qty);
+                    effects.push({ type: "inventorySnapshot", playerId: player.id });
+
+                    this.services.queueClientScript(
+                        player,
+                        SkillActionHandler.PICKPOCKET_NOTIFY_SCRIPT,
+                        data.npcTypeId,
+                        tick,
+                        itemId,
+                        qty,
+                    );
+                }
+
+                this.services.awardSkillXp(
                     player,
-                    `You pick the ${npcNameLower}'s pocket.`,
-                ),
-            );
-        } else {
-            // Tick N+1: fail message + NPC forced chat
+                    SkillActionHandler.THIEVING_SKILL_ID,
+                    data.xp,
+                );
+                effects.push(
+                    this.services.buildSkillMessageEffect(
+                        player,
+                        `You pick the ${npcNameLower}'s pocket.`,
+                    ),
+                );
+
+                // Auto-repeat: schedule next attempt
+                this.services.scheduleAction(
+                    player.id,
+                    {
+                        kind: "skill.pickpocket",
+                        data: { ...data, phase: 0 },
+                        delayTicks: 1,
+                        cooldownTicks: 1,
+                        groups: ["skill.pickpocket"],
+                    },
+                    tick,
+                );
+                return { ok: true, cooldownTicks: 1, effects };
+            }
+
+            // Fail: message + NPC forced chat + set busy varbit
             effects.push(
                 this.services.buildSkillMessageEffect(
                     player,
                     `You fail to pick the ${npcNameLower}'s pocket.`,
                 ),
             );
+            this.services.setPickpocketVarbit(
+                player,
+                SkillActionHandler.PICKPOCKET_BUSY_VARBIT,
+                1,
+            );
 
-            // NPC says "What do you think you're doing?" and attacks
             if (npc) {
                 this.services.queueNpcForcedChat(npc, "What do you think you're doing?");
-                this.services.queueNpcSeq(npc, SkillActionHandler.PICKPOCKET_NPC_ATTACK_ANIM);
-                this.services.faceNpcToPlayer(npc, player);
             }
+            this.services.clearPlayerFaceTarget(player);
 
-            // Tick N+2: player stun anim + gfx + sound
+            // Schedule stun visual for next tick
+            this.services.scheduleAction(
+                player.id,
+                {
+                    kind: "skill.pickpocket",
+                    data: { ...data, phase: 2 },
+                    delayTicks: 1,
+                    cooldownTicks: 1,
+                    groups: ["skill.pickpocket"],
+                },
+                tick,
+            );
+            return { ok: true, cooldownTicks: 1, effects };
+        }
+
+        // Phase 2: Stun visual — player stun anim + GFX, NPC attack anim + face player
+        if (data.phase === 2) {
             player.queueOneShotSeq(SkillActionHandler.PICKPOCKET_STUN_ANIM);
             this.services.broadcastPlayerSpot(
                 player,
@@ -2758,7 +2859,28 @@ export class SkillActionHandler {
             );
             this.services.sendSound(player, SkillActionHandler.PICKPOCKET_STUN_SOUND);
 
-            // Tick N+3: damage hitsplat + stun message
+            if (npc) {
+                this.services.queueNpcSeq(npc, SkillActionHandler.PICKPOCKET_NPC_ATTACK_ANIM);
+                this.services.faceNpcToPlayer(npc, player);
+            }
+
+            // Schedule damage for next tick
+            this.services.scheduleAction(
+                player.id,
+                {
+                    kind: "skill.pickpocket",
+                    data: { ...data, phase: 3 },
+                    delayTicks: 1,
+                    cooldownTicks: 1,
+                    groups: ["skill.pickpocket"],
+                },
+                tick,
+            );
+            return { ok: true, cooldownTicks: 1, effects };
+        }
+
+        // Phase 3: Stun damage — hitsplat + message + stun timer + clear busy
+        if (data.phase === 3) {
             const damage =
                 data.minDamage === data.maxDamage
                     ? data.minDamage
@@ -2782,17 +2904,23 @@ export class SkillActionHandler {
                 hpCurrent: hitsplat.hpCurrent,
                 hpMax: hitsplat.hpMax,
                 tick,
-                delayTicks: 1,
+                skipAutoSound: true,
+            });
+
+            this.services.sendSound(player, SkillActionHandler.PICKPOCKET_DAMAGE_SOUND, {
+                delay: SkillActionHandler.PICKPOCKET_DAMAGE_SOUND_DELAY,
             });
 
             effects.push(
-                this.services.buildSkillMessageEffect(
-                    player,
-                    "You've been stunned!",
-                ),
+                this.services.buildSkillMessageEffect(player, "You've been stunned!"),
             );
 
             this.services.stunPlayer(player, data.stunTicks);
+            this.services.setPickpocketVarbit(
+                player,
+                SkillActionHandler.PICKPOCKET_BUSY_VARBIT,
+                0,
+            );
         }
 
         return { ok: true, effects };

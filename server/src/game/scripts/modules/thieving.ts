@@ -37,6 +37,7 @@ export interface PickpocketNpcDef {
     reqLevel: number;
     xp: number;
     lootTable: PickpocketLoot[];
+    coinPouchId?: number;
     minDamage: number;
     maxDamage: number;
     stunTicks: number;
@@ -175,6 +176,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
         reqLevel: 1,
         xp: 8,
         lootTable: [loot(Items.COINS_995, 3, ALWAYS)],
+        coinPouchId: 22521,
         minDamage: 1,
         maxDamage: 1,
         stunTicks: 8,
@@ -189,6 +191,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
             loot(Items.COINS_995, 9, COMMON),
             loot(Items.POTATO_SEED, 1, RARE),
         ],
+        coinPouchId: 22522,
         minDamage: 1,
         maxDamage: 1,
         stunTicks: 8,
@@ -298,6 +301,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
         reqLevel: 25,
         xp: 26,
         lootTable: [loot(Items.COINS_995, 18, ALWAYS)],
+        coinPouchId: 22523,
         minDamage: 2,
         maxDamage: 2,
         stunTicks: 8,
@@ -315,6 +319,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
             loot(Items.GOLD_BAR, 1, RARE),
             loot(Items.IRON_DAGGERP, 1, RARE),
         ],
+        coinPouchId: 22524,
         minDamage: 2,
         maxDamage: 2,
         stunTicks: 8,
@@ -413,6 +418,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
         reqLevel: 40,
         xp: 46.8,
         lootTable: [loot(Items.COINS_995, 30, ALWAYS)],
+        coinPouchId: 22525,
         minDamage: 2,
         maxDamage: 2,
         stunTicks: 8,
@@ -423,6 +429,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
         reqLevel: 45,
         xp: 65,
         lootTable: [loot(Items.COINS_995, 40, ALWAYS)],
+        coinPouchId: 22526,
         minDamage: 2,
         maxDamage: 2,
         stunTicks: 8,
@@ -434,6 +441,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
         reqLevel: 45,
         xp: 65,
         lootTable: [loot(Items.COINS_995, 40, ALWAYS)],
+        coinPouchId: 22527,
         minDamage: 5,
         maxDamage: 5,
         stunTicks: 8,
@@ -448,6 +456,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
             loot(Items.ANTIPOISON3, 1, COMMON),
             loot(Items.LOCKPICK, 1, COMMON),
         ],
+        coinPouchId: 22528,
         minDamage: 3,
         maxDamage: 3,
         stunTicks: 8,
@@ -458,6 +467,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
         reqLevel: 55,
         xp: 84.3,
         lootTable: [loot(Items.COINS_995, 50, ALWAYS)],
+        coinPouchId: 22529,
         minDamage: 3,
         maxDamage: 3,
         stunTicks: 8,
@@ -468,6 +478,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
         reqLevel: 55,
         xp: 84.3,
         lootTable: [loot(Items.COINS_995, 50, ALWAYS)],
+        coinPouchId: 22530,
         minDamage: 5,
         maxDamage: 5,
         stunTicks: 8,
@@ -481,6 +492,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
             loot(Items.COINS_995, 60, UNCOMMON),
             loot(Items.BREAD, 1, COMMON),
         ],
+        coinPouchId: 22531,
         minDamage: 3,
         maxDamage: 3,
         stunTicks: 8,
@@ -491,6 +503,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
         reqLevel: 65,
         xp: 137.5,
         lootTable: [loot(Items.COINS_995, 60, ALWAYS)],
+        coinPouchId: 22532,
         minDamage: 5,
         maxDamage: 5,
         stunTicks: 8,
@@ -504,6 +517,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
             loot(Items.COINS_995, 80, UNCOMMON),
             loot(Items.CHAOS_RUNE, 2, COMMON),
         ],
+        coinPouchId: 22533,
         minDamage: 3,
         maxDamage: 3,
         stunTicks: 8,
@@ -521,6 +535,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
             loot(Items.SWAMP_TOAD, 1, COMMON),
             loot(Items.KING_WORM, 1, COMMON),
         ],
+        coinPouchId: 22534,
         minDamage: 1,
         maxDamage: 1,
         stunTicks: 8,
@@ -539,6 +554,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
             loot(Items.FIRE_ORB, 1, UNCOMMON),
             loot(Items.DIAMOND, 1, UNCOMMON),
         ],
+        coinPouchId: 22535,
         minDamage: 4,
         maxDamage: 4,
         stunTicks: 10,
@@ -555,6 +571,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
             loot(Items.UNCUT_RUBY, 1, COMMON),
             loot(Items.UNCUT_DIAMOND, 1, COMMON),
         ],
+        coinPouchId: 22536,
         minDamage: 4,
         maxDamage: 4,
         stunTicks: 8,
@@ -568,6 +585,32 @@ for (const def of PICKPOCKET_NPCS) {
         npcIdToPickpocketDef.set(id, def);
     }
 }
+
+// -- Coin pouch definitions --
+// Maps pouch item ID → [minCoins, maxCoins] per open.
+const COIN_POUCH_VALUES: Record<number, [number, number]> = {
+    22521: [3, 3],        // Man/Woman
+    22522: [9, 9],        // Farmer
+    22523: [18, 18],      // Al-Kharid Warrior
+    22524: [25, 120],     // Rogue
+    22525: [30, 30],      // Guard
+    22526: [40, 40],      // Fremennik
+    22527: [40, 40],      // Bearded Pollnivian Bandit
+    22528: [30, 30],      // Desert Bandit
+    22529: [50, 50],      // Knight of Ardougne
+    22530: [50, 50],      // Pollnivian Bandit
+    22531: [60, 60],      // Watchman
+    22532: [60, 60],      // Menaphite Thug
+    22533: [80, 80],      // Paladin
+    22534: [300, 300],    // Gnome
+    22535: [200, 300],    // Hero
+    22536: [3, 14],       // TzHaar-Hur (tokkul, not coins — uses item 6529)
+};
+
+const COIN_POUCH_IDS = new Set(Object.keys(COIN_POUCH_VALUES).map(Number));
+const TOKKUL_POUCH_ID = 22536;
+const TOKKUL_ITEM_ID = 6529;
+const MAX_COIN_POUCHES = 28;
 
 export { npcIdToPickpocketDef, PICKPOCKET_NPCS };
 
@@ -591,11 +634,12 @@ export const thievingModule: ScriptModule = {
                             reqLevel: def.reqLevel,
                             xp: def.xp,
                             lootTable: def.lootTable,
+                            coinPouchId: def.coinPouchId,
                             minDamage: def.minDamage,
                             maxDamage: def.maxDamage,
                             stunTicks: def.stunTicks,
                             displayName: def.displayName,
-                            started: false,
+                            phase: 0,
                         };
 
                         services.requestAction(
@@ -613,6 +657,51 @@ export const thievingModule: ScriptModule = {
                     "pickpocket",
                 );
             }
+        }
+
+        // Coin pouch: "Open" and "Open-all" item actions
+        for (const pouchId of COIN_POUCH_IDS) {
+            const openHandler = (event: import("../types").ItemOnItemEvent, openAll: boolean) => {
+                const { player, source, services } = event;
+                const slot = source.slot;
+                const inv = services.getInventoryItems(player);
+                const entry = inv[slot];
+                if (!entry || entry.itemId !== pouchId) return;
+
+                const count = openAll ? entry.quantity : 1;
+                const range = COIN_POUCH_VALUES[pouchId];
+                if (!range) return;
+
+                const isTokkul = pouchId === TOKKUL_POUCH_ID;
+                const currencyId = isTokkul ? TOKKUL_ITEM_ID : Items.COINS_995;
+
+                let totalCurrency = 0;
+                for (let i = 0; i < count; i++) {
+                    const [min, max] = range;
+                    totalCurrency += min === max
+                        ? min
+                        : min + Math.floor(Math.random() * (max - min + 1));
+                }
+
+                const remaining = entry.quantity - count;
+                if (remaining > 0) {
+                    services.setInventorySlot(player, slot, pouchId, remaining);
+                } else {
+                    services.setInventorySlot(player, slot, -1, 0);
+                }
+
+                services.addItemToInventory(player, currencyId, totalCurrency);
+                services.snapshotInventory(player);
+                services.sendGameMessage(
+                    player,
+                    isTokkul
+                        ? `You open the coin pouch and receive ${totalCurrency} Tokkul.`
+                        : `You open the coin pouch and receive ${totalCurrency} coins.`,
+                );
+            };
+
+            registry.registerItemAction(pouchId, (event) => openHandler(event, true), "open-all");
+            registry.registerItemAction(pouchId, (event) => openHandler(event, false), "open");
         }
     },
 };

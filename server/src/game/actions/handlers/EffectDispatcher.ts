@@ -243,7 +243,8 @@ export class EffectDispatcher {
         if (
             effect.targetType === "player" &&
             effect.style !== HITMARK_HEAL &&
-            effect.style !== HITMARK_REGEN
+            effect.style !== HITMARK_REGEN &&
+            !effect.skipAutoSound
         ) {
             const target = this.services.getPlayer(effect.targetId);
             if (target) {

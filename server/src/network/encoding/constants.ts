@@ -33,6 +33,7 @@ export const NPC_MASKS = {
     FACE_ENTITY: 0x8,
     SEQUENCE: 0x10,
     HIT: 0x20,
+    SAY: 0x40,
     COLOR_OVERRIDE: 0x100,
     SPOT_ANIM: 0x20000,
 } as const;

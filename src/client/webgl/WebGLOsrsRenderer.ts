@@ -6229,6 +6229,45 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 }
             } catch {}
 
+            // NPC overhead text (forced chat / say)
+            try {
+                const ne = this.osrsClient.npcEcs;
+                ne.forEachActive((ecsId: number) => {
+                    const chatState = ne.getOverheadText(ecsId);
+                    if (!chatState) return;
+                    if (overheadTexts.length >= overheadTextMaxEntries) return;
+                    const text = chatState.text;
+                    if (!text || text.length === 0) return;
+                    const localX = ne.getX(ecsId) | 0;
+                    const localY = ne.getY(ecsId) | 0;
+                    const mid = (ne as any).mapId?.[ecsId] ?? 0;
+                    const mapX = (mid >> 8) & 0xff;
+                    const mapY = mid & 0xff;
+                    const worldX = mapX * 64 + localX / 128.0;
+                    const worldZ = mapY * 64 + localY / 128.0;
+                    const plane = ne.getLevel(ecsId) | 0;
+                    const overhead = this.acquireOverheadTextEntry();
+                    overhead.worldX = worldX;
+                    overhead.worldZ = worldZ;
+                    overhead.plane = plane;
+                    overhead.text = text;
+                    overhead.color = this.mapOverheadColor(0);
+                    overhead.colorId = 0;
+                    overhead.effect = 0;
+                    overhead.modIcon = undefined;
+                    overhead.pattern = undefined;
+                    const duration = 100;
+                    const remaining = Math.max(0, Math.min(duration, chatState.remaining));
+                    overhead.duration = duration;
+                    overhead.remaining = remaining;
+                    overhead.life = this.computeOverheadAlpha(overhead);
+                    const npcTypeId = ne.getNpcTypeId(ecsId) | 0;
+                    const npcHeight = npcTypeId > 0 ? this.getNpcDefaultHeight(npcTypeId) : 200;
+                    overhead.heightOffsetTiles = Math.max(0.5, npcHeight / 128.0);
+                    overheadTexts.push(overhead);
+                });
+            } catch {}
+
             // Render overhead prayer icons for all players
             // Reference: class386.java lines 345-356 in deobfuscated client
             try {

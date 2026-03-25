@@ -26,9 +26,6 @@ import { type LocInteractionEvent, type ScriptModule } from "../types";
 const LADDER_CLIMB_UP_ANIM = 828; // human_reachforladder
 const LADDER_CLIMB_DOWN_ANIM = 827; // human_pickupfloor
 
-// -- Sounds (from osrs-synths.json) ------------------------------------------
-const STAIR_SOUND = 2420; // up_and_down_stairs
-
 // -- Intermap link table (CS2 script 1705) -----------------------------------
 interface TraversalDestination {
     x: number;

@@ -66,7 +66,7 @@ import {
     subscribeLogoutResponse,
     suppressReconnection,
 } from "../network/ServerConnection";
-import { registerAnimDebugProvider, subscribeProjectiles } from "../network/ServerConnection";
+import { getLastUrl, setServerUrl, registerAnimDebugProvider, subscribeProjectiles } from "../network/ServerConnection";
 import { ClientPacketId, createPacket, queuePacket } from "../network/packet";
 import { MenuTargetType, type OsrsMenuEntry } from "../rs/MenuEntry";
 import { SoundEffectLoader } from "../rs/audio/SoundEffectLoader";
@@ -872,10 +872,15 @@ export class OsrsClient {
      * @param hideRoofs - true to hide roofs, false to show them normally
      */
     setHideRoofs(hideRoofs: boolean): void {
+
+        if (this.removeRoofsAll !== !hideRoofs) {
+            console.log(`[OsrsClient] Hide roofs setting changed: ${hideRoofs} (removeRoofsAll=${this.removeRoofsAll})`);
+        }
+
         // When hideRoofs is true, we want removeRoofsAll to be false
         // (because removeRoofsAll=true means "remove roofs" is OFF)
         this.removeRoofsAll = !hideRoofs;
-        
+
         // Force a roof state recalculation
         if (this.renderer) {
             // Invalidate the cached roof state so it recomputes next frame
@@ -883,8 +888,6 @@ export class OsrsClient {
             // Force a re-render
             this.widgetManager?.invalidateAll();
         }
-        
-        console.log(`[OsrsClient] Hide roofs setting changed: ${hideRoofs} (removeRoofsAll=${this.removeRoofsAll})`);
     }
 
     private unsubscribeWidgetEvents?: () => void;
@@ -8795,6 +8798,8 @@ export class OsrsClient {
             this.resetWorld(true);
             // Flush buffered keystrokes so in-game typing does not leak into login fields
             try { this.inputManager.flushInput(); } catch {}
+            // Apply persisted server URL so sendLogin connects to the right place
+            setServerUrl(`${this.loginState.serverSecure ? "wss" : "ws"}://${this.loginState.serverAddress}`);
         }
 
         if (newState === GameState.CONNECTING) {
@@ -9231,6 +9236,35 @@ export class OsrsClient {
                 }
                 return undefined;
 
+            case "open_server_list":
+                this.loginState.serverListOpen = true;
+                this.loginState.virtualKeyboardVisible = false;
+                this.loginRenderer.refreshServerList();
+                return undefined;
+
+            case "close_server_list":
+                this.loginState.serverListOpen = false;
+                this.loginState.hoveredServerIndex = -1;
+                return undefined;
+
+            case "refresh_server_list":
+                this.loginRenderer.refreshServerList();
+                return undefined;
+
+            case "select_server": {
+                const server = this.loginRenderer.serverList[action.index];
+                if (server) {
+                    this.loginState.serverAddress = server.address;
+                    this.loginState.serverName = server.name;
+                    this.loginState.serverSecure = server.secure;
+                    this.loginState.serverListOpen = false;
+                    this.loginState.hoveredServerIndex = -1;
+                    setServerUrl(`${server.secure ? "wss" : "ws"}://${server.address}`);
+                    this.loginState.saveLastServer();
+                }
+                return undefined;
+            }
+
             case "open_world_select":
                 this.loginState.worldSelectOpen = true;
                 this.loginState.virtualKeyboardVisible = false;
@@ -9299,6 +9333,12 @@ export class OsrsClient {
             url.searchParams.delete("username");
             url.searchParams.delete("password");
             window.history.replaceState({}, "", url.toString());
+
+            // Force localhost for URL-param auto-login
+            setServerUrl("ws://localhost:43594");
+            this.loginState.serverAddress = "localhost:43594";
+            this.loginState.serverName = "Local Development";
+            this.loginState.serverSecure = false;
 
             // Set credentials and trigger login
             this.loginState.username = username;
@@ -10497,6 +10537,10 @@ export class OsrsClient {
                     this.pendingNpcHealthBars.push(entry);
                 }
             }
+        }
+
+        if (block.say && ecsId !== undefined) {
+            this.npcEcs.setOverheadText(ecsId, block.say, 100);
         }
 
         if (block.colorOverride && ecsId !== undefined) {

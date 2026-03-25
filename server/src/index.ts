@@ -67,7 +67,9 @@ async function main() {
         ticker,
         pathService,
         npcManager,
-        cacheEnv, // reuse cache env to avoid double initialization
+        cacheEnv,
+        serverName: config.serverName,
+        maxPlayers: config.maxPlayers,
     });
     logger.info("Boot: WebSocket server constructed");
 

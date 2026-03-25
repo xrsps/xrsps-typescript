@@ -2630,6 +2630,14 @@ export function isServerConnected(): boolean {
     return !!socket && socket.readyState === WebSocket.OPEN;
 }
 
+export function getLastUrl(): string {
+    return lastUrl;
+}
+
+export function setServerUrl(url: string): void {
+    lastUrl = url;
+}
+
 export function sendInteractFollow(targetId: number, mode: "follow" | "trade" = "follow"): void {
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
     send({ type: "interact", payload: { mode, targetId: targetId | 0 } } as any);
@@ -3097,7 +3105,7 @@ export function sendLogin(username: string, password: string, revision: number =
             console.log(
                 `[ws] Login connect not established after ${LOGIN_CONNECT_RETRY_DELAY_MS}ms, retrying direct websocket connect...`,
             );
-            connectForLogin(DEFAULT_URL, true);
+            connectForLogin(lastUrl, true);
         }, LOGIN_CONNECT_RETRY_DELAY_MS);
         return;
     }

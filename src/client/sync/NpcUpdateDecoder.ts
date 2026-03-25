@@ -31,6 +31,7 @@ export type NpcUpdateBlock = {
     healthBars?: HealthBarUpdate[];
     spotAnims?: NpcSpotAnimUpdate[];
     seq?: { id: number; delay: number };
+    say?: string;
     colorOverride?: {
         startCycle: number;
         endCycle: number;
@@ -288,6 +289,11 @@ export class NpcUpdateDecoder {
 
                 if (hits.length > 0) block.hitsplats = hits;
                 if (bars.length > 0) block.healthBars = bars;
+            }
+
+            // SAY (0x40) — NPC forced overhead chat
+            if ((mask & 0x40) !== 0) {
+                block.say = stream.readStringCp1252NullTerminated();
             }
 
             // COLOR_OVERRIDE (0x100)

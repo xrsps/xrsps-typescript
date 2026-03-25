@@ -580,8 +580,6 @@ export class PlayerPacketEncoder {
             const toPlane = view.level & 0x3;
             let from = session.lastKnownTiles.get(id);
             if (!from && id === localIndex) {
-                // Client initializes local player state at level 0, so the delta
-                // must be computed from level 0 — not toPlane — on the first frame.
                 from = { x: 0, y: 0, level: 0 };
             }
             if (!from) from = { x: toTileX, y: toTileY, level: toPlane };
@@ -1294,11 +1292,35 @@ export class PlayerPacketEncoder {
         }
         const finalStep =
             Array.isArray(steps) && steps.length > 0 ? steps[steps.length - 1] : undefined;
-        const targetSubX = finalStep ? finalStep.x : view ? view.x : (baseTileX << 7) + 64;
-        const targetSubY = finalStep ? finalStep.y : view ? view.y : (baseTileY << 7) + 64;
+
+        // When snap (teleport) is active, use the view's authoritative position.
+        // Movement steps may have been taken BEFORE the teleport fired in the same
+        // tick — the view was already patched to the teleport destination by
+        // teleportPlayer(), so its coordinates are the true final position.
+        const useViewForPosition = !!(view?.snap && view);
+        const targetSubX = useViewForPosition
+            ? view!.x
+            : finalStep
+            ? finalStep.x
+            : view
+            ? view.x
+            : (baseTileX << 7) + 64;
+        const targetSubY = useViewForPosition
+            ? view!.y
+            : finalStep
+            ? finalStep.y
+            : view
+            ? view.y
+            : (baseTileY << 7) + 64;
         const targetTileX = targetSubX >> 7;
         const targetTileY = targetSubY >> 7;
-        const level = finalStep ? finalStep.level : view ? view.level : 0;
+        const level = useViewForPosition
+            ? view!.level
+            : finalStep
+            ? finalStep.level
+            : view
+            ? view.level
+            : 0;
         const localOffsetX = (targetTileX - baseTileX + 128) & 0x7f & 0x7f;
         const localOffsetY = (targetTileY - baseTileY + 128) & 0x7f & 0x7f;
         const deltaX = targetTileX - baseTileX;
@@ -1309,8 +1331,8 @@ export class PlayerPacketEncoder {
         if (view?.snap) {
             return {
                 mode: "teleport",
-                directions: directions.slice(0, 2),
-                traversals: traversals.slice(0, 2),
+                directions: [],
+                traversals: [],
                 targetSubX,
                 targetSubY,
                 level,

@@ -59,6 +59,7 @@ export class LoginOverlay implements Overlay {
     private lastStateHash: string = "";
     private lastCursorBlink: boolean = false;
     private lastHoveredWorldIndex: number = -1;
+    private lastHoveredServerIndex: number = -1;
     private uiNeedsRedraw: boolean = true;
 
     constructor(osrsClient: OsrsClient) {
@@ -243,7 +244,13 @@ export class LoginOverlay implements Overlay {
         const hoveredWorldIndex = loginState.worldSelectOpen
             ? loginRenderer.computeHoveredWorldIndex(loginState, width, height)
             : -1;
-        const hoverChanged = hoveredWorldIndex !== this.lastHoveredWorldIndex;
+        const hoveredServerIndex = loginState.serverListOpen
+            ? loginRenderer.computeHoveredServerIndex(loginState)
+            : -1;
+        loginState.hoveredServerIndex = hoveredServerIndex;
+        const hoverChanged =
+            hoveredWorldIndex !== this.lastHoveredWorldIndex ||
+            hoveredServerIndex !== this.lastHoveredServerIndex;
 
         // Determine what kind of update is needed
         const stateChanged =
@@ -258,6 +265,7 @@ export class LoginOverlay implements Overlay {
         this.lastStateHash = stateHash;
         this.lastCursorBlink = cursorBlink;
         this.lastHoveredWorldIndex = hoveredWorldIndex;
+        this.lastHoveredServerIndex = hoveredServerIndex;
 
         // Only redraw UI when needed (LOADING/DOWNLOADING screen or state changed)
         // OSRS only draws the title fire once the login title screen is active (gameState >= 10).
@@ -376,7 +384,7 @@ export class LoginOverlay implements Overlay {
             loginState.password.length
         }|${loginState.otp.length}|${loginState.currentLoginField}|${loginState.onMobile}|${
             loginState.virtualKeyboardVisible
-        }|${loginState.worldSelectOpen}|${loginState.worldSelectPage}|${
+        }|${loginState.serverListOpen}|${loginState.serverName}|${loginRenderer.probing}|${loginRenderer.probed}|${loginRenderer.serverList.map(s => s.playerCount).join(",")}|${loginState.worldSelectOpen}|${loginState.worldSelectPage}|${
             loginState.loadingPercent
         }|${loginState.rememberUsername}|${loginState.isUsernameHidden}|${
             loginState.trustComputer
