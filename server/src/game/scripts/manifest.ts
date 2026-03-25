@@ -223,6 +223,11 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/fishing.ts")],
     },
     {
+        id: "skills.thieving",
+        load: loadModule("modules/thieving", "thievingModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/thieving.ts")],
+    },
+    {
         id: "consumables",
         load: loadModule("modules/items/consumables", "consumablesModule"),
         watch: [path.resolve(MODULE_DIR, "modules/items/consumables.ts")],

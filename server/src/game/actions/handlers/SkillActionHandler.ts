@@ -34,6 +34,7 @@ import type {
     SkillTanActionData as TanActionData,
     SkillWoodcuttingActionData as WoodcuttingActionData,
     SkillPicklockActionData as PicklockActionData,
+    SkillPickpocketActionData as PickpocketActionData,
 } from "../skillActionPayloads";
 import type { ActionEffect, ActionExecutionResult, ActionRequest } from "../types";
 
@@ -87,7 +88,8 @@ export type SkillScheduledActionKind =
     | "skill.fish"
     | "skill.smelt"
     | "skill.bolt_enchant"
-    | "skill.picklock";
+    | "skill.picklock"
+    | "skill.pickpocket";
 
 export type ActionScheduleRequest<K extends SkillScheduledActionKind = SkillScheduledActionKind> =
     ActionRequest<K>;
@@ -392,6 +394,44 @@ export interface SkillActionServices {
         tile: Vec2,
         level: number,
     ): void;
+
+    // --- Pickpocket Helpers ---
+    /**
+     * Apply a hitsplat to a player and return the result.
+     * Used for pickpocket stun damage.
+     */
+    applyPlayerHitsplat(
+        player: PlayerState,
+        style: number,
+        damage: number,
+        tick: number,
+    ): { amount: number; style: number; hpCurrent: number; hpMax: number };
+
+    /**
+     * Stun a player for the given number of ticks.
+     * Sets the STUN_TIMER and plays the stun graphic.
+     */
+    stunPlayer(player: PlayerState, ticks: number): void;
+
+    /**
+     * Broadcast a spot animation (graphic) on a player.
+     */
+    broadcastPlayerSpot(player: PlayerState, spotId: number, height?: number, delay?: number): void;
+
+    /**
+     * Queue forced overhead chat on an NPC.
+     */
+    queueNpcForcedChat(npc: NpcState, text: string): void;
+
+    /**
+     * Queue a one-shot sequence animation on an NPC.
+     */
+    queueNpcSeq(npc: NpcState, seqId: number): void;
+
+    /**
+     * Make an NPC face a player.
+     */
+    faceNpcToPlayer(npc: NpcState, player: PlayerState): void;
 
     // --- Logging ---
     log(level: "info" | "warn" | "error", message: string, data?: unknown): void;
@@ -2588,5 +2628,219 @@ export class SkillActionHandler {
         const chance = minChance + ((maxChance - minChance) * (playerLevel - reqLevel)) / range;
         const clamped = Math.min(maxChance, Math.max(minChance, chance));
         return Math.random() * 100 < clamped;
+    }
+
+    // ========================================================================
+    // Pickpocket
+    // ========================================================================
+
+    // Network-verified constants (OSRS r237 packet capture)
+    private static readonly PICKPOCKET_ANIM = 881;          // human_pickpocket
+    private static readonly PICKPOCKET_STUN_ANIM = 424;     // human_unarmedblock
+    private static readonly PICKPOCKET_NPC_ATTACK_ANIM = 390; // human_sword_slash (NPC plays this on fail)
+    private static readonly PICKPOCKET_STUN_GFX = 245;      // stunned_thieving
+    private static readonly PICKPOCKET_STUN_GFX_HEIGHT = 124;
+    private static readonly PICKPOCKET_SUCCESS_SOUND = 2581;
+    private static readonly PICKPOCKET_STUN_SOUND = 2727;
+    private static readonly PICKPOCKET_DAMAGE_SOUND = 519;
+    private static readonly PICKPOCKET_DAMAGE_SOUND_DELAY = 20;
+    private static readonly PICKPOCKET_HIT_STYLE = 16;
+    private static readonly PICKPOCKET_CYCLE_TICKS = 2;
+    private static readonly GLOVES_OF_SILENCE_ID = 10075;
+    private static readonly GLOVES_OF_SILENCE_BONUS = 5;
+    private static readonly EQUIPMENT_SLOT_GLOVES = 9;
+    private static readonly THIEVING_SKILL_ID = 17;
+
+    executeSkillPickpocketAction(
+        player: PlayerState,
+        data: PickpocketActionData,
+        tick: number,
+    ): ActionExecutionResult {
+        const effects: ActionEffect[] = [];
+        const thievingSkill = this.services.getSkill(
+            player,
+            SkillActionHandler.THIEVING_SKILL_ID,
+        );
+        const thievingLevel = thievingSkill?.baseLevel ?? 1;
+        const npc = this.services.getNpc(data.npcId);
+        const npcName = data.displayName ?? npc?.name ?? "NPC";
+        const npcNameLower = npcName.toLowerCase();
+
+        if (thievingLevel < data.reqLevel) {
+            effects.push(
+                this.services.buildSkillMessageEffect(
+                    player,
+                    `You need to be level ${data.reqLevel} to pickpocket the ${npcNameLower}.`,
+                ),
+            );
+            return { ok: true, effects };
+        }
+
+        if (!this.services.hasInventorySlot(player)) {
+            effects.push(
+                this.services.buildSkillMessageEffect(
+                    player,
+                    "You don't have enough inventory space to do that.",
+                ),
+            );
+            return { ok: true, effects };
+        }
+
+        // Tick N: attempt message (no animation yet — anim plays on result tick)
+        if (!data.started) {
+            effects.push(
+                this.services.buildSkillMessageEffect(
+                    player,
+                    `You attempt to pick the ${npcNameLower}'s pocket.`,
+                ),
+            );
+
+            this.services.scheduleAction(
+                player.id,
+                {
+                    kind: "skill.pickpocket",
+                    data: { ...data, started: true },
+                    delayTicks: 1,
+                    cooldownTicks: 1,
+                    groups: ["skill.pickpocket"],
+                },
+                tick,
+            );
+            return { ok: true, cooldownTicks: 1, effects };
+        }
+
+        // Tick N+1: resolve success/fail
+        const success = this.rollPickpocketSuccess(thievingLevel, data.reqLevel, player);
+
+        if (success) {
+            player.queueOneShotSeq(SkillActionHandler.PICKPOCKET_ANIM);
+            this.services.sendSound(player, SkillActionHandler.PICKPOCKET_SUCCESS_SOUND);
+
+            const reward = this.rollPickpocketLoot(data.lootTable);
+            if (reward) {
+                this.services.addItemToInventory(player, reward.itemId, reward.quantity);
+                effects.push({ type: "inventorySnapshot", playerId: player.id });
+            }
+
+            this.services.awardSkillXp(
+                player,
+                SkillActionHandler.THIEVING_SKILL_ID,
+                data.xp,
+            );
+            effects.push(
+                this.services.buildSkillMessageEffect(
+                    player,
+                    `You pick the ${npcNameLower}'s pocket.`,
+                ),
+            );
+        } else {
+            // Tick N+1: fail message + NPC forced chat
+            effects.push(
+                this.services.buildSkillMessageEffect(
+                    player,
+                    `You fail to pick the ${npcNameLower}'s pocket.`,
+                ),
+            );
+
+            // NPC says "What do you think you're doing?" and attacks
+            if (npc) {
+                this.services.queueNpcForcedChat(npc, "What do you think you're doing?");
+                this.services.queueNpcSeq(npc, SkillActionHandler.PICKPOCKET_NPC_ATTACK_ANIM);
+                this.services.faceNpcToPlayer(npc, player);
+            }
+
+            // Tick N+2: player stun anim + gfx + sound
+            player.queueOneShotSeq(SkillActionHandler.PICKPOCKET_STUN_ANIM);
+            this.services.broadcastPlayerSpot(
+                player,
+                SkillActionHandler.PICKPOCKET_STUN_GFX,
+                SkillActionHandler.PICKPOCKET_STUN_GFX_HEIGHT,
+            );
+            this.services.sendSound(player, SkillActionHandler.PICKPOCKET_STUN_SOUND);
+
+            // Tick N+3: damage hitsplat + stun message
+            const damage =
+                data.minDamage === data.maxDamage
+                    ? data.minDamage
+                    : data.minDamage +
+                      Math.floor(Math.random() * (data.maxDamage - data.minDamage + 1));
+
+            const hitsplat = this.services.applyPlayerHitsplat(
+                player,
+                SkillActionHandler.PICKPOCKET_HIT_STYLE,
+                damage,
+                tick,
+            );
+
+            effects.push({
+                type: "hitsplat",
+                playerId: player.id,
+                targetType: "player",
+                targetId: player.id,
+                damage: hitsplat.amount,
+                style: hitsplat.style,
+                hpCurrent: hitsplat.hpCurrent,
+                hpMax: hitsplat.hpMax,
+                tick,
+                delayTicks: 1,
+            });
+
+            effects.push(
+                this.services.buildSkillMessageEffect(
+                    player,
+                    "You've been stunned!",
+                ),
+            );
+
+            this.services.stunPlayer(player, data.stunTicks);
+        }
+
+        return { ok: true, effects };
+    }
+
+    private rollPickpocketSuccess(
+        playerLevel: number,
+        reqLevel: number,
+        player: PlayerState,
+    ): boolean {
+        const equip = this.services.getEquipArray(player);
+        const glovesId = equip?.[SkillActionHandler.EQUIPMENT_SLOT_GLOVES] ?? -1;
+        const bonus =
+            glovesId === SkillActionHandler.GLOVES_OF_SILENCE_ID
+                ? SkillActionHandler.GLOVES_OF_SILENCE_BONUS
+                : 0;
+        const minChance = 55;
+        const maxChance = 95;
+        const range = 99 - reqLevel || 1;
+        const chance = minChance + ((maxChance - minChance) * (playerLevel - reqLevel)) / range;
+        const clamped = Math.min(maxChance, Math.max(minChance, chance));
+        return Math.random() * (100 - bonus) < clamped;
+    }
+
+    private rollPickpocketLoot(
+        lootTable: PickpocketActionData["lootTable"],
+    ): { itemId: number; quantity: number } | undefined {
+        if (lootTable.length === 0) return undefined;
+        let totalWeight = 0;
+        for (const entry of lootTable) totalWeight += entry.weight;
+        if (totalWeight <= 0) return undefined;
+
+        let roll = Math.random() * totalWeight;
+        for (const entry of lootTable) {
+            roll -= entry.weight;
+            if (roll <= 0) {
+                const quantity =
+                    entry.minAmount === entry.maxAmount
+                        ? entry.minAmount
+                        : entry.minAmount +
+                          Math.floor(
+                              Math.random() * (entry.maxAmount - entry.minAmount + 1),
+                          );
+                return { itemId: entry.itemId, quantity };
+            }
+        }
+
+        const fallback = lootTable[0];
+        return { itemId: fallback.itemId, quantity: fallback.minAmount };
     }
 }

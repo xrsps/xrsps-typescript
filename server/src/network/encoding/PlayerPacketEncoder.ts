@@ -6,9 +6,9 @@
  *
  * Reference: `class388.updatePlayers` + `class467.method2621`
  */
-import { faceAngleRs } from "../../../../src/rs/utils/rotation";
 import {
     MovementDirection,
+    deltaToDirection,
     deltaToRunDirection,
     directionToDelta,
 } from "../../../../src/shared/Direction";
@@ -110,6 +110,7 @@ export interface PlayerTickFrameData {
     }>;
     pendingSequences: Map<number, { seqId: number; delay: number; startTick: number }>;
     interactionIndices: Map<number, number>;
+    pendingFaceDirs: Map<number, number>;
     colorOverrides: Map<
         number,
         {
@@ -212,14 +213,10 @@ export class PlayerPacketEncoder {
             entry.anim = seqData;
         }
 
-        // Process face direction updates
-        if (player.pendingFaceTile) {
-            const entry = markMask(player.id, PLAYER_MASKS.FACE_DIR);
-            const ft = player.pendingFaceTile;
-            const targetX = (ft.x << 7) + 64;
-            const targetY = (ft.y << 7) + 64;
-            entry.faceDir = faceAngleRs(player.x, player.y, targetX, targetY) & 2047;
-            player.pendingFaceTile = undefined;
+        // Process face direction updates for all visible players
+        for (const [playerId, dir] of frame.pendingFaceDirs) {
+            const entry = markMask(playerId, PLAYER_MASKS.FACE_DIR);
+            entry.faceDir = dir & 2047;
         }
 
         // Forced movement update blocks
@@ -566,8 +563,14 @@ export class PlayerPacketEncoder {
                     writer.writeBits(4, code & 0xf);
                     return;
                 }
-                writer.writeBits(2, 1);
-                writer.writeBits(3, dir1 & 7);
+                const walkDir = deltaToDirection(dx, dy);
+                if (walkDir !== undefined) {
+                    writer.writeBits(2, 1);
+                    writer.writeBits(3, walkDir & 7);
+                    return;
+                }
+                // Steps cancelled out (0,0) — encode as idle.
+                writer.writeBits(2, 0);
                 return;
             }
 

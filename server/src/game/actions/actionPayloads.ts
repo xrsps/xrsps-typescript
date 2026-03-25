@@ -213,6 +213,7 @@ export interface MovementTeleportActionData {
     arriveSeqId?: number;
     arriveFaceTileX?: number;
     arriveFaceTileY?: number;
+    preserveAnimation?: boolean;
 }
 
 export interface EmotePlayActionData {

@@ -194,13 +194,13 @@ export class BitStream {
         return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
     }
 
-    /** OSRS "IME" byte order (see Buffer.readUnsignedIntIME). */
+    /** OSRS "IME" byte order (see Buffer.readUnsignedIntIME in deob). */
     readUnsignedIntIME(): number {
         const a = this.readUnsignedByte(); // offset-4
         const b = this.readUnsignedByte(); // offset-3
         const c = this.readUnsignedByte(); // offset-2
         const d = this.readUnsignedByte(); // offset-1
-        return (((b << 24) >>> 0) + ((a << 16) >>> 0) + ((d << 8) >>> 0) + (c >>> 0)) >>> 0;
+        return (((c << 24) >>> 0) + ((d << 16) >>> 0) + ((a << 8) >>> 0) + (b >>> 0)) >>> 0;
     }
 
     /** OSRS "ME" byte order (see Buffer.readUnsignedIntME). */

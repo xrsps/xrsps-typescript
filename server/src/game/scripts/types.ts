@@ -555,6 +555,7 @@ export interface ScriptServices {
             arriveSeqId?: number;
             arriveFaceTileX?: number;
             arriveFaceTileY?: number;
+            preserveAnimation?: boolean;
             requireCanTeleport?: boolean;
             rejectIfPending?: boolean;
             replacePending?: boolean;

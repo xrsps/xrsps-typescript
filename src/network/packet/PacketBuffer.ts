@@ -646,10 +646,10 @@ export class PacketBuffer {
     readUnsignedIntIME(): number {
         this.offset += 4;
         return (
-            (((this.data[this.offset - 3] & 0xff) << 24) +
-                ((this.data[this.offset - 4] & 0xff) << 16) +
-                ((this.data[this.offset - 1] & 0xff) << 8) +
-                (this.data[this.offset - 2] & 0xff)) >>>
+            (((this.data[this.offset - 2] & 0xff) << 24) +
+                ((this.data[this.offset - 1] & 0xff) << 16) +
+                ((this.data[this.offset - 4] & 0xff) << 8) +
+                (this.data[this.offset - 3] & 0xff)) >>>
             0
         );
     }

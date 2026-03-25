@@ -8828,19 +8828,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             return;
         }
 
-        try {
-            // OSRS parity: Do NOT predict movement on click. Movement only starts when
-            // server sends back movement updates. See class31.java - clicks only set
-            // destinationX/Y and send packet, no immediate pathfinding.
-            if (effectiveTile && !shouldSkipClientWalk) {
-                try {
-                    this.osrsClient.playerInteractionSystem.beginFaceTile(
-                        effectiveTile.tileX | 0,
-                        effectiveTile.tileY | 0,
-                    );
-                } catch {}
-            }
-        } catch {}
+        // Facing is server-authoritative via the face direction update mask.
         // Invoke original handler
         if (!menuCtx?.worldMenuStateDispatch) {
             try {
@@ -11596,10 +11584,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         try {
                             if (isServerConnected()) sendInteractStop();
                         } catch {}
-                        const clicked =
-                            this.computeTileAt(anchorX, anchorY) ?? this.osrsClient.menuTile;
-                        const wx = (clicked?.tileX ?? tileX) | 0;
-                        const wy = (clicked?.tileY ?? tileY) | 0;
+                        // OSRS parity: use the tile determined at menu creation
+                        // time, not a re-raycast.  The camera may have shifted
+                        // while the menu was open, making a second computeTileAt
+                        // return the wrong tile.
+                        const wx = tileX;
+                        const wy = tileY;
                         if (wx > 0 && wy > 0) {
                             const xy = this.toGLClickXY(evt);
                             menuAction(

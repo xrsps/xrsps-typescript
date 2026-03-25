@@ -33,6 +33,8 @@ export class SpotAnimType extends Type {
     override decodeOpcode(opcode: number, buffer: ByteBuffer): void {
         if (opcode === 1) {
             this.modelId = buffer.readUnsignedShort();
+        } else if (opcode === 3) {
+            this.modelId = buffer.readInt();
         } else if (opcode === 2) {
             this.sequenceId = buffer.readUnsignedShort();
         } else if (opcode === 4) {

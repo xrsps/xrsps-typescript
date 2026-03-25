@@ -209,6 +209,7 @@ import type {
     SkillFletchActionData,
     SkillMiningActionData,
     SkillPicklockActionData,
+    SkillPickpocketActionData,
     SkillSinewActionData,
     SkillSmeltActionData,
     SkillSmithActionData,
@@ -317,7 +318,7 @@ import { syncLeagueGeneralVarp } from "../game/leagues/leagueGeneral";
 import { getLeaguePackedVarpsForPlayer } from "../game/leagues/leaguePackedVarps";
 import { getLeagueSkillXpMultiplier as getActiveLeagueSkillXpMultiplier } from "../game/leagues/leagueXp";
 import { LockState } from "../game/model/LockState";
-import { ACTIVE_COMBAT_TIMER } from "../game/model/timer/Timers";
+import { ACTIVE_COMBAT_TIMER, STUN_TIMER } from "../game/model/timer/Timers";
 import { createLootPickupNotification } from "../game/notifications/LootPickupNotification";
 import { NpcState, type NpcUpdateDelta } from "../game/npc";
 import { NpcManager, type NpcStatusEvent, type PendingNpcDrop } from "../game/npcManager";
@@ -888,6 +889,7 @@ type TeleportActionRequest = {
     arriveSeqId?: number;
     arriveFaceTileX?: number;
     arriveFaceTileY?: number;
+    preserveAnimation?: boolean;
     requireCanTeleport?: boolean;
     rejectIfPending?: boolean;
     replacePending?: boolean;
@@ -1051,6 +1053,7 @@ interface TickFrame {
     pendingSequences: Map<number, { seqId: number; delay: number; startTick: number }>;
     actionEffects: ActionEffect[];
     interactionIndices: Map<number, number>;
+    pendingFaceDirs: Map<number, number>;
     playerViews: Map<number, PlayerViewSnapshot>;
     npcViews: Map<number, NpcViewSnapshot>;
     widgetEvents: WidgetEvent[];
@@ -3198,6 +3201,7 @@ export class WSServer {
             >(),
             actionEffects: [],
             interactionIndices: new Map<number, number>(),
+            pendingFaceDirs: new Map<number, number>(),
             playerViews: new Map<number, PlayerViewSnapshot>(),
             npcViews: new Map<number, NpcViewSnapshot>(),
             widgetEvents,
@@ -3912,10 +3916,22 @@ export class WSServer {
             }
         };
 
+        const collectFaceTile = (player: PlayerState) => {
+            if (player.pendingFaceTile) {
+                const ft = player.pendingFaceTile;
+                const targetX = (ft.x << 7) + 64;
+                const targetY = (ft.y << 7) + 64;
+                const dir = faceAngleRs(player.x, player.y, targetX, targetY) & 2047;
+                frame.pendingFaceDirs.set(player.id, dir);
+                player.pendingFaceTile = undefined;
+            }
+        };
+
         players.forEach((sock, player) => {
             try {
                 players.applyInteractionFacing(sock, player, npcLookup);
             } catch {}
+            collectFaceTile(player);
             const interactionState = players.getInteractionState(sock);
             const interactionIndex = deriveInteractionIndex({
                 player,
@@ -3928,8 +3944,7 @@ export class WSServer {
 
         players.forEachBot((bot) => {
             const interactionState = (bot as any).botInteraction;
-            // For bots, we don't have a socket to call applyInteractionFacing,
-            // but the client will handle facing if we send the correct interaction index.
+            collectFaceTile(bot);
             const interactionIndex = deriveInteractionIndex({
                 player: bot,
                 interaction: interactionState,
@@ -4392,6 +4407,7 @@ export class WSServer {
                         chatMessages: frame.chatMessages,
                         pendingSequences: frame.pendingSequences,
                         interactionIndices: frame.interactionIndices,
+                        pendingFaceDirs: frame.pendingFaceDirs,
                         colorOverrides: frame.colorOverrides,
                     };
                     const packet = this.playerPacketEncoder.buildPlayerSyncPacket(
@@ -5959,6 +5975,7 @@ export class WSServer {
         if (request.arriveSeqId !== undefined) data.arriveSeqId = request.arriveSeqId;
         if (request.arriveFaceTileX !== undefined) data.arriveFaceTileX = request.arriveFaceTileX;
         if (request.arriveFaceTileY !== undefined) data.arriveFaceTileY = request.arriveFaceTileY;
+        if (request.preserveAnimation) data.preserveAnimation = true;
 
         const result = this.actionScheduler.requestAction(
             playerId,
@@ -6056,6 +6073,15 @@ export class WSServer {
         const level = data.level;
         try {
             this.teleportPlayer(player, x, y, level, data.forceRebuild);
+
+            // OSRS parity: teleportPlayer() unconditionally queues a stop
+            // animation (-1).  When preserveAnimation is set (e.g. climbing),
+            // the animation was already sent on a previous tick and should
+            // continue playing at the new position — clear the -1 so no
+            // animation update block is sent on the teleport tick.
+            if (data.preserveAnimation) {
+                player.clearPendingSeqs();
+            }
 
             if (data.resetAnimation) {
                 try {
@@ -7629,6 +7655,31 @@ export class WSServer {
             sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
                 this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
 
+            // --- Pickpocket Helpers ---
+            applyPlayerHitsplat: (player, style, damage, tick) =>
+                combatEffectApplicator.applyPlayerHitsplat(player, style, damage, tick),
+            stunPlayer: (player, ticks) => {
+                player.timers.set(STUN_TIMER, ticks);
+            },
+            broadcastPlayerSpot: (player, spotId, height = 0, delay = 0) => {
+                const tick = this.options.ticker.currentTick();
+                this.enqueueSpotAnimation({
+                    tick,
+                    playerId: player.id,
+                    spotId,
+                    height,
+                    delay,
+                });
+            },
+            queueNpcForcedChat: (_npc, _text) => {
+                // TODO: NPC forced overhead chat (npc_info say block) not yet implemented
+            },
+            queueNpcSeq: (npc, seqId) => {
+                npc.queueOneShotSeq(seqId);
+            },
+            faceNpcToPlayer: (npc, player) => {
+                npc.faceTile(player.tileX, player.tileY);
+            },
             // --- Logging ---
             log: (level, message, data) => {
                 try {
@@ -9951,6 +10002,12 @@ export class WSServer {
                 return this.skillActionHandler.executeSkillPicklockAction(
                     player,
                     action.data as SkillPicklockActionData,
+                    tick,
+                );
+            case "skill.pickpocket":
+                return this.skillActionHandler.executeSkillPickpocketAction(
+                    player,
+                    action.data as SkillPickpocketActionData,
                     tick,
                 );
             case "movement.teleport":

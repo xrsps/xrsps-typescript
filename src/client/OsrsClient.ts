@@ -7832,11 +7832,6 @@ export class OsrsClient {
             console.warn?.("[OsrsClient] failed to send npc attack", err);
         }
 
-        if (tile) {
-            try {
-                this.playerInteractionSystem.beginFaceTile(tile.tileX | 0, tile.tileY | 0);
-            } catch {}
-        }
     }
 
     private applyBitstreamAppearance(serverId: number, data: any): void {
@@ -8425,11 +8420,6 @@ export class OsrsClient {
                 break;
         }
 
-        if (tile && dispatched) {
-            try {
-                this.playerInteractionSystem.beginFaceTile(tile.tileX | 0, tile.tileY | 0);
-            } catch {}
-        }
         // Mirror spell-cast flow: once an item-on-target is dispatched, clear selection and close the menu
         if (dispatched) {
             try {
@@ -8732,9 +8722,6 @@ export class OsrsClient {
         }
 
         if (!isServerConnected() && tile) {
-            try {
-                this.playerInteractionSystem.beginFaceTile(tile.tileX | 0, tile.tileY | 0);
-            } catch {}
             try {
                 this.routePlayerTo(tile.tileX | 0, tile.tileY | 0, !!this.runMode);
             } catch {}

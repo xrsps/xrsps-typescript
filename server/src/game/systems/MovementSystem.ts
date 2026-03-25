@@ -59,11 +59,6 @@ export class MovementSystem {
     }
 
     runPostMovement(tick: number): void {
-        // Post-movement checks for "just arrived" interactions
-        // This fixes the 1-tick delay (run-up delay) for picking up items and using objects
-        try {
-            this.players.updateLocInteractions(tick);
-        } catch {}
         try {
             this.players.updateGroundItemInteractions(tick);
         } catch {}

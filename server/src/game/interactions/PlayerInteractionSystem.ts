@@ -1377,24 +1377,16 @@ export class PlayerInteractionSystem {
             modifierFlags: this.normalizeModifierFlags(data.modifierFlags),
         };
         const resolved = this.resolvePendingLocInteraction(me, pending);
-        if (
-            resolved.hasArrived &&
-            Number.isFinite(currentTick) &&
-            this.executeLocInteraction(
-                me,
-                pending,
-                resolved.interactionLevel,
-                resolved.rect.tile,
-                resolved.routeSizeX,
-                resolved.routeSizeY,
-                currentTick as number,
-                true,
-            )
-        ) {
-            return;
-        }
 
-        this.applyLocInteractionRoute(me, pending, resolved);
+        // OSRS parity: Never execute loc interactions immediately from the
+        // message handler.  Always defer to the next tick's pre-movement phase
+        // so that the animation queued by the script is consumed by
+        // popPendingSeq BEFORE the delayed teleport fires in the combat phase.
+        // This also matches the OSRS packet dump where the player is "idle"
+        // (not walking) when the interaction fires — it always waits a tick.
+        if (!resolved.hasArrived) {
+            this.applyLocInteractionRoute(me, pending, resolved);
+        }
         this.pendingLocInteractions.set(ws, pending);
     }
 

@@ -23,8 +23,8 @@ import { type LocInteractionEvent, type ScriptModule } from "../types";
 // ---------------------------------------------------------------------------
 
 // -- Animations (from animation_names.txt) -----------------------------------
-const LADDER_CLIMB_UP_ANIM = 828;   // human_reachforladder
-const LADDER_CLIMB_DOWN_ANIM = 833; // human_reachforladdertop
+const LADDER_CLIMB_UP_ANIM = 828; // human_reachforladder
+const LADDER_CLIMB_DOWN_ANIM = 827; // human_pickupfloor
 
 // -- Sounds (from osrs-synths.json) ------------------------------------------
 const STAIR_SOUND = 2420; // up_and_down_stairs
@@ -252,7 +252,7 @@ function resolveDestination(
  * Gives the client time to finish walk interpolation so the player
  * visually reaches the loc before disappearing.
  */
-const CLIMB_DELAY_TICKS = 2;
+const CLIMB_DELAY_TICKS = 1;
 
 function executeTraversal(
     event: LocInteractionEvent,
@@ -263,23 +263,22 @@ function executeTraversal(
 
     const anim = direction === "down" ? LADDER_CLIMB_DOWN_ANIM : LADDER_CLIMB_UP_ANIM;
 
-    // Look up the return traversal loc at the destination so the player
-    // faces it on arrival (e.g. the ladder you'd climb back up).
-    const returnLoc = intermapLinks.findSourceTile(dest.x, dest.y, dest.level);
+    // OSRS parity (from packet dump): the climb animation plays at the
+    // SOURCE position on the interaction tick.  The teleport fires one tick
+    // later with NO animation stop — the client-side animation simply
+    // continues at the new position.  Sound is embedded in the seq
+    // definition (frame sounds), not sent as a separate area sound.
+    services.playPlayerSeq?.(player, anim);
 
-    // Schedule a delayed teleport.  The climb animation, sound, and face
-    // direction all fire at the destination via arrive* fields so they land
-    // in the same tick as the teleport snap (OSRS parity).
+    // Schedule a delayed teleport that preserves the in-progress animation.
+    // The teleport tick sends no animation update — the client-side seq
+    // simply continues playing at the new position (matching OSRS dump).
     services.requestTeleportAction?.(player, {
         x: dest.x,
         y: dest.y,
         level: dest.level,
         delayTicks: CLIMB_DELAY_TICKS,
-        arriveSeqId: anim,
-        arriveSoundId: STAIR_SOUND,
-        arriveSoundRadius: 1,
-        arriveFaceTileX: returnLoc?.x,
-        arriveFaceTileY: returnLoc?.y,
+        preserveAnimation: true,
         requireCanTeleport: false,
         replacePending: true,
     });

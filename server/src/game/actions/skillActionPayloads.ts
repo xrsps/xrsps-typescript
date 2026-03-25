@@ -90,6 +90,24 @@ export interface SkillPicklockActionData {
     started: boolean;
 }
 
+export interface SkillPickpocketActionData {
+    npcId: number;
+    npcTypeId: number;
+    reqLevel: number;
+    xp: number;
+    lootTable: Array<{
+        itemId: number;
+        minAmount: number;
+        maxAmount: number;
+        weight: number;
+    }>;
+    minDamage: number;
+    maxDamage: number;
+    stunTicks: number;
+    displayName?: string;
+    started: boolean;
+}
+
 export interface SkillBoltEnchantActionData {
     sourceItemId: number;
     enchantedItemId: number;
@@ -115,6 +133,7 @@ export type SkillActionPayloadByKind = {
     "skill.firemaking": SkillFiremakingActionData;
     "skill.woodcut": SkillWoodcuttingActionData;
     "skill.picklock": SkillPicklockActionData;
+    "skill.pickpocket": SkillPickpocketActionData;
 };
 
 export type SkillActionRequest<K extends keyof SkillActionPayloadByKind> = {
