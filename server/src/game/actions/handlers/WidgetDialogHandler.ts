@@ -720,7 +720,7 @@ export class WidgetDialogHandler {
                 widgetId: normalized.widgetId,
                 groupId: normalized.groupId,
                 childId: normalized.childId,
-                option: resolvedOption,
+                option: normalized.option,
                 target: normalized.target,
                 opId: normalized.opId,
                 slot: normalized.slot,
