@@ -453,28 +453,15 @@ export class MapManager<T extends MapSquare> {
     ): void {
         const playerMapX = Math.floor(posX / Scene.MAP_SQUARE_SIZE);
         const playerMapY = Math.floor(posZ / Scene.MAP_SQUARE_SIZE);
-        const playerTileX = Math.floor(posX);
-        const playerTileY = Math.floor(posZ);
         const baseX = Number(sceneBaseX) | 0;
         const baseY = Number(sceneBaseY) | 0;
-        const localX = playerTileX - baseX;
-        const localY = playerTileY - baseY;
         const baseFiniteAndPositive =
             Number.isFinite(sceneBaseX as number) &&
             Number.isFinite(sceneBaseY as number) &&
             baseX >= 0 &&
             baseY >= 0;
         const expandedLoadingLevel = this.resolveExpandedMapLoading(expandedMapLoading);
-        const localWithinSceneWindow =
-            localX >= MapManager.SCENE_REBASE_MIN_LOCAL_TILE &&
-            localX < MapManager.SCENE_REBASE_MAX_LOCAL_TILE &&
-            localY >= MapManager.SCENE_REBASE_MIN_LOCAL_TILE &&
-            localY < MapManager.SCENE_REBASE_MAX_LOCAL_TILE;
-        // The server-sent scene base is authoritative. If the server provides a
-        // valid base, always use scene-base streaming. The localWithinSceneWindow
-        // check was only meant for client-initiated rebase requests, but relying
-        // on it here causes the streaming mode to toggle when posX/posZ are stale
-        // on the first frame after a teleport (leading to two grid rebuilds).
+
         const useSceneBaseStreaming = baseFiniteAndPositive;
         const sortX = camera.getPosX();
         const sortZ = camera.getPosZ();
