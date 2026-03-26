@@ -293,26 +293,46 @@ export class LoginRenderer {
 
         const promises = this.serverList.map(async (server) => {
             const protocol = server.secure ? "https" : "http";
+            let httpOk = false;
             try {
                 const res = await fetch(`${protocol}://${server.address}/status`, {
-                    signal: AbortSignal.timeout(3000),
+                    signal: AbortSignal.timeout(8000),
                 });
                 if (res.ok) {
                     const data = await res.json();
                     server.playerCount = typeof data.playerCount === "number" ? data.playerCount : null;
                     if (typeof data.maxPlayers === "number") server.maxPlayers = data.maxPlayers;
                     if (typeof data.serverName === "string") server.name = data.serverName;
-                } else {
-                    server.playerCount = null;
+                    httpOk = true;
                 }
-            } catch {
-                server.playerCount = null;
+            } catch { /* fall through to ws probe */ }
+
+            if (!httpOk) {
+                const wsProto = server.secure ? "wss" : "ws";
+                const alive = await this.probeWebSocket(`${wsProto}://${server.address}`, 5000);
+                server.playerCount = alive ? 0 : null;
             }
         });
 
         Promise.all(promises).finally(() => {
             this.probing = false;
             this.probed = true;
+        });
+    }
+
+    private probeWebSocket(url: string, timeoutMs: number): Promise<boolean> {
+        return new Promise((resolve) => {
+            let settled = false;
+            const ws = new WebSocket(url);
+            const timer = setTimeout(() => {
+                if (!settled) { settled = true; ws.close(); resolve(false); }
+            }, timeoutMs);
+            ws.addEventListener("open", () => {
+                if (!settled) { settled = true; clearTimeout(timer); ws.close(); resolve(true); }
+            });
+            ws.addEventListener("error", () => {
+                if (!settled) { settled = true; clearTimeout(timer); resolve(false); }
+            });
         });
     }
 
