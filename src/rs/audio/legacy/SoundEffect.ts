@@ -89,9 +89,28 @@ export class SoundEffect {
     }
 
     toRawSound(): RawSoundData {
-        const samples = this.mix();
+        let samples = this.mix();
         const startSample = (this.start * 22050) / 1000;
-        const endSample = (this.end * 22050) / 1000;
+        let endSample = (this.end * 22050) / 1000;
+
+        // Trim noisy tails from delay effects for seamless looping
+        if (samples.length > 100 && endSample > 0) {
+            for (let i = 0; i < samples.length - 1; i++) {
+                if (Math.abs(samples[i + 1] - samples[i]) > 80) {
+                    const fadeStart = Math.max(0, i - 100);
+                    const fadeLength = Math.max(1, i - fadeStart);
+
+                    for (let j = fadeStart; j < i; j++) {
+                        const fadeFactor = 1.0 - (j - fadeStart) / fadeLength;
+                        samples[j] = (samples[j] * fadeFactor) | 0;
+                    }
+
+                    samples = samples.slice(0, i);
+                    endSample = Math.min(endSample, samples.length);
+                    break;
+                }
+            }
+        }
 
         return {
             sampleRate: 22050,

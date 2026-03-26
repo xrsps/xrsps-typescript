@@ -10096,23 +10096,43 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const mapBaseX = map.mapX * 64;
         const mapBaseY = map.mapY * 64;
 
-        // Get camera position in world scene units for distance filtering
-        const cameraX = this.osrsClient.camera.getPosX() * 128;
-        const cameraY = this.osrsClient.camera.getPosZ() * 128;
-        const cameraZ = this.osrsClient.camera.getPosY() * 128;
+        // Use the player's position for distance filtering (matches reference).
+        // The reference uses playerTopLevelPosition for 2D distance; plane is filtered separately.
+        let playerX: number;
+        let playerY: number;
+        let playerLevel: number;
+        try {
+            const pe = this.osrsClient.playerEcs;
+            const idx = pe.getIndexForServerId(this.osrsClient.controlledPlayerServerId);
+            if (idx !== undefined) {
+                playerX = pe.getX(idx) | 0;
+                playerY = pe.getY(idx) | 0;
+                playerLevel = pe.getLevel(idx) | 0;
+            } else {
+                playerX = this.osrsClient.camera.getPosX() * 128;
+                playerY = this.osrsClient.camera.getPosZ() * 128;
+                playerLevel = 0;
+            }
+        } catch {
+            playerX = this.osrsClient.camera.getPosX() * 128;
+            playerY = this.osrsClient.camera.getPosZ() * 128;
+            playerLevel = 0;
+        }
 
-        // Calculate camera position in local tile coordinates for this map
-        const cameraTileX = (cameraX / 128) | 0;
-        const cameraTileY = (cameraY / 128) | 0;
-        const cameraLocalX = cameraTileX - mapBaseX;
-        const cameraLocalY = cameraTileY - mapBaseY;
+        const playerTileX = (playerX / 128) | 0;
+        const playerTileY = (playerY / 128) | 0;
+        const playerLocalX = playerTileX - mapBaseX;
+        const playerLocalY = playerTileY - mapBaseY;
 
         // Max audio range in tiles (MAX_AUDIO_RANGE / 128)
         const maxRangeTiles = (WebGLOsrsRenderer.MAX_AUDIO_RANGE / 128) | 0;
 
         // Collect from animated locs (these are sparse, iterate all)
+        // Only include locs on the player's current level.
         if (map.locsAnimated) {
             for (const loc of map.locsAnimated) {
+                if (loc.level !== playerLevel) continue;
+
                 const locType = this.osrsClient.locTypeLoader.load(loc.id);
                 if (!locType) continue;
 
@@ -10120,12 +10140,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     locType.ambientSoundId !== -1 ||
                     (locType.ambientSoundIds && locType.ambientSoundIds.length > 0)
                 ) {
-                    // Quick distance check before adding
-                    const dx = loc.x - cameraX;
-                    const dy = loc.y - cameraY;
-                    const dz = loc.level * 128 - cameraZ;
-                    const distSq = dx * dx + dy * dy + dz * dz;
-                    // Inline filterRadius calculation (avoids closure allocation)
+                    // 2D distance check (reference uses 2D only; plane is binary)
+                    const dx = loc.x - playerX;
+                    const dy = loc.y - playerY;
+                    const distSq = dx * dx + dy * dy;
                     const distTiles = Math.max(
                         0,
                         locType.soundAreaRadiusOverride !== undefined &&
@@ -10150,80 +10168,67 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             }
         }
 
-        // Collect from static locs - use spatial culling to only check tiles within audio range
-        // Calculate tile bounds around camera (clamped to map bounds 0-63)
-        const minLocalX = Math.max(0, cameraLocalX - maxRangeTiles);
-        const maxLocalX = Math.min(63, cameraLocalX + maxRangeTiles);
-        const minLocalY = Math.max(0, cameraLocalY - maxRangeTiles);
-        const maxLocalY = Math.min(63, cameraLocalY + maxRangeTiles);
+        // Collect from static locs — only on the player's current level.
+        const minLocalX = Math.max(0, playerLocalX - maxRangeTiles);
+        const maxLocalX = Math.min(63, playerLocalX + maxRangeTiles);
+        const minLocalY = Math.max(0, playerLocalY - maxRangeTiles);
+        const maxLocalY = Math.min(63, playerLocalY + maxRangeTiles);
 
-        // Skip if camera is too far from this map (no tiles in range)
         if (minLocalX > 63 || maxLocalX < 0 || minLocalY > 63 || maxLocalY < 0) {
             return;
         }
 
         const maxDistSq = WebGLOsrsRenderer.MAX_AUDIO_RANGE * WebGLOsrsRenderer.MAX_AUDIO_RANGE;
+        const level = playerLevel;
 
-        for (let level = 0; level < 4; level++) {
-            const worldSceneZ = level * 128;
-            const dzLevel = worldSceneZ - cameraZ;
-            const dzSqLevel = dzLevel * dzLevel;
+        for (let localX = minLocalX; localX <= maxLocalX; localX++) {
+            const worldSceneX = (mapBaseX + localX) * 128 + 64;
+            const dxTile = worldSceneX - playerX;
+            const dxSqTile = dxTile * dxTile;
 
-            // Skip this level if Z distance alone exceeds max range
-            if (dzSqLevel > maxDistSq) continue;
+            if (dxSqTile > maxDistSq) continue;
 
-            for (let localX = minLocalX; localX <= maxLocalX; localX++) {
-                const worldSceneX = (mapBaseX + localX) * 128 + 64;
-                const dxTile = worldSceneX - cameraX;
-                const dxSqTile = dxTile * dxTile;
+            for (let localY = minLocalY; localY <= maxLocalY; localY++) {
+                const locIds = map.getLocIdsAtLocal(level, localX, localY);
+                if (locIds.length === 0) continue;
+                const locTypeRots = map.getLocTypeRotsAtLocal(level, localX, localY);
 
-                // Skip this column if X+Z distance exceeds max range
-                if (dxSqTile + dzSqLevel > maxDistSq) continue;
+                const worldSceneY = (mapBaseY + localY) * 128 + 64;
+                const dyTile = worldSceneY - playerY;
+                const distSqTile = dxSqTile + dyTile * dyTile;
 
-                for (let localY = minLocalY; localY <= maxLocalY; localY++) {
-                    const locIds = map.getLocIdsAtLocal(level, localX, localY);
-                    if (locIds.length === 0) continue;
-                    const locTypeRots = map.getLocTypeRotsAtLocal(level, localX, localY);
+                if (distSqTile > maxDistSq) continue;
 
-                    const worldSceneY = (mapBaseY + localY) * 128 + 64;
-                    const dyTile = worldSceneY - cameraY;
-                    const distSqTile = dxSqTile + dyTile * dyTile + dzSqLevel;
+                for (let li = 0; li < locIds.length; li++) {
+                    const locId = locIds[li];
+                    const locType = this.osrsClient.locTypeLoader.load(locId);
+                    if (!locType) continue;
 
-                    // Skip tile if outside max audio range
-                    if (distSqTile > maxDistSq) continue;
+                    if (
+                        locType.ambientSoundId !== -1 ||
+                        (locType.ambientSoundIds && locType.ambientSoundIds.length > 0)
+                    ) {
+                        const distTiles2 = Math.max(
+                            0,
+                            locType.soundAreaRadiusOverride !== undefined &&
+                                locType.soundAreaRadiusOverride >= 0
+                                ? locType.soundAreaRadiusOverride
+                                : locType.soundMaxDistance,
+                        );
+                        const filterBase2 = distTiles2 * 128;
+                        const filterDist = filterBase2 > 0 ? filterBase2 + 2048 : 4096;
 
-                    for (let li = 0; li < locIds.length; li++) {
-                        const locId = locIds[li];
-                        const locType = this.osrsClient.locTypeLoader.load(locId);
-                        if (!locType) continue;
-
-                        if (
-                            locType.ambientSoundId !== -1 ||
-                            (locType.ambientSoundIds && locType.ambientSoundIds.length > 0)
-                        ) {
-                            // Per-loc distance check with its specific range
-                            const distTiles2 = Math.max(
-                                0,
-                                locType.soundAreaRadiusOverride !== undefined &&
-                                    locType.soundAreaRadiusOverride >= 0
-                                    ? locType.soundAreaRadiusOverride
-                                    : locType.soundMaxDistance,
+                        if (distSqTile <= filterDist * filterDist) {
+                            const packed = li < locTypeRots.length ? locTypeRots[li] : 0;
+                            const rot = (packed >> 6) & 3;
+                            this.addAmbientSoundInstance(
+                                locId,
+                                locType,
+                                worldSceneX,
+                                worldSceneY,
+                                level * 128,
+                                rot,
                             );
-                            const filterBase2 = distTiles2 * 128;
-                            const filterDist = filterBase2 > 0 ? filterBase2 + 2048 : 4096;
-
-                            if (distSqTile <= filterDist * filterDist) {
-                                const packed = li < locTypeRots.length ? locTypeRots[li] : 0;
-                                const rot = (packed >> 6) & 3;
-                                this.addAmbientSoundInstance(
-                                    locId,
-                                    locType,
-                                    worldSceneX,
-                                    worldSceneY,
-                                    worldSceneZ,
-                                    rot,
-                                );
-                            }
                         }
                     }
                 }
