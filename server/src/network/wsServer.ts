@@ -7616,6 +7616,10 @@ export class WSServer {
             isMiningDepleted: (key) => this.gatheringSystem.isMiningDepleted(key),
             markMiningDepleted: (info, tick) =>
                 this.gatheringSystem.markMiningDepleted(info as any, tick),
+            isFlaxDepleted: (tile, level) =>
+                this.gatheringSystem.flaxTracker.isDepleted(tile, level),
+            markFlaxDepleted: (info, tick) =>
+                this.gatheringSystem.markFlaxDepleted(info, tick),
             isTileLit: (tile, level) => this.gatheringSystem.isTileLit(tile, level),
             isFiremakingTileBlocked: (tile, level) => this.isFiremakingTileBlocked(tile, level),
             lightFire: (params) =>

@@ -1,11 +1,6 @@
-import { faceAngleRs } from "../../../../../../src/rs/utils/rotation";
-import { SkillId } from "../../../../../../src/rs/skill/skills";
 import {
-    FLAX_ITEM_ID,
     FLAX_LOC_IDS,
-    FLAX_PICK_ANIMATION_ID,
     FLAX_PICK_DELAY_TICKS,
-    FLAX_PICK_XP,
     isFlaxLocId,
 } from "../../../skills/flax";
 import { type ScriptModule } from "../../types";
@@ -29,8 +24,6 @@ export const flaxModule: ScriptModule = {
                         {
                             kind: "skill.flax",
                             data: {
-                                recipeId: "flax_to_bowstring",
-                                count: 1,
                                 locId: event.locId,
                                 tile: { x: event.tile.x, y: event.tile.y },
                                 level: event.level,
@@ -46,15 +39,6 @@ export const flaxModule: ScriptModule = {
                             event.player,
                             "You're too busy to pick flax right now.",
                         );
-                    } else {
-                        // Force a face action immediately to reduce perceived delay
-                        const rot = faceAngleRs(
-                            event.player.tileX,
-                            event.player.tileY,
-                            event.tile.x,
-                            event.tile.y,
-                        );
-                        event.player.faceRot(rot);
                     }
                 },
                 action,

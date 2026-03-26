@@ -69,10 +69,10 @@ export interface SkillSinewActionData {
     level?: number;
 }
 
-export interface SkillFlaxActionData extends SkillRecipeActionData {
-    locId?: number;
-    tile?: { x: number; y: number };
-    level?: number;
+export interface SkillFlaxActionData {
+    locId: number;
+    tile: { x: number; y: number };
+    level: number;
 }
 
 export interface SkillSmeltActionData extends SkillRecipeActionData {}

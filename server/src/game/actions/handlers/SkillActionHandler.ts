@@ -339,6 +339,15 @@ export interface SkillActionServices {
         ownerId: number;
     }): { fireObjectId: number };
 
+    // --- Flax Tracking ---
+    isFlaxDepleted(tile: Vec2, level: number): boolean;
+    markFlaxDepleted(info: {
+        tile: Vec2;
+        level: number;
+        locId: number;
+        respawnTicks: number;
+    }, tick: number): void;
+
     // --- Tile Key Builders ---
     buildWoodcuttingTileKey(tile: Vec2, level: number): string;
     buildMiningTileKey(tile: Vec2, level: number): string;
@@ -493,6 +502,11 @@ const FIRE_LIGHTING_ANIMATION = 733;
 const FURNACE_ANIMATION = 899;
 const DEFAULT_COOKING_BURN_BONUS = 3;
 const ITEM_PICKUP_SOUND = 2739;
+const FLAX_ITEM_ID = 1779;
+const FLAX_PICK_ANIMATION = 827;
+const FLAX_PICK_SOUND = 2581;
+const FLAX_PICK_DELAY_TICKS = 3;
+const FLAX_RESPAWN_TICKS = 25;
 const BOLT_ENCHANT_BOLTS_PER_SET = 10;
 const BOLT_ENCHANT_DELAY_TICKS = 3;
 const BOLT_ENCHANT_ACTION_GROUP = "skill.bolt_enchant";
@@ -501,6 +515,7 @@ const BOLT_ENCHANT_DEFAULT_ANIMATION = 4462;
 const WOODCUTTING_CHOP_SOUND = 2735;
 // OSRS: 2734 = "tree_fall" - plays when tree depletes
 const WOODCUTTING_DEPLETE_SOUND = 2734;
+const WOODCUTTING_INVENTORY_FULL_SOUND = 2277;
 const ECHO_AXE_ITEM_IDS = [25110];
 const ECHO_PICKAXE_ITEM_IDS = [25112, 25063, 25369, 25376];
 const ECHO_HARPOON_ITEM_IDS = [25059, 25061, 25114, 25115, 25367, 25368, 25373, 25374];
@@ -1170,13 +1185,54 @@ export class SkillActionHandler {
         data: FlaxActionData,
         tick: number,
     ): ActionExecutionResult {
-        // Flax spinning is handled by the spin action with a specific recipe
-        // This is a convenience method that delegates to spin
-        const modifiedData: SpinActionData = {
-            ...data,
-            recipeId: data.recipeId,
+        const tile: Vec2 = { x: data.tile.x, y: data.tile.y };
+        const plane = data.level;
+        const locId = data.locId;
+
+        if (this.services.isFlaxDepleted(tile, plane)) {
+            return this.failGatheringPrecheck(player, "", "flax_depleted");
+        }
+
+        if (!this.services.hasInventorySlot(player)) {
+            return this.failGatheringPrecheck(
+                player,
+                "Your inventory is too full to hold any more flax.",
+                "inventory_full",
+            );
+        }
+
+        const effects: ActionEffect[] = [];
+
+        this.services.faceGatheringTarget(player, tile);
+        player.queueOneShotSeq(FLAX_PICK_ANIMATION);
+
+        this.services.enqueueSoundBroadcast(FLAX_PICK_SOUND, tile.x, tile.y, plane);
+
+        this.services.markFlaxDepleted({
+            tile,
+            level: plane,
+            locId,
+            respawnTicks: FLAX_RESPAWN_TICKS,
+        }, tick);
+        this.services.emitLocChange(locId, 0, tile, plane);
+
+        const result = this.services.addItemToInventory(player, FLAX_ITEM_ID, 1);
+        if (result.added > 0) {
+            effects.push({ type: "inventorySnapshot", playerId: player.id });
+        }
+
+        effects.push(
+            this.services.buildSkillMessageEffect(player, "You pick some flax."),
+        );
+
+        this.services.sendSound(player, FLAX_PICK_SOUND);
+
+        return {
+            ok: true,
+            cooldownTicks: FLAX_PICK_DELAY_TICKS,
+            groups: ["skill.flax"],
+            effects,
         };
-        return this.executeSkillSpinAction(player, modifiedData, tick);
     }
 
     /**
@@ -1329,6 +1385,16 @@ export class SkillActionHandler {
                     `You manage to mine some ${oreName}.`,
                 ),
             );
+            if (hasEchoPickaxePerk) {
+                const capitalizedOreName =
+                    oreName.charAt(0).toUpperCase() + oreName.slice(1);
+                effects.push(
+                    this.services.buildSkillMessageEffect(
+                        player,
+                        `1x ${capitalizedOreName} were sent straight to your bank.`,
+                    ),
+                );
+            }
             this.services.awardSkillXp(player, SkillId.Mining, rock.xp);
 
             if (locId > 0) {
@@ -1603,14 +1669,25 @@ export class SkillActionHandler {
                 inventorySnapshot = true;
             }
 
+            const fishName = this.services.describeFish(rewardItemId);
             effects.push(
                 this.services.buildSkillMessageEffect(
                     player,
                     hasEchoHarpoonPerk && autoCooked
-                        ? `You catch and cook some ${this.services.describeFish(rewardItemId)}.`
-                        : `You catch some ${this.services.describeFish(rewardItemId)}.`,
+                        ? `You catch and cook some ${fishName}.`
+                        : `You catch some ${fishName}.`,
                 ),
             );
+            if (hasEchoHarpoonPerk) {
+                const capitalizedFishName =
+                    fishName.charAt(0).toUpperCase() + fishName.slice(1);
+                effects.push(
+                    this.services.buildSkillMessageEffect(
+                        player,
+                        `${quantity}x ${capitalizedFishName} were sent straight to your bank.`,
+                    ),
+                );
+            }
             this.services.awardSkillXp(player, SkillId.Fishing, catchDef.xp);
 
             if (baitSlot !== undefined && Array.isArray(method.baitItemIds)) {
@@ -2212,9 +2289,11 @@ export class SkillActionHandler {
         const hasEchoAxePerk = this.hasAnyCarriedItem(hatchetIds, ECHO_AXE_ITEM_IDS);
 
         if (!hasEchoAxePerk && !this.services.hasInventorySlot(player)) {
+            const logName = this.services.describeLog(tree.logItemId);
+            this.services.sendSound(player, WOODCUTTING_INVENTORY_FULL_SOUND);
             return this.failGatheringPrecheck(
                 player,
-                "Your inventory is too full to hold any more logs.",
+                `Your inventory is too full to hold any more ${logName}.`,
                 "inventory_full",
             );
         }
@@ -2288,9 +2367,10 @@ export class SkillActionHandler {
             if (hasEchoAxePerk) {
                 const banked = this.services.addItemToBank(player, tree.logItemId, 1);
                 if (!banked) {
+                    const logName = this.services.describeLog(tree.logItemId);
                     return this.failGatheringPrecheck(
                         player,
-                        "Your bank is too full to hold any more logs.",
+                        `Your bank is too full to hold any more ${logName}.`,
                         "bank_full",
                     );
                 }
@@ -2298,10 +2378,11 @@ export class SkillActionHandler {
             } else {
                 const result = this.services.addItemToInventory(player, tree.logItemId, 1);
                 if (result.added <= 0) {
-                    this.services.sendSound(player, ITEM_PICKUP_SOUND);
+                    const logName = this.services.describeLog(tree.logItemId);
+                    this.services.sendSound(player, WOODCUTTING_INVENTORY_FULL_SOUND);
                     return this.failGatheringPrecheck(
                         player,
-                        "Your inventory is too full to hold any more logs.",
+                        `Your inventory is too full to hold any more ${logName}.`,
                         "inventory_full",
                     );
                 }
@@ -2313,6 +2394,16 @@ export class SkillActionHandler {
 
             const logName = this.services.describeLog(tree.logItemId);
             effects.push(this.services.buildSkillMessageEffect(player, `You get some ${logName}.`));
+            if (hasEchoAxePerk) {
+                const capitalizedLogName =
+                    logName.charAt(0).toUpperCase() + logName.slice(1);
+                effects.push(
+                    this.services.buildSkillMessageEffect(
+                        player,
+                        `1x ${capitalizedLogName} were sent straight to your bank.`,
+                    ),
+                );
+            }
             this.services.awardSkillXp(player, SkillId.Woodcutting, tree.xp);
 
             if (this.services.shouldDepleteTree(tree)) {
@@ -2362,10 +2453,12 @@ export class SkillActionHandler {
         if (continueChopping) {
             if (!hasEchoAxePerk && !this.services.hasInventorySlot(player)) {
                 continueChopping = false;
+                const logName = this.services.describeLog(tree.logItemId);
+                this.services.sendSound(player, WOODCUTTING_INVENTORY_FULL_SOUND);
                 effects.push(
                     this.services.buildSkillMessageEffect(
                         player,
-                        "Your inventory is too full to hold any more logs.",
+                        `Your inventory is too full to hold any more ${logName}.`,
                     ),
                 );
             } else if (!this.services.isAdjacentToLoc(player, locId, tile, plane)) {

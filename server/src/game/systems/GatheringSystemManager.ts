@@ -165,12 +165,12 @@ export class GatheringSystemManager {
         level: number;
         locId: number;
         respawnTicks: number;
-    }): void {
+    }, tick: number): void {
         this.flaxTracker.markDepleted({
             tile: info.tile,
             level: info.level,
             locId: info.locId,
-            respawnTick: info.respawnTicks,
+            respawnTick: tick + info.respawnTicks,
         });
     }
 }
