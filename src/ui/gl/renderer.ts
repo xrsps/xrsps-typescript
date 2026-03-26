@@ -484,6 +484,10 @@ void main(){
         h: number,
         angle: number,
         angleScale: number = 65536,
+        contentU0 = 0,
+        contentV0 = 0,
+        contentU1 = 1,
+        contentV1 = 1,
     ) {
         const gl = this.gl;
         this.flushTextureBatch();
@@ -529,20 +533,20 @@ void main(){
         const verts = this.maskedVerts;
         verts[0] = x0;
         verts[1] = y0;
-        verts[2] = 0;
-        verts[3] = 0; // top-left
+        verts[2] = contentU0;
+        verts[3] = contentV0; // top-left
         verts[4] = x1;
         verts[5] = y1;
-        verts[6] = 1;
-        verts[7] = 0; // top-right
+        verts[6] = contentU1;
+        verts[7] = contentV0; // top-right
         verts[8] = x2;
         verts[9] = y2;
-        verts[10] = 1;
-        verts[11] = 1; // bottom-right
+        verts[10] = contentU1;
+        verts[11] = contentV1; // bottom-right
         verts[12] = x3;
         verts[13] = y3;
-        verts[14] = 0;
-        verts[15] = 1; // bottom-left
+        verts[14] = contentU0;
+        verts[15] = contentV1; // bottom-left
 
         gl.bindVertexArray(this.vaoTex);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);

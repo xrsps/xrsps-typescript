@@ -2428,19 +2428,35 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     const maskTex = maskSpriteId >= 0 ? tc.getSpriteById(maskSpriteId) : null;
 
                     if (maskTex) {
-                        // Draw compass with circular mask
+                        // OSRS PARITY: draw at mask sprite's natural dimensions, not widget bounds.
+                        // Reference: MinimapUtils.drawCompass uses spriteMask.width/height, not widget.width/height.
+                        // The compass content sprite (compassTex) is larger than the display area (maskTex)
+                        // because it includes transparent padding to avoid rotation seams. We center-crop
+                        // the content UV to match Java's srcCenterX=25, srcCenterY=25 (center of 51x51 sprite).
+                        const maskW = Math.round(maskTex.w * rootScaleX);
+                        const maskH = Math.round(maskTex.h * rootScaleY);
+                        const compassX = x + Math.round((width - maskW) / 2);
+                        const compassY = y + Math.round((height - maskH) / 2);
+                        const contentU0 = (compassTex.w / 2 - maskTex.w / 2) / compassTex.w;
+                        const contentV0 = (compassTex.h / 2 - maskTex.h / 2) / compassTex.h;
+                        const contentU1 = (compassTex.w / 2 + maskTex.w / 2) / compassTex.w;
+                        const contentV1 = (compassTex.h / 2 + maskTex.h / 2) / compassTex.h;
                         glr.drawTextureRotatedMasked(
                             compassTex,
                             maskTex,
-                            x,
-                            y,
-                            width,
-                            height,
+                            compassX,
+                            compassY,
+                            maskW,
+                            maskH,
                             spriteAngle,
                             65536,
+                            contentU0,
+                            contentV0,
+                            contentU1,
+                            contentV1,
                         );
                     } else {
-                        // Fallback: draw without mask
+                        // Fallback: draw without mask, centered within widget
                         glr.drawTextureRotated(
                             compassTex,
                             x,
