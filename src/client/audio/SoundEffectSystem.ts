@@ -10,11 +10,35 @@ type DecodedSound = {
     duration: number;
 };
 
-const enum DistanceFadeCurve {
+const enum EasingCurveId {
     LINEAR = 0,
-    QUADRATIC = 1,
-    CUBIC = 2,
-    EXPONENTIAL = 3,
+    EASE_IN_SINE = 1,
+    EASE_OUT_SINE = 2,
+    EASE_IN_OUT_SINE = 3,
+    EASE_IN_QUAD = 4,
+    EASE_OUT_QUAD = 5,
+    EASE_IN_OUT_QUAD = 6,
+    EASE_IN_CUBIC = 7,
+    EASE_OUT_CUBIC = 8,
+    EASE_IN_OUT_CUBIC = 9,
+    EASE_IN_QUART = 10,
+    EASE_OUT_QUART = 11,
+    EASE_IN_OUT_QUART = 12,
+    EASE_IN_QUINT = 13,
+    EASE_OUT_QUINT = 14,
+    EASE_IN_OUT_QUINT = 15,
+    EASE_IN_EXPO = 16,
+    EASE_OUT_EXPO = 17,
+    EASE_IN_OUT_EXPO = 18,
+    EASE_IN_CIRC = 19,
+    EASE_OUT_CIRC = 20,
+    EASE_IN_OUT_CIRC = 21,
+    EASE_IN_BACK = 22,
+    EASE_OUT_BACK = 23,
+    EASE_IN_OUT_BACK = 24,
+    EASE_IN_ELASTIC = 25,
+    EASE_OUT_ELASTIC = 26,
+    EASE_IN_OUT_ELASTIC = 27,
 }
 
 export interface PlaySoundOptions {
@@ -44,11 +68,14 @@ export interface AmbientSoundInstance {
     x: number;
     y: number;
     z: number;
-    distance: number;
+    maxDistance: number;
+    minDistance: number;
+    sizeX: number;
+    sizeY: number;
+    orientation: number;
     changeTicksMin: number;
     changeTicksMax: number;
     soundIds?: number[];
-    retainTicks?: number;
     fadeInDurationMs?: number;
     fadeOutDurationMs?: number;
     fadeInCurve?: number;
@@ -73,10 +100,10 @@ type ActiveAmbientSound = {
     fadeOutActive?: boolean;
     fadeInDurationSec: number;
     fadeOutDurationSec: number;
-    retainDurationSec: number;
 };
 
-const TICK_LENGTH_SECONDS = 0.6;
+// Game cycle = 20ms (client runs at ~50fps). soundEffectMinDelay/MaxDelay are in game cycles.
+const CYCLE_LENGTH_SECONDS = 0.02;
 
 export class SoundEffectSystem {
     private readonly decodedCache = new Map<string, DecodedSound>();
@@ -407,17 +434,14 @@ export class SoundEffectSystem {
                 }
                 const dx = Math.abs(position.x - this.listenerX);
                 const dy = Math.abs(position.y - this.listenerY);
-                const manhattan = Math.max(0, dx + dy - 128);
+                const manhattan = Math.max(0, dx + dy - 64);
                 if (manhattan > radius) {
                     return;
                 }
-                gainMultiplier = this.computeDistanceGain(
-                    manhattan,
-                    radius,
-                    options.distanceFadeCurve !== undefined
-                        ? options.distanceFadeCurve
-                        : DistanceFadeCurve.LINEAR,
-                );
+                const curveId = options.distanceFadeCurve ?? EasingCurveId.LINEAR;
+                gainMultiplier = radius > 0
+                    ? SoundEffectSystem.ease((radius - manhattan) / radius, curveId)
+                    : 1;
             }
         }
 
@@ -504,74 +528,30 @@ export class SoundEffectSystem {
         const now = ctx.currentTime;
         const activeKeys = new Set<string>();
 
-        // Process each ambient sound instance
         for (const instance of instances) {
             const key = this.ambientKey(instance);
             activeKeys.add(key);
 
-            // All waterfall sounds should now work properly with loop crossfading
-
             const existing = this.ambientSounds.get(key);
-            const dx = Math.abs(instance.x - this.listenerX);
-            const dy = Math.abs(instance.y - this.listenerY);
-            const manhattan = Math.max(0, dx + dy - 128);
-            const distanceTiles =
-                instance.distanceOverride !== undefined && instance.distanceOverride >= 0
-                    ? instance.distanceOverride
-                    : instance.distance;
-            const maxDist = Math.max(0, distanceTiles * 128);
-
-            if (maxDist === 0 && manhattan > 0) {
-                if (existing) {
-                    this.stopAmbientSound(key, ctx);
-                }
-                continue;
-            }
-
-            if (maxDist > 0 && manhattan > maxDist) {
-                if (existing) {
-                    this.beginAmbientFadeOut(key, existing, ctx, now);
-                }
-                continue;
-            }
-
-            const volume = this.computeDistanceGain(
-                manhattan,
-                maxDist,
-                instance.distanceFadeCurve !== undefined
-                    ? instance.distanceFadeCurve
-                    : DistanceFadeCurve.LINEAR,
-            );
+            const volume = this.computeAmbientVolume(instance);
 
             if (existing) {
-                // Update existing sound
                 existing.fadeInDurationSec = Math.max(
                     0,
                     (typeof instance.fadeInDurationMs === "number"
                         ? instance.fadeInDurationMs
-                        : 0) / 1000,
+                        : 300) / 1000,
                 );
                 existing.fadeOutDurationSec = Math.max(
                     0,
                     (typeof instance.fadeOutDurationMs === "number"
                         ? instance.fadeOutDurationMs
-                        : 0) / 1000,
-                );
-                existing.retainDurationSec = Math.max(
-                    0,
-                    (typeof instance.retainTicks === "number" ? instance.retainTicks : 0) *
-                        TICK_LENGTH_SECONDS,
+                        : 300) / 1000,
                 );
                 existing.fadeOutActive = false;
                 existing.stopAt = undefined;
 
-                // Scale volume based on number of active sounds to prevent clipping
-                // Note: ambient sounds go through ambientGainNode which applies the user's area sound volume
-                const activeSoundCount = this.ambientSounds.size;
-                const volumeScale = activeSoundCount > 1 ? 1 / Math.sqrt(activeSoundCount) : 1;
-                const targetGain = volume * volumeScale;
-
-                this.adjustAmbientGain(existing, targetGain, ctx, now);
+                this.adjustAmbientGain(existing, volume, ctx, now);
 
                 const loopSoundId = instance.soundId >= 0 ? instance.soundId : undefined;
                 if (loopSoundId !== existing.loopSoundId) {
@@ -666,41 +646,180 @@ export class SoundEffectSystem {
             return Infinity;
         }
 
-        const minTicks = Math.max(
+        const minDelay = Math.max(
             typeof instance.changeTicksMin === "number" ? instance.changeTicksMin : 0,
             0,
         );
-        const maxTicks = Math.max(
+        const maxDelay = Math.max(
             typeof instance.changeTicksMax === "number" ? instance.changeTicksMax : 0,
-            minTicks,
+            minDelay,
         );
 
-        if (minTicks === 0 && maxTicks === 0) {
+        if (minDelay === 0 && maxDelay === 0) {
             return Infinity;
         }
 
-        // changeTicks applies to both single sounds (for replay delay) and multi-sounds (for swap delay)
-        const range = maxTicks - minTicks;
-        const ticks = minTicks + (range > 0 ? Math.random() * range : 0);
-        return now + ticks * TICK_LENGTH_SECONDS;
+        // soundEffectMinDelay/MaxDelay are in game cycles (20ms each)
+        const range = maxDelay - minDelay;
+        const cycles = minDelay + (range > 0 ? Math.random() * range : 0);
+        return now + cycles * CYCLE_LENGTH_SECONDS;
     }
 
-    private computeDistanceGain(dist: number, maxDist: number, curve: number): number {
-        if (maxDist <= 0) {
-            return 1;
-        }
-        const clamped = Math.min(Math.max(dist / maxDist, 0), 1);
-        switch (curve) {
-            case DistanceFadeCurve.QUADRATIC:
-                return 1 - clamped * clamped;
-            case DistanceFadeCurve.CUBIC:
-                return 1 - clamped * clamped * clamped;
-            case DistanceFadeCurve.EXPONENTIAL:
-                return Math.pow(1 - clamped, 2);
-            case DistanceFadeCurve.LINEAR:
+    /**
+     * Compute the easing value for a given progress (0..1) using the reference client's
+     * EasingFunction curve types.
+     */
+    private static ease(progress: number, curveId: number = 0): number {
+        if (progress <= 0) return 0;
+        if (progress >= 1) return 1;
+        switch (curveId) {
+            case EasingCurveId.EASE_IN_SINE:
+                return 1 - Math.cos(progress * Math.PI / 2);
+            case EasingCurveId.EASE_OUT_SINE:
+                return Math.sin(Math.PI * progress / 2);
+            case EasingCurveId.EASE_IN_OUT_SINE:
+                return -(Math.cos(progress * Math.PI) - 1) / 2;
+            case EasingCurveId.EASE_IN_QUAD:
+                return progress * progress;
+            case EasingCurveId.EASE_OUT_QUAD:
+                return 1 - (1 - progress) * (1 - progress);
+            case EasingCurveId.EASE_IN_OUT_QUAD:
+                return progress < 0.5
+                    ? progress * 2 * progress
+                    : 1 - Math.pow(progress * -2 + 2, 2) / 2;
+            case EasingCurveId.EASE_IN_CUBIC:
+                return progress * progress * progress;
+            case EasingCurveId.EASE_OUT_CUBIC:
+                return 1 - Math.pow(1 - progress, 3);
+            case EasingCurveId.EASE_IN_OUT_CUBIC:
+                return progress < 0.5
+                    ? progress * (4 * progress) * progress
+                    : 1 - Math.pow(2 + progress * -2, 3) / 2;
+            case EasingCurveId.EASE_IN_QUART:
+                return progress * progress * progress * progress;
+            case EasingCurveId.EASE_OUT_QUART:
+                return 1 - Math.pow(1 - progress, 4);
+            case EasingCurveId.EASE_IN_OUT_QUART:
+                return progress < 0.5
+                    ? progress * (progress * 8 * progress) * progress
+                    : 1 - Math.pow(2 + -2 * progress, 4) / 2;
+            case EasingCurveId.EASE_IN_QUINT:
+                return progress * progress * progress * progress * progress;
+            case EasingCurveId.EASE_OUT_QUINT:
+                return 1 - Math.pow(1 - progress, 5);
+            case EasingCurveId.EASE_IN_OUT_QUINT:
+                return progress < 0.5
+                    ? progress * (progress * 8 * progress * progress * progress)
+                    : 1 - Math.pow(2 + progress * -2, 5) / 2;
+            case EasingCurveId.EASE_IN_EXPO:
+                return Math.pow(2, 10 * progress - 10);
+            case EasingCurveId.EASE_OUT_EXPO:
+                return 1 - Math.pow(2, -10 * progress);
+            case EasingCurveId.EASE_IN_OUT_EXPO:
+                return progress < 0.5
+                    ? Math.pow(2, 20 * progress - 10) / 2
+                    : (2 - Math.pow(2, -20 * progress + 10)) / 2;
+            case EasingCurveId.EASE_IN_CIRC:
+                return 1 - Math.sqrt(1 - progress * progress);
+            case EasingCurveId.EASE_OUT_CIRC:
+                return Math.sqrt(1 - (progress - 1) * (progress - 1));
+            case EasingCurveId.EASE_IN_OUT_CIRC:
+                return progress < 0.5
+                    ? (1 - Math.sqrt(1 - Math.pow(2 * progress, 2))) / 2
+                    : (Math.sqrt(1 - Math.pow(-2 * progress + 2, 2)) + 1) / 2;
+            case EasingCurveId.EASE_IN_BACK: {
+                const c1 = 1.70158;
+                return (c1 + 1) * progress * progress * progress - c1 * progress * progress;
+            }
+            case EasingCurveId.EASE_OUT_BACK: {
+                const c1 = 1.70158;
+                const p1 = progress - 1;
+                return 1 + (c1 + 1) * p1 * p1 * p1 + c1 * p1 * p1;
+            }
+            case EasingCurveId.EASE_IN_OUT_BACK: {
+                const c2 = 1.70158 * 1.525;
+                return progress < 0.5
+                    ? (Math.pow(2 * progress, 2) * ((c2 + 1) * 2 * progress - c2)) / 2
+                    : (Math.pow(2 * progress - 2, 2) * ((c2 + 1) * (progress * 2 - 2) + c2) + 2) / 2;
+            }
+            case EasingCurveId.EASE_IN_ELASTIC: {
+                const c4 = (2 * Math.PI) / 3;
+                return -Math.pow(2, 10 * progress - 10) * Math.sin((progress * 10 - 10.75) * c4);
+            }
+            case EasingCurveId.EASE_OUT_ELASTIC: {
+                const c4 = (2 * Math.PI) / 3;
+                return Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1;
+            }
+            case EasingCurveId.EASE_IN_OUT_ELASTIC: {
+                const c5 = (2 * Math.PI) / 4.5;
+                return progress < 0.5
+                    ? -(Math.pow(2, 20 * progress - 10) * Math.sin((20 * progress - 11.125) * c5)) / 2
+                    : (Math.pow(2, -20 * progress + 10) * Math.sin((20 * progress - 11.125) * c5)) / 2 + 1;
+            }
+            case EasingCurveId.LINEAR:
             default:
-                return 1 - clamped;
+                return progress;
         }
+    }
+
+    /**
+     * Compute manhattan distance from a point to a rectangle, minus half a tile (64 fine units).
+     * Matches the reference client's distanceToAmbientSoundRect.
+     */
+    private static distanceToRect(
+        px: number, py: number,
+        minX: number, minY: number,
+        maxX: number, maxY: number,
+    ): number {
+        let dist = 0;
+        if (px < minX) dist += minX - px;
+        else if (px > maxX) dist += px - maxX;
+        if (py < minY) dist += minY - py;
+        else if (py > maxY) dist += py - maxY;
+        return Math.max(dist - 64, 0);
+    }
+
+    /**
+     * Compute distance-based volume for an ambient sound instance.
+     * Uses minDistance/maxDistance with easing curve, matching the reference client.
+     */
+    private computeAmbientVolume(instance: AmbientSoundInstance): number {
+        // Compute effective size considering orientation
+        let sx = instance.sizeX || 1;
+        let sy = instance.sizeY || 1;
+        if (instance.orientation === 1 || instance.orientation === 3) {
+            const tmp = sx;
+            sx = sy;
+            sy = tmp;
+        }
+
+        // Compute object rectangle bounds in scene fine coordinates
+        // x,y are tile center (origin + 64), so subtract 64 to get tile origin
+        const minX = instance.x - 64;
+        const minY = instance.y - 64;
+        const maxX = minX + sx * 128;
+        const maxY = minY + sy * 128;
+
+        const dist = SoundEffectSystem.distanceToRect(
+            this.listenerX, this.listenerY,
+            minX, minY, maxX, maxY,
+        );
+
+        const maxDistTiles = instance.distanceOverride !== undefined && instance.distanceOverride >= 0
+            ? instance.distanceOverride
+            : instance.maxDistance;
+        const maxDist = maxDistTiles * 128;
+        const minDist = Math.max(((instance.minDistance || 0) - 1) * 128, 0);
+
+        if (minDist < maxDist) {
+            // Distance attenuation zone: full volume inside minDist, fades to 0 at maxDist.
+            // ease() clamps progress to [0,1] so dist > maxDist naturally gives 0.
+            const curveId = instance.distanceFadeCurve ?? 0;
+            const progress = (maxDist - dist) / (maxDist - minDist);
+            return SoundEffectSystem.ease(Math.max(0, Math.min(1, progress)), curveId);
+        }
+        // minDistance >= maxDistance: no distance attenuation, full volume everywhere
+        return 1;
     }
 
     private scheduleGainRamp(
@@ -723,16 +842,8 @@ export class SoundEffectSystem {
     }
 
     private getFadeCurve(curveId?: number): (t: number) => number {
-        switch (curveId) {
-            case 1:
-                return (t) => 1 - Math.pow(1 - t, 3); // ease-out cubic
-            case 2:
-                return (t) => t * t; // ease-in quadratic
-            case 3:
-                return (t) => t * t * (3 - 2 * t); // smoothstep
-            default:
-                return (t) => t; // linear
-        }
+        const id = curveId ?? 0;
+        return (t) => SoundEffectSystem.ease(t, id);
     }
 
     private adjustAmbientGain(
@@ -741,20 +852,28 @@ export class SoundEffectSystem {
         ctx: AudioContext,
         now: number,
     ): void {
-        const ramp = active.fadeInDurationSec > 0 ? active.fadeInDurationSec : 0.05;
         const gain = active.gainNode.gain;
         gain.cancelScheduledValues(now);
         const current = gain.value;
+        if (Math.abs(current - targetGain) < 0.001) return;
         gain.setValueAtTime(current, now);
-        if (ramp > 0) {
-            this.scheduleGainRamp(
-                gain,
-                now,
-                current,
-                targetGain,
-                ramp,
-                active.instance.fadeInCurve,
-            );
+
+        // Use fadeIn curve/duration when volume is increasing, fadeOut when decreasing
+        const increasing = targetGain > current;
+        const baseDuration = increasing
+            ? (active.fadeInDurationSec > 0 ? active.fadeInDurationSec : 0.05)
+            : (active.fadeOutDurationSec > 0 ? active.fadeOutDurationSec : 0.05);
+        const curveId = increasing
+            ? active.instance.fadeInCurve
+            : active.instance.fadeOutCurve;
+
+        // Scale fade duration proportionally to the volume delta.
+        // Matches reference scaleIntByRatio: smaller volume changes → shorter fades.
+        const delta = Math.abs(current - targetGain);
+        const ramp = delta >= 1 ? baseDuration : baseDuration * delta;
+
+        if (ramp > 0.001) {
+            this.scheduleGainRamp(gain, now, current, targetGain, ramp, curveId);
         } else {
             gain.setValueAtTime(targetGain, now);
         }
@@ -769,18 +888,16 @@ export class SoundEffectSystem {
         if (active.fadeOutActive) {
             return;
         }
-        const duration = active.fadeOutDurationSec > 0 ? active.fadeOutDurationSec : 0.1;
+        // Quick 150ms linear fade when sound leaves range entirely,
+        // matching the reference's hardcoded 150ms linear fallback.
+        const duration = 0.15;
         const gain = active.gainNode.gain;
         gain.cancelScheduledValues(now);
         const current = gain.value;
         gain.setValueAtTime(current, now);
-        if (duration > 0) {
-            this.scheduleGainRamp(gain, now, current, 0, duration, active.instance.fadeOutCurve);
-        } else {
-            gain.setValueAtTime(0, now);
-        }
+        this.scheduleGainRamp(gain, now, current, 0, duration, EasingCurveId.LINEAR);
         active.fadeOutActive = true;
-        active.stopAt = now + duration + active.retainDurationSec;
+        active.stopAt = now + duration;
     }
 
     private startAmbientSound(
@@ -822,24 +939,18 @@ export class SoundEffectSystem {
 
         const fadeInSec = Math.max(
             0,
-            (typeof instance.fadeInDurationMs === "number" ? instance.fadeInDurationMs : 0) / 1000,
+            (typeof instance.fadeInDurationMs === "number"
+                ? instance.fadeInDurationMs
+                : 300) / 1000,
         );
         const fadeOutSec = Math.max(
             0,
-            (typeof instance.fadeOutDurationMs === "number" ? instance.fadeOutDurationMs : 0) /
-                1000,
-        );
-        const retainSec = Math.max(
-            0,
-            (typeof instance.retainTicks === "number" ? instance.retainTicks : 0) *
-                TICK_LENGTH_SECONDS,
+            (typeof instance.fadeOutDurationMs === "number"
+                ? instance.fadeOutDurationMs
+                : 300) / 1000,
         );
 
-        // Scale volume based on number of active sounds to prevent clipping
-        // Note: ambient sounds go through ambientGainNode which applies the user's area sound volume
-        const activeSoundCount = this.ambientSounds.size + 1; // +1 for the one we're about to add
-        const volumeScale = activeSoundCount > 1 ? 1 / Math.sqrt(activeSoundCount) : 1;
-        const targetGain = volume * volumeScale;
+        const targetGain = volume;
 
         gainNode.gain.cancelScheduledValues(now);
         if (fadeInSec > 0) {
@@ -873,7 +984,6 @@ export class SoundEffectSystem {
             currentSoundIndex: hasAlternates ? -1 : 0,
             fadeInDurationSec: fadeInSec,
             fadeOutDurationSec: fadeOutSec,
-            retainDurationSec: retainSec,
             fadeOutActive: false,
         });
     }

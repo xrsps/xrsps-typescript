@@ -364,6 +364,7 @@ export class SceneBuffer {
             x: loc.sceneX,
             y: loc.sceneZ,
             level: loc.level,
+            rotation: loc.entity.rotation,
         };
     }
 

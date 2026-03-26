@@ -23,4 +23,5 @@ export type LocAnimatedData = {
     x: number;
     y: number;
     level: number;
+    rotation: number;
 };

@@ -79,10 +79,10 @@ export class LocType extends Type {
 
     ambientSoundId: number;
 
-    ambientSoundDistance: number;
+    soundMaxDistance: number;
     ambientSoundChangeTicksMin: number;
     ambientSoundChangeTicksMax: number;
-    ambientSoundRetain: number;
+    soundMinDistance: number;
     soundDistanceFadeCurve: number;
     soundFadeInDuration: number;
     soundFadeOutDuration: number;
@@ -139,13 +139,13 @@ export class LocType extends Type {
         this.transformVarbit = -1;
         this.transformVarp = -1;
         this.ambientSoundId = -1;
-        this.ambientSoundDistance = 0;
+        this.soundMaxDistance = 0;
         this.ambientSoundChangeTicksMin = 0;
         this.ambientSoundChangeTicksMax = 0;
-        this.ambientSoundRetain = 0;
+        this.soundMinDistance = 0;
         this.soundDistanceFadeCurve = 0;
-        this.soundFadeInDuration = 0;
-        this.soundFadeOutDuration = 0;
+        this.soundFadeInDuration = 300;
+        this.soundFadeOutDuration = 300;
         this.soundFadeInCurve = 0;
         this.soundFadeOutCurve = 0;
         this.soundAreaRadiusOverride = -1;
@@ -390,16 +390,16 @@ export class LocType extends Type {
             this.transforms[count + 1] = var3;
         } else if (opcode === 78) {
             this.ambientSoundId = buffer.readUnsignedShort();
-            this.ambientSoundDistance = buffer.readUnsignedByte();
+            this.soundMaxDistance = buffer.readUnsignedByte();
             if (this.cacheInfo.game === "oldschool" && this.cacheInfo.revision >= 220) {
-                this.ambientSoundRetain = buffer.readUnsignedByte();
+                this.soundMinDistance = buffer.readUnsignedByte();
             }
         } else if (opcode === 79) {
             this.ambientSoundChangeTicksMin = buffer.readUnsignedShort();
             this.ambientSoundChangeTicksMax = buffer.readUnsignedShort();
-            this.ambientSoundDistance = buffer.readUnsignedByte();
+            this.soundMaxDistance = buffer.readUnsignedByte();
             if (this.cacheInfo.game === "oldschool" && this.cacheInfo.revision >= 220) {
-                this.ambientSoundRetain = buffer.readUnsignedByte();
+                this.soundMinDistance = buffer.readUnsignedByte();
             }
             const count = buffer.readUnsignedByte();
             this.ambientSoundIds = new Array(count);

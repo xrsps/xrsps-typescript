@@ -34,6 +34,7 @@ export class LocAnimated {
         readonly x: number,
         readonly y: number,
         readonly level: number,
+        readonly rotation: number,
     ) {
         this.seqType = seqType;
         this.cycleStart = cycle - 1;

@@ -10052,6 +10052,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         x: number,
         y: number,
         z: number,
+        orientation: number = 0,
     ): void {
         const idx = this.ambientSoundBufferIndex;
         const buffer = this.ambientSoundBuffer;
@@ -10069,11 +10070,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         inst.x = x;
         inst.y = y;
         inst.z = z;
-        inst.distance = locType.ambientSoundDistance;
+        inst.maxDistance = locType.soundMaxDistance;
+        inst.minDistance = locType.soundMinDistance;
         inst.changeTicksMin = locType.ambientSoundChangeTicksMin;
         inst.changeTicksMax = locType.ambientSoundChangeTicksMax;
         inst.soundIds = locType.ambientSoundIds;
-        inst.retainTicks = locType.ambientSoundRetain;
+        inst.sizeX = locType.sizeX;
+        inst.sizeY = locType.sizeY;
+        inst.orientation = orientation;
         inst.fadeInDurationMs = locType.soundFadeInDuration || undefined;
         inst.fadeOutDurationMs = locType.soundFadeOutDuration || undefined;
         inst.fadeInCurve = locType.soundFadeInCurve || undefined;
@@ -10127,7 +10131,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         locType.soundAreaRadiusOverride !== undefined &&
                             locType.soundAreaRadiusOverride >= 0
                             ? locType.soundAreaRadiusOverride
-                            : locType.ambientSoundDistance,
+                            : locType.soundMaxDistance,
                     );
                     const filterBase = distTiles * 128;
                     const filterDist = filterBase > 0 ? filterBase + 2048 : 4096;
@@ -10139,6 +10143,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                             loc.x,
                             loc.y,
                             loc.level * 128,
+                            loc.rotation,
                         );
                     }
                 }
@@ -10178,6 +10183,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 for (let localY = minLocalY; localY <= maxLocalY; localY++) {
                     const locIds = map.getLocIdsAtLocal(level, localX, localY);
                     if (locIds.length === 0) continue;
+                    const locTypeRots = map.getLocTypeRotsAtLocal(level, localX, localY);
 
                     const worldSceneY = (mapBaseY + localY) * 128 + 64;
                     const dyTile = worldSceneY - cameraY;
@@ -10186,7 +10192,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     // Skip tile if outside max audio range
                     if (distSqTile > maxDistSq) continue;
 
-                    for (const locId of locIds) {
+                    for (let li = 0; li < locIds.length; li++) {
+                        const locId = locIds[li];
                         const locType = this.osrsClient.locTypeLoader.load(locId);
                         if (!locType) continue;
 
@@ -10200,18 +10207,21 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                                 locType.soundAreaRadiusOverride !== undefined &&
                                     locType.soundAreaRadiusOverride >= 0
                                     ? locType.soundAreaRadiusOverride
-                                    : locType.ambientSoundDistance,
+                                    : locType.soundMaxDistance,
                             );
                             const filterBase2 = distTiles2 * 128;
                             const filterDist = filterBase2 > 0 ? filterBase2 + 2048 : 4096;
 
                             if (distSqTile <= filterDist * filterDist) {
+                                const packed = li < locTypeRots.length ? locTypeRots[li] : 0;
+                                const rot = (packed >> 6) & 3;
                                 this.addAmbientSoundInstance(
                                     locId,
                                     locType,
                                     worldSceneX,
                                     worldSceneY,
                                     worldSceneZ,
+                                    rot,
                                 );
                             }
                         }
