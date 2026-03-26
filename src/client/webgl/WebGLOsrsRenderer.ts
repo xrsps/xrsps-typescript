@@ -902,6 +902,26 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         renderOffsetY: 0,
                     };
                 }
+                // When DPR is an integer >= 2 (e.g. Mac Retina), use CSS-pixel
+                // layout so widgets match real OSRS sizing.  renderScale equals
+                // the clean integer DPR — bitmap sprites stay pixel-perfect.
+                // For fractional DPR (e.g. 1.25), layout = buffer with
+                // renderScale 1 to avoid sub-pixel interpolation blur.
+                const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1;
+                const roundedDpr = Math.round(dpr);
+                const isIntegerDpr = Number.isFinite(dpr) && dpr >= 1 && Math.abs(dpr - roundedDpr) < 0.01;
+                if (isIntegerDpr && roundedDpr >= 2) {
+                    const layoutW = Math.max(1, Math.round(cssW));
+                    const layoutH = Math.max(1, Math.round(cssH));
+                    return {
+                        layoutW,
+                        layoutH,
+                        renderScaleX: safeBufW / layoutW,
+                        renderScaleY: safeBufH / layoutH,
+                        renderOffsetX: 0,
+                        renderOffsetY: 0,
+                    };
+                }
                 return {
                     layoutW: safeBufW,
                     layoutH: safeBufH,
@@ -961,10 +981,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             return 1;
         }
         const maxScale = isLoginLikeState ? 3 : isIos ? 1 : 2;
-        // Floor to integer so buffer/CSS is always an integer ratio.
-        // This keeps bitmap sprites and fonts pixel-perfect (no sub-pixel
-        // interpolation).  DPR 1.25 → 1 (buffer = CSS), DPR 2.0 → 2 (Retina).
-        const targetScale = Math.min(Math.floor(dpr), maxScale);
+        const targetScale = Math.min(dpr, maxScale);
 
         const safeCssWidth = Number.isFinite(cssWidth) ? Math.max(1, cssWidth) : 1;
         const safeCssHeight = Number.isFinite(cssHeight) ? Math.max(1, cssHeight) : 1;
