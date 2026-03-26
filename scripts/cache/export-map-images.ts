@@ -80,7 +80,13 @@ const mapImageRenderer = new MapImageRenderer(
     mapFunctions,
 );
 
-const outputDir = outDirArg ?? path.join("public", "map-images", cacheInfo.name);
+const mapImagesRoot = path.join("public", "map-images");
+if (fs.existsSync(mapImagesRoot)) {
+    console.log(`[map-images] clearing ${mapImagesRoot}/`);
+    fs.rmSync(mapImagesRoot, { recursive: true, force: true });
+}
+
+const outputDir = outDirArg ?? path.join(mapImagesRoot, cacheInfo.name);
 fs.mkdirSync(outputDir, { recursive: true });
 
 const borderSize = 6;

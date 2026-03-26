@@ -368,11 +368,9 @@ export class PlayerInteractionSystem {
         for (const ws of toRemove) {
             const player = this.players.get(ws);
             if (player) {
-                player.clearInteraction();
-                player.stopAnimation();
+                player.clearInteractionTarget();
                 player.removeCombatTarget();
                 player.setInteractingNpc(null);
-                player.clearInteractionTarget();
             }
             this.interactions.delete(ws);
         }

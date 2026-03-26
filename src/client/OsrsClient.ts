@@ -1125,9 +1125,12 @@ export class OsrsClient {
             const mapManager = this.renderer.mapManager;
             mapManager.onMapAdded = (mapX, mapY) => {
                 const mapId = getMapSquareId(mapX | 0, mapY | 0);
-                if (this.npcInstanceMapsPendingReload.has(mapId | 0)) {
-                    this.scheduleNpcInstanceFlush();
-                }
+                // Always re-mark for NPC refresh when a map is (re)loaded.
+                // A door/loc reload can replace the map after a previous NPC
+                // flush already linked entities, leaving newly created cache
+                // NPCs unlinked and invisible.
+                this.npcInstanceMapsPendingReload.add(mapId | 0);
+                this.scheduleNpcInstanceFlush();
             };
             mapManager.onCurrentMapChanged = (_mapX, _mapY, _mapRadius) => {
                 this.applyMobileMapCacheBudget(_mapRadius | 0);

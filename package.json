@@ -47,7 +47,7 @@
     "export-height-map": "npx tsx scripts/cache/export-height-map.ts",
     "export-items": "npx tsx scripts/cache/export-items.ts osrs-232_2025-08-27",
     "export-map-images": "npx tsx scripts/cache/export-map-images.ts --force",
-    "server:start": "npx tsx scripts/ensure-cache.ts && npx tsx server/src/index.ts",
+    "server:start": "npx tsx scripts/ensure-cache.ts --server && npx tsx server/src/index.ts",
     "server:build": "tsc -p server/tsconfig.json",
     "server:build-collision": "npx tsx server/scripts/build-collision-cache.ts --include-models --force"
   },
