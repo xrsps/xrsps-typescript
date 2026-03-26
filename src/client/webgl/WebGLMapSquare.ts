@@ -200,7 +200,12 @@ export class WebGLMapSquare {
 
         const collisionMaps = mapData.collisionDatas.map(CollisionMap.fromData);
 
-        const mapPos = vec2.fromValues(mapX, mapY);
+        const usedRenderX = mapData.renderPosX ?? mapX;
+        const usedRenderY = mapData.renderPosY ?? mapY;
+        if (mapData.renderPosX != null) {
+            console.log(`[WebGLMapSquare] Using renderPos: (${usedRenderX}, ${usedRenderY}) instead of mapXY (${mapX}, ${mapY})`);
+        }
+        const mapPos = vec2.fromValues(usedRenderX, usedRenderY);
 
         const interleavedBuffer = app.createInterleavedBuffer(12, mapData.vertices);
         const indexBuffer = app.createIndexBuffer(PicoGL.UNSIGNED_INT, mapData.indices);
@@ -243,7 +248,7 @@ export class WebGLMapSquare {
             mapData.modelTextureDataInteractLodAlpha,
         );
 
-        const heightMapSize = Scene.MAP_SQUARE_SIZE + borderSize * 2;
+        const heightMapSize = mapData.heightMapSize ?? (Scene.MAP_SQUARE_SIZE + borderSize * 2);
         const heightMapTexture = app.createTextureArray(
             mapData.heightMapTextureData,
             heightMapSize,

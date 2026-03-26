@@ -1423,28 +1423,19 @@ export class SceneBuilder {
         smoothUnderlays: boolean = false,
         locLoadType: LocLoadType = LocLoadType.MODELS,
     ): Scene {
-        // For now, derive the source base coordinates from the template chunks.
-        // The center of the template grid (chunk 6,6) maps to the center of the scene.
-        // Find the first non-empty chunk to determine the source region.
+        // Derive source coordinates from the template center chunk and
+        // delegate to the normal buildScene path. This reuses the full
+        // map-square loading pipeline (border overlap, multi-region terrain,
+        // proper loc coverage) so the instance looks identical to normal maps.
         const centerPacked = templateChunks[0]?.[6]?.[6] ?? -1;
         if (centerPacked === -1) {
-            // Fallback: empty scene
             return this.buildScene(_baseX, _baseY, sizeX, sizeY, smoothUnderlays, locLoadType);
         }
 
         const center = unpackTemplateChunk(centerPacked);
-        // The center chunk's tile origin is the source "player position"
-        // borderSize = (sizeX - 64) / 2
-        const borderSize = ((sizeX - Scene.MAP_SQUARE_SIZE) / 2) | 0;
-        // Source base coordinates: center chunk maps to scene tile (borderSize + 64/2 - 4)
-        // Actually simpler: center chunk tile = chunkX*8, and it should map to center of scene
-        // Scene center tile = sizeX/2 = 38 for sizeX=76
-        // So sourceBaseX = centerChunkTile - sceneCenterTile = chunkX*8 - 38
         const sourceBaseX = center.chunkX * CHUNK_SIZE - ((sizeX / 2) | 0);
         const sourceBaseY = center.chunkY * CHUNK_SIZE - ((sizeY / 2) | 0);
 
-        // Use the normal buildScene with the SOURCE coordinates.
-        // This loads terrain/locs from the real cache regions where the template data lives.
         return this.buildScene(sourceBaseX, sourceBaseY, sizeX, sizeY, smoothUnderlays, locLoadType);
     }
 

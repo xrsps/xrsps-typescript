@@ -455,6 +455,17 @@ export class MapManager<T extends MapSquare> {
         sceneBaseY?: number,
         expandedMapLoading?: number,
     ): void {
+        // In instance mode, skip grid rebuild entirely — only render the instance scene
+        if (ClientState.inInstance) {
+            this.visibleMapCount = 0;
+            for (const mapSquare of this.mapSquares.values()) {
+                if (mapSquare.canRender(frameCount)) {
+                    this.visibleMaps[this.visibleMapCount++] = mapSquare;
+                }
+            }
+            return;
+        }
+
         const playerMapX = Math.floor(posX / Scene.MAP_SQUARE_SIZE);
         const playerMapY = Math.floor(posZ / Scene.MAP_SQUARE_SIZE);
         const baseX = Number(sceneBaseX) | 0;

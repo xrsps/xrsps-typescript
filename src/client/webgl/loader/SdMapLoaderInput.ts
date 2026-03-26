@@ -27,6 +27,8 @@ export type SdMapLoaderInput = {
      */
     instance?: {
         templateChunks: number[][][];
+        regionX: number;
+        regionY: number;
     };
 
     /**

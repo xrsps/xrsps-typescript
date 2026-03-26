@@ -59,9 +59,12 @@ const VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_LIGHTRANGEDDEF = 5165;
 // Teleport destination (sailing intro instance)
 // ============================================================================
 
-const SAILING_INTRO_X = 3052;
-const SAILING_INTRO_Y = 3204;
-const SAILING_INTRO_LEVEL = 0;
+// Instance coordinates matching real OSRS packet capture
+const SAILING_REGION_X = 1832;
+const SAILING_REGION_Y = 1944;
+const SAILING_INTRO_X = (SAILING_REGION_X - 6) * 8 + 52; // 14660
+const SAILING_INTRO_Y = (SAILING_REGION_Y - 6) * 8 + 52; // 15556
+const SAILING_INTRO_LEVEL = 1;
 
 // ============================================================================
 // Interface constants
@@ -657,31 +660,33 @@ function executeBoardingSequence(player: any, playerName: string, services: Scri
 
         // Teleport to the sailing intro instance via REBUILD_REGION
         const templateChunks = buildSailingIntroTemplates();
+        // Boat chunk base in instance space (template center scene tile 48)
+        const ibx = (SAILING_REGION_X - 6) * 8 + 48;
+        const iby = (SAILING_REGION_Y - 6) * 8 + 48;
+        const boatLocs = [
+            { id: 59501, x: ibx + 3, y: iby + 1, level: 0, shape: 10, rotation: 0 },
+            { id: 59516, x: ibx + 2, y: iby + 1, level: 0, shape: 10, rotation: 0 },
+            { id: 59624, x: ibx + 1, y: iby + 1, level: 0, shape: 10, rotation: 0 },
+            { id: 59620, x: ibx + 4, y: iby + 6, level: 1, shape: 10, rotation: 0 },
+            { id: 59553, x: ibx + 4, y: iby + 4, level: 1, shape: 10, rotation: 0 },
+            { id: 60480, x: ibx + 3, y: iby + 2, level: 1, shape: 10, rotation: 1 },
+            { id: 32545, x: ibx + 2, y: iby + 3, level: 1, shape: 22, rotation: 0 },
+            { id: 32545, x: ibx + 2, y: iby + 2, level: 1, shape: 22, rotation: 0 },
+            { id: 32545, x: ibx + 5, y: iby + 2, level: 1, shape: 22, rotation: 0 },
+            { id: 32545, x: ibx + 2, y: iby + 5, level: 1, shape: 22, rotation: 0 },
+            { id: 32545, x: ibx + 5, y: iby + 5, level: 1, shape: 22, rotation: 0 },
+            { id: 58569, x: ibx + 5, y: iby + 3, level: 1, shape: 22, rotation: 0 },
+            { id: 58526, x: ibx + 2, y: iby + 4, level: 1, shape: 22, rotation: 0 },
+            { id: 58568, x: ibx + 5, y: iby + 4, level: 1, shape: 22, rotation: 0 },
+        ];
         services.teleportToInstance?.(
             player,
             SAILING_INTRO_X,
             SAILING_INTRO_Y,
             SAILING_INTRO_LEVEL,
             templateChunks,
+            boatLocs,
         );
-
-        // Spawn boat locs relative to teleport position
-        const boatLocs = [
-            { id: 59516, dx: -1, dy: -2, plane: 0, rot: 0 }, // keel
-            { id: 59624, dx: -2, dy: -2, plane: 0, rot: 0 }, // trim
-            { id: 59620, dx:  1, dy:  3, plane: 1, rot: 0 }, // navigating
-            { id: 59553, dx:  1, dy:  1, plane: 1, rot: 0 }, // sails
-            { id: 60480, dx:  0, dy: -1, plane: 1, rot: 1 }, // salvaging hook
-        ];
-        for (const loc of boatLocs) {
-            services.sendLocChangeToPlayer?.(
-                player,
-                0,
-                loc.id,
-                { x: SAILING_INTRO_X + loc.dx, y: SAILING_INTRO_Y + loc.dy },
-                loc.plane,
-            );
-        }
 
         // Board sound
         services.sendSound?.(player, SYNTH_BOARD_BOAT);
@@ -813,28 +818,21 @@ function playReadyDialogue(
 
 /**
  * Build the 4×13×13 template chunk grid for the sailing intro boat.
- *
- * The actual boat template is at cache chunk (480, 800) in map square (60, 100),
- * but those regions are XTEA-encrypted and we have no keys for rev 237.
- *
- * Using Lumbridge chunks as a temporary stand-in to verify the instance
- * rendering pipeline works end-to-end. Swap to real boat chunks once
- * XTEA keys are available.
+ * Uses Port Sarim dock terrain (all 4 planes) as the base environment.
+ * The actual boat structure is added via extraLocs.
  */
 function buildSailingIntroTemplates(): number[][][] {
     const chunks = createEmptyTemplateChunks();
 
-    // Port Sarim dock / sailing boat area: tile (3053, 3200) = chunk (381, 400)
-    // Map square (47, 50). No XTEA encryption in rev 237+.
-    const baseChunkX = 381;
-    const baseChunkY = 400;
-
-    for (let cx = 2; cx < 11; cx++) {
-        for (let cy = 2; cy < 11; cy++) {
-            const srcX = baseChunkX + (cx - 6);
-            const srcY = baseChunkY + (cy - 6);
-            chunks[0][cx][cy] = packTemplateChunk(0, srcX, srcY, 0);
-            chunks[1][cx][cy] = packTemplateChunk(1, srcX, srcY, 0);
+    const sarimBaseX = 381;
+    const sarimBaseY = 400;
+    for (let plane = 0; plane < 4; plane++) {
+        for (let cx = 2; cx < 11; cx++) {
+            for (let cy = 2; cy < 11; cy++) {
+                const srcX = sarimBaseX + (cx - 6);
+                const srcY = sarimBaseY + (cy - 6);
+                chunks[plane][cx][cy] = packTemplateChunk(plane, srcX, srcY, 0);
+            }
         }
     }
 

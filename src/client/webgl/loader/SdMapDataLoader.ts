@@ -848,8 +848,42 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
 
         const borderSize = 6;
 
-        const baseX = mapX * Scene.MAP_SQUARE_SIZE - borderSize;
-        const baseY = mapY * Scene.MAP_SQUARE_SIZE - borderSize;
+        const isInstance = !!instanceInput;
+        const mapSize = Scene.MAP_SQUARE_SIZE + borderSize * 2;
+
+        // For instances, baseX/Y must match what buildInstanceScene computes
+        // (center chunk tile - half scene size) so extra locs and vertex offsets
+        // align with the actual scene data.
+        let baseX: number;
+        let baseY: number;
+        let renderPosX: number | undefined;
+        let renderPosY: number | undefined;
+        if (isInstance) {
+            const { unpackTemplateChunk } = require("../../../shared/instance/InstanceTypes");
+            const CHUNK_SIZE = 8;
+            const centerPacked = instanceInput!.templateChunks[0]?.[6]?.[6] ?? -1;
+            if (centerPacked !== -1) {
+                const center = unpackTemplateChunk(centerPacked);
+                baseX = center.chunkX * CHUNK_SIZE - ((mapSize / 2) | 0);
+                baseY = center.chunkY * CHUNK_SIZE - ((mapSize / 2) | 0);
+            } else {
+                baseX = mapX * Scene.MAP_SQUARE_SIZE - borderSize;
+                baseY = mapY * Scene.MAP_SQUARE_SIZE - borderSize;
+            }
+            // Compute renderPos so the shader positions vertices at instance
+            // world coordinates instead of source coordinates.
+            // Shader: worldX = vertexLocalX + renderPosX * 64
+            // vertexLocalX = sceneTile - borderSize (from vertex offset)
+            // We want: worldX = sceneTile + instanceBaseX
+            // So: renderPosX * 64 = instanceBaseX + borderSize
+            const instanceBaseX = (instanceInput!.regionX - 6) * CHUNK_SIZE;
+            const instanceBaseY = (instanceInput!.regionY - 6) * CHUNK_SIZE;
+            renderPosX = (instanceBaseX + borderSize) / Scene.MAP_SQUARE_SIZE;
+            renderPosY = (instanceBaseY + borderSize) / Scene.MAP_SQUARE_SIZE;
+        } else {
+            baseX = mapX * Scene.MAP_SQUARE_SIZE - borderSize;
+            baseY = mapY * Scene.MAP_SQUARE_SIZE - borderSize;
+        }
 
         // Apply loc overrides to scene builder (after baseX/baseY are calculated)
         if (locOverrides && locOverrides.size > 0) {
@@ -908,7 +942,6 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         } else {
             state.sceneBuilder.clearLocOverrides();
         }
-        const mapSize = Scene.MAP_SQUARE_SIZE + borderSize * 2;
 
         console.time(`build scene ${mapX},${mapY}`);
         let scene: Scene;
@@ -932,9 +965,17 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         }
         // Inject extra locs (dynamic spawns like boat parts)
         if (extraLocsInput && extraLocsInput.length > 0) {
+            // For instances, extra locs arrive in instance coordinates but the scene
+            // is built at source coordinates. Convert by applying the offset.
+            const instanceOffsetX = isInstance && instanceInput
+                ? (instanceInput.regionX - 6) * 8 - baseX
+                : 0;
+            const instanceOffsetY = isInstance && instanceInput
+                ? (instanceInput.regionY - 6) * 8 - baseY
+                : 0;
             for (const loc of extraLocsInput) {
-                const sceneX = loc.x - baseX;
-                const sceneY = loc.y - baseY;
+                const sceneX = loc.x - baseX - instanceOffsetX;
+                const sceneY = loc.y - baseY - instanceOffsetY;
                 if (
                     sceneX > 0 &&
                     sceneY > 0 &&
@@ -1521,6 +1562,9 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 smoothTerrain,
 
                 borderSize,
+                heightMapSize: mapSize,
+                renderPosX,
+                renderPosY,
                 tileRenderFlags: scene.tileRenderFlags,
                 collisionDatas: scene.collisionMaps,
 

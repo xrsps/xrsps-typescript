@@ -340,6 +340,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         string,
         { newId: number; newRotation?: number; moveToX?: number; moveToY?: number }
     > = new Map();
+    /** When true, an instance scene is active and normal map streaming is suppressed. */
+    private instanceActive: boolean = false;
     /** Dynamically spawned locs (LOC_ADD_CHANGE). Keyed by "x,y,level,shape". */
     private addedLocs: Map<
         string,
@@ -4673,6 +4675,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     private queueStreamMapData(mapData: SdMapData, streamGeneration?: number): void {
+        // Reject normal map data while an instance scene is active
+        if (this.instanceActive) return;
+
         const mapId = getMapSquareId(mapData.mapX, mapData.mapY);
         const inTargetGrid = this.mapManager.isMapInTargetGrid(mapData.mapX, mapData.mapY);
         if (!inTargetGrid) {
@@ -5114,6 +5119,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         // Don't try to load maps before cache is initialized
         if (!this.osrsClient.loadedCache) return;
 
+        // Suppress normal map streaming while an instance scene is active
+        if (this.instanceActive && typeof locReloadBatchId !== "number") return;
+
         const input: SdMapLoaderInput = {
             mapX,
             mapY,
@@ -5173,6 +5181,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     ): Promise<void> {
         if (!this.osrsClient.loadedCache) return;
 
+        // Suppress normal map streaming while the instance is active
+        this.instanceActive = true;
+
         // regionX/Y are chunk coordinates from the REBUILD_REGION packet.
         // The player tile = regionX*8, regionY*8. Map square = tile / 64.
         const playerMapX = ((regionX * 8) / Scene.MAP_SQUARE_SIZE) | 0;
@@ -5181,6 +5192,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         console.log(
             `[WebGLOsrsRenderer] Loading instance scene at map (${playerMapX}, ${playerMapY}) from region (${regionX}, ${regionY})...`,
         );
+
+        // Clear existing maps so the instance scene is the only one rendered
+        this.mapManager.clearMaps();
 
         const input: SdMapLoaderInput = {
             mapX: playerMapX,
@@ -5191,7 +5205,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             smoothTerrain: this.smoothTerrain,
             minimizeDrawCalls: !this.hasMultiDraw,
             loadedTextureIds: this.loadedTextureIds,
-            instance: { templateChunks },
+            instance: { templateChunks, regionX, regionY },
             extraLocs,
         };
 
@@ -5205,6 +5219,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             console.log(
                 `[WebGLOsrsRenderer] Instance scene loaded: vertices=${mapData.vertices?.length ?? 0} indices=${mapData.indices?.length ?? 0} mapX=${mapData.mapX} mapY=${mapData.mapY} border=${mapData.borderSize}`,
             );
+            // Clear any in-flight normal map loads that arrived during the async instance build
+            this.mapsToLoad.clear();
+            this.pendingStreamMapsByGeneration.clear();
             // Bypass grid/generation checks — instance scenes are always valid
             this.mapsToLoad.push(mapData);
             // Register the map in MapManager so it isn't pruned
@@ -5367,6 +5384,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.osrsClient.npcEcs,
         );
 
+        // For instances, set base world position for height sampling.
+        // The height data is at source coordinates, not instance coordinates.
+        if (mapData.renderPosX != null) {
+            (loadedMap as any).baseWorldX = (mapData.renderPosX - mapData.borderSize / Scene.MAP_SQUARE_SIZE) * Scene.MAP_SQUARE_SIZE;
+            (loadedMap as any).baseWorldY = (mapData.renderPosY! - mapData.borderSize / Scene.MAP_SQUARE_SIZE) * Scene.MAP_SQUARE_SIZE;
+        }
         this.mapManager.addMap(mapX, mapY, loadedMap);
         this.rebuildGroundItemsForMap(loadedMap, this.groundItemStacks.get(mapId));
 
@@ -13237,8 +13260,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const mapX = Math.floor(tile.x / 64);
             const mapY = Math.floor(tile.y / 64);
             const mapId = getMapSquareId(mapX, mapY);
-            this.pendingLocUpdates.add(mapId);
-            this.scheduleLocReload(mapX, mapY);
+            // Skip loc reload in instance mode - it would rebuild with normal buildScene
+            // and overwrite the instance. The locs are tracked in addedLocs for future rebuilds.
+            if (!this.instanceActive) {
+                this.pendingLocUpdates.add(mapId);
+                this.scheduleLocReload(mapX, mapY);
+            }
             console.log(
                 `[WebGLRenderer] Loc add: ${locId} at (${tile.x}, ${tile.y}, ${level}) shape=${shape} -> map (${mapX}, ${mapY})`,
             );

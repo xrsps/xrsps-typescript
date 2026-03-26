@@ -3138,6 +3138,8 @@ export class OsrsClient {
                     console.log(
                         `[OsrsClient] REBUILD_REGION received: regionX=${payload.regionX} regionY=${payload.regionY} regions=${payload.mapRegions.length}`,
                     );
+                    ClientState.inInstance = true;
+                    ClientState.instanceTemplateChunks = payload.templateChunks;
                     // Trigger instance scene load on the renderer
                     if (this.renderer && "loadInstanceScene" in this.renderer) {
                         (this.renderer as any).loadInstanceScene(

@@ -8569,8 +8569,8 @@ export class WSServer {
             canUseAdminTeleport: (player) => this.isAdminPlayer(player),
             teleportPlayer: (player, x, y, level, forceRebuild = false) =>
                 this.teleportPlayer(player, x, y, level, forceRebuild),
-            teleportToInstance: (player, x, y, level, templateChunks) =>
-                this.teleportToInstance(player, x, y, level, templateChunks),
+            teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
+                this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
             spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
                 this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
             requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),

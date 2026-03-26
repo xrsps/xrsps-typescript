@@ -1468,41 +1468,46 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         packTemplateChunk,
                     } = require("../../../src/shared/instance/InstanceTypes");
                     const chunks = createEmptyTemplateChunks();
-                    // Port Sarim dock / sailing boat area: tile (3053, 3200) = chunk (381, 400)
+                    // Port Sarim dock area, all 4 planes
                     const baseChunkX = 381;
                     const baseChunkY = 400;
-                    for (let cx = 2; cx < 11; cx++) {
-                        for (let cy = 2; cy < 11; cy++) {
-                            const srcX = baseChunkX + (cx - 6);
-                            const srcY = baseChunkY + (cy - 6);
-                            chunks[0][cx][cy] = packTemplateChunk(0, srcX, srcY, 0);
-                            chunks[1][cx][cy] = packTemplateChunk(1, srcX, srcY, 0);
+                    for (let plane = 0; plane < 4; plane++) {
+                        for (let cx = 2; cx < 11; cx++) {
+                            for (let cy = 2; cy < 11; cy++) {
+                                const srcX = baseChunkX + (cx - 6);
+                                const srcY = baseChunkY + (cy - 6);
+                                chunks[plane][cx][cy] = packTemplateChunk(plane, srcX, srcY, 0);
+                            }
                         }
                     }
-                    const px = 3053;
-                    const py = 3193;
-                    services.teleportToInstance(sender, px, py, 0, chunks);
 
-                    // Spawn boat locs via LOC_ADD_CHANGE (delayed to ensure scene is loaded)
-                    setTimeout(() => {
-                        const boatLocs = [
-                            { id: 59516, x: px - 1, y: py - 2, level: 0, shape: 10, rot: 0 },
-                            { id: 59624, x: px - 2, y: py - 2, level: 0, shape: 10, rot: 0 },
-                            { id: 59620, x: px + 1, y: py + 3, level: 0, shape: 10, rot: 0 },
-                            { id: 59553, x: px + 1, y: py + 1, level: 0, shape: 10, rot: 0 },
-                            { id: 60480, x: px,     y: py - 1, level: 0, shape: 10, rot: 1 },
-                        ];
-                        for (const loc of boatLocs) {
-                            services.spawnLocForPlayer(
-                                sender,
-                                loc.id,
-                                { x: loc.x, y: loc.y },
-                                loc.level,
-                                loc.shape,
-                                loc.rot,
-                            );
-                        }
-                    }, 1500);
+                    // Player at Port Sarim dock (source coordinates).
+                    // buildInstanceScene delegates to buildScene with source coords,
+                    // so everything uses the same coordinate space.
+                    const px = 3046;
+                    const py = 3207;
+
+                    // Boat locs relative to player (same coordinate space)
+                    const boatLocs = [
+                        { id: 59501, x: px - 1, y: py - 3, level: 0, shape: 10, rotation: 0 },
+                        { id: 59516, x: px - 2, y: py - 3, level: 0, shape: 10, rotation: 0 },
+                        { id: 59624, x: px - 3, y: py - 3, level: 0, shape: 10, rotation: 0 },
+                        { id: 59620, x: px,     y: py + 2, level: 1, shape: 10, rotation: 0 },
+                        { id: 59553, x: px,     y: py,     level: 1, shape: 10, rotation: 0 },
+                        { id: 60480, x: px - 1, y: py - 2, level: 1, shape: 10, rotation: 1 },
+                        { id: 32545, x: px - 2, y: py - 1, level: 1, shape: 22, rotation: 0 },
+                        { id: 32545, x: px - 2, y: py - 2, level: 1, shape: 22, rotation: 0 },
+                        { id: 32545, x: px + 1, y: py - 2, level: 1, shape: 22, rotation: 0 },
+                        { id: 32545, x: px - 2, y: py + 1, level: 1, shape: 22, rotation: 0 },
+                        { id: 32545, x: px + 1, y: py + 1, level: 1, shape: 22, rotation: 0 },
+                        { id: 58569, x: px + 1, y: py - 1, level: 1, shape: 22, rotation: 0 },
+                        { id: 58526, x: px - 2, y: py,     level: 1, shape: 22, rotation: 0 },
+                        { id: 58568, x: px + 1, y: py,     level: 1, shape: 22, rotation: 0 },
+                    ];
+                    services.teleportToInstance(sender, px, py, 1, chunks, boatLocs);
+                    // sailing_intro_will_boat (14958) at ibx+4, iby+2, level 1
+                    // sailing_intro_anne_boat (14963) at ibx+4, iby+3, level 1
+                    // boat_hp_npc_small (15187) at ibx+3, iby+3, level 1
 
                     services.queueChatMessage({
                         messageType: "game",
