@@ -66,54 +66,63 @@ class AppearanceWriter {
 }
 
 /**
- * Encode equipment slot value.
- * Returns [highByte, lowByte] or [0] if empty.
+ * OSRS wire slot layout (PlayerCompositionSlot from reference):
+ *   0=head, 1=cape, 2=amulet, 3=weapon, 4=body/torso, 5=shield,
+ *   6=arms, 7=legs, 8=hair, 9=hands, 10=feet, 11=jaw/beard
  *
- * OSRS format:
- * - 0: empty slot (single byte)
- * - 256-511: kit definition (body part), write 2 bytes
- * - >= 512: item definition (itemId + 512), write 2 bytes
- *
- * OSRS equipment slot order:
- * 0=head, 1=cape, 2=amulet, 3=weapon, 4=body, 5=shield,
- * 6=arms, 7=legs, 8=hair, 9=hands, 10=feet, 11=beard
+ * Wire slot → EquipmentSlot (server equip array index) for items.
+ * Slots 6(arms), 8(hair), 11(jaw) never carry items.
  */
+const wireToEquipSlot: Record<number, number> = {
+    0: EquipmentSlot.HEAD,
+    1: EquipmentSlot.CAPE,
+    2: EquipmentSlot.AMULET,
+    3: EquipmentSlot.WEAPON,
+    4: EquipmentSlot.BODY,
+    5: EquipmentSlot.SHIELD,
+    7: EquipmentSlot.LEGS,
+    9: EquipmentSlot.GLOVES,
+    10: EquipmentSlot.BOOTS,
+};
+
+/**
+ * Wire slot → kits array index (body part index).
+ * Matches OSRS PlayerCompositionBodyPart.getEquipmentSlotForBodyPart mapping.
+ * Server kits array: 0=head/hair, 1=jaw, 2=torso, 3=arms, 4=hands, 5=legs, 6=feet
+ */
+const wireToKitIndex: Record<number, number> = {
+    8: 0,   // hair wire slot → kits[0] (head/hair body part)
+    11: 1,  // jaw wire slot → kits[1] (jaw/beard body part)
+    4: 2,   // body wire slot → kits[2] (torso body part)
+    6: 3,   // arms wire slot → kits[3] (arms body part)
+    9: 4,   // hands wire slot → kits[4] (hands body part)
+    7: 5,   // legs wire slot → kits[5] (legs body part)
+    10: 6,  // feet wire slot → kits[6] (feet body part)
+};
+
 function encodeEquipmentSlot(
     slot: number,
     equip: number[] | undefined,
     kits: number[] | undefined,
 ): number[] {
-    const equipValue = equip?.[slot] ?? -1;
-
-    // Check if item is equipped
-    if (equipValue >= 0) {
-        // Item equipped: value = itemId + 512
-        const value = equipValue + 512;
-        return [(value >> 8) & 0xff, value & 0xff];
+    // Check if item is equipped at this wire slot
+    const equipSlot = wireToEquipSlot[slot];
+    if (equipSlot !== undefined) {
+        const equipValue = equip?.[equipSlot] ?? -1;
+        if (equipValue >= 0) {
+            const value = equipValue + 512;
+            return [(value >> 8) & 0xff, value & 0xff];
+        }
     }
 
     // No item - check for kit (body part)
-    // Kit indices in server data: 0=head, 1=body/torso, 2=arms, 3=legs, 4=hands, 5=feet, 6=hair, 7=beard
-    // Equipment slot to kit index mapping
-    const kitSlotMap: Record<number, number> = {
-        0: 0, // head equipment slot -> kit index 0 (head)
-        4: 1, // body equipment slot -> kit index 1 (torso)
-        6: 2, // arms equipment slot -> kit index 2 (arms)
-        7: 3, // legs equipment slot -> kit index 3 (legs)
-        9: 4, // hands equipment slot -> kit index 4 (hands)
-        10: 5, // feet equipment slot -> kit index 5 (feet)
-        8: 6, // hair equipment slot -> kit index 6 (hair)
-        11: 7, // beard equipment slot -> kit index 7 (beard)
-    };
-
-    const kitIndex = kitSlotMap[slot];
+    const kitIndex = wireToKitIndex[slot];
     if (kitIndex !== undefined && kits && kits[kitIndex] !== undefined && kits[kitIndex] >= 0) {
-        // Kit: value = kitId + 256
         const value = kits[kitIndex] + 256;
         return [(value >> 8) & 0xff, value & 0xff];
     }
 
-    // Empty slot - slots like cape, amulet, weapon, shield have no kit fallback
+    // Empty slot
     return [0];
 }
 

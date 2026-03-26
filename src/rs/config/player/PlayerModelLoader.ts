@@ -75,11 +75,15 @@ export class PlayerModelLoader {
 
         // Merge extra wearable object models (e.g., boots, helms)
         if (extraObjTypes && extraObjTypes.length > 0) {
+            const isFemale = appearance.gender === (1 as any);
             for (const obj of extraObjTypes) {
                 const ids: number[] = [];
-                if (obj.maleModel !== -1) ids.push(obj.maleModel);
-                if (obj.maleModel1 !== -1) ids.push(obj.maleModel1);
-                if (obj.maleModel2 !== -1) ids.push(obj.maleModel2);
+                const wearModel0 = isFemale ? obj.femaleModel : obj.maleModel;
+                const wearModel1 = isFemale ? obj.femaleModel1 : obj.maleModel1;
+                const wearModel2 = isFemale ? obj.femaleModel2 : obj.maleModel2;
+                if (wearModel0 !== -1) ids.push(wearModel0);
+                if (wearModel1 !== -1) ids.push(wearModel1);
+                if (wearModel2 !== -1) ids.push(wearModel2);
                 for (const id of ids) {
                     const md = this.modelLoader.getModel(id);
                     if (!md) continue;

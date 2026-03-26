@@ -204,20 +204,35 @@ export function decodeAppearanceBinary(buffer: Uint8Array): DecodedAppearance | 
             }
 
             if (result.type === "item") {
-                equipment[slot] = result.value;
-            } else if (result.type === "kit") {
-                // Map equipment slot to kit index
-                const kitSlotMap: Record<number, number> = {
-                    0: 0, // head
-                    4: 1, // body
-                    6: 2, // arms
-                    7: 3, // legs
-                    9: 4, // hands
-                    10: 5, // feet
-                    8: 6, // hair
-                    11: 7, // beard
+                // Map wire slot → EquipmentSlot index (server equip array ordering)
+                const wireToEquipSlot: Record<number, number> = {
+                    0: 0,  // head → HEAD
+                    1: 1,  // cape → CAPE
+                    2: 2,  // amulet → AMULET
+                    3: 3,  // weapon → WEAPON
+                    4: 4,  // body → BODY
+                    5: 5,  // shield → SHIELD
+                    7: 6,  // legs → LEGS
+                    9: 7,  // hands → GLOVES
+                    10: 8, // feet → BOOTS
                 };
-                const kitIndex = kitSlotMap[slot];
+                const eqIdx = wireToEquipSlot[slot];
+                if (eqIdx !== undefined) {
+                    equipment[eqIdx] = result.value;
+                }
+            } else if (result.type === "kit") {
+                // Map wire slot → kit array index (body part index)
+                // Matches OSRS PlayerCompositionBodyPart.getEquipmentSlotForBodyPart
+                const wireToKitIndex: Record<number, number> = {
+                    8: 0,   // hair → kits[0] (head/hair)
+                    11: 1,  // jaw → kits[1] (jaw/beard)
+                    4: 2,   // body → kits[2] (torso)
+                    6: 3,   // arms → kits[3] (arms)
+                    9: 4,   // hands → kits[4] (hands)
+                    7: 5,   // legs → kits[5] (legs)
+                    10: 6,  // feet → kits[6] (feet)
+                };
+                const kitIndex = wireToKitIndex[slot];
                 if (kitIndex !== undefined) {
                     kits[kitIndex] = result.value;
                 }
