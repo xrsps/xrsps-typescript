@@ -1,5 +1,7 @@
+import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
+import readline from "readline";
 
 import AdmZip from "adm-zip";
 
@@ -201,6 +203,32 @@ async function downloadCache(entry: OpenRS2CacheEntry, cacheDir: string): Promis
     fs.writeFileSync(path.join(cacheDir, "info.json"), JSON.stringify(entry), "utf8");
 }
 
+function hasMapImages(target: string): boolean {
+    const mapImagesDir = path.resolve("public", "map-images", target);
+    if (!fs.existsSync(mapImagesDir)) return false;
+    const files = fs.readdirSync(mapImagesDir);
+    return files.some((f) => f.endsWith(".png"));
+}
+
+async function promptYesNo(question: string): Promise<boolean> {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    return new Promise((resolve) => {
+        rl.question(question, (answer) => {
+            rl.close();
+            resolve(answer.trim().toLowerCase() === "y");
+        });
+    });
+}
+
+function generateMapImages(): void {
+    console.log("[CacheDownloader] Generating map images (this may take a while)...");
+    execSync("npx tsx scripts/cache/export-map-images.ts --force", {
+        stdio: "inherit",
+        cwd: path.resolve("."),
+    });
+    console.log("[CacheDownloader] Map images generated successfully");
+}
+
 function writeCachesJson(target: string, entry: OpenRS2CacheEntry): void {
     const cachesJsonPath = path.resolve(CACHES_DIR, "caches.json");
     const cacheEntry = {
@@ -273,6 +301,23 @@ async function ensureCache(): Promise<void> {
         }
 
         console.log("[CacheDownloader] Cache downloaded and validated successfully");
+
+        const isServer = process.argv.includes("--server");
+        if (!isServer && !hasMapImages(target)) {
+            console.log(
+                "[CacheDownloader] No map images found for this cache. Without them the minimap will be empty.",
+            );
+            const shouldGenerate = await promptYesNo(
+                "[CacheDownloader] Generate map images now? (y/n): ",
+            );
+            if (shouldGenerate) {
+                generateMapImages();
+            } else {
+                console.log(
+                    '[CacheDownloader] Skipped. You can generate them later with: npm run export-map-images',
+                );
+            }
+        }
     } finally {
         releaseLock();
     }
