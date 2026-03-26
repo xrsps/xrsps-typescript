@@ -333,7 +333,6 @@ export class MapManager<T extends MapSquare> {
         ) {
             return;
         }
-        console.log("Loading map", mapX, mapY);
         this.loadingMapIds.add(mapId);
         this.loadMapFunction(mapX, mapY, streamGeneration | 0);
     }
@@ -471,8 +470,12 @@ export class MapManager<T extends MapSquare> {
             localX < MapManager.SCENE_REBASE_MAX_LOCAL_TILE &&
             localY >= MapManager.SCENE_REBASE_MIN_LOCAL_TILE &&
             localY < MapManager.SCENE_REBASE_MAX_LOCAL_TILE;
-        const useSceneBaseStreaming =
-            baseFiniteAndPositive && (localWithinSceneWindow || this.usingSceneBaseStreaming);
+        // The server-sent scene base is authoritative. If the server provides a
+        // valid base, always use scene-base streaming. The localWithinSceneWindow
+        // check was only meant for client-initiated rebase requests, but relying
+        // on it here causes the streaming mode to toggle when posX/posZ are stale
+        // on the first frame after a teleport (leading to two grid rebuilds).
+        const useSceneBaseStreaming = baseFiniteAndPositive;
         const sortX = camera.getPosX();
         const sortZ = camera.getPosZ();
 
@@ -584,7 +587,6 @@ export class MapManager<T extends MapSquare> {
             }
 
             // Sort front-to-back based on camera anchor (matches RS scene traversal intent).
-            // Pre-calculate distances to avoid recalculating in the comparator.
             this.gridMapDistances.clear();
             for (let i = 0; i < this.gridMapCount; i++) {
                 const mapId = this.gridMapIds[i];
@@ -597,6 +599,20 @@ export class MapManager<T extends MapSquare> {
             this.gridMapIds.sort(
                 (a, b) => this.gridMapDistances.get(a)! - this.gridMapDistances.get(b)!,
             );
+
+            // Always prioritize the player's own map square first.
+            // When scene-base streaming triggers the rebuild, posX/posZ may still
+            // reflect the previous frame. Use the scene base center instead — it is
+            // already updated by the network layer before rendering.
+            const priorityMapId = getMapSquareId(this.currentMapX, this.currentMapY);
+            for (let i = 1; i < this.gridMapCount; i++) {
+                if (this.gridMapIds[i] === priorityMapId) {
+                    const tmp = this.gridMapIds[0];
+                    this.gridMapIds[0] = priorityMapId;
+                    this.gridMapIds[i] = tmp;
+                    break;
+                }
+            }
 
             // Check if the new grid overlaps the current active grid.
             let hasOverlap = false;

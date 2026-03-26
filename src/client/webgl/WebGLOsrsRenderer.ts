@@ -4742,12 +4742,22 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const textureMaterials = this.textureMaterials;
         const sceneUniformBuffer = this.sceneUniformBuffer;
 
-        // Apply maps as they arrive. For cross-region teleports, the MapManager
-        // commits the grid immediately so maps render progressively. For walking,
-        // the grid commit is deferred so this only runs once all maps are ready.
+        // Apply maps as they arrive, but never apply surrounding chunks before
+        // the player's own chunk (index 0 in the ordered grid).  This ensures the
+        // map square the player is standing on always renders first.
         let applied = 0;
         let allReady = true;
         const orderedMapIds = this.mapManager.getGridMapIdsSnapshot();
+        let playerChunkReady = false;
+        if (orderedMapIds.length > 0) {
+            const firstId = orderedMapIds[0];
+            const firstMx = firstId >> 8;
+            const firstMy = firstId & 0xff;
+            playerChunkReady =
+                !!pending.get(firstId) ||
+                !!this.mapManager.getMap(firstMx, firstMy) ||
+                this.mapManager.invalidMapIds.has(firstId);
+        }
         for (const mapId of orderedMapIds) {
             const mapData = pending.get(mapId);
             if (!mapData) {
@@ -4756,6 +4766,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 if (!this.mapManager.getMap(mx, my) && !this.mapManager.invalidMapIds.has(mapId)) {
                     allReady = false;
                 }
+                continue;
+            }
+            if (!playerChunkReady) {
+                allReady = false;
                 continue;
             }
             if (!this.isValidMapData(mapData)) continue;
@@ -4774,6 +4788,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
         if (allReady || pending.size === 0) {
             this.pendingStreamMapsByGeneration.delete(generation);
+        }
+        if (allReady) {
             this.skipMapFadeIn = false;
         }
         return applied | 0;
@@ -5282,13 +5298,13 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         // -1.0 makes loadAlpha = 1.0 immediately in the vertex shader,
         // skipping the 1-second fog fade-in for teleport-loaded maps.
         const reuseTime =
-            isLocUpdate && existing instanceof WebGLMapSquare
+            existing instanceof WebGLMapSquare
                 ? existing.timeLoaded
                 : this.skipMapFadeIn
                   ? -1.0
                   : time;
         const reuseFrame =
-            isLocUpdate && existing instanceof WebGLMapSquare ? existing.frameLoaded : frameCount;
+            existing instanceof WebGLMapSquare ? existing.frameLoaded : frameCount;
 
         const loadedMap = WebGLMapSquare.load(
             this.osrsClient.seqTypeLoader,
@@ -6880,7 +6896,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     this.textureMaterials,
                     this.sceneUniformBuffer,
                     pendingMap,
-                    timeSec,
+                    this.skipMapFadeIn ? -1.0 : timeSec,
                 );
             }
         }
@@ -9567,6 +9583,23 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.registerPlayerSceneTileCandidate(combatTargetPid | 0, 4);
         }
 
+        const combatTargetNpcEcsId = this.getCombatTargetNpcEcsId();
+        if (
+            combatTargetNpcEcsId !== undefined &&
+            this.isNpcSceneTileMarkerCandidate(combatTargetNpcEcsId | 0)
+        ) {
+            const npcEcs = this.osrsClient.npcEcs;
+            this.frameActorSelectionSeenNpcIds.add(combatTargetNpcEcsId | 0);
+            this.registerActorTileCandidate(
+                "npc",
+                combatTargetNpcEcsId | 0,
+                (npcEcs.getWorldX(combatTargetNpcEcsId) >> 7) | 0,
+                (npcEcs.getWorldY(combatTargetNpcEcsId) >> 7) | 0,
+                npcEcs.getLevel(combatTargetNpcEcsId) | 0,
+                4,
+            );
+        }
+
         this.registerNpcSceneTileCandidatesByPriority(NpcDrawPriority.DRAW_PRIORITY_FIRST, 3);
 
         for (let pid = 0; pid < playerCount; pid++) {
@@ -9681,6 +9714,27 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         return this.osrsClient.playerEcs.getIndexForServerId(targetServerId | 0);
+    }
+
+    private getCombatTargetNpcEcsId(): number | undefined {
+        const controlledServerId = this.osrsClient.controlledPlayerServerId | 0;
+        if (controlledServerId <= 0) {
+            return undefined;
+        }
+
+        const controlledPid =
+            this.osrsClient.playerEcs.getIndexForServerId(controlledServerId);
+        if (controlledPid === undefined) {
+            return undefined;
+        }
+
+        const rawIdx = this.osrsClient.playerEcs.getInteractionIndex(controlledPid) | 0;
+        const decoded = decodeInteractionIndex(rawIdx);
+        if (!decoded || decoded.type !== "npc") {
+            return undefined;
+        }
+
+        return this.osrsClient.npcEcs.getEcsIdForServer(decoded.id | 0);
     }
 
     shouldRenderPlayerIndex(pid: number): boolean {
