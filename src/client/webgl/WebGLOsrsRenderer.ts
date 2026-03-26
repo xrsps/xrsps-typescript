@@ -961,7 +961,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             return 1;
         }
         const maxScale = isLoginLikeState ? 3 : isIos ? 1 : 2;
-        const targetScale = Math.min(dpr, maxScale);
+        // Floor to integer so buffer/CSS is always an integer ratio.
+        // This keeps bitmap sprites and fonts pixel-perfect (no sub-pixel
+        // interpolation).  DPR 1.25 → 1 (buffer = CSS), DPR 2.0 → 2 (Retina).
+        const targetScale = Math.min(Math.floor(dpr), maxScale);
 
         const safeCssWidth = Number.isFinite(cssWidth) ? Math.max(1, cssWidth) : 1;
         const safeCssHeight = Number.isFinite(cssHeight) ? Math.max(1, cssHeight) : 1;

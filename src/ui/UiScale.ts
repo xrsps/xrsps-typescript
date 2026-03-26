@@ -1,13 +1,5 @@
 const STORAGE_KEY = "osrs.uiScale";
 
-/**
- * OSRS fixed-mode base resolution. Used as the reference for auto-scaling:
- * the UI scales up by integer multiples so that widgets appear proportionally
- * the same size as they would at 765×503.
- */
-const BASE_W = 765;
-const BASE_H = 503;
-
 const MAX_SCALE = 5;
 
 let manualOverride: number | null = null;
@@ -33,12 +25,13 @@ function ensureOverrideLoaded(): void {
 }
 
 /**
- * Compute the automatic UI scale from the CSS viewport dimensions.
- * Uses integer floor so that sprites and bitmap fonts stay pixel-perfect.
+ * Compute the automatic UI scale.  OSRS resizable mode does not scale widgets —
+ * they stay at their native pixel sizes and the viewport grows.  Auto-scale
+ * therefore defaults to 1.  Users can still override via setUiScale() for
+ * accessibility.
  */
-export function computeAutoScale(cssW: number, cssH: number): number {
-    if (cssW <= 0 || cssH <= 0) return 1;
-    return Math.max(1, Math.min(MAX_SCALE, Math.floor(Math.min(cssW / BASE_W, cssH / BASE_H))));
+export function computeAutoScale(_cssW: number, _cssH: number): number {
+    return 1;
 }
 
 /**
