@@ -142,6 +142,15 @@ export interface MessageHandlerServices {
         y: number,
         level: number,
         templateChunks: number[][][],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ) => void;
+    spawnLocForPlayer: (
+        player: PlayerState,
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
     ) => void;
     requestTeleportAction: (
         player: PlayerState,
@@ -1470,7 +1479,31 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                             chunks[1][cx][cy] = packTemplateChunk(1, srcX, srcY, 0);
                         }
                     }
-                    services.teleportToInstance(sender, 3052, 3204, 0, chunks);
+                    const px = 3053;
+                    const py = 3193;
+                    services.teleportToInstance(sender, px, py, 0, chunks);
+
+                    // Spawn boat locs via LOC_ADD_CHANGE (delayed to ensure scene is loaded)
+                    setTimeout(() => {
+                        const boatLocs = [
+                            { id: 59516, x: px - 1, y: py - 2, level: 0, shape: 10, rot: 0 },
+                            { id: 59624, x: px - 2, y: py - 2, level: 0, shape: 10, rot: 0 },
+                            { id: 59620, x: px + 1, y: py + 3, level: 0, shape: 10, rot: 0 },
+                            { id: 59553, x: px + 1, y: py + 1, level: 0, shape: 10, rot: 0 },
+                            { id: 60480, x: px,     y: py - 1, level: 0, shape: 10, rot: 1 },
+                        ];
+                        for (const loc of boatLocs) {
+                            services.spawnLocForPlayer(
+                                sender,
+                                loc.id,
+                                { x: loc.x, y: loc.y },
+                                loc.level,
+                                loc.shape,
+                                loc.rot,
+                            );
+                        }
+                    }, 1500);
+
                     services.queueChatMessage({
                         messageType: "game",
                         text: "Teleported to sailing instance.",

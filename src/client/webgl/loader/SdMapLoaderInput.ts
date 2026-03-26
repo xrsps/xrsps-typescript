@@ -28,4 +28,17 @@ export type SdMapLoaderInput = {
     instance?: {
         templateChunks: number[][][];
     };
+
+    /**
+     * Extra locs to add to the scene (not in cache data).
+     * Used for dynamically spawned objects like boat parts.
+     */
+    extraLocs?: Array<{
+        id: number;
+        x: number;
+        y: number;
+        level: number;
+        shape: number;
+        rotation: number;
+    }>;
 };

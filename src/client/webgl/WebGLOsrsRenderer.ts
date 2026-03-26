@@ -340,6 +340,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         string,
         { newId: number; newRotation?: number; moveToX?: number; moveToY?: number }
     > = new Map();
+    /** Dynamically spawned locs (LOC_ADD_CHANGE). Keyed by "x,y,level,shape". */
+    private addedLocs: Map<
+        string,
+        { locId: number; x: number; y: number; level: number; shape: number; rotation: number }
+    > = new Map();
     private pendingLocUpdates: Set<number> = new Set();
     private pendingLocReloadMaps: Map<number, { mapX: number; mapY: number }> = new Map();
     private pendingLocReloadFlushTimer?: ReturnType<typeof setTimeout>;
@@ -5119,6 +5124,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             minimizeDrawCalls: !this.hasMultiDraw,
             loadedTextureIds: this.loadedTextureIds,
             locOverrides: this.locOverrides,
+            extraLocs: this.getExtraLocsForMap(mapX, mapY),
         };
 
         const mapData = await this.osrsClient.workerPool.queueLoad<
@@ -5156,6 +5162,14 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         templateChunks: number[][][],
         regionX: number,
         regionY: number,
+        extraLocs?: Array<{
+            id: number;
+            x: number;
+            y: number;
+            level: number;
+            shape: number;
+            rotation: number;
+        }>,
     ): Promise<void> {
         if (!this.osrsClient.loadedCache) return;
 
@@ -5178,6 +5192,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             minimizeDrawCalls: !this.hasMultiDraw,
             loadedTextureIds: this.loadedTextureIds,
             instance: { templateChunks },
+            extraLocs,
         };
 
         const mapData = await this.osrsClient.workerPool.queueLoad<
@@ -13180,6 +13195,75 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             );
         } catch (err) {
             console.warn("onLocChange error", err);
+        }
+    }
+
+    private getExtraLocsForMap(
+        mapX: number,
+        mapY: number,
+    ): Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> | undefined {
+        if (this.addedLocs.size === 0) return undefined;
+        const minX = mapX * 64;
+        const minY = mapY * 64;
+        const maxX = minX + 64;
+        const maxY = minY + 64;
+        const locs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
+        for (const loc of this.addedLocs.values()) {
+            if (loc.x >= minX && loc.x < maxX && loc.y >= minY && loc.y < maxY) {
+                locs.push({
+                    id: loc.locId,
+                    x: loc.x,
+                    y: loc.y,
+                    level: loc.level,
+                    shape: loc.shape,
+                    rotation: loc.rotation,
+                });
+            }
+        }
+        return locs.length > 0 ? locs : undefined;
+    }
+
+    onLocAddChange(
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): void {
+        try {
+            const key = `${tile.x},${tile.y},${level},${shape}`;
+            this.addedLocs.set(key, { locId, x: tile.x, y: tile.y, level, shape, rotation });
+
+            const mapX = Math.floor(tile.x / 64);
+            const mapY = Math.floor(tile.y / 64);
+            const mapId = getMapSquareId(mapX, mapY);
+            this.pendingLocUpdates.add(mapId);
+            this.scheduleLocReload(mapX, mapY);
+            console.log(
+                `[WebGLRenderer] Loc add: ${locId} at (${tile.x}, ${tile.y}, ${level}) shape=${shape} -> map (${mapX}, ${mapY})`,
+            );
+        } catch (err) {
+            console.warn("onLocAddChange error", err);
+        }
+    }
+
+    onLocDel(
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): void {
+        try {
+            const key = `${tile.x},${tile.y},${level},${shape}`;
+            this.addedLocs.delete(key);
+
+            const mapX = Math.floor(tile.x / 64);
+            const mapY = Math.floor(tile.y / 64);
+            const mapId = getMapSquareId(mapX, mapY);
+            this.pendingLocUpdates.add(mapId);
+            this.scheduleLocReload(mapX, mapY);
+        } catch (err) {
+            console.warn("onLocDel error", err);
         }
     }
 

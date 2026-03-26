@@ -169884,5 +169884,23 @@
         "id": 14957,
         "direction": 4,
         "wanderRadius": 0
+    },
+    {
+        "level": 0,
+        "name": "Will",
+        "x": 3054,
+        "y": 3193,
+        "id": 14958,
+        "direction": 1,
+        "wanderRadius": 0
+    },
+    {
+        "level": 0,
+        "name": "Anne",
+        "x": 3053,
+        "y": 3194,
+        "id": 14963,
+        "direction": 1,
+        "wanderRadius": 0
     }
 ]

@@ -85,6 +85,8 @@ export const enum ServerPacketId {
     // WORLD UPDATES (130-149)
     // ========================================
     LOC_CHANGE = 130,
+    LOC_ADD_CHANGE = 134,
+    LOC_DEL = 135,
     SOUND = 131,
     PLAY_JINGLE = 132,
     PLAY_SONG = 133,
@@ -192,6 +194,8 @@ export const SERVER_PACKET_LENGTHS: Record<ServerPacketId, number> = {
     [ServerPacketId.CHAT_MESSAGE]: -1,
 
     [ServerPacketId.LOC_CHANGE]: -1,
+    [ServerPacketId.LOC_ADD_CHANGE]: -1,
+    [ServerPacketId.LOC_DEL]: -1,
     [ServerPacketId.SOUND]: -1,
     [ServerPacketId.PLAY_JINGLE]: 5, // jingleId(2) + delay(3, IME)
     // OSRS parity: mirrors Skills.method6928([trackId], outDelay, outDur, inDelay, inDur)

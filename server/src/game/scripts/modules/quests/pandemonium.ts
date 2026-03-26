@@ -59,9 +59,9 @@ const VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_LIGHTRANGEDDEF = 5165;
 // Teleport destination (sailing intro instance)
 // ============================================================================
 
-const SAILING_INTRO_X = 14660;
-const SAILING_INTRO_Y = 15556;
-const SAILING_INTRO_LEVEL = 1;
+const SAILING_INTRO_X = 3052;
+const SAILING_INTRO_Y = 3204;
+const SAILING_INTRO_LEVEL = 0;
 
 // ============================================================================
 // Interface constants
@@ -664,6 +664,24 @@ function executeBoardingSequence(player: any, playerName: string, services: Scri
             SAILING_INTRO_LEVEL,
             templateChunks,
         );
+
+        // Spawn boat locs relative to teleport position
+        const boatLocs = [
+            { id: 59516, dx: -1, dy: -2, plane: 0, rot: 0 }, // keel
+            { id: 59624, dx: -2, dy: -2, plane: 0, rot: 0 }, // trim
+            { id: 59620, dx:  1, dy:  3, plane: 1, rot: 0 }, // navigating
+            { id: 59553, dx:  1, dy:  1, plane: 1, rot: 0 }, // sails
+            { id: 60480, dx:  0, dy: -1, plane: 1, rot: 1 }, // salvaging hook
+        ];
+        for (const loc of boatLocs) {
+            services.sendLocChangeToPlayer?.(
+                player,
+                0,
+                loc.id,
+                { x: SAILING_INTRO_X + loc.dx, y: SAILING_INTRO_Y + loc.dy },
+                loc.plane,
+            );
+        }
 
         // Board sound
         services.sendSound?.(player, SYNTH_BOARD_BOAT);

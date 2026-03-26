@@ -539,12 +539,35 @@ export interface ScriptServices {
      * @param level Target level/plane (0-3)
      * @param templateChunks 4×13×13 packed template chunk grid (-1 = empty)
      */
+    /**
+     * Spawn a loc at a world tile (LOC_ADD_CHANGE).
+     * Sends the loc to all nearby players. Does not persist across server restarts.
+     */
+    spawnLoc?: (
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ) => void;
+    /**
+     * Spawn a loc for a specific player only (LOC_ADD_CHANGE).
+     */
+    spawnLocForPlayer?: (
+        player: PlayerState,
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ) => void;
     teleportToInstance?: (
         player: PlayerState,
         x: number,
         y: number,
         level: number,
         templateChunks: number[][][],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
     ) => void;
     /**
      * Schedule a teleport through the server action scheduler.

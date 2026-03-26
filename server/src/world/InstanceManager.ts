@@ -5,12 +5,22 @@ import {
 } from "../../../src/shared/instance/InstanceTypes";
 import type { CacheEnv } from "./CacheEnv";
 
+export interface ExtraLoc {
+    id: number;
+    x: number;
+    y: number;
+    level: number;
+    shape: number;
+    rotation: number;
+}
+
 export interface RebuildRegionPayload {
     regionX: number;
     regionY: number;
     templateChunks: number[][][];
     xteaKeys: number[][];
     mapRegions: number[];
+    extraLocs?: ExtraLoc[];
 }
 
 /**

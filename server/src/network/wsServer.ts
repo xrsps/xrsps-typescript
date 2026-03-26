@@ -1725,6 +1725,8 @@ export class WSServer {
                     this.emitLocChange(oldId, newId, tile, level, opts),
                 sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
                     this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
+                spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
+                    this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
                 getObjType: (id) => this.getObjType(id),
                 getLocDefinition: (id) => {
                     try {
@@ -2137,8 +2139,8 @@ export class WSServer {
                 },
                 teleportPlayer: (player, x, y, level, forceRebuild = false) =>
                     this.teleportPlayer(player, x, y, level, forceRebuild),
-                teleportToInstance: (player, x, y, level, templateChunks) =>
-                    this.teleportToInstance(player, x, y, level, templateChunks),
+                teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
+                    this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
                 requestTeleportAction: (player, request) =>
                     this.requestTeleportAction(player, request),
                 sendVarp: (player, varpId, value) => {
@@ -3059,6 +3061,25 @@ export class WSServer {
         const msg = encodeMessage({ type: "loc_change", payload });
         this.withDirectSendBypass("loc_change_player", () =>
             this.sendWithGuard(ws, msg, "loc_change"),
+        );
+    }
+
+    private spawnLocForPlayer(
+        player: PlayerState,
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): void {
+        const ws = this.players?.getSocketByPlayerId(player.id);
+        if (!ws) return;
+        const msg = encodeMessage({
+            type: "loc_add_change",
+            payload: { locId, tile, level, shape, rotation },
+        } as any);
+        this.withDirectSendBypass("loc_add_change", () =>
+            this.sendWithGuard(ws, msg, "loc_add_change"),
         );
     }
 
@@ -6088,6 +6109,7 @@ export class WSServer {
         y: number,
         level: number,
         templateChunks: number[][][],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
     ): void {
         logger.info(`[teleportToInstance] Player ${player.id} -> (${x}, ${y}, ${level})`);
         const ws = this.players?.getSocketByPlayerId(player.id);
@@ -6107,6 +6129,9 @@ export class WSServer {
             templateChunks,
             this.cacheEnv!,
         );
+        if (extraLocs) {
+            payload.extraLocs = extraLocs;
+        }
         const packet = encodeMessage({ type: "rebuild_region", payload } as any);
         logger.info(`[teleportToInstance] Sending REBUILD_REGION packet (${packet.length} bytes, ${payload.mapRegions.length} regions)`);
         this.withDirectSendBypass("rebuild_region", () =>
@@ -8546,6 +8571,8 @@ export class WSServer {
                 this.teleportPlayer(player, x, y, level, forceRebuild),
             teleportToInstance: (player, x, y, level, templateChunks) =>
                 this.teleportToInstance(player, x, y, level, templateChunks),
+            spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
+                this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
             requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),
 
             // Combat/NPC

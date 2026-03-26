@@ -659,6 +659,14 @@ export interface RebuildRegionPayload {
     templateChunks: number[][][];
     xteaKeys: number[][];
     mapRegions: number[];
+    extraLocs?: Array<{
+        id: number;
+        x: number;
+        y: number;
+        level: number;
+        shape: number;
+        rotation: number;
+    }>;
 }
 const rebuildRegionListeners = new Set<(payload: RebuildRegionPayload) => void>();
 export function subscribeRebuildRegion(fn: (payload: RebuildRegionPayload) => void): () => void {
@@ -2054,6 +2062,34 @@ function processServerMessage(msg: any): void {
             }
         } catch (err) {
             console.warn("loc_change handler error", err);
+        }
+    } else if (msg.type === "loc_add_change") {
+        const payload = msg.payload;
+        try {
+            const g: any = (typeof window !== "undefined" ? window : globalThis) as any;
+            const mv = g?.__osrsClient;
+            if (mv && typeof mv.onLocAddChange === "function") {
+                mv.onLocAddChange(
+                    payload.locId,
+                    payload.tile,
+                    payload.level,
+                    payload.shape,
+                    payload.rotation,
+                );
+            }
+        } catch (err) {
+            console.warn("loc_add_change handler error", err);
+        }
+    } else if (msg.type === "loc_del") {
+        const payload = msg.payload;
+        try {
+            const g: any = (typeof window !== "undefined" ? window : globalThis) as any;
+            const mv = g?.__osrsClient;
+            if (mv && typeof mv.onLocDel === "function") {
+                mv.onLocDel(payload.tile, payload.level, payload.shape, payload.rotation);
+            }
+        } catch (err) {
+            console.warn("loc_del handler error", err);
         }
     } else if (msg.type === "vars") {
         const payload = msg.payload;

@@ -692,6 +692,23 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
         case "destination":
             return serverEncoder.encodeDestination(payload.worldX, payload.worldY);
 
+        case "loc_add_change":
+            return serverEncoder.encodeLocAddChange(
+                payload.locId,
+                payload.tile,
+                payload.level,
+                payload.shape,
+                payload.rotation,
+            );
+
+        case "loc_del":
+            return serverEncoder.encodeLocDel(
+                payload.tile,
+                payload.level,
+                payload.shape,
+                payload.rotation,
+            );
+
         case "rebuild_region":
             return serverEncoder.encodeRebuildRegion(
                 payload.regionX,
@@ -699,6 +716,7 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
                 payload.templateChunks,
                 payload.xteaKeys,
                 payload.mapRegions,
+                payload.extraLocs,
             );
 
         case "handshake":

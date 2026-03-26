@@ -372,6 +372,25 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
 
             const mapRegions = deriveRegionsFromTemplates(templateChunks);
 
+            // Extra locs (custom extension)
+            const extraLocCount = reader.remaining >= 2 ? reader.readShort() : 0;
+            const extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
+            for (let i = 0; i < extraLocCount; i++) {
+                const locId = reader.readShort();
+                const locX = reader.readShort();
+                const locY = reader.readShort();
+                const locLevel = reader.readByte();
+                const shapeRot = reader.readByte();
+                extraLocs.push({
+                    id: locId,
+                    x: locX,
+                    y: locY,
+                    level: locLevel,
+                    shape: shapeRot >> 2,
+                    rotation: shapeRot & 3,
+                });
+            }
+
             return {
                 type: "rebuild_region",
                 payload: {
@@ -380,6 +399,7 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
                     templateChunks,
                     xteaKeys,
                     mapRegions,
+                    extraLocs: extraLocs.length > 0 ? extraLocs : undefined,
                 },
             };
         }
@@ -1043,6 +1063,38 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
                     newTile,
                     oldRotation,
                     newRotation,
+                },
+            };
+        }
+
+        case ServerPacketId.LOC_ADD_CHANGE: {
+            const locId = reader.readShort();
+            const addTile = { x: reader.readShort(), y: reader.readShort() };
+            const addLevel = reader.readByte();
+            const shapeRot = reader.readByte();
+            return {
+                type: "loc_add_change",
+                payload: {
+                    locId,
+                    tile: addTile,
+                    level: addLevel,
+                    shape: shapeRot >> 2,
+                    rotation: shapeRot & 3,
+                },
+            };
+        }
+
+        case ServerPacketId.LOC_DEL: {
+            const delTile = { x: reader.readShort(), y: reader.readShort() };
+            const delLevel = reader.readByte();
+            const delShapeRot = reader.readByte();
+            return {
+                type: "loc_del",
+                payload: {
+                    tile: delTile,
+                    level: delLevel,
+                    shape: delShapeRot >> 2,
+                    rotation: delShapeRot & 3,
                 },
             };
         }

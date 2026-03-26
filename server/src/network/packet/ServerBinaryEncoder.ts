@@ -984,6 +984,44 @@ export class ServerBinaryEncoder {
         return this.buffer.toPacket(ServerPacketId.LOC_CHANGE);
     }
 
+    /**
+     * LOC_ADD_CHANGE — spawn or change a loc at a world tile.
+     * OSRS parity: zone-relative coords would use (x&7 << 4 | y&7),
+     * but we use absolute world coords for simplicity.
+     */
+    encodeLocAddChange(
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): Uint8Array {
+        this.buffer.reset();
+        this.buffer.writeShort(locId);
+        this.buffer.writeShort(tile.x);
+        this.buffer.writeShort(tile.y);
+        this.buffer.writeByte(level);
+        this.buffer.writeByte((shape << 2) | (rotation & 3));
+        return this.buffer.toPacket(ServerPacketId.LOC_ADD_CHANGE);
+    }
+
+    /**
+     * LOC_DEL — remove a loc at a world tile.
+     */
+    encodeLocDel(
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): Uint8Array {
+        this.buffer.reset();
+        this.buffer.writeShort(tile.x);
+        this.buffer.writeShort(tile.y);
+        this.buffer.writeByte(level);
+        this.buffer.writeByte((shape << 2) | (rotation & 3));
+        return this.buffer.toPacket(ServerPacketId.LOC_DEL);
+    }
+
     // ========================================
     // COMBAT STATE
     // ========================================
@@ -1514,6 +1552,7 @@ export class ServerBinaryEncoder {
         templateChunks: number[][][],
         xteaKeys: number[][],
         mapRegions: number[],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
     ): Uint8Array {
         this.buffer.reset();
 
@@ -1546,6 +1585,19 @@ export class ServerBinaryEncoder {
             const key = xteaKeys[i];
             for (let j = 0; j < 4; j++) {
                 this.buffer.writeInt(key[j] ?? 0);
+            }
+        }
+
+        // Extra locs (custom extension for dynamic boat parts etc.)
+        const locCount = extraLocs?.length ?? 0;
+        this.buffer.writeShort(locCount);
+        if (extraLocs) {
+            for (const loc of extraLocs) {
+                this.buffer.writeShort(loc.id);
+                this.buffer.writeShort(loc.x);
+                this.buffer.writeShort(loc.y);
+                this.buffer.writeByte(loc.level);
+                this.buffer.writeByte((loc.shape << 2) | (loc.rotation & 3));
             }
         }
 

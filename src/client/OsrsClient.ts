@@ -3144,6 +3144,7 @@ export class OsrsClient {
                             payload.templateChunks,
                             payload.regionX,
                             payload.regionY,
+                            payload.extraLocs,
                         );
                     }
                 } catch (err) {
@@ -10148,6 +10149,43 @@ export class OsrsClient {
             }
         } catch (err) {
             console.warn("onLocChange error", err);
+        }
+    }
+
+    onLocAddChange(
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): void {
+        try {
+            console.log(
+                `[OsrsClient] Loc add: ${locId} at (${tile.x}, ${tile.y}, ${level}) shape=${shape} rot=${rotation}`,
+            );
+            if (this.renderer && typeof (this.renderer as any).onLocAddChange === "function") {
+                (this.renderer as any).onLocAddChange(locId, tile, level, shape, rotation);
+            }
+        } catch (err) {
+            console.warn("onLocAddChange error", err);
+        }
+    }
+
+    onLocDel(
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): void {
+        try {
+            console.log(
+                `[OsrsClient] Loc del at (${tile.x}, ${tile.y}, ${level}) shape=${shape} rot=${rotation}`,
+            );
+            if (this.renderer && typeof (this.renderer as any).onLocDel === "function") {
+                (this.renderer as any).onLocDel(tile, level, shape, rotation);
+            }
+        } catch (err) {
+            console.warn("onLocDel error", err);
         }
     }
 
