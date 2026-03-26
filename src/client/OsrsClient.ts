@@ -9802,33 +9802,6 @@ export class OsrsClient {
                 console.warn("[OsrsClient] Failed to load GraphicsDefaults:", e);
             }
 
-            if (this.renderer?.canvas) {
-                const canvas = this.renderer.canvas;
-                const clientW = canvas.clientWidth || canvas.offsetWidth;
-                const clientH = canvas.clientHeight || canvas.offsetHeight;
-                let layoutW = clientW;
-                let layoutH = clientH;
-                if (layoutW <= 0 || layoutH <= 0) {
-                    const rect = canvas.getBoundingClientRect();
-                    layoutW = rect.width;
-                    layoutH = rect.height;
-                }
-                if (
-                    !Number.isFinite(layoutW) ||
-                    layoutW <= 0 ||
-                    !Number.isFinite(layoutH) ||
-                    layoutH <= 0
-                ) {
-                    const bufferW = (canvas.width || DEFAULT_SCREEN_WIDTH) | 0;
-                    const bufferH = (canvas.height || DEFAULT_SCREEN_HEIGHT) | 0;
-                    layoutW = bufferW;
-                    layoutH = bufferH;
-                }
-                this.widgetManager.resize(
-                    Math.max(1, Math.round(layoutW)),
-                    Math.max(1, Math.round(layoutH)),
-                );
-            }
 
             this.startClientTickLoop();
             this.renderer.initCache();

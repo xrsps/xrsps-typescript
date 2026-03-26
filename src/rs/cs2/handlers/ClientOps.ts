@@ -262,6 +262,11 @@ export function registerClientOps(handlers: HandlerMap): void {
         const camera = osrsClient?.camera;
         const vw = ctx.widgetManager.viewportWidget;
         if (camera && vw) {
+            // In OSRS the canvas buffer and widget layout share the same coordinate
+            // space, so viewport_geteffectivesize returns values that CS2 scripts can
+            // use directly with if_setsize.  Our renderer may use a higher-resolution
+            // backing store (HiDPI), so we compute FOV metrics at buffer resolution
+            // for correct camera behaviour but return layout-space dimensions to CS2.
             const rendererCanvas = osrsClient?.renderer?.canvas;
             const layoutWidth = Number(ctx.widgetManager.canvasWidth);
             const layoutHeight = Number(ctx.widgetManager.canvasHeight);
@@ -279,11 +284,15 @@ export function registerClientOps(handlers: HandlerMap): void {
                 rendererCanvas.height > 0
                     ? rendererCanvas.height / layoutHeight
                     : 1;
-            const viewportWidth = Math.max(1, Math.round((vw.width | 0) * scaleX));
-            const viewportHeight = Math.max(1, Math.round((vw.height | 0) * scaleY));
-            const metrics = camera.computeViewportMetricsForSize(viewportWidth, viewportHeight);
-            ctx.pushInt(metrics.viewportWidth);
-            ctx.pushInt(metrics.viewportHeight);
+            // Compute FOV/clamping at full buffer resolution
+            const bufViewportW = Math.max(1, Math.round((vw.width | 0) * scaleX));
+            const bufViewportH = Math.max(1, Math.round((vw.height | 0) * scaleY));
+            const metrics = camera.computeViewportMetricsForSize(bufViewportW, bufViewportH);
+            // Scale the effective dimensions back to layout space for CS2
+            const effectiveW = Math.max(1, Math.round(metrics.viewportWidth / scaleX));
+            const effectiveH = Math.max(1, Math.round(metrics.viewportHeight / scaleY));
+            ctx.pushInt(effectiveW);
+            ctx.pushInt(effectiveH);
         } else if (camera && (camera.viewportWidth | 0) > 0 && (camera.viewportHeight | 0) > 0) {
             ctx.pushInt(camera.viewportWidth | 0);
             ctx.pushInt(camera.viewportHeight | 0);
