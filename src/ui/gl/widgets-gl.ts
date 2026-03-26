@@ -2525,13 +2525,24 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     const subTileX = worldX - playerTileX;
                     const subTileY = worldY - playerTileY;
 
-                    // Minimap center and radius
+                    // Minimap center and radius in buffer-pixel space
                     const centerX = x + width / 2;
                     const centerY = y + height / 2;
                     const radius = Math.min(width, height) / 2;
 
+                    // In OSRS the widget pixel size equals the screen pixel size, so
+                    // 1 minimap pixel = 1 screen pixel at zoom 1.0.  Our renderer may
+                    // draw the widget at a higher resolution (rootScaleX/Y > 1 for
+                    // HiDPI / UI scaling), so we multiply the zoom by the average
+                    // render scale so minimap pixels map to buffer pixels correctly.
+                    const minimapRenderScale =
+                        logicalWidth > 0 && logicalHeight > 0
+                            ? (width / logicalWidth + height / logicalHeight) / 2
+                            : 1;
+                    const adjustedZoom = zoomScale * minimapRenderScale;
+
                     // Begin WebGL minimap rendering
-                    minimapRenderer.begin(centerX, centerY, radius, cameraYaw, zoomScale);
+                    minimapRenderer.begin(centerX, centerY, radius, cameraYaw, adjustedZoom);
 
                     // Get the base path for map images
                     const cacheName = osrsClient.loadedCache?.info?.name;
@@ -2641,8 +2652,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                             const itemTileX = stack.tile.x | 0;
                             const itemTileY = stack.tile.y | 0;
 
-                            const relX = (itemTileX - playerTileX) * 4;
-                            const relY = (playerTileY - itemTileY) * 4;
+                            const relX = (itemTileX + 0.5 - worldX) * 4;
+                            const relY = (worldY - itemTileY - 0.5) * 4;
 
                             minimapRenderer.queueDot(itemDot, relX, relY);
                         }
@@ -2703,8 +2714,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     // Flush all queued dots (batched by texture)
                     minimapRenderer.flushDots();
 
-                    // Draw player marker at center (white square)
-                    minimapRenderer.drawSolidRect(centerX, centerY, 4, 4, [1, 1, 1, 1]);
+                    // Draw player marker at center (white square, scaled for render resolution)
+                    const markerSize = 4 * minimapRenderScale;
+                    minimapRenderer.drawSolidRect(centerX, centerY, markerSize, markerSize, [1, 1, 1, 1]);
 
                     // Draw destination flag (unrotated overlay)
                     let destWorldX = ClientState.destinationWorldX;
