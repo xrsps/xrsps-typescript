@@ -107,6 +107,11 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/alKharidBorder.ts")],
     },
     {
+        id: "content.wilderness-access",
+        load: loadModule("modules/wildernessAccess", "wildernessAccessModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/wildernessAccess.ts")],
+    },
+    {
         id: "content.league-tutor",
         load: loadModule("modules/leagueTutor", "leagueTutorModule"),
         watch: [path.resolve(MODULE_DIR, "modules/leagueTutor.ts")],
