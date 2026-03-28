@@ -4,11 +4,11 @@ const MAX_SCALE = 5;
 
 /**
  * How far the raw scale ratio must drop below the current integer scale before
- * the scale decreases. 0.7 means scale=2 holds until the raw ratio is < 1.3
+ * the scale decreases. 0.7 means scale=2 holds until the raw ratio drops below 1.3
  * (window < ~994px wide), preventing jarring jumps near the boundary.
  * Scale always increases freely (no upward hysteresis).
  */
-const SCALE_DOWN_HYSTERESIS = 0.7;
+const SCALE_DOWN_HYSTERESIS = 0.5;
 
 /**
  * Visual boost factor applied when auto-scale is 1. The WebGL buffer is rendered at
@@ -16,9 +16,9 @@ const SCALE_DOWN_HYSTERESIS = 0.7;
  * giving a ~10% larger appearance without fractional WebGL rendering (which would
  * pixelate pixel-art content).
  *
- * Activates when cssW ≥ 842 (= 765 × 1.1) and cssH ≥ 554 (= 503 × 1.1).
+ * Activates when cssW ≥ 803 (= 765 × 1.05) and cssH ≥ 528 (= 503 × 1.05).
  */
-export const SCALE_1_BOOST = 1.1;
+export const SCALE_1_BOOST = 1.5;
 
 let manualOverride: number | null = null;
 let overrideLoaded = false;
