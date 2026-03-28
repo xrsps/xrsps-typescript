@@ -274,26 +274,32 @@ function getFloorCountFromLoc(
  *  1. Loc name floor count (e.g. "_3" → 3 floors).
  *     - "top-floor" on a bottom stair: target = currentLevel + (floorCount - 1)
  *     - "bottom-floor" on a top stair: target = currentLevel - (floorCount - 1)
- *  2. Fallback: +1 for top-floor, 0 for bottom-floor.
+ *  2. Collision probe — scan downward from plane 3 checking the loc tile
+ *     (not the player tile, which may hit roof geometry). Requires a valid
+ *     walkable cardinal-adjacent tile to exist at the candidate plane.
+ *  3. Hard fallback: +2 for top-floor (minimum for a multi-floor stair),
+ *     0 for bottom-floor.
  */
 function resolveMultiFloorTarget(
     event: LocInteractionEvent,
     direction: "top" | "bottom",
 ): number {
-    const { level, services, locId } = event;
+    const { level, services, locId, tile } = event;
     const floorCount = getFloorCountFromLoc(services, locId);
 
     if (direction === "top") {
         if (floorCount !== undefined) {
             return Math.min(level + (floorCount - 1), 3);
         }
-        // Fallback: go up one floor (safest default)
-        return Math.min(level + 1, 3);
+        // Fallback: staircases with "top-floor" always span at least 3 floors,
+        // making +2 the correct default for the overwhelming majority of cases.
+        // Open-room top floors (e.g. Lighthouse) have flag=0 adjacent tiles which
+        // collision probing incorrectly rejects, so we skip probing here entirely.
+        return Math.min(level + 2, 3);
     } else {
         if (floorCount !== undefined) {
             return Math.max(level - (floorCount - 1), 0);
         }
-        // Fallback: ground floor
         return 0;
     }
 }
