@@ -11,12 +11,14 @@ const MAX_SCALE = 5;
 const SCALE_DOWN_HYSTERESIS = 0.7;
 
 /**
- * Fractional boost applied when auto-scale is 1. At small viewports (below
- * scale=2 threshold) the UI can feel tiny; this bumps the effective scale to
- * 1.1 so long as the resulting layout remains ≥ 765×503 (OSRS minimum).
- * Requires cssW ≥ 842 and cssH ≥ 554 to activate.
+ * Visual boost factor applied when auto-scale is 1. The WebGL buffer is rendered at
+ * (1/SCALE_1_BOOST) of the CSS box size; the browser's compositor stretches it back up,
+ * giving a ~10% larger appearance without fractional WebGL rendering (which would
+ * pixelate pixel-art content).
+ *
+ * Activates when cssW ≥ 842 (= 765 × 1.1) and cssH ≥ 554 (= 503 × 1.1).
  */
-const SCALE_1_BOOST = 1.1;
+export const SCALE_1_BOOST = 1.1;
 
 let manualOverride: number | null = null;
 let overrideLoaded = false;
@@ -43,8 +45,9 @@ function ensureOverrideLoaded(): void {
 
 /**
  * Compute the automatic UI scale from CSS viewport dimensions.
- * Scales proportionally relative to the OSRS base resolution (765×503),
- * matching RuneLite-style stretched-mode auto scaling.
+ * Always returns an integer (1, 2, 3…). The visual "boost" for scale=1
+ * viewports is handled at the CSS level via computeDesktopCssZoom, not here,
+ * so WebGL rendering always operates at an integer scale (crisp pixel art).
  *
  * Hard constraint: scale is capped so the resulting layout is never
  * smaller than 765×503 (OSRS minimum). This uses Math.floor so that
@@ -79,32 +82,44 @@ export function computeAutoScale(cssW: number, cssH: number): number {
     // Round toward preferred scale, but never exceed the layout-minimum cap.
     const natural = Math.max(1, Math.min(maxAllowed, Math.round(rawScale)));
 
-    // Fractional boost: when natural scale is 1 and the viewport is large enough
-    // that a 10% bigger UI still keeps the layout ≥ 765×503, return 1.1 instead.
-    // This makes the UI feel less tiny on mid-size screens (e.g. 1366×768, 1440×900)
-    // that don't yet qualify for scale=2.
-    const boosted = natural === 1
-        && cssW / SCALE_1_BOOST >= OSRS_BASE_W
-        && cssH / SCALE_1_BOOST >= OSRS_BASE_H
-        ? SCALE_1_BOOST
-        : natural;
-
     if (_lastAutoScale <= 0) {
-        _lastAutoScale = boosted;
-        return boosted;
+        _lastAutoScale = natural;
+        return natural;
     }
 
-    if (boosted < _lastAutoScale) {
+    if (natural < _lastAutoScale) {
         // Hysteresis: hold the previous scale as long as the layout cap still allows it
         // and rawScale hasn't dropped far enough to warrant a change.
         const held = Math.min(_lastAutoScale, maxAllowed);
-        if (held > boosted && rawScale >= held - SCALE_DOWN_HYSTERESIS) {
+        if (held > natural && rawScale >= held - SCALE_DOWN_HYSTERESIS) {
             return held;
         }
     }
 
-    _lastAutoScale = boosted;
-    return boosted;
+    _lastAutoScale = natural;
+    return natural;
+}
+
+/**
+ * Compute the visual boost factor for the desktop game canvas at integer scale=1.
+ * Returns SCALE_1_BOOST (1.1) when the viewport is large enough that the boosted
+ * layout still meets the OSRS minimum (cssW ≥ 842, cssH ≥ 554). Returns 1 otherwise.
+ *
+ * The caller applies the boost by passing (1/cssZoom) as the canvas resolution scale,
+ * so the WebGL buffer is rendered at the smaller pre-boost size and the browser's
+ * compositor stretches it to fill the full CSS box — no CSS property mutations needed.
+ */
+export function computeDesktopCssZoom(cssW: number, cssH: number, intScale: number): number {
+    const OSRS_BASE_W = 765;
+    const OSRS_BASE_H = 503;
+    if (
+        intScale === 1 &&
+        cssW / SCALE_1_BOOST >= OSRS_BASE_W &&
+        cssH / SCALE_1_BOOST >= OSRS_BASE_H
+    ) {
+        return SCALE_1_BOOST;
+    }
+    return 1;
 }
 
 /**

@@ -90,7 +90,7 @@ import {
     isTouchDevice,
     isWebGL2Supported,
 } from "../../util/DeviceUtil";
-import { getUiScale } from "../../ui/UiScale";
+import { computeDesktopCssZoom, getUiScale } from "../../ui/UiScale";
 import { clamp } from "../../util/MathUtil";
 import { ClientState } from "../ClientState";
 import { GameRenderer } from "../GameRenderer";
@@ -398,6 +398,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     // Framebuffers
     needsFramebufferUpdate: boolean = false;
+
+    // Whether overlay scales have been initialized for the current session.
+    private _overlaysScaleInitialized: boolean = false;
+    // Track login-like state to detect login→gameplay transition and re-sync overlay scales.
+    // null = not yet seen; true = was in login/download state; false = was in gameplay.
+    private _lastLoginLikeState: boolean | null = null;
 
     colorTarget?: Renderbuffer;
     depthTarget?: Renderbuffer;
@@ -882,8 +888,17 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if (!isLoginLikeState) {
             if (!isMobileGameplayRoot) {
                 const desktopUiScale = getUiScale(cssW, cssH);
-                const layoutW = Math.max(1, Math.round(cssW / desktopUiScale));
-                const layoutH = Math.max(1, Math.round(cssH / desktopUiScale));
+                const cssZoom = computeDesktopCssZoom(cssW, cssH, desktopUiScale);
+                // At DPR=1 the zoom boost is achieved by reducing the canvas buffer to
+                // 1/cssZoom of the CSS box (see getCanvasResolutionScale). Layout must match
+                // that pre-zoom size so renderScaleX stays at an integer ratio (1.0 at scale=1).
+                // At DPR>1 getCanvasResolutionScale uses the DPR path (no buffer reduction),
+                // so layout uses the full CSS size with DPR baked into renderScaleX.
+                const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1;
+                const zoomReductionActive = cssZoom > 1 && Number.isFinite(dpr) && dpr <= 1;
+                const effectiveDivisor = desktopUiScale * (zoomReductionActive ? cssZoom : 1);
+                const layoutW = Math.max(1, Math.round(cssW / effectiveDivisor));
+                const layoutH = Math.max(1, Math.round(cssH / effectiveDivisor));
                 return {
                     layoutW,
                     layoutH,
@@ -933,6 +948,18 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
         const dpr = window.devicePixelRatio || 1;
         if (!Number.isFinite(dpr) || dpr <= 1) {
+            // At DPR=1, the scale-1 zoom boost is achieved by rendering the canvas buffer at
+            // 1/cssZoom of the CSS size. The browser's compositor then stretches the buffer to
+            // fill the full CSS box (same quality as CSS zoom, no CSS DOM mutations needed,
+            // no ResizeObserver loop, no layout-coverage gaps).
+            const gameState = this.osrsClient.gameState;
+            const isLoginLikeState =
+                gameState === GameState.DOWNLOADING || this.osrsClient.isOnLoginScreen();
+            if (!isLoginLikeState && !isMobileMode) {
+                const intScale = getUiScale(cssWidth, cssHeight);
+                const cssZoom = computeDesktopCssZoom(cssWidth, cssHeight, intScale);
+                if (cssZoom > 1) return 1 / cssZoom;
+            }
             return 1;
         }
 
@@ -5538,9 +5565,43 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     override render(time: number, deltaTime: number, resized: boolean): void {
         profiler.startFrame();
+
+        // One-time initialization of overlay scales. onResize fires before this.app is
+        // initialized (early-return guard at the top of onResize), so overlay scales may not
+        // have been set yet. We set them here on the first render frame where this.app exists.
+        if (!this._overlaysScaleInitialized && this.app) {
+            const bufW = this.canvas.width;
+            const bufH = this.canvas.height;
+            if (bufW > 0 && bufH > 0) {
+                const metrics = this.computeUiRenderMetrics(bufW, bufH);
+                const overlayScale = metrics.renderScaleX;
+                if (this.overheadTextOverlay) this.overheadTextOverlay.scale = overlayScale;
+                if (this.hitsplatOverlay) this.hitsplatOverlay.scale = overlayScale;
+                if (this.clickCrossOverlay) this.clickCrossOverlay.scale = overlayScale;
+                if (this.groundItemOverlay) this.groundItemOverlay.scale = overlayScale;
+                this._overlaysScaleInitialized = true;
+            }
+        }
+
         const onLoginScreen = this.osrsClient.isOnLoginScreen();
         const loggedIn = this.osrsClient.isLoggedIn();
         const loginLikeState = !loggedIn;
+        // When transitioning from login→gameplay, re-sync overlay scales. The first-frame sync
+        // runs during login state (renderScaleX≈1) but gameplay uses a different scale formula.
+        // No onResize fires on this transition so we must re-compute here.
+        if (this._lastLoginLikeState === true && !loginLikeState && this.app) {
+            const bufW = this.canvas.width;
+            const bufH = this.canvas.height;
+            if (bufW > 0 && bufH > 0) {
+                const metrics = this.computeUiRenderMetrics(bufW, bufH);
+                const overlayScale = metrics.renderScaleX;
+                if (this.overheadTextOverlay) this.overheadTextOverlay.scale = overlayScale;
+                if (this.hitsplatOverlay) this.hitsplatOverlay.scale = overlayScale;
+                if (this.clickCrossOverlay) this.clickCrossOverlay.scale = overlayScale;
+                if (this.groundItemOverlay) this.groundItemOverlay.scale = overlayScale;
+            }
+        }
+        this._lastLoginLikeState = loginLikeState;
         const desiredImageRendering = loginLikeState && isMobileMode ? "pixelated" : "";
         if (this.canvas.style.imageRendering !== desiredImageRendering) {
             this.canvas.style.imageRendering = desiredImageRendering;
