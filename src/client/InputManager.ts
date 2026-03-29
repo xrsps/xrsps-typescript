@@ -32,18 +32,32 @@ function toOsrsKeyCode(domKeyCode: number): number {
 
 export function getMousePos(container: HTMLElement, event: MouseEvent | Touch): vec2 {
     const rect = container.getBoundingClientRect();
-    const baseW = container.clientWidth || container.offsetWidth || rect.width;
-    const baseH = container.clientHeight || container.offsetHeight || rect.height;
+
+    // Forced-landscape portrait mode rotates the root 90deg clockwise.
+    // In that case getBoundingClientRect returns swapped (rotated) dimensions,
+    // so use clientWidth/clientHeight for the unrotated layout dimensions.
+    const root = typeof document !== "undefined" ? document.documentElement : undefined;
+    const forceLandscape = root?.dataset?.iosSafariForceLandscape === "1";
+    const rotatedLandscape = root?.dataset?.iosSafariForceLandscapeRotated === "1";
+    const isIosRotated = forceLandscape && rotatedLandscape;
+
+    // Use getBoundingClientRect dimensions for baseW/baseH so that viewport-space
+    // coordinates (event.clientX - rect.left) are correctly scaled to canvas buffer
+    // coordinates. getBoundingClientRect includes CSS zoom, while clientWidth does not —
+    // mixing the two produces a coordinate that is off by the zoom factor.
+    // Exception: iOS forced-landscape, where the rect is rotated so clientWidth gives
+    // the unrotated dimension we need for the rotation remapping below.
+    const baseW = isIosRotated
+        ? (container.clientWidth || container.offsetWidth || rect.width)
+        : (rect.width > 0 ? rect.width : (container.clientWidth || container.offsetWidth));
+    const baseH = isIosRotated
+        ? (container.clientHeight || container.offsetHeight || rect.height)
+        : (rect.height > 0 ? rect.height : (container.clientHeight || container.offsetHeight));
 
     let cssX = event.clientX - rect.left;
     let cssY = event.clientY - rect.top;
 
-    // Forced-landscape portrait mode rotates the root 90deg clockwise.
-    // Remap screen-space input back into unrotated local coordinates.
-    const root = typeof document !== "undefined" ? document.documentElement : undefined;
-    const forceLandscape = root?.dataset?.iosSafariForceLandscape === "1";
-    const rotatedLandscape = root?.dataset?.iosSafariForceLandscapeRotated === "1";
-    if (forceLandscape && rotatedLandscape) {
+    if (isIosRotated) {
         // Inverse of: local -> screen, rotate +90deg around center.
         // screenX = localH - localY
         // screenY = localX

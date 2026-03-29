@@ -2738,7 +2738,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     const capturedWorldX = worldX;
                     const capturedWorldY = worldY;
                     const capturedCameraYaw = cameraYaw;
-                    const capturedZoomScale = zoomScale;
+                    const capturedAdjustedZoom = adjustedZoom;
                     const capturedMinimapCenterX = centerX;
                     const capturedMinimapCenterY = centerY;
 
@@ -2768,8 +2768,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                             const relPixelY = -offsetX * sin + offsetY * cos;
 
                             // Convert from pixels to tiles (4 pixels per tile, scaled by zoom)
-                            const relTileX = relPixelX / (4 * capturedZoomScale);
-                            const relTileY = relPixelY / (4 * capturedZoomScale);
+                            const relTileX = relPixelX / (4 * capturedAdjustedZoom);
+                            const relTileY = relPixelY / (4 * capturedAdjustedZoom);
 
                             // Calculate target world tile
                             // Flag uses: relTileY = worldY - destWorldY, so destWorldY = worldY - relTileY
