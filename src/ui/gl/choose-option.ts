@@ -314,7 +314,10 @@ export function drawChooseOptionMenu(
 
     const cssW = canvas?.clientWidth || canvas?.offsetWidth || 0;
     const cssH = canvas?.clientHeight || canvas?.offsetHeight || 0;
-    const s = getUiScale(cssW, cssH);
+    // Use renderScaleX propagated from the main renderer (same source as overhead text/hitsplats).
+    // Falls back to integer getUiScale if not yet set (e.g. first frame before onResize fires).
+    const renderScale = (canvas as any)?.__uiRenderScale;
+    const s = (typeof renderScale === "number" && renderScale > 0) ? renderScale : getUiScale(cssW, cssH);
     const hostW = glr.width | 0;
     const hostH = glr.height | 0;
     const anchor = getMenuAnchorPoint(canvas, menu);

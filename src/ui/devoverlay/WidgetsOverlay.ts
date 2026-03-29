@@ -418,6 +418,12 @@ export class WidgetsOverlay implements Overlay {
             const canvasAny = this.overlayCanvas as any;
             canvasAny.__uiInputScaleX = this.overlayScaleX;
             canvasAny.__uiInputScaleY = this.overlayScaleY;
+            // Propagate renderScaleX from the main canvas so choose-option and other
+            // overlay renderers use the same scale source as overhead text/hitsplats.
+            const hostRenderScale = (hostCanvas as any)?.__uiRenderScale;
+            if (typeof hostRenderScale === "number" && hostRenderScale > 0) {
+                canvasAny.__uiRenderScale = hostRenderScale;
+            }
         }
         return {
             width: Math.max(1, Math.round(this.app.width * this.overlayScaleX)),

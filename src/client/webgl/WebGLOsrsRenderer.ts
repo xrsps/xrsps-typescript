@@ -5551,6 +5551,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             if (this.hitsplatOverlay) this.hitsplatOverlay.scale = overlayScale;
             if (this.clickCrossOverlay) this.clickCrossOverlay.scale = overlayScale;
             if (this.groundItemOverlay) this.groundItemOverlay.scale = overlayScale;
+            (this.canvas as any).__uiRenderScale = overlayScale;
 
             // Trigger framebuffer recreation
             this.needsFramebufferUpdate = true;
@@ -5577,6 +5578,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 if (this.hitsplatOverlay) this.hitsplatOverlay.scale = overlayScale;
                 if (this.clickCrossOverlay) this.clickCrossOverlay.scale = overlayScale;
                 if (this.groundItemOverlay) this.groundItemOverlay.scale = overlayScale;
+                (this.canvas as any).__uiRenderScale = overlayScale;
                 this._overlaysScaleInitialized = true;
             }
         }
@@ -5597,6 +5599,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 if (this.hitsplatOverlay) this.hitsplatOverlay.scale = overlayScale;
                 if (this.clickCrossOverlay) this.clickCrossOverlay.scale = overlayScale;
                 if (this.groundItemOverlay) this.groundItemOverlay.scale = overlayScale;
+                (this.canvas as any).__uiRenderScale = overlayScale;
             }
         }
         this._lastLoginLikeState = loginLikeState;
