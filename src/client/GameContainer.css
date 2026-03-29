@@ -7,8 +7,9 @@
 .game-viewport {
     position: relative;
     flex: 1 1 auto;
-    min-width: 0;
-    min-height: 0;
+    /* OSRS minimum resizable window size — prevents widget overlap below this size. */
+    min-width: 765px;
+    min-height: 503px;
     overflow: hidden;
 }
 
