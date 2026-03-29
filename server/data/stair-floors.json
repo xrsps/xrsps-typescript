@@ -2,8 +2,8 @@
   "_comment": "Maps loc IDs to multi-floor stair traversal config. 'floors' = total floor count. 'dest' = fixed destination tile (x, y) at the target level — mirrors OSRS packet dump behavior where top-floor/bottom-floor always lands on a specific tile adjacent to the partner staircase, regardless of where the player was standing.",
   "_format": "locId -> { floors: number, dest?: { x: number, y: number } }. Level is computed from floors + current level. dest is optional; if omitted, falls back to nearest-walkable from player tile.",
 
-  "56230": { "floors": 3, "dest": { "x": 3205, "y": 3209 } },
-  "56231": { "floors": 3, "dest": { "x": 3206, "y": 3208 } },
+  "56230": { "floors": 3 },
+  "56231": { "floors": 3 },
 
   "4568": { "floors": 3, "dest": { "x": 2505, "y": 3641 } },
   "4570": { "floors": 3, "dest": { "x": 2506, "y": 3642 } }
