@@ -4,11 +4,11 @@ const MAX_SCALE = 5;
 
 /**
  * How far the raw scale ratio must drop below the current integer scale before
- * the scale decreases. 0.7 means scale=2 holds until the raw ratio drops below 1.3
+ * the scale decreases. 0.7 means scale=2 holds until the raw ratio is < 1.3
  * (window < ~994px wide), preventing jarring jumps near the boundary.
  * Scale always increases freely (no upward hysteresis).
  */
-const SCALE_DOWN_HYSTERESIS = 0.5;
+const SCALE_DOWN_HYSTERESIS = 0.7;
 
 /**
  * Visual boost factor applied when auto-scale is 1. The WebGL buffer is rendered at
@@ -16,9 +16,18 @@ const SCALE_DOWN_HYSTERESIS = 0.5;
  * giving a ~10% larger appearance without fractional WebGL rendering (which would
  * pixelate pixel-art content).
  *
- * Activates when cssW ≥ 803 (= 765 × 1.05) and cssH ≥ 528 (= 503 × 1.05).
+ * Activates when cssW ≥ 842 (= 765 × 1.1) and cssH ≥ 554 (= 503 × 1.1).
  */
-export const SCALE_1_BOOST = 1.5;
+export const SCALE_1_BOOST = 1.1;
+
+/**
+ * Layout trim factor applied at integer scale ≥ 2. The layout divisor becomes
+ * (intScale × (1/SCALE_HIGH_TRIM)), so each OSRS pixel maps to slightly fewer
+ * CSS pixels — reducing UI size at scale=2+. The WebGL buffer stays full size;
+ * only the layout coordinate space is adjusted.
+ * At scale=2 on 1899×1437: layoutW ≈ 1117px instead of 950px, renderScaleX ≈ 1.7.
+ */
+export const SCALE_HIGH_TRIM = 0.90;
 
 let manualOverride: number | null = null;
 let overrideLoaded = false;
@@ -117,7 +126,7 @@ export function computeDesktopCssZoom(cssW: number, cssH: number, intScale: numb
         cssW / SCALE_1_BOOST >= OSRS_BASE_W &&
         cssH / SCALE_1_BOOST >= OSRS_BASE_H
     ) {
-        return SCALE_1_BOOST;
+        return SCALE_1_BOOST; // > 1: buffer reduction path (browser upscales)
     }
     return 1;
 }

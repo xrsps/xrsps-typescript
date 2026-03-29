@@ -889,14 +889,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             if (!isMobileGameplayRoot) {
                 const desktopUiScale = getUiScale(cssW, cssH);
                 const cssZoom = computeDesktopCssZoom(cssW, cssH, desktopUiScale);
-                // At DPR=1 the zoom boost is achieved by reducing the canvas buffer to
-                // 1/cssZoom of the CSS box (see getCanvasResolutionScale). Layout must match
-                // that pre-zoom size so renderScaleX stays at an integer ratio (1.0 at scale=1).
-                // At DPR>1 getCanvasResolutionScale uses the DPR path (no buffer reduction),
-                // so layout uses the full CSS size with DPR baked into renderScaleX.
-                const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1;
-                const zoomReductionActive = cssZoom > 1 && Number.isFinite(dpr) && dpr <= 1;
-                const effectiveDivisor = desktopUiScale * (zoomReductionActive ? cssZoom : 1);
+                // cssZoom > 1 (scale=1 boost): buffer is reduced to 1/cssZoom in getCanvasResolutionScale;
+                //   layout divisor increases by cssZoom so renderScaleX stays at 1.0 (integer, crisp).
+                // cssZoom < 1 (scale≥3 trim): buffer unchanged; layout divisor shrinks so each OSRS
+                //   pixel spans slightly fewer CSS pixels — UI appears slightly smaller, no buffer change.
+                // cssZoom = 1: no adjustment.
+                const effectiveDivisor = desktopUiScale * cssZoom;
                 const layoutW = Math.max(1, Math.round(cssW / effectiveDivisor));
                 const layoutH = Math.max(1, Math.round(cssH / effectiveDivisor));
                 return {
