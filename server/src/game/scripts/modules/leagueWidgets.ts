@@ -2663,6 +2663,16 @@ export const leagueWidgetModule: ScriptModule = {
                     varbits: getLeagueVarbits(player),
                 });
 
+                // Re-enable clickzone transmit so masteries remain clickable after purchase
+                queueWidgetFlagsRange(
+                    player,
+                    services,
+                    (LEAGUE_COMBAT_MASTERY_GROUP_ID << 16) | L5_MASTERY_CLICKZONES_CHILD,
+                    0,
+                    255,
+                    IF_SETEVENTS_TRANSMIT_OP1,
+                );
+
                 clearPendingMasterySelection(player);
             },
         );
@@ -2792,6 +2802,16 @@ export const leagueWidgetModule: ScriptModule = {
                     varps: getLeagueVarpsForPlayer(player),
                     varbits: getLeagueVarbits(player),
                 });
+
+                // Re-enable clickzone transmit so masteries remain clickable after purchase
+                queueWidgetFlagsRange(
+                    player,
+                    services,
+                    (LEAGUE_COMBAT_MASTERY_GROUP_ID << 16) | L5_MASTERY_CLICKZONES_CHILD,
+                    0,
+                    255,
+                    IF_SETEVENTS_TRANSMIT_OP1,
+                );
 
                 clearPendingMasterySelection(player);
             },
