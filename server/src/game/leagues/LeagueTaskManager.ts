@@ -16,9 +16,6 @@ import { LeagueTaskIndex, type ParsedChallenge, type ParsedTask } from "./League
 import { type LeagueTaskPlayer, LeagueTaskService } from "./LeagueTaskService";
 import { syncLeaguePackedVarps } from "./leaguePackedVarps";
 
-// NPC IDs that trigger mastery unlocks (Man NPCs, level 2)
-const MASTERY_TRIGGER_NPC_IDS = new Set([3106, 3107, 3108]);
-
 export interface TaskManagerServices {
     getPlayer: (playerId: number) => LeagueTaskPlayer | undefined;
     queueVarp: (playerId: number, varpId: number, value: number) => void;
@@ -104,18 +101,13 @@ export class LeagueTaskManager {
         const player = this.services.getPlayer(playerId);
         if (!player) return;
 
-        // Check for mastery point trigger (killing a Man)
-        if (MASTERY_TRIGGER_NPC_IDS.has(npcId)) {
-            this.awardMasteryPoint(player, playerId);
-        }
-
         // Check for task triggers
         const tasks = this.index.getTasksForNpcKill(npcId);
         for (const task of tasks) {
             this.tryCompleteTask(player, playerId, task, 1);
         }
 
-        // Check for challenge triggers
+        // Check for challenge triggers (which award mastery points upon first completion)
         const challenges = this.index.getChallengesForNpcKill(npcId);
         for (const challenge of challenges) {
             this.tryCompleteChallenge(player, playerId, challenge);
@@ -388,6 +380,9 @@ export class LeagueTaskManager {
         logger.info(
             `[LeagueTaskManager] Completed challenge ${challenge.customIndex} "${challenge.description}" for player ${playerId} (varbit ${varbitId})`,
         );
+
+        // Award a mastery point for completing the challenge
+        this.awardMasteryPoint(player, playerId);
     }
 
     /**
