@@ -528,6 +528,10 @@ function uidForLeagueSidePanelL5(childId: number): number {
     return ((LEAGUE_SIDE_PANEL_L5_GROUP_ID & 0xffff) << 16) | (childId & 0xffff);
 }
 
+function packCoord(x: number, y: number, level: number = 0): number {
+    return ((level & 0x3) << 28) | ((x & 0x3fff) << 14) | (y & 0x3fff);
+}
+
 function decodeCoord(packed: number): { x: number; y: number; level: number } {
     // OSRS Coord packing: (plane << 28) | (x << 14) | y
     const v = packed;
@@ -539,6 +543,21 @@ function decodeCoord(packed: number): { x: number; y: number; level: number } {
 
 const leagueAreaTeleportCoordCache: Map<number, number> = new Map();
 
+const LEAGUE_AREA_FALLBACK_TELEPORT_COORD: Record<number, number> = Object.freeze({
+    // Region IDs (1=Misthalin, 2=Karamja, etc.)
+    1: packCoord(3210, 3420, 0), // Misthalin (Varrock-ish)
+    2: packCoord(2860, 2960, 0), // Karamja
+    6: packCoord(3340, 2970, 0), // Desert
+    5: packCoord(3490, 3465, 0), // Morytania
+    3: packCoord(2980, 3370, 0), // Asgarnia
+    4: packCoord(2680, 3440, 0), // Kandarin
+    8: packCoord(2620, 3680, 0), // Fremennik
+    7: packCoord(2190, 3240, 0), // Tirannwn
+    11: packCoord(3110, 3525, 0), // Wilderness
+    20: packCoord(1565, 3555, 0), // Kourend
+    21: packCoord(2230, 3425, 0), // Varlamore (custom / fallback)
+});
+
 function getLeagueAreaTeleportCoord(services: any, regionId: number): number | null {
     const normalized = normalizeLeagueAreaSelectionValue(regionId);
     if (!(normalized > 0)) return null;
@@ -546,24 +565,34 @@ function getLeagueAreaTeleportCoord(services: any, regionId: number): number | n
     if (cached !== undefined) return cached;
 
     const db = services?.getDbRepository?.();
-    if (!db?.findRows) return null;
-    try {
-        const rows = db.findRows((row: any) => {
-            const col = row?.getColumn?.(DB_COL_REGION_DATA_REGION_ID);
-            const value = Array.isArray(col?.values) ? col.values[0] : undefined;
-            return value === normalized;
-        });
-        const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-        const col = row?.getColumn?.(DB_COL_REGION_DATA_AREA_TELEPORT_COORD);
-        const coord = (Array.isArray(col?.values) ? col.values[0] : undefined) as
-            | number
-            | undefined;
-        if (!(coord !== undefined && coord >= 0)) return null;
-        leagueAreaTeleportCoordCache.set(normalized, coord);
-        return coord;
-    } catch {
-        return null;
+    if (db?.findRows) {
+        try {
+            const rows = db.findRows((row: any) => {
+                const col = row?.getColumn?.(DB_COL_REGION_DATA_REGION_ID);
+                const value = Array.isArray(col?.values) ? col.values[0] : undefined;
+                return value === normalized;
+            });
+            const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+            const col = row?.getColumn?.(DB_COL_REGION_DATA_AREA_TELEPORT_COORD);
+            const coord = (Array.isArray(col?.values) ? col.values[0] : undefined) as
+                | number
+                | undefined;
+            if (coord !== undefined && coord >= 0) {
+                leagueAreaTeleportCoordCache.set(normalized, coord);
+                return coord;
+            }
+        } catch {
+            // fall back to static mapping below
+        }
     }
+
+    const fallback = LEAGUE_AREA_FALLBACK_TELEPORT_COORD[normalized];
+    if (fallback !== undefined && fallback >= 0) {
+        leagueAreaTeleportCoordCache.set(normalized, fallback);
+        return fallback;
+    }
+
+    return null;
 }
 
 function isLeagueAreaUnlocked(
