@@ -29,56 +29,6 @@ const register = (
 };
 
 // =============================================================================
-// DEMONIC ASHES - Override cache items to add "Scatter" action
-// =============================================================================
-
-// Register the demonic ashes with the same IDs to override cache data
-CustomItemRegistry.register(
-    CustomItemBuilder.create(25766)
-        .basedOn(25766)
-        .name("Fiendish ashes")
-        .inventoryActions("Scatter", null, null, null, "Drop")
-        .build(),
-    "Fiendish ashes (override)",
-);
-
-CustomItemRegistry.register(
-    CustomItemBuilder.create(25769)
-        .basedOn(25769)
-        .name("Vile ashes")
-        .inventoryActions("Scatter", null, null, null, "Drop")
-        .build(),
-    "Vile ashes (override)",
-);
-
-CustomItemRegistry.register(
-    CustomItemBuilder.create(25772)
-        .basedOn(25772)
-        .name("Malicious ashes")
-        .inventoryActions("Scatter", null, null, null, "Drop")
-        .build(),
-    "Malicious ashes (override)",
-);
-
-CustomItemRegistry.register(
-    CustomItemBuilder.create(25775)
-        .basedOn(25775)
-        .name("Abyssal ashes")
-        .inventoryActions("Scatter", null, null, null, "Drop")
-        .build(),
-    "Abyssal ashes (override)",
-);
-
-CustomItemRegistry.register(
-    CustomItemBuilder.create(25778)
-        .basedOn(25778)
-        .name("Infernal ashes")
-        .inventoryActions("Scatter", null, null, null, "Drop")
-        .build(),
-    "Infernal ashes (override)",
-);
-
-// =============================================================================
 // CUSTOM ITEMS
 // =============================================================================
 
