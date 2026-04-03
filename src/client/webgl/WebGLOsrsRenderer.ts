@@ -8019,7 +8019,17 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const focalSubX = this.followCamFocalXSub;
         const focalSubZ = this.followCamFocalZSub;
         const basePlane = pe.getLevel(playerEcsIndex) | 0;
-        this.updateCameraTerrainPitchPressure(focalSubX, focalSubZ, basePlane);
+        const onWorldEntity = this.getControlledPlayerWorldViewId() >= 0;
+        if (!onWorldEntity) {
+            this.updateCameraTerrainPitchPressure(focalSubX, focalSubZ, basePlane);
+        } else {
+            // On a world entity (ship) the deck is flat; let pressure decay to the minimum
+            // so it doesn't artificially restrict the camera pitch.
+            const current = this.cameraTerrainPitchPressure | 0;
+            if (current > 32768) {
+                this.cameraTerrainPitchPressure = current + (((32768 - current) / 80) | 0);
+            }
+        }
 
         const targetX = focalSubX / 128;
         const targetZ = focalSubZ / 128;
