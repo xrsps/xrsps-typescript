@@ -64,6 +64,39 @@ export class WorldEntityAnimator {
         }
     }
 
+    /**
+     * Override the active animation for a world entity (sequence animation from mask update).
+     * Pass animId = -1 to revert to the config idle animation.
+     */
+    setSequenceAnimation(entityIndex: number, animId: number, configId: number, clientCycle: number): void {
+        if (animId < 0) {
+            // Revert to idle: re-add with config idle animation
+            this.entities.delete(entityIndex);
+            this.addEntity(entityIndex, configId, clientCycle);
+            return;
+        }
+        if (!this.seqTypeLoader || !this.skeletalSeqLoader) return;
+        try {
+            const seqType = this.seqTypeLoader.load(animId);
+            if (!seqType || !seqType.isSkeletalSeq()) return;
+            const skeletalSeq = this.skeletalSeqLoader.load(seqType.skeletalId);
+            if (!skeletalSeq) return;
+            const duration = seqType.getSkeletalDuration();
+            if (duration <= 0) return;
+
+            this.entities.set(entityIndex, {
+                skeletalSeq,
+                skeletalBase: skeletalSeq.skeletalBase,
+                skeletalStart: seqType.skeletalStart,
+                duration,
+                startCycle: clientCycle,
+                rootTransform: this.entities.get(entityIndex)?.rootTransform ?? (mat4.create() as Float32Array),
+            });
+        } catch (e) {
+            console.log(`[WorldEntityAnimator] Failed to set sequence animation ${animId}:`, e);
+        }
+    }
+
     removeEntity(entityIndex: number): void {
         this.entities.delete(entityIndex);
     }

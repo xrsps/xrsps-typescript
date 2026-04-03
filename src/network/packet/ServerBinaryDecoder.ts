@@ -412,6 +412,58 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
             };
         }
 
+        case ServerPacketId.WORLDENTITY_INFO: {
+            const weInfoOldCount = reader.readByte() & 0xff;
+
+            interface WeOldUpdate {
+                updateType: number;
+                positionDelta?: { x: number; y: number; z: number; orientation: number };
+                mask?: { animationId?: number; sequenceFrame?: number; actionMask?: number };
+            }
+            const weOldUpdates: WeOldUpdate[] = [];
+            for (let i = 0; i < weInfoOldCount; i++) {
+                const updateType = reader.readByte() & 0xff;
+                let positionDelta: WeOldUpdate["positionDelta"];
+                if (updateType >= 2) {
+                    positionDelta = readPositionDelta(reader);
+                }
+                let mask: WeOldUpdate["mask"];
+                if (updateType !== 0) {
+                    mask = readMaskUpdate(reader);
+                }
+                weOldUpdates.push({ updateType, positionDelta, mask });
+            }
+
+            interface WeNewSpawn {
+                entityIndex: number;
+                sizeX: number;
+                sizeZ: number;
+                configId: number;
+                drawMode: number;
+                position: { x: number; y: number; z: number; orientation: number };
+                mask?: { animationId?: number; sequenceFrame?: number; actionMask?: number };
+            }
+            const weInfoNewSpawns: WeNewSpawn[] = [];
+            while (reader.remaining > 0) {
+                const entityIndex = reader.readShort() & 0xffff;
+                const sizeX = reader.readByte() & 0xff;
+                const sizeZ = reader.readByte() & 0xff;
+                const configId = reader.readShort();
+                const position = readPositionDelta(reader);
+                const drawMode = reader.readByte() & 0xff;
+                const mask = readMaskUpdate(reader);
+                weInfoNewSpawns.push({ entityIndex, sizeX, sizeZ, configId, drawMode, position, mask });
+            }
+            return {
+                type: "worldentity_info",
+                payload: {
+                    oldCount: weInfoOldCount,
+                    oldUpdates: weOldUpdates,
+                    newSpawns: weInfoNewSpawns,
+                },
+            };
+        }
+
         case ServerPacketId.REBUILD_WORLDENTITY: {
             const weEntityIndex = reader.readShort();
             const weConfigId = reader.readShort();
@@ -1750,4 +1802,43 @@ export function decodeBatchedServerPackets(data: Uint8Array | ArrayBuffer): Deco
     }
 
     return messages;
+}
+
+/**
+ * Read a position delta using the OSRS typed-value tag format.
+ * Flags byte packs encoding width (0=zero, 1=byte, 2=short, 3=int)
+ * for x (bits 0-1), y (bits 2-3), z (bits 4-5), orientation (bits 6-7).
+ */
+function readPositionDelta(reader: ServerPacketReader): { x: number; y: number; z: number; orientation: number } {
+    const flags = reader.readSignedByte();
+    if (flags === 0) return { x: 0, y: 0, z: 0, orientation: 0 };
+    const x = readTypedValue(reader, flags, 0);
+    const y = readTypedValue(reader, flags, 2);
+    const z = readTypedValue(reader, flags, 4);
+    const orientation = readTypedValue(reader, flags, 6);
+    return { x, y, z, orientation };
+}
+
+function readTypedValue(reader: ServerPacketReader, flags: number, bitShift: number): number {
+    const encoding = (flags >> bitShift) & 3;
+    if (encoding === 3) return reader.readInt();
+    if (encoding === 2) return reader.readSignedShort();
+    if (encoding === 1) return reader.readSignedByte();
+    return 0;
+}
+
+function readMaskUpdate(reader: ServerPacketReader): { animationId?: number; sequenceFrame?: number; actionMask?: number } | undefined {
+    const maskByte = reader.readByte() & 0xff;
+    if (maskByte === 0) return undefined;
+    let animationId: number | undefined;
+    let sequenceFrame: number | undefined;
+    let actionMask: number | undefined;
+    if (maskByte & 1) {
+        animationId = reader.readShort() & 0xffff;
+        sequenceFrame = reader.readByte() & 0xff;
+    }
+    if (maskByte & 2) {
+        actionMask = reader.readByte() & 0xff;
+    }
+    return { animationId, sequenceFrame, actionMask };
 }

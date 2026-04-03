@@ -39,6 +39,10 @@ export class WorldEntity {
     actionMask: number = 31;
     /** 0=mode0 (default), 1=mode1 (overlap ghost), 2=mode2 (pre-scene) */
     drawMode: number = 0;
+    /** Active sequence animation id (-1 = none, overrides config idle anim). */
+    sequenceAnimationId: number = -1;
+    /** Current frame within the active sequence animation. */
+    sequenceFrame: number = 0;
 
     constructor(worldViewId: number) {
         this.worldViewId = worldViewId;

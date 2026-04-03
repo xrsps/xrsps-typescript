@@ -742,6 +742,13 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
                 payload.buildAreas,
             );
 
+        case "worldentity_info":
+            return serverEncoder.encodeWorldEntityInfo(
+                payload.oldCount,
+                payload.oldUpdates,
+                payload.newSpawns,
+            );
+
         case "handshake":
             return serverEncoder.encodeHandshake(
                 payload.id,

@@ -700,6 +700,39 @@ export function subscribeRebuildWorldEntity(fn: (payload: RebuildWorldEntityPayl
     return () => rebuildWorldEntityListeners.delete(fn);
 }
 
+export interface WorldEntityMaskPayload {
+    animationId?: number;
+    sequenceFrame?: number;
+    actionMask?: number;
+}
+
+export interface WorldEntityOldUpdate {
+    updateType: number;
+    positionDelta?: { x: number; y: number; z: number; orientation: number };
+    mask?: WorldEntityMaskPayload;
+}
+
+export interface WorldEntityNewSpawn {
+    entityIndex: number;
+    sizeX: number;
+    sizeZ: number;
+    configId: number;
+    drawMode: number;
+    position: { x: number; y: number; z: number; orientation: number };
+    mask?: WorldEntityMaskPayload;
+}
+
+export interface WorldEntityInfoPayload {
+    oldCount: number;
+    oldUpdates: WorldEntityOldUpdate[];
+    newSpawns: WorldEntityNewSpawn[];
+}
+const worldEntityInfoListeners = new Set<(payload: WorldEntityInfoPayload) => void>();
+export function subscribeWorldEntityInfo(fn: (payload: WorldEntityInfoPayload) => void): () => void {
+    worldEntityInfoListeners.add(fn);
+    return () => worldEntityInfoListeners.delete(fn);
+}
+
 const welcomeListeners = new Set<(info: { tickMs: number; serverTime: number }) => void>();
 const loginResponseListeners = new Set<
     (info: { success: boolean; error?: string; displayName?: string }) => void
@@ -1695,6 +1728,14 @@ function processServerMessage(msg: any): void {
             try {
                 cb(msg.payload);
             } catch {}
+        }
+    } else if (msg.type === "worldentity_info") {
+        for (const cb of worldEntityInfoListeners) {
+            try {
+                cb(msg.payload);
+            } catch (err) {
+                console.warn("[ws] worldentity_info listener error:", err);
+            }
         }
     } else if (msg.type === "path") {
         const { id, ok, waypoints, message } = msg.payload;

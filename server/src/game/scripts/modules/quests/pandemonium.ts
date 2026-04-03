@@ -81,8 +81,8 @@ const VARP_SAILING_SIDEPANEL_BOATSTAT_TOTAL_LIGHTRANGEDDEF = 5165;
 
 const FADE_OVERLAY_GROUP = 174;
 const FADE_OVERLAY_MESSAGE_CHILD = 4;
-const SAILING_SIDEPANEL_GROUP = 937;
-const SAILING_INTRO_HUD_GROUP = 345;
+export const SAILING_SIDEPANEL_GROUP = 937;
+export const SAILING_INTRO_HUD_GROUP = 345;
 const HPBAR_HUD_GROUP = 303;
 const HPBAR_HUD_HP_CHILD = 5;
 
@@ -801,6 +801,41 @@ function setPlayerVarpAndSend(
     services.sendVarp?.(player, varpId, value);
 }
 
+/**
+ * Resets all sailing varbits, closes sailing interfaces, and disposes the
+ * sailing instance. Called both from the normal disembark flow and as a
+ * safety net when teleporting out of sailing mode.
+ */
+export function resetSailingState(
+    player: PlayerState,
+    services: Pick<ScriptServices, "sendVarbit" | "closeSubInterface" | "openSubInterface" | "disposeSailingInstance" | "removeWorldEntity">,
+): void {
+    services.disposeSailingInstance?.(player);
+    services.removeWorldEntity?.(player.id, SAILING_WORLD_ENTITY_INDEX);
+
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT_TYPE, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT_WORLD, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_VISIBLE, 0);
+    setPlayerVarbitAndSend(
+        player,
+        services,
+        VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB,
+        0,
+    );
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_HELM_STATUS, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 0);
+    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PRELOADED_ANIMS, 0);
+
+    services.closeSubInterface?.(player, BaseComponentUids.TAB_COMBAT, SAILING_SIDEPANEL_GROUP);
+    services.closeSubInterface?.(
+        player,
+        BaseComponentUids.HUD_CONTAINER_FRONT,
+        SAILING_INTRO_HUD_GROUP,
+    );
+}
+
 function syncSailingBootstrapState(
     player: PlayerState,
     services: PandemoniumSailingStateServices,
@@ -1034,32 +1069,7 @@ export function handleDisembarkTick(
     const fadeMessageUid = (FADE_OVERLAY_GROUP << 16) | FADE_OVERLAY_MESSAGE_CHILD;
     const hpBarUid = (HPBAR_HUD_GROUP << 16) | HPBAR_HUD_HP_CHILD;
 
-    // Dispose instance NPCs
-    services.disposeSailingInstance?.(player);
-
-    // Reset sailing varbits
-    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT, 0);
-    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT_TYPE, 0);
-    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT_WORLD, 0);
-    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PLAYER_IS_ON_PLAYER_BOAT, 0);
-    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_VISIBLE, 0);
-    setPlayerVarbitAndSend(
-        player,
-        services,
-        VARBIT_SAILING_SIDEPANEL_VISIBLE_FROM_COMBAT_TAB,
-        0,
-    );
-    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_HELM_STATUS, 0);
-    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 0);
-    setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PRELOADED_ANIMS, 0);
-
-    // Close sailing interfaces
-    services.closeSubInterface?.(player, BaseComponentUids.TAB_COMBAT, SAILING_SIDEPANEL_GROUP);
-    services.closeSubInterface?.(
-        player,
-        BaseComponentUids.HUD_CONTAINER_FRONT,
-        SAILING_INTRO_HUD_GROUP,
-    );
+    resetSailingState(player, services);
 
     // Teleport back to Port Sarim
     services.teleportPlayer?.(

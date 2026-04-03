@@ -324,6 +324,7 @@ import {
     handleBoardingTick2,
     handleDisembarkTick,
     isPlayerOnDockedSailingBoat,
+    resetSailingState,
     restoreDockedSailingState,
     restoreSailingInstanceUi,
 } from "../game/scripts/modules/quests/pandemonium";
@@ -499,6 +500,13 @@ import { type ShopOpenData, registerShopInterfaceHooks } from "../widgets/hooks/
 import { type CacheEnv, initCacheEnv } from "../world/CacheEnv";
 import { buildRebuildNormalPayload, buildRebuildRegionPayload, buildRebuildWorldEntityPayload } from "../world/InstanceManager";
 import { SailingInstanceManager } from "../game/sailing/SailingInstanceManager";
+import {
+    SAILING_WORLD_ENTITY_INDEX,
+    SAILING_WORLD_ENTITY_CONFIG_ID,
+    SAILING_WORLD_ENTITY_SIZE_X,
+    SAILING_WORLD_ENTITY_SIZE_Z,
+} from "../game/sailing/SailingInstance";
+import { WorldEntityInfoEncoder } from "./encoding/WorldEntityInfoEncoder";
 import { CollisionOverlayStore } from "../world/CollisionOverlayStore";
 import { DoorCollisionService } from "../world/DoorCollisionService";
 import { DoorDefinitionLoader } from "../world/DoorDefinitionLoader";
@@ -1316,6 +1324,7 @@ export class WSServer {
     private tradeManager?: TradeManager;
     private interfaceService?: InterfaceService;
     private sailingInstanceManager?: SailingInstanceManager;
+    private worldEntityInfoEncoder = new WorldEntityInfoEncoder();
     private woodcuttingLocMap: Map<number, string> = new Map();
     private miningLocMap: Map<number, MiningLocMapping> = new Map();
     private fishingSpotMap: Map<number, string> = new Map();
@@ -1911,6 +1920,10 @@ export class WSServer {
                 removeNpc: (npcId) => this.npcManager?.removeNpc(npcId) ?? false,
                 initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
                 disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
+                removeWorldEntity: (playerId, entityIndex) => this.worldEntityInfoEncoder.removeEntity(playerId, entityIndex),
+                queueWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.queuePosition(playerId, entityIndex, position),
+                setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
+                queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
                 buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
                 openDialog: (player, request) =>
                     this.widgetDialogHandler.openDialog(player, request as any),
@@ -2135,7 +2148,7 @@ export class WSServer {
                         return;
                     }
 
-                    // Overlays are sent directly (not tracked as "modal" entries).
+                    // Other types (e.g. 3 = tab replacement) are sent directly.
                     const action: any = {
                         action: "open_sub",
                         targetUid: targetUid,
@@ -4558,6 +4571,13 @@ export class WSServer {
                             logger.warn("[npc_info] encode failed", err);
                         }
                     }
+                    // OSRS parity: WORLDENTITY_INFO is sent per-tick after NPC_INFO
+                    if (this.worldEntityInfoEncoder.needsUpdate(player.id)) {
+                        const wePacket = this.worldEntityInfoEncoder.encode(player.id);
+                        if (wePacket) {
+                            this.sendWithGuard(sock, wePacket, "worldentity_info");
+                        }
+                    }
                 });
             }
             // Send close widget events BEFORE varps/varbits to prevent re-render flicker
@@ -6104,6 +6124,41 @@ export class WSServer {
         level: number,
         _forceRebuild: boolean = false,
     ): void {
+        // If player is leaving sailing mode, clean up state before teleporting.
+        // Only triggers when the entity is already tracked (skips during boarding
+        // where worldViewId is set but sendWorldEntity hasn't registered it yet).
+        if (
+            player.worldViewId === SAILING_WORLD_ENTITY_INDEX &&
+            this.worldEntityInfoEncoder.isEntityActive(player.id, SAILING_WORLD_ENTITY_INDEX)
+        ) {
+            resetSailingState(player, {
+                sendVarbit: (p, varbitId, value) => this.queueVarbit(p.id, varbitId, value),
+                closeSubInterface: (p, targetUid, groupId) => {
+                    const closedEntries = groupId !== undefined
+                        ? p.widgets.close(groupId)
+                        : p.widgets.closeByTargetUid(targetUid);
+                    if (closedEntries.length === 0) {
+                        this.queueWidgetEvent(p.id, { action: "close_sub", targetUid });
+                    }
+                    if (this.interfaceService && closedEntries.length > 0) {
+                        this.interfaceService.triggerCloseHooksForEntries(p, closedEntries);
+                    }
+                },
+                disposeSailingInstance: (p) => this.sailingInstanceManager?.disposeInstance(p),
+                removeWorldEntity: (pid, entityIndex) => this.worldEntityInfoEncoder.removeEntity(pid, entityIndex),
+                openSubInterface: (p, targetUid, groupId, type = 0) => {
+                    p.widgets.open(groupId, { targetUid, type, modal: true });
+                    this.queueWidgetEvent(p.id, {
+                        action: "open_sub",
+                        targetUid,
+                        groupId,
+                        type,
+                    });
+                },
+            });
+            this.actionScheduler.clearActionsInGroup(player.id, "sailing.boarding");
+        }
+
         // Clear any ongoing actions and walk destination
         try {
             this.actionScheduler.clearActionsInGroup(player.id, "skill.woodcut");
@@ -6236,6 +6291,14 @@ export class WSServer {
             this.sendWithGuard(ws, packet, "rebuild_worldentity"),
         );
 
+        // Register in per-tick world entity tracker with initial position (fine units)
+        const entityFineX = (regionX * 8 + sizeX * 4) * 128;
+        const entityFineZ = (regionY * 8 + sizeZ * 4) * 128;
+        this.worldEntityInfoEncoder.addEntity(player.id, {
+            entityIndex, sizeX, sizeZ, configId, drawMode: 0,
+            position: { x: entityFineX, y: 0, z: entityFineZ, orientation: 0 },
+        });
+
         if (extraLocs) {
             for (const loc of extraLocs) {
                 this.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
@@ -6287,6 +6350,14 @@ export class WSServer {
         this.withDirectSendBypass("rebuild_worldentity", () =>
             this.sendWithGuard(ws, packet, "rebuild_worldentity"),
         );
+
+        // Register in per-tick world entity tracker with initial position (fine units)
+        const entityFineX = (regionX * 8 + sizeX * 4) * 128;
+        const entityFineZ = (regionY * 8 + sizeZ * 4) * 128;
+        this.worldEntityInfoEncoder.addEntity(player.id, {
+            entityIndex, sizeX, sizeZ, configId, drawMode: 0,
+            position: { x: entityFineX, y: 0, z: entityFineZ, orientation: 0 },
+        });
 
         this.teleportPlayer(player, x, y, level);
 
@@ -8749,6 +8820,10 @@ export class WSServer {
             spawnNpc: (config: any) => this.npcManager?.spawnTransientNpc(config),
             initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
             disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
+            removeWorldEntity: (playerId, entityIndex) => this.worldEntityInfoEncoder.removeEntity(playerId, entityIndex),
+            queueWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.queuePosition(playerId, entityIndex, position),
+            setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
+            queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
             buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
             applySailingDeckCollision: () => this.sailingInstanceManager?.applyDeckCollision(),
             clearSailingDeckCollision: () => this.sailingInstanceManager?.clearDeckCollision(),
@@ -14126,6 +14201,7 @@ export class WSServer {
 
                     // Dispose instance NPCs before saving
                     this.sailingInstanceManager?.disposeInstance(player);
+                    this.worldEntityInfoEncoder.removePlayer(player.id);
 
                     // Get save key for persistence and orphan tracking
                     const saveKey =

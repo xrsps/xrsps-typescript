@@ -728,5 +728,9 @@ export interface ScriptServices {
     removeNpc?: (npcId: number) => boolean;
     initSailingInstance?: (player: PlayerState) => void;
     disposeSailingInstance?: (player: PlayerState) => void;
+    removeWorldEntity?: (playerId: number, entityIndex: number) => void;
+    queueWorldEntityPosition?: (playerId: number, entityIndex: number, position: { x: number; y: number; z: number; orientation: number }) => void;
+    setWorldEntityPosition?: (playerId: number, entityIndex: number, position: { x: number; y: number; z: number; orientation: number }) => void;
+    queueWorldEntityMask?: (playerId: number, entityIndex: number, mask: { animationId?: number; sequenceFrame?: number; actionMask?: number }) => void;
     buildSailingDockedCollision?: () => void;
 }

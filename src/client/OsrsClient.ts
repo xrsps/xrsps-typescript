@@ -49,7 +49,9 @@ import {
     subscribeRebuildRegion,
     subscribeRebuildNormal,
     subscribeRebuildWorldEntity,
+    subscribeWorldEntityInfo,
 } from "../network/ServerConnection";
+import type { WorldEntityInfoPayload } from "../network/ServerConnection";
 import type {
     CollectionLogServerPayload,
     HitsplatServerPayload,
@@ -786,6 +788,8 @@ export class OsrsClient {
     // Movement is always server-authoritative (OSRS-like)
     // Server-assigned ID of the player we control
     controlledPlayerServerId: number = -1;
+    /** Per-tick active world entity IDs — maintained by WORLDENTITY_INFO packets. */
+    private activeWorldEntityIds: number[] = [];
     private npcInstanceMap: Map<string, NpcInstance> = new Map();
     private npcInstanceMapsPendingReload: Set<number> = new Set();
     private npcInstanceFlushScheduled: boolean = false;
@@ -3223,6 +3227,10 @@ export class OsrsClient {
                 } catch (err) {
                     console.warn("[OsrsClient] rebuild_worldentity error", err);
                 }
+            });
+
+            subscribeWorldEntityInfo((payload) => {
+                this.handleWorldEntityInfo(payload);
             });
 
             this.unsubscribePlayerSync = subscribePlayerSync((frame) => {
@@ -11270,6 +11278,112 @@ export class OsrsClient {
     }
 
     /**
+     * Process a WORLDENTITY_INFO packet — per-tick world entity lifecycle update.
+     *
+     * Matches OSRS WorldEntityUpdateParser:
+     *  1. Truncation: entities beyond oldCount in the previous active list are despawned.
+     *  2. Per-entity update: 0=despawn, 1=no change, 2=queuePosition, 3=setPosition.
+     *  3. Mask updates (animation, action mask) applied per entity.
+     *  4. New spawns appended (scene data already loaded via REBUILD_WORLDENTITY).
+     */
+    private handleWorldEntityInfo(payload: WorldEntityInfoPayload): void {
+        const prev = this.activeWorldEntityIds;
+        const { oldCount, oldUpdates, newSpawns } = payload;
+
+        // Phase 1: Truncation — despawn entities beyond oldCount
+        for (let i = oldCount; i < prev.length; i++) {
+            this.despawnWorldEntity(prev[i]);
+        }
+
+        // Phase 2: Process updates for surviving old entities
+        const next: number[] = [];
+        for (let i = 0; i < oldCount; i++) {
+            const entityId = prev[i];
+            const upd = oldUpdates[i];
+            if (upd.updateType === 0) {
+                this.despawnWorldEntity(entityId);
+                continue;
+            }
+
+            next.push(entityId);
+
+            const entity = this.worldViewManager.getWorldEntity(entityId);
+            if (entity && upd.updateType >= 2 && upd.positionDelta) {
+                const target = entity.pendingPathStepCount === 0
+                    ? entity.position
+                    : entity.pathSteps[0].position;
+                const newPos = {
+                    x: target.x + upd.positionDelta.x,
+                    y: target.y + upd.positionDelta.y,
+                    z: target.z + upd.positionDelta.z,
+                    orientation: (target.orientation + upd.positionDelta.orientation) & 2047,
+                };
+                if (upd.updateType === 2) {
+                    entity.queuePosition(newPos);
+                } else {
+                    entity.setPosition(newPos);
+                }
+            }
+
+            if (entity && upd.mask) {
+                this.applyWorldEntityMask(entityId, entity, upd.mask);
+            }
+        }
+
+        // Phase 3: Register new spawns (scene data already loaded via REBUILD_WORLDENTITY)
+        for (const spawn of newSpawns) {
+            next.push(spawn.entityIndex);
+
+            const entity = this.worldViewManager.getWorldEntity(spawn.entityIndex);
+            if (entity) {
+                entity.drawMode = spawn.drawMode;
+                if (spawn.position) {
+                    entity.queuePosition(spawn.position);
+                }
+                if (spawn.mask) {
+                    this.applyWorldEntityMask(spawn.entityIndex, entity, spawn.mask);
+                }
+            }
+        }
+
+        this.activeWorldEntityIds = next;
+    }
+
+    private applyWorldEntityMask(
+        entityIndex: number,
+        entity: import("./worldview/WorldEntity").WorldEntity,
+        mask: import("../network/ServerConnection").WorldEntityMaskPayload,
+    ): void {
+        if (mask.actionMask !== undefined) {
+            entity.actionMask = mask.actionMask;
+        }
+        if (mask.animationId !== undefined) {
+            const animId = mask.animationId === 0xffff ? -1 : mask.animationId;
+            entity.sequenceAnimationId = animId;
+            entity.sequenceFrame = mask.sequenceFrame ?? 0;
+
+            const animator = (this.renderer as any)?.worldEntityAnimator;
+            if (animator && typeof animator.setSequenceAnimation === "function") {
+                animator.setSequenceAnimation(entityIndex, animId, entity.configId, getClientCycle());
+            }
+        }
+    }
+
+    private despawnWorldEntity(entityIndex: number): void {
+        console.log(`[OsrsClient] Despawning world entity ${entityIndex}`);
+        if (this.renderer && "clearWorldEntity" in this.renderer) {
+            (this.renderer as any).clearWorldEntity(entityIndex);
+        }
+        if (this.controlledPlayerServerId >= 0) {
+            const localEcsIdx = this.playerEcs.getIndexForServerId(this.controlledPlayerServerId);
+            if (localEcsIdx !== undefined) {
+                this.playerEcs.setWorldViewId(localEcsIdx, -1);
+                this.worldViewManager.removePlayerFromWorldView(entityIndex, localEcsIdx);
+            }
+        }
+    }
+
+    /**
      * Reset all world/game state - used on disconnect/logout to prevent memory leaks.
      * Clears all players, NPCs, widgets, ground items, and other game entities.
      * @param fullReset If true, also clears chat history, vars, and transmit cycles (for full logout to login screen)
@@ -11320,6 +11434,7 @@ export class OsrsClient {
         }
 
         // Clear map data
+        this.activeWorldEntityIds = [];
         try {
             (this.renderer as any)?.clearAllWorldEntities?.();
         } catch (err) {
