@@ -2117,12 +2117,15 @@ export class WSServer {
                             : undefined;
                     const hiddenUids = explicitHiddenUids;
 
-                    // Modal sub-interfaces are tracked via PlayerWidgetManager so they can be closed on walk/damage/etc.
+                    // Track sub-interfaces via PlayerWidgetManager so they can be closed
+                    // on IF_CLOSE / walk / damage / etc.
+                    // Type 0 (modal) and type 1 (overlay on floater) are both closeable.
                     // IMPORTANT: avoid double-sending packets (PlayerWidgetManager.open will dispatch open_sub).
-                    if (t === 0) {
+                    if (t === 0 || t === 1) {
                         player.widgets.open(groupId, {
                             targetUid: targetUid,
-                            type: 0,
+                            type: t,
+                            modal: true,
                             varps,
                             varbits,
                             hiddenUids,
@@ -8806,10 +8809,11 @@ export class WSServer {
             openIndexedMenu: (player, request) =>
                 this.cs2ModalManager.openIndexedMenu(player, request),
             openSubInterface: (player, targetUid, groupId, type = 0) => {
-                if (type === 0) {
+                if (type === 0 || type === 1) {
                     player.widgets.open(groupId, {
                         targetUid,
-                        type: 0,
+                        type,
+                        modal: true,
                     });
                     return;
                 }
