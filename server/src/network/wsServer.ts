@@ -2466,8 +2466,8 @@ export class WSServer {
                 onReset: (_npcId) => {},
             });
             // RSMod parity: Wire up ground item spawner for delayed NPC death drops
-            this.npcManager.setGroundItemSpawner((itemId, qty, tile, tick, opts) => {
-                this.groundItems.spawn(itemId, qty, tile, tick, opts);
+            this.npcManager.setGroundItemSpawner((itemId, qty, tile, tick, opts, worldViewId) => {
+                this.groundItems.spawn(itemId, qty, tile, tick, opts, worldViewId ?? -1);
             });
         }
         this.loadWeaponData();
@@ -6705,6 +6705,7 @@ export class WSServer {
             tile: { x: npc.tileX, y: npc.tileY, level: npc.level },
             isWilderness: isInWilderness(npc.tileX, npc.tileY),
             recipients,
+            worldViewId: npc.worldViewId,
         });
     }
 
@@ -10137,6 +10138,7 @@ export class WSServer {
                         0,
                         this.options.ticker.currentTick(),
                         player.id,
+                        player.worldViewId,
                     )
                     .some((stack) => stack.itemId === packet.itemId);
                 if (!visible) {
@@ -12212,6 +12214,7 @@ export class WSServer {
                     dropTile,
                     this.options.ticker.currentTick(),
                     { ownerId: p.id, privateTicks: inWilderness ? 0 : undefined },
+                    p.worldViewId,
                 );
                 this.withDirectSendBypass("drop_sound", () => this.sendSound(p, ITEM_DROP_SOUND));
                 this.checkAndSendSnapshots(p);

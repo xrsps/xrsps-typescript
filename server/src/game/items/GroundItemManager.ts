@@ -21,6 +21,8 @@ export type GroundItemStack = {
     itemId: number;
     quantity: number;
     tile: { x: number; y: number; level: number };
+    /** WorldView this item belongs to (-1 = top-level, >=0 = nested entity index). */
+    worldViewId: number;
     createdTick: number;
     ownerId?: number;
     privateUntilTick?: number;
@@ -53,8 +55,8 @@ export class GroundItemManager {
         private readonly opts?: { defaultDurationTicks?: number; defaultPrivateTicks?: number },
     ) {}
 
-    private tileKey(x: number, y: number, level: number): string {
-        return `${level}${TILE_KEY_SEPARATOR}${x}${TILE_KEY_SEPARATOR}${y}`;
+    private tileKey(x: number, y: number, level: number, worldViewId: number = -1): string {
+        return `${worldViewId}${TILE_KEY_SEPARATOR}${level}${TILE_KEY_SEPARATOR}${x}${TILE_KEY_SEPARATOR}${y}`;
     }
 
     getSerial(): number {
@@ -84,11 +86,12 @@ export class GroundItemManager {
         tile: { x: number; y: number; level: number },
         currentTick: number,
         opts?: SpawnGroundItemOptions,
+        worldViewId: number = -1,
     ): GroundItemStack | undefined {
         if (!(itemId > 0) || !(quantity > 0)) return undefined;
         const def = getItemDefinition(itemId);
         if (!def) return undefined;
-        const key = this.tileKey(tile.x, tile.y, tile.level);
+        const key = this.tileKey(tile.x, tile.y, tile.level, worldViewId);
         const list = this.stacksByTile.get(key) ?? [];
         const isStackable = def.stackable;
 
@@ -154,6 +157,7 @@ export class GroundItemManager {
             itemId: itemId,
             quantity: 0,
             tile: { x: tile.x, y: tile.y, level: tile.level },
+            worldViewId,
             createdTick: currentTick,
         };
         base.quantity += quantity;
@@ -246,6 +250,7 @@ export class GroundItemManager {
         radiusTiles: number,
         currentTick: number,
         observerPlayerId?: number,
+        worldViewId: number = -1,
     ): GroundItemStack[] {
         const radius = Math.max(0, radiusTiles);
         const x0 = centerX - radius;
@@ -256,7 +261,7 @@ export class GroundItemManager {
         const out: GroundItemStack[] = [];
         for (let x = x0; x <= x1; x++) {
             for (let y = y0; y <= y1; y++) {
-                const key = this.tileKey(x, y, levelKey);
+                const key = this.tileKey(x, y, levelKey, worldViewId);
                 const list = this.stacksByTile.get(key);
                 if (!list) continue;
                 for (const stack of list) {

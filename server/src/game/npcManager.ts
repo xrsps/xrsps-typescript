@@ -48,6 +48,7 @@ type GroundItemSpawner = (
     tile: { x: number; y: number; level: number },
     tick: number,
     options?: { ownerId?: number; isMonsterDrop?: boolean; privateTicks?: number },
+    worldViewId?: number,
 ) => void;
 
 export interface PendingNpcDrop {
@@ -56,6 +57,7 @@ export interface PendingNpcDrop {
     tile: { x: number; y: number; level: number };
     ownerId?: number;
     isMonsterDrop: boolean;
+    worldViewId?: number;
     isWilderness: boolean;
 }
 
@@ -1413,7 +1415,7 @@ export class NpcManager {
                         ownerId: drop.ownerId,
                         isMonsterDrop: drop.isMonsterDrop,
                         privateTicks: drop.isWilderness ? 0 : undefined,
-                    });
+                    }, drop.worldViewId);
                 }
             }
 

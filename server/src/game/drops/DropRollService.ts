@@ -129,6 +129,7 @@ function toPendingDrop(
         ownerId: recipient.ownerId,
         isMonsterDrop: true,
         isWilderness: context.isWilderness,
+        worldViewId: context.worldViewId,
     };
 }
 

@@ -74,6 +74,7 @@ export type DropContext = {
     tile: { x: number; y: number; level: number };
     isWilderness: boolean;
     recipients: DropRecipient[];
+    worldViewId?: number;
 };
 
 export type DropRollResult = PendingNpcDrop[];
