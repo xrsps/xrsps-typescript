@@ -2138,7 +2138,7 @@ export class WSServer {
                         player.widgets.open(groupId, {
                             targetUid: targetUid,
                             type: t,
-                            modal: true,
+                            modal: opts?.modal !== false,
                             varps,
                             varbits,
                             hiddenUids,
@@ -2187,8 +2187,8 @@ export class WSServer {
                     this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
                 teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
                     this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
-                sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs) =>
-                    this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs),
+                sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
+                    this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
                 requestTeleportAction: (player, request) =>
                     this.requestTeleportAction(player, request),
                 sendVarp: (player, varpId, value) => {
@@ -6124,39 +6124,40 @@ export class WSServer {
         level: number,
         _forceRebuild: boolean = false,
     ): void {
-        // If player is leaving sailing mode, clean up state before teleporting.
-        // Only triggers when the entity is already tracked (skips during boarding
-        // where worldViewId is set but sendWorldEntity hasn't registered it yet).
+        // If player is leaving sailing mode, dispose instance, remove world
+        // entity, close sailing interfaces, restore combat tab, reset varbits.
         if (
             player.worldViewId === SAILING_WORLD_ENTITY_INDEX &&
             this.worldEntityInfoEncoder.isEntityActive(player.id, SAILING_WORLD_ENTITY_INDEX)
         ) {
-            resetSailingState(player, {
-                sendVarbit: (p, varbitId, value) => this.queueVarbit(p.id, varbitId, value),
-                closeSubInterface: (p, targetUid, groupId) => {
-                    const closedEntries = groupId !== undefined
-                        ? p.widgets.close(groupId)
-                        : p.widgets.closeByTargetUid(targetUid);
-                    if (closedEntries.length === 0) {
-                        this.queueWidgetEvent(p.id, { action: "close_sub", targetUid });
-                    }
-                    if (this.interfaceService && closedEntries.length > 0) {
-                        this.interfaceService.triggerCloseHooksForEntries(p, closedEntries);
-                    }
-                },
-                disposeSailingInstance: (p) => this.sailingInstanceManager?.disposeInstance(p),
-                removeWorldEntity: (pid, entityIndex) => this.worldEntityInfoEncoder.removeEntity(pid, entityIndex),
-                openSubInterface: (p, targetUid, groupId, type = 0) => {
-                    p.widgets.open(groupId, { targetUid, type, modal: true });
-                    this.queueWidgetEvent(p.id, {
-                        action: "open_sub",
-                        targetUid,
-                        groupId,
-                        type,
-                    });
-                },
-            });
+            this.sailingInstanceManager?.disposeInstance(player);
+            this.worldEntityInfoEncoder.removeEntity(player.id, SAILING_WORLD_ENTITY_INDEX);
             this.actionScheduler.clearActionsInGroup(player.id, "sailing.boarding");
+
+            // Close sailing interfaces via widget tracker
+            for (const groupId of [937, 345]) {
+                const closed = player.widgets.close(groupId);
+                if (this.interfaceService && closed.length > 0) {
+                    this.interfaceService.triggerCloseHooksForEntries(player, closed);
+                }
+            }
+
+            // Restore combat tab via queueWidgetEvent (not tracked as modal)
+            this.queueWidgetEvent(player.id, {
+                action: "open_sub",
+                targetUid: (161 << 16) | 76, // TAB_COMBAT
+                groupId: 593,
+                type: 1,
+            });
+
+            // Reset sailing varbits
+            const sailingVarbits = [
+                19136, 19137, 19122, 19104, 19151, 19153, 19176, 19175, 19118,
+            ];
+            for (const id of sailingVarbits) {
+                player.setVarbitValue(id, 0);
+                this.queueVarbit(player.id, id, 0);
+            }
         }
 
         // Clear any ongoing actions and walk destination
@@ -6271,6 +6272,7 @@ export class WSServer {
         buildAreas: import("../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
         extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
         extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
+        drawMode: number = 0,
     ): void {
         const ws = this.players?.getSocketByPlayerId(player.id);
         if (!ws) return;
@@ -6295,7 +6297,7 @@ export class WSServer {
         const entityFineX = (regionX * 8 + sizeX * 4) * 128;
         const entityFineZ = (regionY * 8 + sizeZ * 4) * 128;
         this.worldEntityInfoEncoder.addEntity(player.id, {
-            entityIndex, sizeX, sizeZ, configId, drawMode: 0,
+            entityIndex, sizeX, sizeZ, configId, drawMode,
             position: { x: entityFineX, y: 0, z: entityFineZ, orientation: 0 },
         });
 
@@ -6318,6 +6320,7 @@ export class WSServer {
         templateChunks: number[][][],
         buildAreas: import("../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
         extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+        drawMode: number = 0,
     ): void {
         logger.info(`[teleportToWorldEntity] Player ${player.id} -> (${x}, ${y}, ${level}) entity=${entityIndex}`);
         const ws = this.players?.getSocketByPlayerId(player.id);
@@ -6355,7 +6358,7 @@ export class WSServer {
         const entityFineX = (regionX * 8 + sizeX * 4) * 128;
         const entityFineZ = (regionY * 8 + sizeZ * 4) * 128;
         this.worldEntityInfoEncoder.addEntity(player.id, {
-            entityIndex, sizeX, sizeZ, configId, drawMode: 0,
+            entityIndex, sizeX, sizeZ, configId, drawMode,
             position: { x: entityFineX, y: 0, z: entityFineZ, orientation: 0 },
         });
 
@@ -8814,8 +8817,8 @@ export class WSServer {
                 this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
             teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
                 this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
-            sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
-                this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
+            sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
+                this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
             spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
                 this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
             spawnNpc: (config: any) => this.npcManager?.spawnTransientNpc(config),
@@ -8884,12 +8887,12 @@ export class WSServer {
                 this.interfaceService?.openModal(player, interfaceId, data),
             openIndexedMenu: (player, request) =>
                 this.cs2ModalManager.openIndexedMenu(player, request),
-            openSubInterface: (player, targetUid, groupId, type = 0) => {
+            openSubInterface: (player, targetUid, groupId, type = 0, opts) => {
                 if (type === 0 || type === 1) {
                     player.widgets.open(groupId, {
                         targetUid,
                         type,
-                        modal: true,
+                        modal: opts?.modal !== false,
                     });
                     return;
                 }

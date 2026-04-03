@@ -770,6 +770,8 @@ function sendDockedBoatArrival(
         templateChunks,
         SAILING_INTRO_BUILD_AREAS,
         SAILING_INTRO_BOAT_LOCS,
+        undefined,
+        1,
     );
 
     for (const npc of SAILING_DOCKED_NPC_SPAWNS) {
@@ -808,10 +810,9 @@ function setPlayerVarpAndSend(
  */
 export function resetSailingState(
     player: PlayerState,
-    services: Pick<ScriptServices, "sendVarbit" | "closeSubInterface" | "openSubInterface" | "disposeSailingInstance" | "removeWorldEntity">,
+    services: Pick<ScriptServices, "sendVarbit" | "closeSubInterface" | "queueWidgetEvent" | "disposeSailingInstance">,
 ): void {
     services.disposeSailingInstance?.(player);
-    services.removeWorldEntity?.(player.id, SAILING_WORLD_ENTITY_INDEX);
 
     setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT, 0);
     setPlayerVarbitAndSend(player, services, VARBIT_SAILING_BOARDED_BOAT_TYPE, 0);
@@ -828,12 +829,22 @@ export function resetSailingState(
     setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_BOAT_MOVE_MODE, 0);
     setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PRELOADED_ANIMS, 0);
 
+    // Close sailing interfaces via widget tracker (proper close hooks)
     services.closeSubInterface?.(player, BaseComponentUids.TAB_COMBAT, SAILING_SIDEPANEL_GROUP);
     services.closeSubInterface?.(
         player,
         BaseComponentUids.HUD_CONTAINER_FRONT,
         SAILING_INTRO_HUD_GROUP,
     );
+
+    // Restore combat tab via queueWidgetEvent directly — NOT openSubInterface
+    // which tracks it as modal (closeInterruptibleInterfaces kills modals on walk).
+    services.queueWidgetEvent?.(player.id, {
+        action: "open_sub",
+        targetUid: BaseComponentUids.TAB_COMBAT,
+        groupId: 593,
+        type: 1,
+    });
 }
 
 function syncSailingBootstrapState(
@@ -944,12 +955,14 @@ function openSailingUi(
         BaseComponentUids.TAB_COMBAT,
         SAILING_SIDEPANEL_GROUP,
         1,
+        { modal: false },
     );
     services.openSubInterface?.(
         player,
         BaseComponentUids.HUD_CONTAINER_FRONT,
         SAILING_INTRO_HUD_GROUP,
         1,
+        { modal: false },
     );
     services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.combatLevel ?? 3);
     services.queueClientScript?.(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);

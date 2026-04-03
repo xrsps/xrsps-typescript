@@ -10018,7 +10018,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
 
         this.worldEntityAnimator?.tick(clientCycle);
-        this.osrsClient.worldViewManager.interpolateEntities(clientCycle, 0);
+        this.osrsClient.worldViewManager.interpolateEntities(clientCycle, this.clientTickPhase);
 
         // Propagate listener position for positional audio and advance ambient loops.
         const soundSystem = this.osrsClient.soundEffectSystem;

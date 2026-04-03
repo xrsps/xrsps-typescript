@@ -25,6 +25,9 @@ function createPathStep(): PathStep {
     return { position: createPosition(), cycle: 0 };
 }
 
+/** OSRS: worldEntityInterpolationDurationMs=600 / clientTickDurationMs=20 = 30, + 3 = 33. */
+const INTERPOLATION_DURATION_TICKS = 33;
+
 export class WorldEntity {
     readonly worldViewId: number;
     ownerWorldViewId: number = -1;
@@ -43,6 +46,11 @@ export class WorldEntity {
     sequenceAnimationId: number = -1;
     /** Current frame within the active sequence animation. */
     sequenceFrame: number = 0;
+
+    private readonly interpStart: Position = createPosition();
+    private readonly interpTarget: Position = createPosition();
+    private interpStartCycle: number = 0;
+    private interpEndCycle: number = 0;
 
     constructor(worldViewId: number) {
         this.worldViewId = worldViewId;
@@ -92,13 +100,13 @@ export class WorldEntity {
 
         if (!this.interpolationInitialized) {
             if (this.hasInterpolated) {
-                this.linearInterpolate(cycle - 1);
+                this.interpolateAtCycleFloat(cycle - 1);
             }
+            this.beginPathStepInterpolation(cycle);
             this.interpolationInitialized = true;
         }
 
-        const t = cycle + cycleFraction;
-        if (this.linearInterpolate(t)) {
+        if (this.interpolateAtCycleFloat(cycle + cycleFraction)) {
             this.pendingPathStepCount--;
             this.interpolationInitialized = false;
         }
@@ -106,27 +114,22 @@ export class WorldEntity {
         this.hasInterpolated = true;
     }
 
-    private linearInterpolate(t: number): boolean {
-        const target = this.pathSteps[0].position;
-        const dx = target.x - this.position.x;
-        const dz = target.z - this.position.z;
-        const dist = Math.sqrt(dx * dx + dz * dz);
-        if (dist < 1) {
-            copyPosition(target, this.position);
+    private beginPathStepInterpolation(cycle: number): void {
+        copyPosition(this.position, this.interpStart);
+        copyPosition(this.pathSteps[0].position, this.interpTarget);
+        this.interpStartCycle = cycle - 1;
+        this.interpEndCycle = cycle + INTERPOLATION_DURATION_TICKS;
+    }
+
+    private interpolateAtCycleFloat(cycle: number): boolean {
+        if (this.interpStartCycle >= this.interpEndCycle) {
+            copyPosition(this.interpTarget, this.position);
             return true;
         }
 
-        const speed = 128;
-        const step = speed * (1 / 30);
-        if (step >= dist) {
-            copyPosition(target, this.position);
-            return true;
-        }
-
-        const ratio = step / dist;
-        this.position.x += dx * ratio;
-        this.position.z += dz * ratio;
-        return false;
+        const progress = (cycle - this.interpStartCycle) / (this.interpEndCycle - this.interpStartCycle);
+        interpolatePosition(this.interpStart, this.interpTarget, progress, this.position);
+        return progress >= 1.0;
     }
 
     getFineBaseX(sizeX: number, baseXOffset: number): number {
@@ -141,4 +144,18 @@ export class WorldEntity {
         if (index < 0 || index > 4) return true;
         return (this.actionMask & (1 << index)) !== 0;
     }
+}
+
+function interpolatePosition(start: Position, target: Position, progress: number, out: Position): void {
+    const t = Math.max(0, Math.min(1, progress));
+
+    out.x = start.x + ((target.x - start.x) * t | 0);
+    out.z = start.z + ((target.z - start.z) * t | 0);
+
+    // Orientation wraparound: find shortest path around the 2048-unit circle
+    let angleDelta = (target.orientation - start.orientation) & 2047;
+    if (angleDelta > 1024) {
+        angleDelta = -(2048 - angleDelta);
+    }
+    out.orientation = (start.orientation + (angleDelta * t | 0)) & 2047;
 }
