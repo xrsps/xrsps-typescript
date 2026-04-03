@@ -183,7 +183,8 @@ export class GfxRenderer {
                     .uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
                     .uniform("u_npcDataOffset", baseOffset | 0)
                     .texture("u_npcDataTexture", actorDataTexture)
-                    .texture("u_heightMap", map.heightMapTexture);
+                    .texture("u_heightMap", map.heightMapTexture)
+                    .uniform("u_sceneBorderSize", map.borderSize);
 
                 (this.renderer as any).app.disable(PicoGL.CULL_FACE);
 

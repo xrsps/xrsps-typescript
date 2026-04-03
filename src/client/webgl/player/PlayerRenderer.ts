@@ -749,6 +749,7 @@ export class PlayerRenderer {
                     .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                     .texture("u_npcDataTexture", actorDataTexture as Texture)
                     .texture("u_heightMap", map.heightMapTexture)
+                    .uniform("u_sceneBorderSize", map.borderSize)
                     .uniform("u_modelYOffset", -(group.yOff | 0));
 
                 for (let i = 0; i < group.slots.length; i++) {
@@ -1875,7 +1876,8 @@ export class PlayerRenderer {
             .uniform("u_modelYOffset", r.playerYOffset)
             .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
             .texture("u_npcDataTexture", actorDataTexture)
-            .texture("u_heightMap", map.heightMapTexture);
+            .texture("u_heightMap", map.heightMapTexture)
+            .uniform("u_sceneBorderSize", map.borderSize);
 
         r.app.disable(PicoGL.CULL_FACE);
 
@@ -2104,7 +2106,8 @@ export class PlayerRenderer {
                 .uniform("u_modelYOffset", r.playerYOffset)
                 .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                 .texture("u_npcDataTexture", playerDataTexture)
-                .texture("u_heightMap", map.heightMapTexture);
+                .texture("u_heightMap", map.heightMapTexture)
+                .uniform("u_sceneBorderSize", map.borderSize);
 
             r.app.disable(PicoGL.CULL_FACE);
 

@@ -349,6 +349,7 @@ export class WebGLMapSquare {
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", heightMapTexture)
+                .uniform("u_sceneBorderSize", borderSize)
                 // .texture("u_modelInfoTexture", modelInfoTexture)
                 .drawRanges(...drawRanges);
             if (modelInfoTexture) {
@@ -1293,6 +1294,7 @@ export class WebGLMapSquare {
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
+                .uniform("u_sceneBorderSize", this.borderSize)
                 .drawRanges(...drawRangesNpc);
 
             this.drawCallNpc = { drawCall, drawRanges: drawRangesNpc };
@@ -1664,6 +1666,7 @@ export class WebGLMapSquare {
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
+                .uniform("u_sceneBorderSize", this.borderSize)
                 .drawRanges(...drawRanges);
             if (modelInfoTexture) {
                 drawCall.texture("u_modelInfoTexture", modelInfoTexture);
@@ -1899,6 +1902,7 @@ export class WebGLMapSquare {
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
+                .uniform("u_sceneBorderSize", this.borderSize)
                 .drawRanges(...drawRanges);
             if (modelInfoTex) {
                 drawCall.texture("u_modelInfoTexture", modelInfoTex);
@@ -2072,6 +2076,7 @@ export class WebGLMapSquare {
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
+                .uniform("u_sceneBorderSize", this.borderSize)
                 .drawRanges(...drawRanges);
             if (modelInfoTexture) {
                 drawCall.texture("u_modelInfoTexture", modelInfoTexture);

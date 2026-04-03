@@ -11730,6 +11730,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const heightMapTex = (dyn.map as any).heightMapTexture;
                 if (heightMapTex) {
                     dynDrawCall.texture("u_heightMap", heightMapTex);
+                    dynDrawCall.uniform("u_sceneBorderSize", (dyn.map as any).borderSize ?? 6);
                 }
 
                 this.dynamicNpcSingleDrawRange[0] = 0;
@@ -12125,6 +12126,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const heightMapTex = (dyn.map as any).heightMapTexture;
                 if (heightMapTex) {
                     dynDrawCall.texture("u_heightMap", heightMapTex);
+                    dynDrawCall.uniform("u_sceneBorderSize", (dyn.map as any).borderSize ?? 6);
                 }
 
                 this.dynamicNpcSingleDrawRange[0] = 0;
