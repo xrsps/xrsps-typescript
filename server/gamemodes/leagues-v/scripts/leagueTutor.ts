@@ -2,8 +2,8 @@ import {
     VARBIT_LEAGUE_RELIC_1,
     VARBIT_LEAGUE_TUTORIAL_COMPLETED,
     VARBIT_LEAGUE_TYPE,
-} from "../../../../../../src/shared/vars";
-import { type ScriptModule } from "../../../scripts/types";
+} from "../../../../src/shared/vars";
+import { type ScriptModule } from "../../../src/game/scripts/types";
 import { queueLeagueTutorialOverlayUi } from "./leagueWidgets";
 
 const LEAGUE_TUTOR_NPC_ID = 315;

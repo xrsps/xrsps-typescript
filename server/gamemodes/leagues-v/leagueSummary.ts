@@ -2,9 +2,9 @@ import {
     LEAGUE_SUMMARY_GROUP_ID,
     SCRIPT_CC_TEXT_SWAPPER_ID,
     buildLeagueSummaryAccountAgeArgs,
-} from "../../../../../src/shared/ui/leagueSummary";
-import type { PlayerState } from "../../player";
-import type { WidgetAction } from "../../../widgets/WidgetManager";
+} from "../../../src/shared/ui/leagueSummary";
+import type { PlayerState } from "../../src/game/player";
+import type { WidgetAction } from "../../src/widgets/WidgetManager";
 
 export interface LeagueSummaryServices {
     queueWidgetEvent: (playerId: number, action: WidgetAction) => void;

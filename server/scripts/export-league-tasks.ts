@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 
 import { getCacheLoaderFactory } from "../../src/rs/cache/loader/CacheLoaderFactory";
-import { LeagueTaskDefinitions } from "../src/game/gamemodes/leagues-v/LeagueTaskDefinitions";
+import { LeagueTaskDefinitions } from "../gamemodes/leagues-v/LeagueTaskDefinitions";
 import { logger } from "../src/utils/logger";
 import { initCacheEnv } from "../src/world/CacheEnv";
 

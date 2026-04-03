@@ -2,7 +2,7 @@ import {
     VARBIT_LEAGUE_TUTORIAL_COMPLETED,
     VARBIT_LEAGUE_TYPE,
     VARP_LEAGUE_GENERAL,
-} from "../../../../../src/shared/vars";
+} from "../../../src/shared/vars";
 
 /**
  * League general state (VARP 2606) packing helpers.

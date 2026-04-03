@@ -2,7 +2,7 @@ import {
     MAP_FLAGS_LEAGUE_WORLD,
     VARBIT_LEAGUE_TYPE,
     VARP_MAP_FLAGS_CACHED,
-} from "../../../../../src/shared/vars";
+} from "../../../src/shared/vars";
 
 export interface PlayerWorldRulesState {
     getVarpValue: (id: number) => number;

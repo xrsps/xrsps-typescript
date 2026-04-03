@@ -1,11 +1,11 @@
-import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../../../../src/shared/leagues/leagueTypes";
+import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../../src/shared/leagues/leagueTypes";
 import {
     ACCOUNT_SUMMARY_COLLECTION_LOG_CHILD_INDEX,
     ACCOUNT_SUMMARY_ENTRY_LIST_UID,
     ACCOUNT_SUMMARY_GROUP_ID,
     ACCOUNT_SUMMARY_PLAYTIME_CHILD_INDEX,
-} from "../../../../../../src/shared/ui/accountSummary";
-import { LEAGUE_SUMMARY_GROUP_ID } from "../../../../../../src/shared/ui/leagueSummary";
+} from "../../../../src/shared/ui/accountSummary";
+import { LEAGUE_SUMMARY_GROUP_ID } from "../../../../src/shared/ui/leagueSummary";
 import {
     SIDE_JOURNAL_CONTENT_GROUP_BY_TAB,
     SIDE_JOURNAL_GROUP_ID,
@@ -13,7 +13,7 @@ import {
     decodeSideJournalTabFromStateVarp,
     encodeSideJournalTabInStateVarp,
     getSideJournalLeaguesContentGroupId,
-} from "../../../../../../src/shared/ui/sideJournal";
+} from "../../../../src/shared/ui/sideJournal";
 import {
     MAP_FLAGS_LEAGUE_WORLD,
     VARBIT_FLASHSIDE,
@@ -47,15 +47,15 @@ import {
     VARP_LEAGUE_POINTS_CURRENCY,
     VARP_MAP_FLAGS_CACHED,
     VARP_SIDE_JOURNAL_STATE,
-} from "../../../../../../src/shared/vars";
-import type { WidgetAction } from "../../../../widgets/WidgetManager";
-import { getMainmodalUid, getViewportTrackerFrontUid } from "../../../../widgets/viewport";
+} from "../../../../src/shared/vars";
+import type { WidgetAction } from "../../../src/widgets/WidgetManager";
+import { getMainmodalUid, getViewportTrackerFrontUid } from "../../../src/widgets/viewport";
 import { syncLeagueGeneralVarp } from "../leagueGeneral";
 import {
     getLeaguePackedVarpsForPlayer,
     syncLeaguePackedVarps,
 } from "../leaguePackedVarps";
-import { type ScriptModule, type WidgetActionEvent } from "../../../scripts/types";
+import { type ScriptModule, type WidgetActionEvent } from "../../../src/game/scripts/types";
 
 export type LeagueWsUiPlayer = {
     id: number;

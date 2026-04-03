@@ -290,7 +290,6 @@ import {
     findOwnedItemLocation as findOwnedItemLocationInSnapshot,
 } from "../game/items/playerItemOwnership";
 import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
-import { createGamemode } from "../game/gamemodes/GamemodeRegistry";
 import { LockState } from "../game/model/LockState";
 import {
     handleBoardingTick1,
@@ -1232,7 +1231,7 @@ export interface WSServerOptions {
     cacheEnv?: CacheEnv;
     serverName?: string;
     maxPlayers?: number;
-    gamemode?: GamemodeDefinition;
+    gamemode: GamemodeDefinition;
 }
 
 export class WSServer {
@@ -1445,7 +1444,7 @@ export class WSServer {
 
     constructor(opts: WSServerOptions) {
         this.options = opts;
-        this.gamemode = opts.gamemode ?? createGamemode("leagues-v");
+        this.gamemode = opts.gamemode;
         this.accountSummary = new AccountSummaryTracker({
             queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action),
             isWidgetGroupOpenInLedger: (playerId, groupId) =>
@@ -13236,8 +13235,7 @@ export class WSServer {
                                 // Run once after all IF_OPENSUB mounts so toplevel state is ready.
                                 this.queueActivateQuestSideTab(p.id);
                             }
-                            // Leagues tutorial overlay (677) runs while the player uses the UI.
-                            // OSRS parity: shown when %league_tutorial_completed is below the completion threshold.
+                            // Gamemode tutorial overlay (shown while tutorial is active).
                             //
                             // Project behavior: do not show the overlay over PlayerDesign (accountStage=0).
                             if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {
@@ -13349,7 +13347,7 @@ export class WSServer {
                             } catch {}
                         }
 
-                        // Leagues tutorial spawn: while the tutorial is not completed, force the player
+                        // Gamemode tutorial spawn: while tutorial is active, force the player
                         // into the tutorial area regardless of saved location.
                         try {
                             if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {

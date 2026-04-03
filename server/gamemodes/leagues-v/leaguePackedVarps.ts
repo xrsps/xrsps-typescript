@@ -1,4 +1,4 @@
-import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../../../src/shared/leagues/leagueTypes";
+import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../src/shared/leagues/leagueTypes";
 import {
     VARBIT_LEAGUE_MAGIC_MASTERY,
     VARBIT_LEAGUE_MASTERY_POINTS_EARNED,
@@ -14,7 +14,7 @@ import {
     VARBIT_LEAGUE_RELIC_7,
     VARBIT_LEAGUE_RELIC_8,
     VARP_LEAGUE_RELICS,
-} from "../../../../../src/shared/vars";
+} from "../../../src/shared/vars";
 
 type LeaguePackedVarpField = {
     varbitId: number;

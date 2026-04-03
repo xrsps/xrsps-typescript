@@ -1,7 +1,7 @@
 import {
     decodeSideJournalTabFromStateVarp,
     encodeSideJournalTabInStateVarp,
-} from "../../../../../../src/shared/ui/sideJournal";
+} from "../../../../src/shared/ui/sideJournal";
 import {
     VARBIT_FLASHSIDE,
     VARBIT_LEAGUE_TUTORIAL_COMPLETED,
@@ -9,11 +9,11 @@ import {
     VARBIT_SIDE_JOURNAL_TAB,
     VARP_LEAGUE_GENERAL,
     VARP_SIDE_JOURNAL_STATE,
-} from "../../../../../../src/shared/vars";
-import { getViewportTrackerFrontUid } from "../../../../widgets/viewport";
+} from "../../../../src/shared/vars";
+import { getViewportTrackerFrontUid } from "../../../src/widgets/viewport";
 import { LeagueTaskService } from "../LeagueTaskService";
 import { syncLeagueGeneralVarp } from "../leagueGeneral";
-import { type ScriptModule } from "../../../scripts/types";
+import { type ScriptModule } from "../../../src/game/scripts/types";
 
 // Interface/group IDs
 const LEAGUE_TUTORIAL_MAIN_GROUP_ID = 677; // league_tutorial_main
@@ -168,7 +168,7 @@ export const leagueTutorialWidgetModule: ScriptModule = {
                 services.queueVarbit?.(player.id, VARBIT_FLASHSIDE, FLASHSIDE_QUEST_TAB);
 
                 // Open the Quest tab
-                const { getRootInterfaceId, DisplayMode } = require("../../../../widgets/viewport");
+                const { getRootInterfaceId, DisplayMode } = require("../../../src/widgets/viewport");
                 const dm = player.displayMode ?? DisplayMode.RESIZABLE_NORMAL;
                 const rootId = getRootInterfaceId(dm);
                 const questTabUid = (rootId << 16) | 78; // Quest tab uses childId 78

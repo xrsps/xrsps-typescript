@@ -12,9 +12,9 @@ import {
     type RegisteredCustomTask,
     getAllCustomChallenges,
     getAllCustomTasks,
-} from "../../../../../src/shared/leagues/custom";
-import { LEAGUE_TASKS } from "../../../../../src/shared/leagues/leagueTasks.data";
-import type { LeagueTaskRow } from "../../../../../src/shared/leagues/leagueTypes";
+} from "../../../src/shared/leagues/custom";
+import { LEAGUE_TASKS } from "../../../src/shared/leagues/leagueTasks.data";
+import type { LeagueTaskRow } from "../../../src/shared/leagues/leagueTypes";
 import {
     type TriggerParserLoaders,
     buildNameLookups,

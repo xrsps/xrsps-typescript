@@ -1,6 +1,6 @@
-import { VARBIT_LEAGUE_TUTORIAL_COMPLETED } from "../../../../../src/shared/vars";
-import type { PlayerState } from "../../player";
-import type { GamemodeUiBridge, GamemodeUiController } from "../GamemodeDefinition";
+import { VARBIT_LEAGUE_TUTORIAL_COMPLETED } from "../../../src/shared/vars";
+import type { PlayerState } from "../../src/game/player";
+import type { GamemodeUiBridge, GamemodeUiController } from "../../src/game/gamemodes/GamemodeDefinition";
 import {
     type LeagueWsUiBridge,
     type LeagueWsUiPlayer,

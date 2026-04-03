@@ -1,11 +1,11 @@
-import { LEAGUE_TASK_COMPLETION_VARPS } from "../../../../../src/shared/leagues/leagueTaskVarps";
-import { getLeagueTaskByTaskId } from "../../../../../src/shared/leagues/leagueTasks";
+import { LEAGUE_TASK_COMPLETION_VARPS } from "../../../src/shared/leagues/leagueTaskVarps";
+import { getLeagueTaskByTaskId } from "../../../src/shared/leagues/leagueTasks";
 import {
     VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED,
     VARP_LEAGUE_POINTS_CLAIMED,
     VARP_LEAGUE_POINTS_COMPLETED,
     VARP_LEAGUE_POINTS_CURRENCY,
-} from "../../../../../src/shared/vars";
+} from "../../../src/shared/vars";
 
 /**
  * Varp 2612 backs varbit 10046 (league_total_tasks_completed).

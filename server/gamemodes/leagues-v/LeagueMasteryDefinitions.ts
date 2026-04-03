@@ -1,5 +1,5 @@
-import { EnumType } from "../../../../../src/rs/config/enumtype/EnumType";
-import { StructType } from "../../../../../src/rs/config/structtype/StructType";
+import { EnumType } from "../../../src/rs/config/enumtype/EnumType";
+import { StructType } from "../../../src/rs/config/structtype/StructType";
 
 export type LeagueMasteryDefinition = {
     masteryId: number;

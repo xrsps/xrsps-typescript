@@ -1,6 +1,6 @@
-import type { PlayerState } from "../../player";
-import type { ScriptManifestEntry } from "../../scripts/manifest";
-import type { GamemodeBridge, GamemodeDefinition, GamemodeInitContext, HandshakeBridge } from "../GamemodeDefinition";
+import type { PlayerState } from "../../src/game/player";
+import type { ScriptManifestEntry } from "../../src/game/scripts/manifest";
+import type { GamemodeBridge, GamemodeDefinition, GamemodeInitContext, HandshakeBridge } from "../../src/game/gamemodes/GamemodeDefinition";
 
 const DEFAULT_SPAWN = { x: 3222, y: 3218, level: 0 };
 
@@ -67,4 +67,8 @@ export class VanillaGamemode implements GamemodeDefinition {
     }
 
     initialize(_context: GamemodeInitContext): void {}
+}
+
+export function createGamemode(): GamemodeDefinition {
+    return new VanillaGamemode();
 }

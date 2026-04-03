@@ -1,6 +1,6 @@
 import path from "path";
 
-import { LEAGUE_TASK_COMPLETION_VARPS } from "../../../../../src/shared/leagues/leagueTaskVarps";
+import { LEAGUE_TASK_COMPLETION_VARPS } from "../../../src/shared/leagues/leagueTaskVarps";
 import {
     MAP_FLAGS_LEAGUE_WORLD,
     VARBIT_FLASHSIDE,
@@ -19,10 +19,10 @@ import {
     VARP_LEAGUE_POINTS_CURRENCY,
     VARP_MAP_FLAGS_CACHED,
     VARP_SIDE_JOURNAL_STATE,
-} from "../../../../../src/shared/vars";
-import type { PlayerState } from "../../player";
-import type { ScriptManifestEntry } from "../../scripts/manifest";
-import type { ScriptModule } from "../../scripts/types";
+} from "../../../src/shared/vars";
+import type { PlayerState } from "../../src/game/player";
+import type { ScriptManifestEntry } from "../../src/game/scripts/manifest";
+import type { ScriptModule } from "../../src/game/scripts/types";
 import { getLeagueVDropRateMultiplier, getLeagueVReplacementItemId, isLeagueVWorldPlayer } from "./leagueDrops";
 import { LeagueTaskManager } from "./LeagueTaskManager";
 import { LeagueTaskService } from "./LeagueTaskService";
@@ -30,7 +30,7 @@ import { syncLeagueGeneralVarp } from "./leagueGeneral";
 import { getLeaguePackedVarpsForPlayer } from "./leaguePackedVarps";
 import { getLeagueSkillXpMultiplier } from "./leagueXp";
 import { getActiveLeagueType, isLeagueVWorld, isLeagueWorld } from "./playerWorldRules";
-import { LEAGUE_SUMMARY_GROUP_ID } from "../../../../../src/shared/ui/leagueSummary";
+import { LEAGUE_SUMMARY_GROUP_ID } from "../../../src/shared/ui/leagueSummary";
 import { LeagueSummaryTracker } from "./leagueSummary";
 import type {
     GamemodeBridge,
@@ -39,7 +39,7 @@ import type {
     GamemodeUiBridge,
     GamemodeUiController,
     HandshakeBridge,
-} from "../GamemodeDefinition";
+} from "../../src/game/gamemodes/GamemodeDefinition";
 import { LeaguesVUiController } from "./LeaguesVUiController";
 
 const TUTORIAL_SPAWN = { x: 3094, y: 3107, level: 0 };
@@ -214,7 +214,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
     onVarpTransmit(player: PlayerState, varpId: number, value: number, previousValue: number): void {
         if (varpId !== VARP_SIDE_JOURNAL_STATE) return;
 
-        const { decodeSideJournalTabFromStateVarp } = require("../../../../../src/shared/ui/sideJournal");
+        const { decodeSideJournalTabFromStateVarp } = require("../../../src/shared/ui/sideJournal");
         const previousTab = decodeSideJournalTabFromStateVarp(previousValue);
         const currentTab = decodeSideJournalTabFromStateVarp(value);
         const tabChanged = previousTab !== currentTab;
@@ -362,4 +362,8 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         this.taskManager = undefined;
         this.initBridge = undefined;
     }
+}
+
+export function createGamemode(): GamemodeDefinition {
+    return new LeaguesVGamemode();
 }
