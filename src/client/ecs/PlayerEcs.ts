@@ -1635,6 +1635,33 @@ export class PlayerEcs {
         if (this.targetY) this.targetY[i] = currY;
     }
 
+    /**
+     * Drop only the queued (future) steps without aborting the active segment.
+     */
+    clearQueuedSteps(i: number): void {
+        if (!this.serverInterpEnabled) return;
+        if (!this.srvQueueLen || i < 0 || i >= this.capacity) return;
+        this.srvQueueLen[i] = 0;
+        this.srvQueueHead[i] = 0;
+        this.srvQueueTail[i] = 0;
+    }
+
+    /**
+     * Check whether the active interpolation segment's target tile matches
+     * a given subtile coordinate.  Used to decide between smooth append
+     * (target matches → queue new steps) vs snap (target wrong → full clear).
+     */
+    activeSegmentTargetMatches(i: number, subX: number, subY: number): boolean {
+        if (!this.serverInterpEnabled) return true;
+        if (i < 0 || i >= this.capacity) return true;
+        const t = (this.srvT?.[i] as number) ?? 1.0;
+        if (t >= 1.0) return true; // no active segment — anything matches
+        const nx = this.srvNextX?.[i] | 0;
+        const ny = this.srvNextY?.[i] | 0;
+        // Compare tile-level (within 64 subtile units tolerance for size offsets)
+        return Math.abs(nx - (subX | 0)) < 64 && Math.abs(ny - (subY | 0)) < 64;
+    }
+
     private _queuePush(i: number, x: number, y: number, factor: number, rotation?: number): void {
         const cap = PlayerEcs.MAX_INTERP_QUEUE;
         const off = i * cap;

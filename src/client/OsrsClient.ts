@@ -2978,7 +2978,7 @@ export class OsrsClient {
                     if (!enabled) return;
                     const sid = this.controlledPlayerServerId | 0;
                     const state = this.playerMovementSync.getState(sid);
-                    const pending = state?.getAllPendingSteps?.() ?? [];
+                    const pending: any[] = [];
                     const last = state?.getLastSteps?.() ?? [];
                     console.log("[path-debug] serverPath", this.serverPathWaypoints);
                     console.log(

@@ -59,6 +59,34 @@ export class PathService {
     }
 
     /**
+     * Resolve the effective worldViewId for a pathfinding request.
+     *
+     * If the request already carries a worldViewId, honour it.
+     * Otherwise, auto-detect by checking whether the source tile falls inside
+     * any registered WorldView.  This ensures EVERY pathfinding call is
+     * automatically constrained — callers never need to remember to pass
+     * worldViewId themselves.
+     */
+    private resolveWorldViewId(req: PathRequest): number | undefined {
+        if (req.worldViewId !== undefined && req.worldViewId >= 0) return req.worldViewId;
+        for (const [id, wv] of this.worldViewCollision) {
+            if (wv.containsWorldTile(req.from.x, req.from.y)) return id;
+        }
+        return undefined;
+    }
+
+    /** Clamp a destination tile to the bounds of a WorldView (no-op when not in one). */
+    clampToWorldView(worldViewId: number | undefined, x: number, y: number): { x: number; y: number } {
+        if (worldViewId === undefined || worldViewId < 0) return { x, y };
+        const wv = this.worldViewCollision.get(worldViewId);
+        if (!wv) return { x, y };
+        return {
+            x: Math.max(wv.baseX, Math.min(wv.baseX + wv.sizeX - 1, x)),
+            y: Math.max(wv.baseY, Math.min(wv.baseY + wv.sizeY - 1, y)),
+        };
+    }
+
+    /**
      * OSRS NPC "Dumb Pathfinder" - naive diagonal-then-cardinal approach.
      *
      * NPCs in OSRS do NOT use smart BFS pathfinding. Instead they use a simple
@@ -284,8 +312,11 @@ export class PathService {
                 return { ok: true, steps: [] };
             }
 
-            // Fill flags window (per-WorldView collision if applicable)
-            this.fillFlagsAcrossMaps(fromX, fromY, plane, req.worldViewId);
+            // Auto-resolve WorldView from source position so callers don't need
+            // to pass worldViewId explicitly.
+            const effectiveWvId = this.resolveWorldViewId(req);
+
+            this.fillFlagsAcrossMaps(fromX, fromY, plane, effectiveWvId);
 
             const collisionStrategy = NORMAL_STRATEGY;
             let rs = routeStrategy ?? new ExactRouteStrategy();
@@ -401,9 +432,12 @@ export class PathService {
                 const wx = graphBaseX + gx;
                 const wy = graphBaseY + gy;
 
-                // Per-WorldView collision takes priority
-                if (wvCollision && wvCollision.containsWorldTile(wx, wy)) {
-                    pf.flags[gx][gy] = wvCollision.getCollisionFlag(plane, wx, wy);
+                // When inside a WorldView, only that view's tiles are walkable.
+                // Tiles outside stay as -1 (blocked) — no fallthrough to overworld.
+                if (wvCollision) {
+                    if (wvCollision.containsWorldTile(wx, wy)) {
+                        pf.flags[gx][gy] = wvCollision.getCollisionFlag(plane, wx, wy);
+                    }
                     continue;
                 }
 
@@ -463,8 +497,9 @@ export class PathService {
                 return { ok: true, waypoints: [] };
             }
 
-            // Fill flags window (per-WorldView collision if applicable)
-            this.fillFlagsAcrossMaps(fromX, fromY, plane, req.worldViewId);
+            // Auto-resolve WorldView from source position.
+            const effectiveWvId = this.resolveWorldViewId(req);
+            this.fillFlagsAcrossMaps(fromX, fromY, plane, effectiveWvId);
 
             // Choose collision strategy.
             // NOTE: Do not auto-switch to BLOCKED_STATEGY based on FLOOR bits.
@@ -505,6 +540,14 @@ export class PathService {
 
     /** Return raw collision flag for a world tile at a given plane, or undefined if out-of-bounds. */
     getCollisionFlagAt(worldX: number, worldY: number, plane: number): number | undefined {
+        // Check WorldView collision first — if the tile is inside any registered
+        // WorldView, that view is authoritative and overworld data is irrelevant.
+        for (const [, wv] of this.worldViewCollision) {
+            if (wv.containsWorldTile(worldX, worldY)) {
+                return wv.getCollisionFlag(plane, worldX, worldY);
+            }
+        }
+
         const mapX = this.mapSquareCoord64(worldX);
         const mapY = this.mapSquareCoord64(worldY);
         if (mapX < 0 || mapY < 0) return undefined;
@@ -517,7 +560,6 @@ export class PathService {
         const cm = ms.collisionMaps[l];
         if (!cm?.isWithinBounds(lx, ly)) return undefined;
         let flags = cm.getFlag(lx, ly);
-        // Apply dynamic collision overlays (e.g., open doors)
         if (this.collisionOverlays) {
             flags = this.collisionOverlays.applyOverlay(worldX, worldY, l, flags);
         }

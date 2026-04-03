@@ -182,7 +182,6 @@ export class PlayerSyncManager {
                     effectiveLevel,
                 );
                 if (!spawn.preserveQueue) {
-                    state.clearPendingSteps();
                     state.setLastSteps([]);
                     this.spawnQueueDiagnostics.cleared++;
                     if (this.debugLogging) {
@@ -609,7 +608,6 @@ export class PlayerSyncManager {
 
         const state = this.movementSync.getState(serverId);
         if (state) {
-            state.clearPendingSteps();
             state.setTile(
                 { x: endTileX | 0, y: endTileY | 0 },
                 endSubX | 0,
@@ -706,9 +704,7 @@ export class PlayerSyncManager {
         const state = this.movementSync.getState(serverId);
         let isMoving = false;
         try {
-            const t = this.playerEcs.getServerStepT(ecsIndex);
-            const hasPending = state ? state.hasPendingSteps() : false;
-            isMoving = Number(t) < 0.999 || !!hasPending;
+            isMoving = this.playerEcs.isMoving(ecsIndex);
         } catch {}
 
         // Reference: SoundSystem.method740 (player update) assigns Actor.field1208 immediately when idle.

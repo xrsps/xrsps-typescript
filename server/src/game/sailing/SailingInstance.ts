@@ -162,7 +162,10 @@ export function buildSailingOverlayTemplates(): number[][][] {
     const chunks = createEmptyTemplateChunks();
 
     for (let plane = 0; plane < 4; plane++) {
-        // Only the center chunk: boat source region
+        // Only the center chunk: boat source region.
+        // Surrounding chunks are intentionally empty so the overlay doesn't
+        // cover Port Sarim terrain with ocean visuals.  Server-side collision
+        // blocking is handled separately in buildDockedCollision().
         chunks[plane][6][6] = packTemplateChunk(
             plane, SOURCE_CHUNK_X, SOURCE_CHUNK_Y, 0,
         );
