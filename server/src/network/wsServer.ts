@@ -10076,6 +10076,11 @@ export class WSServer {
                 );
             case "emote.play":
                 return this.executeEmotePlayAction(player, action.data as EmotePlayActionData);
+            case "npc.trade": {
+                const tradeData = action.data as { npcTypeId?: number; shopId?: string };
+                this.openShopInterface(player, tradeData);
+                return { ok: true, effects: [] };
+            }
             default:
                 return {
                     ok: false,

@@ -243,6 +243,11 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/items/followers.ts")],
     },
     {
+        id: "packs",
+        load: loadModule("modules/items/packs", "packsModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/items/packs.ts")],
+    },
+    {
         id: "demo.interactions",
         load: loadModule("modules/demoInteractions", "demoInteractionsModule"),
         watch: [path.resolve(MODULE_DIR, "modules/demoInteractions.ts")],

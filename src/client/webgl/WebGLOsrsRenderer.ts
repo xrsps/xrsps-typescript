@@ -12135,7 +12135,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         mapY: localY,
                         actionIndex: actionIdx,
                         deprioritized: followerDeprioritized,
-                        onClick: () => {
+                        onClick: (_entry?: any, _evt?: any, ctx?: any) => {
+                            // When called as a side-effect by MenuState.invoke (worldMenuStateDispatch),
+                            // menuAction already handles packet dispatch via sendNpcInteract.
+                            if (ctx?.worldMenuStateDispatch) return;
                             try {
                                 this.osrsClient.interactNpc({
                                     npcServerId: sid | 0,
@@ -12178,7 +12181,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         mapY: localY,
                         actionIndex: actionIdx,
                         deprioritized,
-                        onClick: () => {
+                        onClick: (_entry?: any, _evt?: any, ctx?: any) => {
+                            if (ctx?.worldMenuStateDispatch) return;
                             try {
                                 this.osrsClient.attackNpc({
                                     npcServerId: sid | 0,

@@ -379,12 +379,19 @@ export class ShopManager {
     }
 
     private buildSnapshot(shop: ShopState): ShopSnapshot {
+        const stock: ShopStockEntry[] = [];
+        for (let idx = 0; idx < shop.slots.length; idx++) {
+            const slot = shop.slots[idx];
+            if (slot && slot.itemId > 0 && slot.quantity > 0) {
+                stock.push(this.serializeSlot(shop, idx));
+            }
+        }
         return {
             shopId: shop.id,
             name: shop.name,
             currencyItemId: shop.currencyItemId,
             generalStore: shop.generalStore,
-            stock: shop.slots.map((_, idx) => this.serializeSlot(shop, idx)),
+            stock,
         };
     }
 

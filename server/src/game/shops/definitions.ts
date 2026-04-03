@@ -95,6 +95,34 @@ const TEST_WEAPONS_SHOP: ShopDefinition = {
     ],
 };
 
+const AUBURY_RUNE_SHOP: ShopDefinition = {
+    id: "aubury_rune_shop",
+    name: "Aubury's Rune Shop",
+    npcIds: [2886, 11434],
+    currencyItemId: 995,
+    capacity: 40,
+    generalStore: false,
+    restockTicks: 40,
+    buyPriceMultiplier: 1,
+    sellPriceMultiplier: 0.6,
+    stock: [
+        { itemId: 556, quantity: 5000, price: 4, restockTicks: 10 }, // Air rune
+        { itemId: 554, quantity: 5000, price: 4, restockTicks: 10 }, // Fire rune
+        { itemId: 555, quantity: 5000, price: 4, restockTicks: 10 }, // Water rune
+        { itemId: 557, quantity: 5000, price: 4, restockTicks: 10 }, // Earth rune
+        { itemId: 558, quantity: 5000, price: 3, restockTicks: 10 }, // Mind rune
+        { itemId: 559, quantity: 5000, price: 5, restockTicks: 10 }, // Body rune
+        { itemId: 562, quantity: 250, price: 90, restockTicks: 10 }, // Chaos rune
+        { itemId: 560, quantity: 250, price: 180, restockTicks: 15 }, // Death rune
+        { itemId: 12734, quantity: 80, price: 430, restockTicks: 10 }, // Fire rune pack
+        { itemId: 12730, quantity: 80, price: 430, restockTicks: 10 }, // Water rune pack
+        { itemId: 12728, quantity: 80, price: 430, restockTicks: 10 }, // Air rune pack
+        { itemId: 12732, quantity: 80, price: 430, restockTicks: 10 }, // Earth rune pack
+        { itemId: 12736, quantity: 40, price: 330, restockTicks: 10 }, // Mind rune pack
+        { itemId: 12738, quantity: 35, price: 9950, restockTicks: 10 }, // Chaos rune pack
+    ],
+};
+
 const CATHERBY_RANGE_SHOP: ShopDefinition = {
     id: "catherby_range_shop",
     name: "Hickton's Archery Emporium",
@@ -158,6 +186,7 @@ const CATHERBY_RANGE_SHOP: ShopDefinition = {
 const SHOP_DEFINITIONS: ShopDefinition[] = [
     VARROCK_GENERAL_STORE,
     TEST_WEAPONS_SHOP,
+    AUBURY_RUNE_SHOP,
     CATHERBY_RANGE_SHOP,
 ];
 
