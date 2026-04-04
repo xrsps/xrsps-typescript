@@ -33,11 +33,11 @@ import {
     VOTE_MODAL_COMPONENT_TITLE,
     VOTE_MODAL_GROUP_ID,
 } from "../../../shared/ui/voteModal";
-import { ITEM_SPAWNER_MODAL_GROUP_ID, SMITHING_BAR_MODAL_GROUP_ID } from "../../../shared/ui/widgets";
+import { getDynamicWidgetGroup } from "../../../shared/gamemode/GamemodeContentStore";
+import { SMITHING_BAR_MODAL_GROUP_ID } from "../../../shared/ui/widgets";
 import { FONT_BOLD_12, FONT_PLAIN_11 } from "../../fonts";
 import { FLAG_TRANSMIT_OP1 } from "../WidgetFlags";
 import type { WidgetNode } from "../WidgetNode";
-import { buildItemSpawnerModalGroup } from "./itemSpawner.cs2";
 import { buildSmithingBarModalGroup } from "./smithing.cs2";
 
 type WidgetGroupLoadResult = { root: WidgetNode | undefined; widgets: Map<number, WidgetNode> };
@@ -674,8 +674,10 @@ export function loadCustomWidgetGroup(groupId: number): WidgetGroupLoadResult | 
     if ((groupId | 0) === SMITHING_BAR_MODAL_GROUP_ID) {
         return buildSmithingBarModalGroup();
     }
-    if ((groupId | 0) === ITEM_SPAWNER_MODAL_GROUP_ID) {
-        return buildItemSpawnerModalGroup();
+    // Check dynamically loaded widgets (from GAMEMODE_DATA)
+    const dynamic = getDynamicWidgetGroup(groupId);
+    if (dynamic) {
+        return dynamic as WidgetGroupLoadResult;
     }
     return undefined;
 }

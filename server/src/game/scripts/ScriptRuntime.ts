@@ -489,6 +489,9 @@ export class ScriptRuntime {
                 track(this.registry.registerRegionHandler(regionId, handler)),
             registerTickHandler: (handler: TickHandler) =>
                 track(this.registry.registerTickHandler(handler)),
+            registerCommand: (name: string, handler: any) =>
+                track(this.registry.registerCommand(name, handler)),
+            findCommand: (name: string) => this.registry.findCommand(name),
             findNpcInteraction: (npcId, option) => this.registry.findNpcInteraction(npcId, option),
             findLocInteraction: (locId, action) => this.registry.findLocInteraction(locId, action),
             findItemOnItem: (sourceItemId, targetItemId, option) =>

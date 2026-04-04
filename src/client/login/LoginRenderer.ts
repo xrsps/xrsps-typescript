@@ -142,10 +142,11 @@ export interface ServerListEntry {
     maxPlayers: number;
 }
 
-const PLACEHOLDER_SERVERS: ServerListEntry[] = [
+const FALLBACK_SERVERS: ServerListEntry[] = [
     { name: "Local Development", address: "localhost:43594", secure: false, playerCount: null, maxPlayers: 2047 },
-    { name: "Grizz Island", address: "grizzisland.playit.plus:48165", secure: false, playerCount: null, maxPlayers: 2047 },
 ];
+
+const SERVER_LIST_URL = "https://xrsps.com/servers.json";
 
 /**
  * Login screen renderer.
@@ -278,13 +279,38 @@ export class LoginRenderer {
     mouseY: number = 0;
 
     /** Server list entries */
-    serverList: ServerListEntry[] = PLACEHOLDER_SERVERS;
+    serverList: ServerListEntry[] = FALLBACK_SERVERS;
+
+    /** Whether the remote server list has been fetched */
+    serverListFetched: boolean = false;
 
     /** Whether a server probe is currently in flight */
     probing: boolean = false;
 
     /** Whether servers have been probed at least once */
     probed: boolean = false;
+
+    async fetchServerList(): Promise<void> {
+        if (this.serverListFetched) return;
+        try {
+            const res = await fetch(SERVER_LIST_URL, { signal: AbortSignal.timeout(5000) });
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    this.serverList = data.map((s: any) => ({
+                        name: s.name ?? "Unknown",
+                        address: s.address ?? "",
+                        secure: s.secure ?? false,
+                        playerCount: null,
+                        maxPlayers: s.maxPlayers ?? 2047,
+                    }));
+                }
+            }
+        } catch {
+            // keep fallback
+        }
+        this.serverListFetched = true;
+    }
 
     refreshServerList(): void {
         if (this.probing) return;

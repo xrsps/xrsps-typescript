@@ -15,10 +15,13 @@ import {
     ITEM_SPAWNER_MODAL_GROUP_ID,
     ITEM_SPAWNER_MODAL_RESULT_SLOT_COUNT,
     ITEM_SPAWNER_MODAL_SLOT_COLUMNS,
-} from "../../../shared/ui/widgets";
-import { FONT_BOLD_12, FONT_PLAIN_11 } from "../../fonts";
-import { FLAG_TRANSMIT_OP1 } from "../WidgetFlags";
-import type { WidgetNode } from "../WidgetNode";
+} from "../../../../src/shared/ui/widgets";
+
+const FONT_PLAIN_11 = 494;
+const FONT_BOLD_12 = 496;
+const FLAG_TRANSMIT_OP1 = 1 << 1;
+
+type WidgetNode = Record<string, any>;
 
 const ITEM_SPAWNER_MODAL_WIDTH = 520;
 const ITEM_SPAWNER_MODAL_HEIGHT = 412;

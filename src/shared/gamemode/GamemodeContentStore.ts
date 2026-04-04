@@ -16,6 +16,8 @@ let customTasksByTaskId: Map<number, any> | null = null;
 let customChallengesByStructId: Map<number, any> | null = null;
 let customEnumOverrides: Map<number, any[]> | null = null;
 
+let dynamicWidgetGroups: Map<number, { root: any; widgets: Map<number, any> }> | null = null;
+
 let ready = false;
 
 export function isReady(): boolean {
@@ -74,6 +76,24 @@ export function loadFromPayload(payload: {
                 customChallengesByStructId = new Map();
                 for (const row of dataset.rows as any[]) {
                     if (row.structId != null) customChallengesByStructId.set(row.structId | 0, row);
+                }
+                break;
+            case "customWidgets":
+                try {
+                    dynamicWidgetGroups = new Map();
+                    for (const group of dataset.rows as any[]) {
+                        if (!group?.groupId || !Array.isArray(group.widgets)) continue;
+                        const widgets = new Map<number, any>();
+                        let root: any = undefined;
+                        for (const w of group.widgets) {
+                            if (w.uid != null) widgets.set(w.uid, w);
+                            if (w.parentUid === -1 || w.parentUid === undefined) root = w;
+                        }
+                        dynamicWidgetGroups.set(group.groupId | 0, { root, widgets });
+                    }
+                    console.log(`[GamemodeContentStore] registered ${dynamicWidgetGroups.size} custom widget group(s)`);
+                } catch (err) {
+                    console.log("[GamemodeContentStore] failed to load custom widgets", err);
                 }
                 break;
             case "customItems":
@@ -199,4 +219,10 @@ export function getCustomEnumValueOverride(
         return { custom: tasks[key].structId };
     }
     return { shiftedKey: key - customCount };
+}
+
+export function getDynamicWidgetGroup(
+    groupId: number,
+): { root: any; widgets: Map<number, any> } | undefined {
+    return dynamicWidgetGroups?.get(groupId | 0);
 }

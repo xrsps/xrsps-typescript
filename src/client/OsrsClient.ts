@@ -9344,7 +9344,7 @@ export class OsrsClient {
             case "open_server_list":
                 this.loginState.serverListOpen = true;
                 this.loginState.virtualKeyboardVisible = false;
-                this.loginRenderer.refreshServerList();
+                this.loginRenderer.fetchServerList().then(() => this.loginRenderer.refreshServerList());
                 return undefined;
 
             case "close_server_list":

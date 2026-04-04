@@ -1,6 +1,7 @@
 import { deflateSync } from "zlib";
 
 import { CustomItemRegistry } from "../../../src/custom/items/CustomItemRegistry";
+import { CustomWidgetRegistry } from "../../src/game/scripts/CustomWidgetRegistry";
 import { ServerPacketId } from "../../../src/shared/packets/ServerPacketId";
 import { LEAGUE_TASKS } from "./data/leagueTasks.data";
 import {
@@ -41,6 +42,7 @@ export class LeagueContentProvider {
                 { key: "customTasks", rows: getAllCustomTasks() },
                 { key: "customChallenges", rows: getAllCustomChallenges() },
                 { key: "customItems", rows: customItems },
+                { key: "customWidgets", rows: CustomWidgetRegistry.serialize() },
             ],
         };
 

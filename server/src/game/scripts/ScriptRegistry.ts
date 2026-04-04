@@ -289,6 +289,17 @@ export class ScriptRegistry implements IScriptRegistry {
         return this.commandHandlers.get(name.trim().toLowerCase());
     }
 
+    findItemAction(itemId: number, option?: string): ItemOnItemHandler | undefined {
+        const key = makeItemKey(itemId, undefined, option);
+        const direct = this.itemActionHandlers.get(key);
+        if (direct) return direct;
+        if (option) {
+            const fallback = makeItemKey(itemId, undefined, undefined);
+            return this.itemActionHandlers.get(fallback);
+        }
+        return undefined;
+    }
+
     findNpcInteraction(npcId: number, option?: string): NpcInteractionHandler | undefined {
         const key = makeNpcKey(npcId, option);
         const direct = this.npcHandlers.get(key);
@@ -322,7 +333,13 @@ export class ScriptRegistry implements IScriptRegistry {
         const direct = this.itemHandlers.get(key);
         if (direct) return direct;
         const actionKey = makeItemKey(sourceItemId, undefined, option);
-        return this.itemActionHandlers.get(actionKey);
+        const actionDirect = this.itemActionHandlers.get(actionKey);
+        if (actionDirect) return actionDirect;
+        if (option) {
+            const fallback = makeItemKey(sourceItemId, undefined, undefined);
+            return this.itemActionHandlers.get(fallback);
+        }
+        return undefined;
     }
 
     findItemOnLoc(

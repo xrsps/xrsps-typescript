@@ -1,0 +1,53 @@
+/* brand colors */
+:root {
+    --vp-c-brand-1: #5b8def;
+    --vp-c-brand-2: #7aa2f7;
+    --vp-c-brand-3: #5b8def;
+    --vp-button-brand-bg: #5b8def;
+    --vp-button-brand-hover-bg: #7aa2f7;
+    --vp-button-brand-active-bg: #4a7de0;
+    --vp-home-hero-name-color: transparent;
+    --vp-home-hero-name-background: linear-gradient(135deg, #7aa2f7, #bb9af7);
+}
+
+.dark {
+    --vp-c-brand-1: #7aa2f7;
+    --vp-c-brand-2: #89b4fa;
+    --vp-c-brand-3: #7aa2f7;
+    --vp-button-brand-bg: #7aa2f7;
+    --vp-button-brand-hover-bg: #89b4fa;
+    --vp-button-brand-active-bg: #5b8def;
+    --vp-home-hero-name-background: linear-gradient(135deg, #7aa2f7, #bb9af7);
+}
+
+/* hero */
+.VPHero {
+    padding-bottom: 48px !important;
+}
+
+/* buttons */
+.VPButton {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+}
+
+/* features */
+.VPFeature {
+    transition: border-color 0.2s, transform 0.2s !important;
+}
+
+.VPFeature:hover {
+    border-color: var(--vp-c-brand-1) !important;
+    transform: translateY(-2px);
+}
+
+/* navbar */
+.VPNavBar .divider,
+.VPNavBar .divider-line {
+    display: none !important;
+}
+
+/* footer */
+.VPFooter {
+    border-top: none !important;
+}

@@ -289,6 +289,7 @@ import {
     type OwnedItemLocation,
     findOwnedItemLocation as findOwnedItemLocationInSnapshot,
 } from "../game/items/playerItemOwnership";
+import { CustomItemRegistry } from "../../../src/custom/items/CustomItemRegistry";
 import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
 import { getGamemodeDataDir } from "../game/gamemodes/GamemodeRegistry";
 import { LockState } from "../game/model/LockState";
@@ -799,7 +800,7 @@ function testRandFloat(): number {
     return Math.random();
 }
 
-const CONSUME_VERBS = ["eat", "drink", "quaff", "sip", "imbibe", "swig", "consume", "devour"];
+const CONSUME_VERBS = ["eat", "drink", "quaff", "sip", "imbibe", "swig", "consume", "devour", "activate"];
 const FURNACE_ANIMATION = 899;
 const TELEPORT_ACTION_GROUP = "movement.teleport";
 
@@ -1879,6 +1880,8 @@ export class WSServer {
                 setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
                 queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
                 buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
+                openItemSpawnerModal: (player: any, query?: string) =>
+                    this.cs2ModalManager?.openItemSpawnerModal(player, query),
                 openDialog: (player, request) =>
                     this.widgetDialogHandler.openDialog(player, request as any),
                 openDialogOptions: (player, options) =>
@@ -8249,7 +8252,18 @@ export class WSServer {
 
             // --- Scripted Consume ---
             executeScriptedConsume: (player, itemId, slotIndex, option, tick) => {
-                // Look for registered consume handlers
+                const handler = this.scriptRegistry.findItemAction(itemId, option);
+                if (handler) {
+                    handler({
+                        player,
+                        source: { slot: slotIndex, itemId },
+                        target: { slot: -1, itemId: -1 },
+                        option,
+                        tick,
+                        services: this.scriptRuntime.getServices(),
+                    });
+                    return { handled: true };
+                }
                 return { handled: false };
             },
 
@@ -15142,8 +15156,16 @@ export class WSServer {
                             hasValidSlot &&
                             opId >= 1
                         ) {
-                            const obj = this.getObjType(payload.itemId);
-                            const actions = obj?.inventoryActions;
+                            // Check custom item registry first for overridden actions
+                            let actions: (string | null | undefined)[] | undefined;
+                            const customItem = CustomItemRegistry.get(payload.itemId);
+                            if (customItem?.definition?.objType?.inventoryActions) {
+                                actions = customItem.definition.objType.inventoryActions;
+                            }
+                            if (!actions) {
+                                const obj = this.getObjType(payload.itemId);
+                                actions = obj?.inventoryActions;
+                            }
                             if (actions) {
                                 const resolved = actions[opId - 1];
                                 if (resolved) {
@@ -15158,6 +15180,17 @@ export class WSServer {
                                     });
                                     if (handled) break;
                                 }
+                            }
+                            // Fallback: try script registry with no specific option
+                            {
+                                const tick = this.options.ticker.currentTick();
+                                const handled = this.scriptRuntime.queueItemAction({
+                                    tick,
+                                    player,
+                                    itemId: payload.itemId,
+                                    slot: slotVal ?? 0,
+                                });
+                                if (handled) break;
                             }
                         }
 
