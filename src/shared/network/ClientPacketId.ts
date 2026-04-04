@@ -1,7 +1,7 @@
 /**
  * Client packet IDs - shared between client and server
  *
- * Packet IDs and lengths derived from OSRS client deobfuscation.
+ * Packet IDs and lengths for the OSRS protocol.
  * Names follow OSRS conventions: IF_BUTTON for widget clicks,
  * OPNPC/OPLOC/OPOBJ for entity interactions, etc.
  *
@@ -82,7 +82,7 @@ export enum ClientPacketId {
     IF_CLOSE = 55, // Close interface (0 bytes)
 
     // Player appearance
-    // ClientPacket.field3200 in deob (id=37, len=13): submit player design / appearance selection
+    // Submit player design / appearance selection (id=37, len=13)
     // Payload: gender (1), kits[7] (7), colors[5] (5)
     APPEARANCE_SET = 37,
 

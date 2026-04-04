@@ -824,7 +824,7 @@ export class NpcEcs {
                     const isClippedNpc = this.clipped[id] === 1;
 
                     if (isClippedNpc) {
-                        // Deob parity: clipped NPCs slow to walk speed 2 while turning into a
+                        // Clipped NPCs slow to walk speed 2 while turning into a
                         // path step without an interaction target, which is especially visible
                         // when retreating back toward spawn.
                         if (turningIntoStep) {

@@ -58,8 +58,7 @@ export interface SceneRaycastOptions {
     maxDistance?: number;
     maxHits?: number;
     /**
-     * OSRS parity: restrict world interactions (LOC/OBJ/NPC/PLAYER) to the current client plane.
-     * In the reference client this is SecureUrlRequester.Client_plane.
+     * Restrict world interactions (LOC/OBJ/NPC/PLAYER) to the current client plane.
      */
     basePlane?: number;
 }

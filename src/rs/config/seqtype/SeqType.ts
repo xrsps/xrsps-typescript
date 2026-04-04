@@ -94,8 +94,8 @@ export class SeqType extends Type {
     }
 
     getFrameLength(seqFrameLoader: SeqFrameLoader, frame: number): number {
-        // OSRS parity: use SequenceDefinition.frameLengths directly (no client-side fallback).
-        // If the cache contains a 0 length, the reference client advances after one cycle
+        // Use frameLengths directly (no client-side fallback).
+        // If the cache contains a 0 length, the client advances after one cycle
         // because it checks `cycle > frameLengths[frame]`.
         // NOTE: blendTable (opcode 100) is parsed but not used - no reference for its behavior.
         return (this.frameLengths[frame] ?? 0) | 0;
@@ -248,11 +248,7 @@ export class SeqType extends Type {
 
     /**
      * Checks if this sequence is a "single-shot" animation that should be
-     * cancelled when movement starts.
-     * Reference: player-movement.md (method2429:16-18, SequenceDefinition.field2226)
-     *
-     * In the reference client this is `SequenceDefinition.field2226 == 1`
-     * (ours: `priority == 1`).
+     * cancelled when movement starts (`priority == 1`).
      *
      * @returns true if the animation should be cancelled on movement
      */

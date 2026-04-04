@@ -3,15 +3,13 @@ import type { WidgetNode } from "../WidgetNode";
 
 /**
  * Minimal context required to evaluate CS1 (IF1) widget comparisons.
- * Mirrors the reference client data sources used by class345.runCs1 /
- * SecureRandomCallable.method2318.
  */
 export type Cs1Context = {
     getWidgetByUid(uid: number): WidgetNode | undefined;
     osrsClient?: any;
 };
 
-// Reference: Skills.Skills_enabled (r215).
+// Skills enabled flags (true = skill is active in the game).
 const SKILLS_ENABLED: boolean[] = [
     true,
     true,
@@ -40,7 +38,7 @@ const SKILLS_ENABLED: boolean[] = [
     false,
 ];
 
-// Reference: Skills.Skills_experienceTable (r215).
+// Experience table: cumulative XP required for each level.
 const SKILLS_XP_TABLE: Int32Array = (() => {
     const out = new Int32Array(99);
     let acc = 0;

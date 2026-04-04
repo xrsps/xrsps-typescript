@@ -186,8 +186,6 @@ import type {
     SkillFlaxActionData,
     SkillFletchActionData,
     SkillMiningActionData,
-    SkillPicklockActionData,
-    SkillPickpocketActionData,
     SkillSinewActionData,
     SkillSmeltActionData,
     SkillSmithActionData,
@@ -564,7 +562,7 @@ const NPC_SIM_RADIUS_TILES = NPC_STREAM_EXIT_RADIUS_TILES + 12;
 const DEBUG_NPC_STREAM =
     (process?.env?.DEBUG_NPC_STREAM ?? "").toString().toLowerCase() === "1" ||
     (process?.env?.DEBUG_NPC_STREAM ?? "").toString().toLowerCase() === "true";
-const ADMIN_CROWN_ICON = 1; // r235 Jagex moderator crown icon id.
+const ADMIN_CROWN_ICON = 1; // Jagex moderator crown icon id.
 const ADMIN_USERNAMES_ENV = (
     process?.env?.ADMIN_USERNAMES ??
     process?.env?.ADMIN_PLAYERS ??
@@ -576,7 +574,7 @@ const ADMIN_USERNAMES = new Set(
         .map((value) => value.trim().toLowerCase())
         .filter((value) => value.length > 0),
 );
-// r235 DAT2 ObjType param for weapon attack speed (ticks per attack).
+// DAT2 ObjType param for weapon attack speed (ticks per attack).
 // Verified via cache anchors: whip=4, godsword=6, dragon dagger=4.
 const WEAPON_SPEED_PARAM = 14;
 const DEFAULT_ATTACK_SPEED = 4;
@@ -777,7 +775,7 @@ const DEBUG_LOG_STACK_QTY = 28;
 
 const TILE_UNIT = 128;
 
-// Binary player sync uses OSRS-style update masks (r215):
+// Binary player sync uses OSRS-style update masks:
 // - bit 0x80 in the first byte indicates a second mask byte follows
 // - bit 0x4000 (bit 14) indicates a third mask byte follows
 
@@ -2221,6 +2219,35 @@ export class WSServer {
                         });
                     }
                 },
+                // --- Action handler services ---
+                getNpc: (id) => this.npcManager?.getById(id) ?? undefined,
+                getSkill: (player, skillId) => {
+                    const skill = player.getSkill(skillId);
+                    return { baseLevel: skill.baseLevel, boost: skill.boost, xp: skill.xp };
+                },
+                isPlayerStunned: (player) => player.timers.has(STUN_TIMER),
+                isPlayerInCombat: (player) => player.isBeingAttacked(),
+                hasInventorySlot: (player) => this.hasInventorySlot(player),
+                applyPlayerHitsplat: (player, style, damage, tick) =>
+                    combatEffectApplicator.applyPlayerHitsplat(player, style, damage, tick),
+                stunPlayer: (player, ticks) => {
+                    player.timers.set(STUN_TIMER, ticks);
+                },
+                queueNpcForcedChat: (npc, text) => {
+                    npc.pendingSay = text;
+                },
+                queueNpcSeq: (npc, seqId) => {
+                    npc.queueOneShotSeq(seqId);
+                },
+                faceNpcToPlayer: (npc, player) => {
+                    npc.faceTile(player.tileX, player.tileY);
+                },
+                clearPlayerFaceTarget: (player) => {
+                    try { player.clearInteraction(); } catch {}
+                },
+                scheduleAction: (playerId, request, tick) =>
+                    this.actionScheduler.requestAction(playerId, request, tick),
+                getEquipArray: (player) => this.ensureEquipArray(player),
             },
         });
         logger.info(
@@ -7934,49 +7961,6 @@ export class WSServer {
             sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
                 this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
 
-            // --- Pickpocket Helpers ---
-            applyPlayerHitsplat: (player, style, damage, tick) =>
-                combatEffectApplicator.applyPlayerHitsplat(player, style, damage, tick),
-            stunPlayer: (player, ticks) => {
-                player.timers.set(STUN_TIMER, ticks);
-            },
-            isPlayerStunned: (player) => {
-                return player.timers.has(STUN_TIMER);
-            },
-            isPlayerInCombat: (player) => {
-                return player.isBeingAttacked();
-            },
-            broadcastPlayerSpot: (player, spotId, height = 0, delay = 0) => {
-                const tick = this.options.ticker.currentTick();
-                this.enqueueSpotAnimation({
-                    tick,
-                    playerId: player.id,
-                    spotId,
-                    height,
-                    delay,
-                });
-            },
-            queueNpcForcedChat: (npc, text) => {
-                npc.pendingSay = text;
-            },
-            queueNpcSeq: (npc, seqId) => {
-                npc.queueOneShotSeq(seqId);
-            },
-            faceNpcToPlayer: (npc, player) => {
-                npc.faceTile(player.tileX, player.tileY);
-            },
-            queueClientScript: (player, scriptId, ...args) => {
-                this.queueClientScript(player.id, scriptId, ...args);
-            },
-            setPickpocketVarbit: (player, varbitId, value) => {
-                player.setVarbitValue(varbitId, value);
-                this.queueVarbit(player.id, varbitId, value);
-            },
-            clearPlayerFaceTarget: (player) => {
-                try {
-                    player.clearInteraction();
-                } catch {}
-            },
             // --- Logging ---
             log: (level, message, data) => {
                 try {
@@ -8551,7 +8535,7 @@ export class WSServer {
                 player.markAppearanceDirty();
                 this.queueAppearanceSnapshot(player);
                 // Note: queueAnimSnapshot is no longer needed here since the appearance block
-                // now includes the animation set (OSRS parity: Player.read() in reference client)
+                // now includes the animation set
             },
             sendInventoryUpdate: (player) => {
                 const sock = this.players?.getSocketByPlayerId(player.id);
@@ -10307,18 +10291,6 @@ export class WSServer {
                     action.data as SkillBoltEnchantActionData,
                     tick,
                 );
-            case "skill.picklock":
-                return this.skillActionHandler.executeSkillPicklockAction(
-                    player,
-                    action.data as SkillPicklockActionData,
-                    tick,
-                );
-            case "skill.pickpocket":
-                return this.skillActionHandler.executeSkillPickpocketAction(
-                    player,
-                    action.data as SkillPickpocketActionData,
-                    tick,
-                );
             case "movement.teleport":
                 return this.executeMovementTeleportAction(
                     player,
@@ -10343,7 +10315,16 @@ export class WSServer {
                 this.openShopInterface(player, tradeData);
                 return { ok: true, effects: [] };
             }
-            default:
+            default: {
+                const scriptHandler = this.scriptRegistry.findActionHandler(action.kind);
+                if (scriptHandler) {
+                    return scriptHandler({
+                        player,
+                        data: action.data,
+                        tick,
+                        services: this.scriptRuntime.getServices(),
+                    });
+                }
                 return {
                     ok: false,
                     reason: `unknown_action:${action.kind}`,
@@ -10356,6 +10337,7 @@ export class WSServer {
                         },
                     ],
                 };
+            }
         }
     }
 
@@ -13165,7 +13147,7 @@ export class WSServer {
                                     // In a real implementation, these would be calculated from player save data.
                                     // For now, set reasonable defaults so the UI displays properly.
                                     questVarbits[6347] = 0; // quests_completed_count (0 completed)
-                                    questVarbits[11877] = 158; // quests_total_count (158 total quests in OSRS as of r235)
+                                    questVarbits[11877] = 158; // quests_total_count (158 total quests in OSRS)
                                     questVarbits[1782] = 300; // qp_max (300 max quest points)
 
                                     // Varp 101 = QP (current quest points)
@@ -14029,7 +14011,7 @@ export class WSServer {
     private serializeAppearancePayload(
         view: import("./encoding/types").PlayerViewSnapshot,
     ): Uint8Array {
-        // OSRS parity: use binary encoding matching Player.read() in reference client
+        // Use binary encoding matching Player.read()
         // This includes equipment, kits, colors, animation sequences, etc.
         const player = this.players?.getById(view.id);
         return encodeAppearanceBinary(view, {

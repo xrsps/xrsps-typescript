@@ -26,7 +26,7 @@ const TEMPLATE_MIN = 2;
 const TEMPLATE_MAX = 11;
 
 // ============================================================================
-// Instance Coordinates (source-region space, from packet capture)
+// Instance Coordinates
 // ============================================================================
 
 // Region center for the scene (chunk coords)
@@ -44,7 +44,7 @@ export const PORT_SARIM_RETURN_Y = 3207;
 export const PORT_SARIM_RETURN_LEVEL = 0;
 
 // ============================================================================
-// Boat Loc Definitions (source-region coordinates from packet capture)
+// Boat Loc Definitions
 // ============================================================================
 
 export interface BoatLoc {
@@ -200,7 +200,7 @@ export function buildSailingIntroTemplates(): number[][][] {
 }
 
 // ============================================================================
-// World Entity Configuration (from packet capture)
+// World Entity Configuration
 // ============================================================================
 
 export const SAILING_WORLD_ENTITY_INDEX = 3426;

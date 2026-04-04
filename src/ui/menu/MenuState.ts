@@ -3,7 +3,7 @@ import { MenuAction, menuAction } from "./MenuAction";
 import type { MenuClickContext } from "./MenuEngine";
 
 /**
- * Menu opcodes matching OSRS reference client (class31.java menuAction)
+ * Menu opcodes
  *
  * These are the action type identifiers used when processing menu clicks.
  * Opcodes >= 2000 are deprioritized versions (subtract 2000 to get actual opcode).
@@ -392,9 +392,9 @@ function isWorldInteractionOpcode(opcode: MenuOpcode): boolean {
 }
 
 /**
- * MenuState - Parallel arrays matching OSRS reference client
+ * MenuState - Parallel arrays for menu entries
  *
- * The reference client uses these arrays in Client.java:
+ * Uses these arrays:
  * - menuActions[] - option text
  * - menuTargets[] - target text
  * - menuOpcodes[] - action type

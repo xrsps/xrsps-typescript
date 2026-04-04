@@ -630,7 +630,7 @@ export class Model2DRenderer {
                     );
                     const src = texPixels[ty * texSize + tx] >>> 0;
                     const aT = (src >>> 24) & 255;
-                    // Binary texture alpha to match deob (palette 0 transparent, else opaque)
+                    // Binary texture alpha (palette 0 transparent, else opaque)
                     if (aT < 1) {
                         triSkippedAlpha++;
                         continue;
@@ -792,18 +792,18 @@ export class Model2DRenderer {
             faceDepths[f] = vz[a] + vz[b] + vz[c];
         }
 
-        // Deob-style face ordering: depth bins + priority interleaving (10/11)
-        const radiusDeob = (model.radius ?? 0) | 0;
-        const diameterDeob = Math.max(0, (model.diameter ?? 0) | 0);
+        // Face ordering: depth bins + priority interleaving (10/11)
+        const radius = (model.radius ?? 0) | 0;
+        const diameter = Math.max(0, (model.diameter ?? 0) | 0);
         let maxBinObserved = 0;
         const tmpBins: Map<number, number[]> = new Map();
         for (let f = 0; f < fc; f++) {
             if (model.faceColors3 && model.faceColors3[f] === -2) continue;
             const avgDepth = (faceDepths[f] / 3) | 0;
-            let bin = avgDepth + radiusDeob;
-            if (diameterDeob > 0) {
+            let bin = avgDepth + radius;
+            if (diameter > 0) {
                 if (bin < 0) bin = 0;
-                if (bin >= diameterDeob) bin = diameterDeob - 1;
+                if (bin >= diameter) bin = diameter - 1;
             }
             if (bin > maxBinObserved) maxBinObserved = bin;
             let list = tmpBins.get(bin);
@@ -813,7 +813,7 @@ export class Model2DRenderer {
             }
             list.push(f);
         }
-        const binsLen = diameterDeob > 0 ? diameterDeob : maxBinObserved + 1;
+        const binsLen = diameter > 0 ? diameter : maxBinObserved + 1;
         const bins: number[][] = Array.from({ length: binsLen }, () => []);
         for (const [b, list] of tmpBins.entries()) if (b >= 0 && b < binsLen) bins[b] = list;
         const prioArr = model.faceRenderPriorities;
@@ -893,7 +893,7 @@ export class Model2DRenderer {
 
         // Debug dump moved below draw loop to ensure counters are initialized
 
-        // Draw using deob-ordered faces
+        // Draw using depth-ordered faces
         let facesTextured = 0;
         let facesFlat = 0;
         let facesClipped = 0;
@@ -1176,9 +1176,9 @@ export class Model2DRenderer {
                         : undefined;
                     const depth = faceDepths[f] | 0;
                     let binVal = depth / 3 + (model.radius ? model.radius | 0 : 0);
-                    if (diameterDeob > 0) {
+                    if (diameter > 0) {
                         if (binVal < 0) binVal = 0;
-                        if (binVal >= diameterDeob) binVal = diameterDeob - 1;
+                        if (binVal >= diameter) binVal = diameter - 1;
                     }
                     const za = zc[a] | 0,
                         zb = zc[b] | 0,

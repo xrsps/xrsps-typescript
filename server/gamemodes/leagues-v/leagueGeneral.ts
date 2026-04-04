@@ -7,7 +7,7 @@ import {
 /**
  * League general state (VARP 2606) packing helpers.
  *
- * Cache-verified varbit layout (r235):
+ * Cache-verified varbit layout:
  * - VARBIT_LEAGUE_TYPE (10032): baseVar=2606, bits [1..4] (startBit=1, endBit=5)
  * - VARBIT_LEAGUE_TUTORIAL_COMPLETED (10037): baseVar=2606, bits [13..17] (startBit=13, endBit=18)
  * - bit 0: league mode enabled flag

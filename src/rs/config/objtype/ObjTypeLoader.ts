@@ -17,8 +17,6 @@ export type ObjTypeLoader = TypeLoader<ObjType>;
  * - notedId      -> genBought(notedId, unnotedId)
  * - placeholderTemplate -> genPlaceholder(placeholderTemplate, placeholder)
  *
- * Reference: `class341.ItemDefinition_get` in the deob.
- *
  * Our generic TypeLoader pipeline calls `type.post()` but ObjType requires access
  * to other ObjTypes to apply these transforms, so we wrap the loader instead.
  */

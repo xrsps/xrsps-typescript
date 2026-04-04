@@ -69,7 +69,7 @@ export enum Opcodes {
      * if_find_child(parent, param1, value1, [param2, value2], value1Type, value2Type)
      * Returns 1/0 and sets the active widget to the found child.
      *
-     * Deob parity (class147 opcode 210): value operands are popped by script-var-type ids.
+     * Value operands are popped by script-var-type ids.
      */
     IF_FIND_CHILD = 210,
     /** Returns the widget's UID (cc_getuid). */
@@ -388,7 +388,7 @@ export enum Opcodes {
     SETKEYINPUTMODE_KEYBOARD = 3139,
     /** Gets the current key input mode. */
     GETKEYINPUTMODE = 3140,
-    /** Opcode 3131 (deob): pops one int; no observable client-side effect. */
+    /** Pops one int; no observable client-side effect. */
     SETHIDETOOLTIP = 3131,
     GETCANVASSIZE = 3132,
     MOBILE_SETFPS = 3133,
@@ -825,7 +825,7 @@ export enum Opcodes {
     HIGHLIGHT_GROUP_GET = 7043, // pop 1 string + 1 int (groupName, slot), push boolean
     HIGHLIGHT_GROUP_CLEAR = 7044, // pop 1 int (slot)
 
-    // Mouseover/minimenu opcodes (r235 cache mapping)
+    // Mouseover/minimenu opcodes
     MINIMENU_TYPE = 7100, // push 1 int - type of entity being hovered
     MINIMENU_ENTRY = 7101, // push 2 strings (option, target)
     MINIMENU_FINDNPC = 7102, // push 1 boolean - hovered target resolves to NPC

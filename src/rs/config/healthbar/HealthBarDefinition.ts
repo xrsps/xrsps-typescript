@@ -3,9 +3,8 @@ import { Type } from "../Type";
 
 /**
  * Minimal parser for OSRS health bar definitions ({@code healthBar} config archive).
- * Mirrors the structure used by the native client (see HealthBarDefinition in the
- * official deob). Definitions reference two sprites (front/back) and include
- * timing/width settings that control fade-outs and fill behaviour.
+ * Definitions reference two sprites (front/back) and include timing/width settings
+ * that control fade-outs and fill behaviour.
  */
 export class HealthBarDefinition extends Type {
     int1: number = 255;

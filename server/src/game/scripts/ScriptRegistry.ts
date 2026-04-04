@@ -8,6 +8,7 @@ import {
     type LocInteractionHandler,
     type NpcInteractionHandler,
     type RegionEventHandler,
+    type ScriptActionHandler,
     type ScriptRegistrationResult,
     type TickHandler,
     type WidgetActionHandler,
@@ -72,6 +73,7 @@ export class ScriptRegistry implements IScriptRegistry {
     private readonly buttonHandlers = new Map<number, WidgetActionHandler>();
     private readonly commandHandlers = new Map<string, CommandHandler>();
     private readonly clientMessageHandlers = new Map<string, ClientMessageHandler>();
+    private readonly actionHandlers = new Map<string, ScriptActionHandler>();
 
     registerNpcInteraction(
         npcId: number,
@@ -308,6 +310,22 @@ export class ScriptRegistry implements IScriptRegistry {
         return this.clientMessageHandlers.get(messageType.trim().toLowerCase());
     }
 
+    registerActionHandler(
+        kind: string,
+        handler: ScriptActionHandler,
+    ): ScriptRegistrationResult {
+        this.actionHandlers.set(kind, handler);
+        return {
+            unregister: () => {
+                this.actionHandlers.delete(kind);
+            },
+        };
+    }
+
+    findActionHandler(kind: string): ScriptActionHandler | undefined {
+        return this.actionHandlers.get(kind);
+    }
+
     findItemAction(itemId: number, option?: string): ItemOnItemHandler | undefined {
         const key = makeItemKey(itemId, undefined, option);
         const direct = this.itemActionHandlers.get(key);
@@ -451,5 +469,6 @@ export class ScriptRegistry implements IScriptRegistry {
         this.buttonHandlers.clear();
         this.commandHandlers.clear();
         this.clientMessageHandlers.clear();
+        this.actionHandlers.clear();
     }
 }

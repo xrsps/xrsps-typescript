@@ -1,7 +1,6 @@
 /**
  * MouseCross - Animated click feedback sprite
  *
- * Matches the reference client's mouse cross rendering.
  * Shows a red cross for attacks, yellow cross for walk/interact.
  * The cross animates from large to small over 100ms.
  */

@@ -1,7 +1,6 @@
 import type { LeagueTaskRow } from "../../../../src/shared/gamemode/GamemodeDataTypes";
 
-// Generated snapshot of cache league tasks (1 line per task).
-// Source of truth: caches/ (r235)
+// Auto-generated from cache data (1 line per task).
 export const LEAGUE_TASKS: LeagueTaskRow[] = [
     {
         taskId: 0,

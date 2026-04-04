@@ -17,7 +17,6 @@ type PersistedIosPwaLoginState = {
 /**
  * Login state instance class.
  * Holds all mutable state for the login screen.
- * Matches reference client Login.java fields.
  */
 export class LoginState {
     constructor() {

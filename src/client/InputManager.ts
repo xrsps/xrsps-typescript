@@ -5,7 +5,6 @@ import { ClientState } from "./ClientState";
 /**
  * OSRS internal key code mapping table.
  * Maps Java/DOM keyCode to OSRS internal codes.
- * Source: class27.field115 in deobfuscated OSRS client.
  * Index = DOM keyCode, Value = OSRS internal code (-1 = unmapped)
  */
 // prettier-ignore

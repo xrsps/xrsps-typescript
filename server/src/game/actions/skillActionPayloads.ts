@@ -77,39 +77,6 @@ export interface SkillFlaxActionData {
 
 export interface SkillSmeltActionData extends SkillRecipeActionData {}
 
-export interface SkillPicklockActionData {
-    locId: number;
-    closedTransformId: number;
-    openTransformId: number;
-    varbitId: number;
-    openValue: number;
-    thievingLevel: number;
-    xp: number;
-    tile: { x: number; y: number };
-    level: number;
-    started: boolean;
-}
-
-export interface SkillPickpocketActionData {
-    npcId: number;
-    npcTypeId: number;
-    reqLevel: number;
-    xp: number;
-    lootTable: Array<{
-        itemId: number;
-        minAmount: number;
-        maxAmount: number;
-        weight: number;
-    }>;
-    coinPouchId?: number;
-    minDamage: number;
-    maxDamage: number;
-    stunTicks: number;
-    displayName?: string;
-    /** 0=attempt, 1=resolve, 2=stun_visual, 3=stun_damage */
-    phase: number;
-}
-
 export interface SkillBoltEnchantActionData {
     sourceItemId: number;
     enchantedItemId: number;
@@ -134,8 +101,6 @@ export type SkillActionPayloadByKind = {
     "skill.bolt_enchant": SkillBoltEnchantActionData;
     "skill.firemaking": SkillFiremakingActionData;
     "skill.woodcut": SkillWoodcuttingActionData;
-    "skill.picklock": SkillPicklockActionData;
-    "skill.pickpocket": SkillPickpocketActionData;
 };
 
 export type SkillActionRequest<K extends keyof SkillActionPayloadByKind> = {

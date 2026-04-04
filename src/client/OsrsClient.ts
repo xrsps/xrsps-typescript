@@ -2078,7 +2078,7 @@ export class OsrsClient {
                     const isAuto = autoChat === true;
                     const messageType = privileged ? (isAuto ? 91 : 1) : isAuto ? 90 : 2;
                     // OSRS parity: public chat (player sync block) populates chat history so
-                    // `onChatTransmit` listeners (chatbox scripts) behave like the reference client.
+                    // `onChatTransmit` listeners (chatbox scripts) behave correctly.
                     chatHistory.addMessage(messageType, text, sender, "");
                     // OSRS PARITY: Mark chat cycle instead of directly triggering handlers.
                     // Use markChatTransmit() which handles timing when async events arrive
@@ -3405,10 +3405,9 @@ export class OsrsClient {
             }
         } catch {}
 
-        // OSRS parity: Do NOT predict movement on click. The reference client only sets
-        // destinationX/Y for the minimap marker and sends the packet. Movement prediction
-        // happens when the server sends back movement updates with running mode (class231.field2459).
-        // See: class31.java menu actions - they only set Client.destinationX/Y and send packet.
+        // Do NOT predict movement on click. The client only sets destinationX/Y for the
+        // minimap marker and sends the packet. Movement prediction happens when the server
+        // sends back movement updates with running mode.
 
         // Mirror OSRS client: send MOVE_GAMECLICK (ClientPacket.field3179) via binary packet writer.
         // Server computes path; packet contains world coords + ctrl modifier (run invert).
@@ -3417,7 +3416,7 @@ export class OsrsClient {
             node.packetBuffer.writeShortAddLE(worldY);
             node.packetBuffer.writeByteNeg(ctrlHeld ? 1 : 0);
             node.packetBuffer.writeShortAddLE(worldX);
-            // Reference client writes a final shortAdd param; it's unused for ground clicks.
+            // Final shortAdd param; unused for ground clicks.
             node.packetBuffer.writeShortAdd(0);
             queuePacket(node);
         }
@@ -4244,7 +4243,7 @@ export class OsrsClient {
                 return;
             }
 
-            // Deob parity: Widget_getSpellActionName can be null, and client stores literal "null".
+            // Widget_getSpellActionName can be null, and client stores literal "null".
             if (!targetVerb && isSpellbookWidget && needsTarget) {
                 targetVerb = "null";
             }
@@ -5729,7 +5728,7 @@ export class OsrsClient {
         const instance = this.widgetManager.getGroup(rootGroupId);
         if (!instance) return null;
 
-        // Fast path: known IDs for common root interfaces (R235 cache).
+        // Fast path: known IDs for common root interfaces.
         // - 161:13 toplevel_osrs_stretch:notifications
         // - 164:13 toplevel_resizable_classic:notifications
         // - 548:44 toplevel_fixed:notifications
@@ -8360,7 +8359,7 @@ export class OsrsClient {
         }
 
         if (dispatched) {
-            // Deob parity: clicking a spell target updates destination marker and mouse cross
+            // Clicking a spell target updates destination marker and mouse cross
             // on click, while actual movement/rotation remains server-authoritative.
             try {
                 const mapXRaw = Number(context.mapX);
@@ -8871,7 +8870,7 @@ export class OsrsClient {
 
     /**
      * Update the game state and handle transitions.
-     * Matches reference client updateGameState() with cleanup/setup logic.
+     * Handles game state transitions with cleanup/setup logic.
      *
      * Uses the centralized GameStateMachine for atomic transitions.
      */

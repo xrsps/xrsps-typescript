@@ -127,10 +127,9 @@ export class PlayerAnimController {
                 const seqId = state.seqId | 0;
                 if (seqId >= 0) {
                     let pauseAtDelayOne = false;
-                    // OSRS parity: when moving at the moment an animation starts (field1215 > 0) and
+                    // When moving at the moment an animation starts (field1215 > 0) and
                     // the sequence allows movement (`field2244 == 1`), the client holds sequenceDelay
                     // at 1 until those pending steps are consumed.
-                    // Reference: ParamComposition.updateActorSequence (lines ~313-319 in r215 deob).
                     if ((state.delay | 0) <= 1) {
                         const seqType = this.safeLoadSeqType(seqId);
                         const precedenceAnimating =

@@ -3,7 +3,7 @@ import type { PathService } from "../../pathfinding/PathService";
 import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { WidgetAction } from "../../widgets/WidgetManager";
 import { type DoorStateManager } from "../../world/DoorStateManager";
-import { type ActionEnqueueResult, type ActionKind, type ActionRequest } from "../actions";
+import { type ActionEffect, type ActionEnqueueResult, type ActionExecutionResult, type ActionKind, type ActionRequest } from "../actions";
 import type { OwnedItemLocation } from "../items/playerItemOwnership";
 import { type NpcSpawnConfig, type NpcState } from "../npc";
 import { type PlayerState } from "../player";
@@ -121,6 +121,17 @@ export interface ClientMessageEvent extends ScriptExecutionContext {
 }
 
 export type ClientMessageHandler = (event: ClientMessageEvent) => void | Promise<void>;
+
+export interface ScriptActionHandlerContext {
+    player: PlayerState;
+    data: unknown;
+    tick: number;
+    services: ScriptServices;
+}
+
+export type ScriptActionHandler = (
+    ctx: ScriptActionHandlerContext,
+) => ActionExecutionResult;
 
 export interface ScriptModule {
     id: string;
@@ -288,6 +299,11 @@ export interface IScriptRegistry {
         handler: ClientMessageHandler,
     ): ScriptRegistrationResult;
     findClientMessageHandler(messageType: string): ClientMessageHandler | undefined;
+    registerActionHandler(
+        kind: string,
+        handler: ScriptActionHandler,
+    ): ScriptRegistrationResult;
+    findActionHandler(kind: string): ScriptActionHandler | undefined;
 }
 
 export interface ScriptRegistrationResult {
@@ -759,4 +775,27 @@ export interface ScriptServices {
     queueWorldEntityMask?: (playerId: number, entityIndex: number, mask: { animationId?: number; sequenceFrame?: number; actionMask?: number }) => void;
     buildSailingDockedCollision?: () => void;
     gamemodeServices?: Record<string, unknown>;
+    // --- Action handler services ---
+    getNpc?: (id: number) => NpcState | undefined;
+    getSkill?: (player: PlayerState, skillId: number) => { baseLevel: number; boost: number; xp?: number };
+    isPlayerStunned?: (player: PlayerState) => boolean;
+    isPlayerInCombat?: (player: PlayerState) => boolean;
+    hasInventorySlot?: (player: PlayerState) => boolean;
+    applyPlayerHitsplat?: (
+        player: PlayerState,
+        style: number,
+        damage: number,
+        tick: number,
+    ) => { amount: number; style: number; hpCurrent: number; hpMax: number };
+    stunPlayer?: (player: PlayerState, ticks: number) => void;
+    queueNpcForcedChat?: (npc: NpcState, text: string) => void;
+    queueNpcSeq?: (npc: NpcState, seqId: number) => void;
+    faceNpcToPlayer?: (npc: NpcState, player: PlayerState) => void;
+    clearPlayerFaceTarget?: (player: PlayerState) => void;
+    scheduleAction?: (
+        playerId: number,
+        request: ActionRequest,
+        tick: number,
+    ) => { ok: boolean; reason?: string };
+    getEquipArray?: (player: PlayerState) => number[];
 }

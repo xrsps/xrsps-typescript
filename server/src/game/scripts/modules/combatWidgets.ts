@@ -29,7 +29,7 @@ import { type ScriptModule } from "../types";
  * Combat widgets handlers for interface 593 (combat options tab) and 201 (autocast popup).
  *
  * Uses onButton registration since binary IF_BUTTON packets don't send option strings.
- * Component IDs from OSRS r235 cache:
+ * Component IDs from cache:
  * - 593:6 = Combat style button 1
  * - 593:10 = Combat style button 2
  * - 593:14 = Combat style button 3

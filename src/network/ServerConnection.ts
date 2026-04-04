@@ -1829,7 +1829,7 @@ function processServerMessage(msg: any): void {
         } catch (err) {
             console.warn("failed to process player_sync payload", err);
             try {
-                // OSRS parity: the reference client hard-fails on malformed updatePlayers streams.
+                // The client hard-fails on malformed updatePlayers streams.
                 // In this dev client, force a reconnect to resynchronise player sync state.
                 const message = (err as any)?.message?.toString?.() ?? "";
                 if (

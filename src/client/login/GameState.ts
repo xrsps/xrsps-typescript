@@ -1,8 +1,7 @@
 /**
- * Game states matching the reference client (Client.gameState).
- * These control which screen is displayed and what logic runs each frame.
+ * Game states controlling which screen is displayed and what logic runs each frame.
  *
- * OSRS Reference (class207.java):
+ * State values:
  * - 0/5: Loading screen with progress bar
  * - 10/11/50: Login screen (loginIndex determines which view)
  * - 20: Connecting to server
@@ -38,7 +37,7 @@ export enum GameState {
 
 /**
  * Login screen index - different views within the login screen.
- * Matches Login.loginIndex in the reference client.
+ * Controls which view is shown within the login screen.
  */
 export enum LoginIndex {
     /** Welcome screen with "New User" and "Existing User" buttons */

@@ -325,7 +325,7 @@ export class ItemIconRenderer {
         Rasterizer3D.rasterGouraudLowRes = false;
         // Center viewport: for OSRS 36x32 icons, the original client uses (16,16)
         const osrsExact = sw === 36 && sh === 32;
-        // Match the deob exactly: no extra vertical scaling
+        // No extra vertical scaling
         const yScaleFix = 1.0;
         const centerX = osrsExact ? 16 : (sw / 2) | 0;
         const centerY = osrsExact ? 16 : (sh / 2) | 0;

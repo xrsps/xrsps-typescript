@@ -1,5 +1,6 @@
-import type { SkillPickpocketActionData } from "../../actions/skillActionPayloads";
-import { type NpcInteractionEvent, type ScriptModule } from "../types";
+import type { ActionEffect, ActionExecutionResult } from "../../../src/game/actions/types";
+import type { PlayerState } from "../../../src/game/player";
+import type { NpcInteractionEvent, ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
 
 // ---------------------------------------------------------------------------
 // Thieving System
@@ -578,7 +579,7 @@ const PICKPOCKET_NPCS: PickpocketNpcDef[] = [
     },
 ];
 
-// Build a fast NPC ID → definition lookup.
+// Build a fast NPC ID -> definition lookup.
 const npcIdToPickpocketDef = new Map<number, PickpocketNpcDef>();
 for (const def of PICKPOCKET_NPCS) {
     for (const id of def.npcIds) {
@@ -587,7 +588,7 @@ for (const def of PICKPOCKET_NPCS) {
 }
 
 // -- Coin pouch definitions --
-// Maps pouch item ID → [minCoins, maxCoins] per open.
+// Maps pouch item ID -> [minCoins, maxCoins] per open.
 const COIN_POUCH_VALUES: Record<number, [number, number]> = {
     22521: [3, 3],        // Man/Woman
     22522: [9, 9],        // Farmer
@@ -615,12 +616,280 @@ const MAX_COIN_POUCHES = 28;
 export { npcIdToPickpocketDef, PICKPOCKET_NPCS };
 
 // ---------------------------------------------------------------------------
+// Pickpocket Action Data (self-contained, no engine imports)
+// ---------------------------------------------------------------------------
+
+interface PickpocketActionData {
+    npcId: number;
+    npcTypeId: number;
+    reqLevel: number;
+    xp: number;
+    lootTable: Array<{
+        itemId: number;
+        minAmount: number;
+        maxAmount: number;
+        weight: number;
+    }>;
+    coinPouchId?: number;
+    minDamage: number;
+    maxDamage: number;
+    stunTicks: number;
+    displayName?: string;
+    /** 0=attempt, 1=resolve, 2=stun_visual, 3=stun_damage */
+    phase: number;
+}
+
+// ---------------------------------------------------------------------------
+// Pickpocket Action Handler Constants (network-verified, OSRS r237)
+// ---------------------------------------------------------------------------
+
+const PICKPOCKET_ANIM = 881;
+const PICKPOCKET_STUN_ANIM = 424;
+const PICKPOCKET_NPC_ATTACK_ANIM = 390;
+const PICKPOCKET_STUN_GFX = 245;
+const PICKPOCKET_STUN_GFX_HEIGHT = 124;
+const PICKPOCKET_SUCCESS_SOUND = 2581;
+const PICKPOCKET_STUN_SOUND = 2727;
+const PICKPOCKET_DAMAGE_SOUND = 519;
+const PICKPOCKET_DAMAGE_SOUND_DELAY = 20;
+const PICKPOCKET_HIT_STYLE = 16;
+const PICKPOCKET_BUSY_VARBIT = 12393;
+const PICKPOCKET_NOTIFY_SCRIPT = 7192;
+const GLOVES_OF_SILENCE_ID = 10075;
+const GLOVES_OF_SILENCE_BONUS = 5;
+const EQUIPMENT_SLOT_GLOVES = 9;
+const THIEVING_SKILL_ID = 17;
+
+// ---------------------------------------------------------------------------
+// Pickpocket Action Execution
+// ---------------------------------------------------------------------------
+
+function schedulePickpocket(
+    services: ScriptServices,
+    playerId: number,
+    data: PickpocketActionData,
+    tick: number,
+): void {
+    services.scheduleAction?.(
+        playerId,
+        {
+            kind: "skill.pickpocket",
+            data,
+            delayTicks: 1,
+            cooldownTicks: 1,
+            groups: ["skill.pickpocket"],
+        },
+        tick,
+    );
+}
+
+function rollPickpocketSuccess(
+    playerLevel: number,
+    reqLevel: number,
+    equipArray: number[],
+): boolean {
+    const glovesId = equipArray[EQUIPMENT_SLOT_GLOVES] ?? -1;
+    const bonus = glovesId === GLOVES_OF_SILENCE_ID ? GLOVES_OF_SILENCE_BONUS : 0;
+    const minChance = 55;
+    const maxChance = 95;
+    const range = 99 - reqLevel || 1;
+    const chance = minChance + ((maxChance - minChance) * (playerLevel - reqLevel)) / range;
+    const clamped = Math.min(maxChance, Math.max(minChance, chance));
+    return Math.random() * (100 - bonus) < clamped;
+}
+
+function rollPickpocketLoot(
+    lootTable: PickpocketActionData["lootTable"],
+): { itemId: number; quantity: number } | undefined {
+    if (lootTable.length === 0) return undefined;
+    let totalWeight = 0;
+    for (const entry of lootTable) totalWeight += entry.weight;
+    if (totalWeight <= 0) return undefined;
+
+    let roll = Math.random() * totalWeight;
+    for (const entry of lootTable) {
+        roll -= entry.weight;
+        if (roll <= 0) {
+            const quantity =
+                entry.minAmount === entry.maxAmount
+                    ? entry.minAmount
+                    : entry.minAmount +
+                      Math.floor(Math.random() * (entry.maxAmount - entry.minAmount + 1));
+            return { itemId: entry.itemId, quantity };
+        }
+    }
+
+    const fallback = lootTable[0];
+    return { itemId: fallback.itemId, quantity: fallback.minAmount };
+}
+
+function buildMessageEffect(player: PlayerState, message: string): ActionEffect {
+    return { type: "message", playerId: player.id, message };
+}
+
+function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecutionResult {
+    const { player, tick, services } = ctx;
+    const data = ctx.data as PickpocketActionData;
+    const effects: ActionEffect[] = [];
+    const npc = services.getNpc?.(data.npcId);
+    const npcName = data.displayName ?? npc?.name ?? "NPC";
+    const npcNameLower = npcName.toLowerCase();
+
+    // Phase 0: Attempt — prechecks + attempt message
+    if (data.phase === 0) {
+        const thievingSkill = services.getSkill?.(player, THIEVING_SKILL_ID);
+        const thievingLevel = thievingSkill?.baseLevel ?? 1;
+
+        if (thievingLevel < data.reqLevel) {
+            effects.push(buildMessageEffect(player,
+                `You need to be level ${data.reqLevel} to pickpocket the ${npcNameLower}.`));
+            return { ok: true, effects };
+        }
+
+        if (services.isPlayerStunned?.(player)) {
+            effects.push(buildMessageEffect(player, "You're stunned!"));
+            return { ok: true, effects };
+        }
+
+        if (services.isPlayerInCombat?.(player)) {
+            effects.push(buildMessageEffect(player, "You can't do that during combat."));
+            return { ok: true, effects };
+        }
+
+        if (!services.hasInventorySlot?.(player)) {
+            effects.push(buildMessageEffect(player,
+                "You don't have enough inventory space to do that."));
+            return { ok: true, effects };
+        }
+
+        effects.push(buildMessageEffect(player,
+            `You attempt to pick the ${npcNameLower}'s pocket.`));
+        schedulePickpocket(services, player.id, { ...data, phase: 1 }, tick);
+        return { ok: true, cooldownTicks: 1, effects };
+    }
+
+    // Phase 1: Resolve success/fail
+    if (data.phase === 1) {
+        const thievingSkill = services.getSkill?.(player, THIEVING_SKILL_ID);
+        const thievingLevel = thievingSkill?.baseLevel ?? 1;
+        const equipArray = services.getEquipArray?.(player) ?? [];
+        const success = rollPickpocketSuccess(thievingLevel, data.reqLevel, equipArray);
+
+        if (success) {
+            services.playPlayerSeq?.(player, PICKPOCKET_ANIM);
+            services.clearPlayerFaceTarget?.(player);
+            services.sendSound?.(player, PICKPOCKET_SUCCESS_SOUND);
+
+            const reward = rollPickpocketLoot(data.lootTable);
+            if (reward) {
+                const itemId =
+                    reward.itemId === Items.COINS_995 && data.coinPouchId
+                        ? data.coinPouchId
+                        : reward.itemId;
+                const qty = itemId === data.coinPouchId ? 1 : reward.quantity;
+                services.addItemToInventory(player, itemId, qty);
+                effects.push({ type: "inventorySnapshot", playerId: player.id });
+
+                services.queueClientScript?.(
+                    player.id,
+                    PICKPOCKET_NOTIFY_SCRIPT,
+                    data.npcTypeId,
+                    tick,
+                    itemId,
+                    qty,
+                );
+            }
+
+            services.addSkillXp?.(player, THIEVING_SKILL_ID, data.xp);
+            effects.push(buildMessageEffect(player,
+                `You pick the ${npcNameLower}'s pocket.`));
+
+            schedulePickpocket(services, player.id, { ...data, phase: 0 }, tick);
+            return { ok: true, cooldownTicks: 1, effects };
+        }
+
+        // Fail: message + NPC forced chat + set busy varbit
+        effects.push(buildMessageEffect(player,
+            `You fail to pick the ${npcNameLower}'s pocket.`));
+        services.sendVarbit?.(player, PICKPOCKET_BUSY_VARBIT, 1);
+
+        if (npc) {
+            services.queueNpcForcedChat?.(npc, "What do you think you're doing?");
+        }
+        services.clearPlayerFaceTarget?.(player);
+
+        schedulePickpocket(services, player.id, { ...data, phase: 2 }, tick);
+        return { ok: true, cooldownTicks: 1, effects };
+    }
+
+    // Phase 2: Stun visual — player stun anim + GFX, NPC attack anim + face player
+    if (data.phase === 2) {
+        services.playPlayerSeq?.(player, PICKPOCKET_STUN_ANIM);
+        services.broadcastPlayerSpot?.(player, PICKPOCKET_STUN_GFX, PICKPOCKET_STUN_GFX_HEIGHT);
+        services.sendSound?.(player, PICKPOCKET_STUN_SOUND);
+
+        if (npc) {
+            services.queueNpcSeq?.(npc, PICKPOCKET_NPC_ATTACK_ANIM);
+            services.faceNpcToPlayer?.(npc, player);
+        }
+
+        schedulePickpocket(services, player.id, { ...data, phase: 3 }, tick);
+        return { ok: true, cooldownTicks: 1, effects };
+    }
+
+    // Phase 3: Stun damage — hitsplat + message + stun timer + clear busy
+    if (data.phase === 3) {
+        const damage =
+            data.minDamage === data.maxDamage
+                ? data.minDamage
+                : data.minDamage +
+                  Math.floor(Math.random() * (data.maxDamage - data.minDamage + 1));
+
+        const hitsplat = services.applyPlayerHitsplat?.(
+            player,
+            PICKPOCKET_HIT_STYLE,
+            damage,
+            tick,
+        );
+
+        if (hitsplat) {
+            effects.push({
+                type: "hitsplat",
+                playerId: player.id,
+                targetType: "player",
+                targetId: player.id,
+                damage: hitsplat.amount,
+                style: hitsplat.style,
+                hpCurrent: hitsplat.hpCurrent,
+                hpMax: hitsplat.hpMax,
+                tick,
+                skipAutoSound: true,
+            });
+        }
+
+        services.sendSound?.(player, PICKPOCKET_DAMAGE_SOUND, {
+            delayMs: PICKPOCKET_DAMAGE_SOUND_DELAY,
+        });
+
+        effects.push(buildMessageEffect(player, "You've been stunned!"));
+        services.stunPlayer?.(player, data.stunTicks);
+        services.sendVarbit?.(player, PICKPOCKET_BUSY_VARBIT, 0);
+    }
+
+    return { ok: true, effects };
+}
+
+// ---------------------------------------------------------------------------
 // Module
 // ---------------------------------------------------------------------------
 
 export const thievingModule: ScriptModule = {
-    id: "skills.thieving",
+    id: "vanilla-skills.thieving",
     register(registry, _services) {
+        // Register pickpocket action handler
+        registry.registerActionHandler("skill.pickpocket", executePickpocketAction);
+
+        // Register NPC pickpocket interactions
         for (const def of PICKPOCKET_NPCS) {
             for (const npcId of def.npcIds) {
                 registry.registerNpcInteraction(
@@ -628,7 +897,7 @@ export const thievingModule: ScriptModule = {
                     (event: NpcInteractionEvent) => {
                         const { player, npc, services, tick } = event;
 
-                        const actionData: SkillPickpocketActionData = {
+                        const actionData: PickpocketActionData = {
                             npcId: npc.id,
                             npcTypeId: npc.typeId,
                             reqLevel: def.reqLevel,
@@ -661,7 +930,7 @@ export const thievingModule: ScriptModule = {
 
         // Coin pouch: "Open" and "Open-all" item actions
         for (const pouchId of COIN_POUCH_IDS) {
-            const openHandler = (event: import("../types").ItemOnItemEvent, openAll: boolean) => {
+            const openHandler = (event: import("../../../src/game/scripts/types").ItemOnItemEvent, openAll: boolean) => {
                 const { player, source, services } = event;
                 const slot = source.slot;
                 const inv = services.getInventoryItems(player);

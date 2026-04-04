@@ -209,7 +209,6 @@ export class PlayerEcs {
     private overheadModIcon!: Int16Array;
 
     // Head icons (prayer/pk overhead)
-    // Reference: Player.java lines 26-33 in deobfuscated client
     private headIconPrayer!: Int8Array; // -1 = none, 0 = Protect from Melee, 1 = Missiles, 2 = Magic, etc.
     private headIconPk!: Int8Array; // -1 = none, skull types
 

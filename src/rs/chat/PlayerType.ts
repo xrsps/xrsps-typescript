@@ -1,4 +1,4 @@
-// OSRS `PlayerType` mapping from the reference client (r215).
+// OSRS `PlayerType` mapping.
 
 export type PlayerTypeInfo = {
     id: number;

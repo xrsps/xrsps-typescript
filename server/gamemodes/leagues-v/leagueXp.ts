@@ -1,7 +1,7 @@
 /**
  * Leagues XP multiplier helpers.
  *
- * Cache parity references (r235):
+ * Cache parity references:
  * - enum_5702 stages map to relic unlock structs 1136..1143 with point thresholds
  *   (param_877): 0, 750, 1500, 2500, 5000, 8000, 16000, 25000.
  * - Stage passive text structs (param_2045) describe XP multiplier changes:

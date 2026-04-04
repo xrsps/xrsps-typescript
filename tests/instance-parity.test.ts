@@ -1,8 +1,7 @@
 /**
  * Instance system parity tests.
  *
- * Verifies that our instance implementation matches the reference
- * MapLoader.java from the OSRS deob client (r235).
+ * Verifies that our instance coordinate transformations are correct.
  *
  * Run with:  npx tsx tests/instance-parity.test.ts
  */

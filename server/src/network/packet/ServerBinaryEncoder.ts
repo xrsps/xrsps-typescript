@@ -1683,7 +1683,7 @@ export class ServerBinaryEncoder {
     /**
      * Encode WORLDENTITY_INFO — per-tick world entity lifecycle packet.
      *
-     * Format (matching deob WorldEntityUpdateParser):
+     * Format (matching WorldEntityUpdateParser):
      *   byte   count          — how many of the OLD active entities are processed
      *   for each 0..count-1:
      *     byte  updateType    — 0=despawn, 1=no change, 2=queuePosition, 3=setPosition

@@ -1,7 +1,7 @@
 /**
- * PacketBuffer - Binary packet encoding matching OSRS reference client Buffer.java/PacketBuffer.java
+ * PacketBuffer - Binary packet encoding for OSRS protocol
  *
- * All write methods match the exact encoding from the reference:
+ * All write methods use the exact OSRS encoding:
  * - writeByteAdd: (value + 128) & 0xFF
  * - writeByteNeg: (0 - value) & 0xFF
  * - writeByteSub: (128 - value) & 0xFF

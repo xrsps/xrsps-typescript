@@ -4,8 +4,7 @@ import type {
     LeagueRelicRow,
 } from "../../../../src/shared/gamemode/GamemodeDataTypes";
 
-// Generated snapshot of cache league data.
-// Source of truth: caches/ (r235)
+// Auto-generated from cache data.
 
 // League 5 Relics (structs 1116-1135 and 6260-6264, param_879=name, param_880=desc)
 export const LEAGUE_RELICS: LeagueRelicRow[] = [

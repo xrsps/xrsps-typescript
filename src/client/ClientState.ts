@@ -1,8 +1,8 @@
 /**
- * ClientState - Global client state matching OSRS reference
+ * ClientState - Global client state
  *
  * This contains all the global state variables that were scattered across
- * various classes in the reference client (Client.java, KeyHandler.java, etc.)
+ * various classes (Client, KeyHandler, etc.)
  */
 
 /**
@@ -29,7 +29,7 @@ export const DEFAULT_SCREEN_WIDTH = 765;
 export const DEFAULT_SCREEN_HEIGHT = 503;
 
 /**
- * Global client state - matches reference client fields
+ * Global client state fields
  */
 export class ClientState {
     // ========================================
@@ -207,13 +207,13 @@ export class ClientState {
 
     /**
      * Active follower NPC server index.
-     * Matches the reference client's `followerIndex` menu-ownership gate.
+     * Used as a menu-ownership gate for follower interactions.
      */
     static followerIndex: number = -1;
 
     /**
      * Active combat-target player server index.
-     * Matches the reference client's `combatTargetPlayerIndex`.
+     * Tracks the active combat target player server index.
      */
     static combatTargetPlayerIndex: number = -1;
 
@@ -226,7 +226,7 @@ export class ClientState {
 
     /**
      * Check if a keybind is currently pressed
-     * Key 82 = Ctrl key in reference client
+     * Key 82 = Ctrl key
      */
     static isKeybindPressed(keyCode: number): boolean {
         return this.keybindStates.get(keyCode) === true;

@@ -38,7 +38,6 @@ interface SpriteTexture {
 /**
  * Renders overhead prayer icons above players/NPCs in screen space.
  * Uses the same billboard shader approach as HealthBarOverlay.
- * Reference: class386.java lines 345-356 in deobfuscated client.
  */
 export class OverheadPrayerOverlay implements Overlay {
     constructor(

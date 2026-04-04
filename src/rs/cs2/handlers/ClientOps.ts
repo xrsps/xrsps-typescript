@@ -15,8 +15,7 @@ import type { HandlerMap } from "./HandlerTypes";
 
 export function registerClientOps(handlers: HandlerMap): void {
     // === Clock ===
-    // OSRS parity: clientclock returns Client.cycleCntr (20ms cycles)
-    // Reference: ScriptOpcodes.CLIENTCLOCK in GameBuild.java
+    // clientclock returns Client.cycleCntr (20ms cycles)
     handlers.set(Opcodes.CLIENTCLOCK, (ctx) => {
         ctx.pushInt(getClientClock() | 0);
     });
@@ -651,7 +650,7 @@ export function registerClientOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.SETHIDETOOLTIP, (ctx) => {
-        // Deob parity (3131): pop one int, no side effects.
+        // Pop one int, no side effects.
         --ctx.intStackSize;
     });
 

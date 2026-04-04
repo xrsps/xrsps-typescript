@@ -686,7 +686,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     actorRenderCount: number = 0;
     actorRenderData: Uint16Array = new Uint16Array(16 * 8);
     // OSRS parity: mirror sceneDrawCycleMarker/tileDrawCycleMarkers submission dedupe
-    // for tile-centered single-tile actors. Submission order matches the deob actor pass.
+    // for tile-centered single-tile actors.
     private frameActorTileSelectionId: number = -1;
     private frameActorTileSelectionBuilt: boolean = false;
     private frameWinningActorByTile: Map<
@@ -3832,7 +3832,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 }
                 if (manId !== -1) {
                     const manType: any = npcTypeLoader.load(manId);
-                    // Prefer directional sequences based on rotation delta (like deob NPC movement logic)
+                    // Prefer directional sequences based on rotation delta for NPC movement
                     try {
                         const pe: any = this.osrsClient.playerEcs as any;
                         const has0 = (pe.size?.() ?? (pe as any).size?.() ?? 0) > 0;
@@ -6822,7 +6822,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             } catch {}
 
             // Render overhead prayer icons for all players
-            // Reference: class386.java lines 345-356 in deobfuscated client
             try {
                 const pe = this.osrsClient.playerEcs;
                 const count = pe.size?.() ?? (pe as any).size?.() ?? 0;

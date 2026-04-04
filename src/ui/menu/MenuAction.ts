@@ -145,9 +145,8 @@ export function inferMenuAction(
 }
 
 /**
- * Execute a menu action - port of class31.menuAction from reference client
+ * Execute a menu action
  *
- * Parameters match the reference client:
  * @param arg0 - Usually child index or local X
  * @param arg1 - Usually parent ID or local Y
  * @param opcode - Menu action type (opcode)

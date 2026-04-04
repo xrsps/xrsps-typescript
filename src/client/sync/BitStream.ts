@@ -23,7 +23,7 @@ export class BitStream {
         return this.bytePos;
     }
 
-    /** Prepare for bit-level reads (matches Stream.initBitAccess in the reference client). */
+    /** Prepare for bit-level reads. */
     initBitAccess(): void {
         this.bitPos = this.bytePos << 3;
     }
@@ -194,7 +194,7 @@ export class BitStream {
         return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
     }
 
-    /** OSRS "IME" byte order (see Buffer.readUnsignedIntIME in deob). */
+    /** OSRS "IME" byte order read. */
     readUnsignedIntIME(): number {
         const a = this.readUnsignedByte(); // offset-4
         const b = this.readUnsignedByte(); // offset-3

@@ -124,7 +124,7 @@ function setTargetWidget(ctx: HandlerContext, intOp: number, w: WidgetNode | nul
 
 /**
  * Pop a CS2 value using the script-var-type id from int stack.
- * Deob parity: class34.method710 -> class180.method4601.
+ * Pops a CS2 value using the script-var-type id from int stack.
  */
 function popValueByScriptVarType(ctx: HandlerContext, scriptVarTypeId: number): any {
     // -1 is used as a null sentinel in script calls that skip a secondary match.
@@ -305,8 +305,7 @@ function ensureWidgetLayout(ctx: HandlerContext, w: WidgetNode): void {
 }
 
 /**
- * OSRS PARITY/PERF: CC_SETOBJECT derives itemQuantityMode from ItemComposition.isStackable.
- * Reference: MouseHandler.method721 (r215).
+ * CC_SETOBJECT derives itemQuantityMode from ItemComposition.isStackable.
  *
  * Cache the computed mode per item id to avoid repeated loader lookups when large interfaces
  * (e.g., bank) rebuild many slots.
@@ -905,7 +904,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_FIND_CHILD, (ctx, intOp) => {
-        // Deob parity (class147 opcode 210):
+        // Opcode 210:
         // int stack layout (bottom->top):
         // [parentUid, param1Id, value1, param2Id, value2, value1Type, value2Type]
         //
@@ -1265,7 +1264,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.CC_GETLAYER, (ctx, intOp) => {
-        // OSRS PARITY (r215+): CC_GETLAYER only pushes the widget's parentId (parent widget UID).
+        // CC_GETLAYER only pushes the widget's parentId (parent widget UID).
         // It does NOT change the active/dot widget selection.
         const w = getTargetWidget(ctx, intOp);
         let parentUid = w?.parentUid ?? -1;
@@ -2302,8 +2301,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w && (w.itemId !== itemId || w.itemQuantity !== amount)) {
             w.itemId = itemId;
             w.itemQuantity = amount;
-            // OSRS PARITY: CC_SETOBJECT sets quantity mode based on stackability.
-            // Reference: MouseHandler.method721 (r215): stackable items force mode=1.
+            // CC_SETOBJECT sets quantity mode based on stackability; stackable items force mode=1.
             w.itemQuantityMode = getSetObjectQuantityMode(ctx, itemId);
             w.itemShowQuantity = undefined;
             markWidgetInteractionDirty(w);
@@ -2451,7 +2449,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // cc_setparam(paramId, value, scriptVarType): set widget param.
-    // Deob parity (class11 opcode 1704): pop type, pop typed value, pop paramId.
+    // Pop type, pop typed value, pop paramId.
     handlers.set(Opcodes.CC_SETPARAM, (ctx, intOp) => {
         const scriptVarTypeId = ctx.popInt() | 0;
         const value = popValueByScriptVarType(ctx, scriptVarTypeId);
@@ -3195,7 +3193,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // if_param(paramId, widgetUid, childIndex): read widget/child param.
-    // Deob parity (class180 opcode 2703): default value comes from ParamType, not script stack.
+    // Default value comes from ParamType, not script stack.
     handlers.set(Opcodes.IF_PARAM, (ctx) => {
         if (ctx.intStackSize < 3) {
             throw new Error("RuntimeException");
@@ -3221,7 +3219,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // if_setparam(paramId, value, widgetUid, childIndex, scriptVarType): set widget/child param.
-    // Deob parity (class180 opcode 2704): pop value by script-var-type id.
+    // Pop value by script-var-type id.
     handlers.set(Opcodes.IF_SETPARAM, (ctx) => {
         if (ctx.intStackSize < 4) {
             throw new Error("RuntimeException");

@@ -1,7 +1,6 @@
 /**
  * DestinationMarker - Tile destination flag
  *
- * Matches the reference client's destination flag rendering.
  * Shows a yellow/red flag on the tile the player is walking to.
  * The flag has a small pulsing animation.
  */

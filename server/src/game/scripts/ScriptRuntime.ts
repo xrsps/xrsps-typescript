@@ -16,6 +16,7 @@ import {
     type NpcInteractionHandler,
     type RegionEvent,
     type RegionEventHandler,
+    type ScriptActionHandler,
     type ScriptModule,
     type ScriptRegistrationResult,
     type ScriptServices,
@@ -510,6 +511,10 @@ export class ScriptRuntime {
                 track(this.registry.registerClientMessageHandler(messageType, handler)),
             findClientMessageHandler: (messageType: string) =>
                 this.registry.findClientMessageHandler(messageType),
+            registerActionHandler: (kind: string, handler: ScriptActionHandler) =>
+                track(this.registry.registerActionHandler(kind, handler)),
+            findActionHandler: (kind: string) =>
+                this.registry.findActionHandler(kind),
         } as IScriptRegistry;
     }
 }

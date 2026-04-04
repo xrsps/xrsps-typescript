@@ -47,7 +47,7 @@ function resolveTraversalDefault(state: PlayerSyncState): number {
 export interface PlayerUpdateDecodeOptions {
     /** Packet payload size in bytes. Required to mirror the reference bitstream guard. */
     packetSize: number;
-    /** Current server tick used for translating delay counters (loopCycle in the reference client). */
+    /** Current server tick used for translating delay counters. */
     loopCycle: number;
     /** Current client cycle (20 ms) when the packet is decoded (mirrors Client.cycle). */
     clientCycle?: number;
@@ -69,7 +69,7 @@ export class PlayerUpdateDecoder {
 
     /**
      * Returns true when a tile coordinate is outside the current 104x104 scene window.
-     * Mirrors the reference client guard so invalid deltas do not corrupt path queues.
+     * Guards against invalid deltas that would corrupt path queues.
      */
     private isOutsideScene(context: PlayerSyncContext, tileX: number, tileY: number): boolean {
         const localX = (tileX | 0) - (context.baseX | 0);
@@ -568,7 +568,7 @@ export class PlayerUpdateDecoder {
                     }
                 }
                 if ((mask & PlayerUpdateMask.MovementType) !== 0) {
-                    // readByteNeg (class231 enum ordinal in the reference client).
+                    // readByteNeg for movement type enum ordinal.
                     update.movementType = toSignedByte(stream.readUnsignedByteC()) | 0;
                     const normalized = clampTraversal(update.movementType);
                     if (normalized !== undefined) {
