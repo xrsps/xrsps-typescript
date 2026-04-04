@@ -2,7 +2,7 @@
 
 ## Is there a hosted version I can play?
 
-No. We do not host the client or server and have no plans to. XRSPS is a self-hosted project — you clone the repo and run it locally. See the [Setup Guide](/setup) to get started.
+No. We do not host the client, cache or server and have no plans to. XRSPS is a self-hosted project — you clone the repo and run it locally. See the [Setup Guide](/setup) to get started.
 
 ## What cache version is supported?
 

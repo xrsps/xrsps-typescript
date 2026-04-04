@@ -1234,6 +1234,13 @@ export function registerClientOps(handlers: HandlerMap): void {
         ctx.pushInt(0);
     });
 
+    // === Loot Tracker ===
+    // loottracker_lootadd(string, obj, int, int) - stub, loot tracker not implemented
+    handlers.set(Opcodes.LOOTTRACKER_LOOTADD, (ctx) => {
+        ctx.intStackSize -= 3;
+        ctx.stringStackSize -= 1;
+    });
+
     // === Sound ===
     // CS2: sound_synth(soundId, loops, delay) pushes [soundId, loops, delay]
     // Stack pops in reverse: delay, loops, soundId

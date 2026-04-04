@@ -157,27 +157,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/pohPools.ts")],
     },
     {
-        id: "skills.firemaking",
-        load: loadModule("modules/skills/firemaking", "firemakingModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/skills/firemaking.ts")],
-    },
-    {
-        id: "skills.woodcutting",
-        load: loadModule("modules/woodcutting", "woodcuttingModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/woodcutting.ts")],
-        enableWhen: () => true,
-    },
-    {
-        id: "skills.mining",
-        load: loadModule("modules/mining", "miningModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/mining.ts")],
-    },
-    {
-        id: "skills.fishing",
-        load: loadModule("modules/fishing", "fishingModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/fishing.ts")],
-    },
-    {
         id: "consumables",
         load: loadModule("modules/items/consumables", "consumablesModule"),
         watch: [path.resolve(MODULE_DIR, "modules/items/consumables.ts")],

@@ -1,4 +1,5 @@
 import { SkillId } from "../../../../src/rs/skill/skills";
+import type { ActionEffect, ActionExecutionResult } from "../../../src/game/actions/types";
 import type { PlayerState } from "../../../src/game/player";
 import {
     FLETCHING_COMBINE_RECIPES,
@@ -7,9 +8,10 @@ import {
     type FletchingProductDefinition,
     KNIFE_ITEM_ID,
     getFletchingProductsForLog,
+    getFletchingRecipeById,
     getStringingRecipeByUnstrungId,
 } from "../../../src/game/skills/fletching";
-import { type ScriptInventoryEntry, type ScriptModule } from "../../../src/game/scripts/types";
+import type { ScriptActionHandlerContext, ScriptInventoryEntry, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
 
 const MAX_BATCH = 27;
 const FLETCHING_GROUP = "skill.fletch";
@@ -76,9 +78,171 @@ const enqueueFletchingAction = (
     return result.ok;
 };
 
+// ---------------------------------------------------------------------------
+// Fletching action data
+// ---------------------------------------------------------------------------
+
+interface FletchActionData {
+    recipeId: string;
+    count: number;
+}
+
+function buildMessageEffect(player: PlayerState, message: string): ActionEffect {
+    return { type: "message", playerId: player.id, message };
+}
+
+function getFletchingMissingInputMessage(recipe: FletchingProductDefinition): { message: string; reason: string } {
+    if (recipe.mode === "string") return { message: "You need unstrung bows in your inventory to keep fletching.", reason: "missing_unstrung" };
+    if (recipe.kind === "headless_arrow") return { message: "You need arrow shafts in your inventory to keep fletching.", reason: "missing_arrow_shafts" };
+    if (recipe.kind === "arrow") return { message: "You need headless arrows in your inventory to keep fletching.", reason: "missing_headless_arrows" };
+    if (["arrowtips", "bolt_tips", "javelin_heads", "dart_tips"].includes(recipe.kind ?? "")) return { message: "You need amethyst in your inventory to keep fletching.", reason: "missing_amethyst" };
+    if (recipe.kind === "bolt") return { message: "You need broad bolts in your inventory to keep fletching.", reason: "missing_broad_bolts" };
+    if (recipe.kind === "javelin") return { message: "You need javelin shafts in your inventory to keep fletching.", reason: "missing_javelin_shafts" };
+    if (recipe.kind === "dart") return { message: "You need amethyst dart tips in your inventory to keep fletching.", reason: "missing_dart_tips" };
+    return { message: "You need logs in your inventory to keep fletching.", reason: "missing_logs" };
+}
+
+function getFletchingMissingSecondaryMessage(recipe: FletchingProductDefinition): { message: string; reason: string } {
+    if (recipe.mode === "string") return { message: "You need bowstrings to keep fletching.", reason: "missing_bowstring" };
+    if (recipe.kind === "headless_arrow" || recipe.kind === "dart") return { message: "You need feathers to keep fletching.", reason: "missing_feathers" };
+    if (recipe.kind === "arrow") return { message: "You need arrowtips to keep fletching.", reason: "missing_arrowtips" };
+    if (["arrowtips", "bolt_tips", "javelin_heads", "dart_tips"].includes(recipe.kind ?? "")) {
+        const label = recipe.secondaryLabel ?? "a chisel";
+        return { message: `You need ${label} to keep fletching.`, reason: "missing_tool" };
+    }
+    if (recipe.kind === "bolt") return { message: "You need amethyst bolt tips to keep fletching.", reason: "missing_bolt_tips" };
+    if (recipe.kind === "javelin") return { message: "You need amethyst javelin heads to keep fletching.", reason: "missing_javelin_heads" };
+    return { message: "You need the other ingredient to keep fletching.", reason: "missing_secondary_item" };
+}
+
+function getFletchingSuccessMessage(recipe: FletchingProductDefinition): string {
+    if (recipe.successMessage) return recipe.successMessage;
+    if (recipe.mode === "string") return `You string the ${recipe.productName}.`;
+    if (recipe.kind === "arrow_shafts") return `You whittle the logs into ${recipe.outputQuantity} ${recipe.productName}.`;
+    if (recipe.kind === "headless_arrow") return "You attach feathers to the arrow shafts.";
+    if (recipe.kind === "arrow") return `You add the tips to make ${recipe.productName}s.`;
+    if (["arrowtips", "bolt_tips", "javelin_heads", "dart_tips"].includes(recipe.kind ?? "")) return `You carve the ${recipe.productName}.`;
+    if (recipe.kind === "bolt") return "You attach the amethyst tips to the bolts.";
+    if (recipe.kind === "javelin") return "You attach the amethyst heads to the javelins.";
+    if (recipe.kind === "dart") return "You add feathers to the dart tips.";
+    return `You fletch the logs into ${recipe.productName}.`;
+}
+
+function executeFletchAction(ctx: ScriptActionHandlerContext): ActionExecutionResult {
+    const { player, tick, services } = ctx;
+    const data = ctx.data as FletchActionData;
+    const inventory = services.getInventoryItems(player);
+    const recipeId = data.recipeId;
+    const recipe = getFletchingRecipeById(recipeId);
+    if (!recipe) {
+        return { ok: true, effects: [buildMessageEffect(player, "You can't fletch that.")] };
+    }
+
+    const skill = services.getSkill?.(player, SkillId.Fletching);
+    if ((skill?.baseLevel ?? 1) < recipe.level) {
+        return { ok: true, effects: [buildMessageEffect(player, `You need Fletching level ${recipe.level} to make that.`)] };
+    }
+
+    const inputSlot = services.findInventorySlotWithItem?.(player, recipe.inputItemId);
+    if (inputSlot === undefined) {
+        const { message } = getFletchingMissingInputMessage(recipe);
+        return { ok: true, effects: [buildMessageEffect(player, message)] };
+    }
+
+    const secondaryId = recipe.secondaryItemId;
+    let secondarySlot: number | undefined;
+    if (secondaryId !== undefined) {
+        secondarySlot = services.findInventorySlotWithItem?.(player, secondaryId);
+        if (secondarySlot === undefined) {
+            const { message } = getFletchingMissingSecondaryMessage(recipe);
+            return { ok: true, effects: [buildMessageEffect(player, message)] };
+        }
+    }
+
+    if (!services.consumeItem(player, inputSlot)) {
+        return { ok: true, effects: [buildMessageEffect(player, "You can't use that item right now.")] };
+    }
+
+    const consumeSecondary = recipe.consumeSecondary !== false;
+    let secondaryConsumed = false;
+    const restoreConsumedItem = (slotIndex: number, itemId: number) => {
+        const entry = inventory[slotIndex];
+        if (!entry) return;
+        if (entry.itemId <= 0 || entry.quantity <= 0) {
+            entry.itemId = itemId;
+            entry.quantity = 1;
+        } else {
+            entry.quantity += 1;
+        }
+    };
+
+    if (secondarySlot !== undefined && consumeSecondary) {
+        if (!services.consumeItem(player, secondarySlot)) {
+            restoreConsumedItem(inputSlot, recipe.inputItemId);
+            const { message } = getFletchingMissingSecondaryMessage(recipe);
+            return { ok: true, effects: [buildMessageEffect(player, message)] };
+        }
+        secondaryConsumed = true;
+    }
+
+    const productQuantity = Math.max(1, recipe.outputQuantity);
+    const outputMode = recipe.outputMode ?? "replace";
+
+    if (outputMode === "add") {
+        const dest = services.addItemToInventory(player, recipe.productItemId, productQuantity);
+        if (dest.added <= 0) {
+            restoreConsumedItem(inputSlot, recipe.inputItemId);
+            if (secondaryConsumed && secondarySlot !== undefined && secondaryId !== undefined) {
+                restoreConsumedItem(secondarySlot, secondaryId);
+            }
+            return { ok: true, effects: [buildMessageEffect(player, "You need more inventory space to keep fletching.")] };
+        }
+    } else {
+        services.setInventorySlot(player, inputSlot, recipe.productItemId, productQuantity);
+    }
+
+    services.playPlayerSeq?.(player, recipe.animation ?? 1248);
+    services.addSkillXp?.(player, SkillId.Fletching, recipe.xp);
+
+    const description = getFletchingSuccessMessage(recipe);
+    const effects: ActionEffect[] = [
+        { type: "inventorySnapshot", playerId: player.id },
+        buildMessageEffect(player, description),
+    ];
+
+    const totalCount = Math.max(1, data.count);
+    const remaining = Math.max(0, totalCount - 1);
+
+    if (remaining > 0) {
+        const reschedule = services.scheduleAction?.(
+            player.id,
+            {
+                kind: "skill.fletch",
+                data: { recipeId: recipe.id, count: remaining },
+                delayTicks: recipe.delayTicks ?? 3,
+                cooldownTicks: recipe.delayTicks ?? 3,
+                groups: ["skill.fletch"],
+            },
+            tick,
+        );
+        if (!reschedule?.ok) {
+            effects.push(buildMessageEffect(player, "You stop fletching because you're already busy."));
+        }
+    }
+
+    return {
+        ok: true,
+        cooldownTicks: recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 3,
+        groups: ["skill.fletch"],
+        effects,
+    };
+}
+
 export const fletchingModule: ScriptModule = {
     id: "vanilla-skills.fletching",
     register(registry, services) {
+        registry.registerActionHandler("skill.fletch", executeFletchAction);
+
         const getInventoryItems = services.getInventoryItems;
         const openDialogOptions = services.openDialogOptions;
         const closeDialog = services.closeDialog;

@@ -1,6 +1,6 @@
 # Setup Guide
 
-Get xRSPS running locally in a few minutes. No prior OSRS dev experience needed.
+Get xRSPS running locally in a few minutes.
 
 ## Prerequisites
 

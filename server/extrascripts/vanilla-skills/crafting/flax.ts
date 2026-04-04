@@ -1,16 +1,83 @@
+import type { ActionEffect, ActionExecutionResult } from "../../../src/game/actions/types";
+import type { PlayerState } from "../../../src/game/player";
 import {
     FLAX_LOC_IDS,
     FLAX_PICK_DELAY_TICKS,
     isFlaxLocId,
 } from "../../../src/game/skills/flax";
-import { type ScriptModule } from "../../../src/game/scripts/types";
+import type { ScriptActionHandlerContext, ScriptModule } from "../../../src/game/scripts/types";
 
 const FLAX_ACTIONS = ["pick", "pick-flax"];
 const FLAX_GROUP = "skill.flax";
+const FLAX_ITEM_ID = 1779;
+const FLAX_PICK_ANIMATION = 827;
+const FLAX_PICK_SOUND = 2581;
+const FLAX_RESPAWN_TICKS = 25;
+
+interface FlaxActionData {
+    locId: number;
+    tile: { x: number; y: number };
+    level: number;
+}
+
+function buildMessageEffect(player: PlayerState, message: string): ActionEffect {
+    return { type: "message", playerId: player.id, message };
+}
+
+function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResult {
+    const { player, tick, services } = ctx;
+    const data = ctx.data as FlaxActionData;
+    const tile = { x: data.tile.x, y: data.tile.y };
+    const plane = data.level;
+    const locId = data.locId;
+
+    if (services.isFlaxDepleted?.(tile, plane)) {
+        services.stopGatheringInteraction?.(player);
+        return { ok: true, effects: [] };
+    }
+
+    if (!services.hasInventorySlot?.(player)) {
+        services.stopGatheringInteraction?.(player);
+        return { ok: true, effects: [buildMessageEffect(player, "Your inventory is too full to hold any more flax.")] };
+    }
+
+    const effects: ActionEffect[] = [];
+
+    services.faceGatheringTarget?.(player, tile);
+    services.playPlayerSeq?.(player, FLAX_PICK_ANIMATION);
+
+    services.enqueueSoundBroadcast?.(FLAX_PICK_SOUND, tile.x, tile.y, plane);
+
+    services.markFlaxDepleted?.({
+        tile,
+        level: plane,
+        locId,
+        respawnTicks: FLAX_RESPAWN_TICKS,
+    }, tick);
+    services.emitLocChange?.(locId, 0, tile, plane);
+
+    const result = services.addItemToInventory(player, FLAX_ITEM_ID, 1);
+    if (result.added > 0) {
+        effects.push({ type: "inventorySnapshot", playerId: player.id });
+    }
+
+    effects.push(buildMessageEffect(player, "You pick some flax."));
+
+    services.sendSound?.(player, FLAX_PICK_SOUND);
+
+    return {
+        ok: true,
+        cooldownTicks: FLAX_PICK_DELAY_TICKS,
+        groups: [FLAX_GROUP],
+        effects,
+    };
+}
 
 export const flaxModule: ScriptModule = {
     id: "vanilla-skills.crafting.flax",
     register(registry, services) {
+        registry.registerActionHandler("skill.flax", executeFlaxAction);
+
         const requestAction = services.requestAction;
         const registerLoc = (locId: number, action: string) => {
             registry.registerLocInteraction(

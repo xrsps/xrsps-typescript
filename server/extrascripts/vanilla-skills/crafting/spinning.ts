@@ -1,12 +1,20 @@
 import { SkillId } from "../../../../src/rs/skill/skills";
+import type { ActionEffect, ActionExecutionResult } from "../../../src/game/actions/types";
 import type { PlayerState } from "../../../src/game/player";
 import {
     SPINNING_RECIPES,
     SPINNING_WHEEL_LOC_IDS,
     type SpinningRecipe,
+    getSpinningRecipeById,
+    isSinewSourceItem,
+    SINEW_ITEM_ID,
+    SINEW_ANIMATION_ID,
+    SINEW_DELAY_TICKS,
+    SINEW_CRAFT_XP,
 } from "../../../src/game/skills/spinning";
 import {
     type LocInteractionEvent,
+    type ScriptActionHandlerContext,
     type ScriptInventoryEntry,
     type ScriptModule,
 } from "../../../src/game/scripts/types";
@@ -86,9 +94,142 @@ const enqueueSpinAction = (
     return result.ok;
 };
 
+// ---------------------------------------------------------------------------
+// Spin action data
+// ---------------------------------------------------------------------------
+
+interface SpinActionData {
+    recipeId: string;
+    count: number;
+}
+
+interface SinewActionData {
+    itemId: number;
+    slot?: number;
+    locId?: number;
+    tile?: { x: number; y: number };
+    level?: number;
+}
+
+function buildMessageEffect(player: PlayerState, message: string): ActionEffect {
+    return { type: "message", playerId: player.id, message };
+}
+
+function executeSpinAction(ctx: ScriptActionHandlerContext): ActionExecutionResult {
+    const { player, tick, services } = ctx;
+    const data = ctx.data as SpinActionData;
+    const recipeId = data.recipeId;
+    const recipe = getSpinningRecipeById(recipeId);
+    if (!recipe) {
+        return { ok: true, effects: [buildMessageEffect(player, "You can't spin that.")] };
+    }
+
+    const skill = services.getSkill?.(player, SkillId.Crafting);
+    if ((skill?.baseLevel ?? 1) < recipe.level) {
+        return { ok: true, effects: [buildMessageEffect(player, `You need Crafting level ${recipe.level} to spin ${recipe.name}.`)] };
+    }
+
+    const totalCount = Math.max(1, data.count);
+    const removed = new Map<number, number>();
+    const requiredPerSpin = Math.max(1, recipe.inputQuantity);
+
+    for (let i = 0; i < requiredPerSpin; i++) {
+        const slot = services.findInventorySlotWithItem?.(player, recipe.inputItemId);
+        if (slot === undefined || !services.consumeItem(player, slot)) {
+            services.restoreInventoryItems?.(player, recipe.inputItemId, removed);
+            return { ok: true, effects: [buildMessageEffect(player, `You need more ${recipe.inputName} to keep spinning.`)] };
+        }
+        removed.set(slot, (removed.get(slot) ?? 0) + 1);
+    }
+
+    const productQuantity = Math.max(1, recipe.outputQuantity);
+    const firstSlot = removed.keys().next()?.value;
+    if (firstSlot !== undefined) {
+        services.setInventorySlot(player, firstSlot, recipe.productItemId, productQuantity);
+    } else {
+        const dest = services.addItemToInventory(player, recipe.productItemId, productQuantity);
+        if (dest.added <= 0) {
+            services.restoreInventoryItems?.(player, recipe.inputItemId, removed);
+            return { ok: true, effects: [buildMessageEffect(player, "You need more inventory space to keep spinning.")] };
+        }
+    }
+
+    services.playPlayerSeq?.(player, recipe.animation);
+    services.addSkillXp?.(player, SkillId.Crafting, recipe.xp);
+
+    const effects: ActionEffect[] = [
+        { type: "inventorySnapshot", playerId: player.id },
+        buildMessageEffect(player, recipe.successMessage),
+    ];
+
+    const remaining = Math.max(0, totalCount - 1);
+
+    if (remaining > 0) {
+        const reschedule = services.scheduleAction?.(
+            player.id,
+            {
+                kind: "skill.spin",
+                data: { recipeId: recipe.id, count: remaining },
+                delayTicks: recipe.delayTicks,
+                cooldownTicks: recipe.delayTicks,
+                groups: ["skill.spin"],
+            },
+            tick,
+        );
+        if (!reschedule?.ok) {
+            effects.push(buildMessageEffect(player, "You stop spinning because you're already busy."));
+        }
+    }
+
+    return {
+        ok: true,
+        cooldownTicks: recipe.delayTicks,
+        groups: ["skill.spin"],
+        effects,
+    };
+}
+
+function executeSinewAction(ctx: ScriptActionHandlerContext): ActionExecutionResult {
+    const { player, services } = ctx;
+    const data = ctx.data as SinewActionData;
+    const sourceItemId = data.itemId;
+
+    if (!isSinewSourceItem(sourceItemId)) {
+        return { ok: true, effects: [buildMessageEffect(player, "You can't turn that into sinew.")] };
+    }
+
+    let slot = data.slot;
+    if (slot === undefined) {
+        slot = services.findInventorySlotWithItem?.(player, sourceItemId);
+    }
+
+    if (slot === undefined || !services.consumeItem(player, slot)) {
+        return { ok: true, effects: [buildMessageEffect(player, "You need raw meat to dry into sinew.")] };
+    }
+
+    services.setInventorySlot(player, slot, SINEW_ITEM_ID, 1);
+    services.playPlayerSeq?.(player, SINEW_ANIMATION_ID);
+    services.addSkillXp?.(player, SkillId.Crafting, SINEW_CRAFT_XP);
+
+    const effects: ActionEffect[] = [
+        { type: "inventorySnapshot", playerId: player.id },
+        buildMessageEffect(player, "You dry the meat into sinew."),
+    ];
+
+    return {
+        ok: true,
+        cooldownTicks: SINEW_DELAY_TICKS,
+        groups: ["skill.sinew"],
+        effects,
+    };
+}
+
 export const spinningModule: ScriptModule = {
     id: "vanilla-skills.crafting.spinning",
     register(registry, services) {
+        registry.registerActionHandler("skill.spin", executeSpinAction);
+        registry.registerActionHandler("skill.sinew", executeSinewAction);
+
         const getInventoryItems = services.getInventoryItems;
         const openDialogOptions = services.openDialogOptions;
         const closeDialog = services.closeDialog;

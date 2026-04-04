@@ -798,4 +798,50 @@ export interface ScriptServices {
         tick: number,
     ) => { ok: boolean; reason?: string };
     getEquipArray?: (player: PlayerState) => number[];
+    // --- Gathering / production skill services ---
+    isAdjacentToLoc?: (player: PlayerState, locId: number, tile: { x: number; y: number }, level: number) => boolean;
+    isAdjacentToNpc?: (player: PlayerState, npc: NpcState) => boolean;
+    faceGatheringTarget?: (player: PlayerState, tile: { x: number; y: number }) => void;
+    collectCarriedItemIds?: (player: PlayerState) => number[];
+    addItemToBank?: (player: PlayerState, itemId: number, quantity: number) => boolean;
+    findInventorySlotWithItem?: (player: PlayerState, itemId: number) => number | undefined;
+    canStoreItem?: (player: PlayerState, itemId: number) => boolean;
+    playerHasItem?: (player: PlayerState, itemId: number) => boolean;
+    enqueueSoundBroadcast?: (soundId: number, x: number, y: number, level: number) => void;
+    stopPlayerAnimation?: (player: PlayerState) => void;
+    stopGatheringInteraction?: (player: PlayerState) => void;
+    // --- Woodcutting depletion ---
+    isWoodcuttingDepleted?: (key: string) => boolean;
+    markWoodcuttingDepleted?: (info: {
+        key: string; locId: number; stumpId: number;
+        tile: { x: number; y: number }; level: number; treeId: string;
+        respawnTicks?: { min: number; max: number };
+    }, tick: number) => void;
+    // --- Mining depletion ---
+    isMiningDepleted?: (key: string) => boolean;
+    markMiningDepleted?: (info: {
+        key: string; locId: number; depletedLocId?: number;
+        tile: { x: number; y: number }; level: number; rockId: string;
+        respawnTicks?: { min: number; max: number };
+    }, tick: number) => void;
+    // --- Flax depletion ---
+    isFlaxDepleted?: (tile: { x: number; y: number }, level: number) => boolean;
+    markFlaxDepleted?: (info: {
+        tile: { x: number; y: number }; level: number; locId: number; respawnTicks: number;
+    }, tick: number) => void;
+    // --- Firemaking ---
+    isTileLit?: (tile: { x: number; y: number }, level: number) => boolean;
+    isFiremakingTileBlocked?: (tile: { x: number; y: number }, level: number) => boolean;
+    lightFire?: (params: {
+        tile: { x: number; y: number }; level: number; logItemId: number;
+        currentTick: number; burnTicks: { min: number; max: number };
+        fireObjectId: number; previousLocId: number; ownerId: number;
+    }) => { fireObjectId: number };
+    playerHasTinderbox?: (player: PlayerState) => boolean;
+    consumeFiremakingLog?: (player: PlayerState, logId: number, slotIndex?: number) => number | undefined;
+    walkPlayerAwayFromFire?: (player: PlayerState, fireTile: { x: number; y: number }) => void;
+    // --- Recipe lookups (for echo perk auto-cook) ---
+    getCookingRecipeByRawItemId?: (itemId: number) => { cookedItemId: number; xp: number } | undefined;
+    // --- Inventory restore ---
+    restoreInventoryItems?: (player: PlayerState, itemId: number, removed: Map<number, number>) => void;
 }

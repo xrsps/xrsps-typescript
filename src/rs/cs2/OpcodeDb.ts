@@ -746,5 +746,8 @@ export function loadOpcodeDbOsrs(_baseDir: string): OpcodeDb {
     // Notification system (enhanced client)
     add(6800, "notifications_sendlocal");
 
+    // Loot tracker (enhanced client)
+    add(7628, "loottracker_lootadd");
+
     return db;
 }

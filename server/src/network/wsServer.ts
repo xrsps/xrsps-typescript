@@ -181,17 +181,9 @@ import type {
 import type {
     SkillBoltEnchantActionData,
     SkillCookActionData,
-    SkillFiremakingActionData,
-    SkillFishingActionData,
-    SkillFlaxActionData,
-    SkillFletchActionData,
-    SkillMiningActionData,
-    SkillSinewActionData,
     SkillSmeltActionData,
     SkillSmithActionData,
-    SkillSpinActionData,
     SkillTanActionData,
-    SkillWoodcuttingActionData,
 } from "../game/actions/skillActionPayloads";
 import { DEBUG_PLAYER_IDS, RUN_ENERGY_MAX } from "../game/actor";
 import { BankingManager, type BankingServices } from "../game/banking";
@@ -326,40 +318,26 @@ import type {
 } from "../game/scripts/types";
 import { ShopManager, type ShopStockEntry } from "../game/shops/ShopManager";
 import {
-    FIRE_LIGHTING_ANIMATION,
     FiremakingTracker,
     TINDERBOX_ITEM_IDS,
-    computeFireLightingDelayTicks,
-    getFiremakingLogDefinition,
 } from "../game/skills/firemaking";
 import {
     buildFishingSpotMap,
-    getFishingMethodById,
     getFishingSpotById,
-    getFishingToolDefinition,
-    pickFishingCatch,
-    selectFishingTool,
 } from "../game/skills/fishing";
 import type {
-    FishingMethodDefinition,
     FishingSpotDefinition,
     FishingToolDefinition,
 } from "../game/skills/fishing";
 import {
-    FLAX_ITEM_ID,
-    FLAX_PICK_ANIMATION_ID,
-    FLAX_PICK_DELAY_TICKS,
-    FLAX_PICK_XP,
     FLAX_RESPAWN_TICKS,
 } from "../game/skills/flax";
 import { FlaxPatchTracker } from "../game/skills/flaxPatchTracker";
-import { getFletchingRecipeById } from "../game/skills/fletching";
 import {
     MiningNodeTracker,
     buildMiningLocMap,
     buildMiningTileKey,
     getMiningRockById,
-    selectPickaxeByLevel,
 } from "../game/skills/mining";
 import type {
     MiningLocMapping,
@@ -388,11 +366,6 @@ import {
     shouldGuaranteeIronSmelt,
 } from "../game/skills/smithingBonuses";
 import {
-    SINEW_ANIMATION_ID,
-    SINEW_CRAFT_XP,
-    SINEW_DELAY_TICKS,
-    SINEW_ITEM_ID,
-    getSpinningRecipeById,
     isSinewSourceItem,
     isSpinningWheelLocId,
 } from "../game/skills/spinning";
@@ -401,7 +374,6 @@ import {
     buildWoodcuttingLocMap,
     buildWoodcuttingTileKey,
     getWoodcuttingTreeById,
-    selectHatchetByLevel,
 } from "../game/skills/woodcutting";
 import type {
     HatchetDefinition,
@@ -2248,6 +2220,63 @@ export class WSServer {
                 scheduleAction: (playerId, request, tick) =>
                     this.actionScheduler.requestAction(playerId, request, tick),
                 getEquipArray: (player) => this.ensureEquipArray(player),
+                // --- Gathering / production skill services ---
+                isAdjacentToLoc: (player, locId, tile, level) =>
+                    this.isAdjacentToLoc(player, locId, tile, level),
+                isAdjacentToNpc: (player, npc) => this.isAdjacentToNpc(player, npc),
+                faceGatheringTarget: (player, tile) => this.faceGatheringTarget(player, tile),
+                collectCarriedItemIds: (player) => this.collectCarriedItemIds(player),
+                addItemToBank: (player, itemId, qty) =>
+                    this.bankingManager.addItemToBank(player, itemId, qty),
+                findInventorySlotWithItem: (player, itemId) =>
+                    this.findInventorySlotWithItem(player, itemId),
+                canStoreItem: (player, itemId) => this.canStoreItem(player, itemId),
+                playerHasItem: (player, itemId) => this.playerHasItem(player, itemId),
+                enqueueSoundBroadcast: (soundId, x, y, level) =>
+                    this.enqueueSoundBroadcast(soundId, x, y, level),
+                stopPlayerAnimation: (player) => {
+                    try { player.stopAnimation(); } catch {}
+                },
+                stopGatheringInteraction: (player) => {
+                    try { player.clearInteraction(); } catch {}
+                    try { player.stopAnimation(); } catch {}
+                    try { player.clearPath(); } catch {}
+                    try { player.clearWalkDestination(); } catch {}
+                },
+                isWoodcuttingDepleted: (key) => this.gatheringSystem.isWoodcuttingDepleted(key),
+                markWoodcuttingDepleted: (info, tick) =>
+                    this.gatheringSystem.markWoodcuttingDepleted(info as any, tick),
+                isMiningDepleted: (key) => this.gatheringSystem.isMiningDepleted(key),
+                markMiningDepleted: (info, tick) =>
+                    this.gatheringSystem.markMiningDepleted(info as any, tick),
+                isFlaxDepleted: (tile, level) =>
+                    this.gatheringSystem.flaxTracker.isDepleted(tile, level),
+                markFlaxDepleted: (info, tick) =>
+                    this.gatheringSystem.markFlaxDepleted(info, tick),
+                isTileLit: (tile, level) => this.gatheringSystem.isTileLit(tile, level),
+                isFiremakingTileBlocked: (tile, level) => this.isFiremakingTileBlocked(tile, level),
+                lightFire: (params) =>
+                    this.firemakingTracker.light({ ...params, burnTicks: params.burnTicks }),
+                playerHasTinderbox: (player) => this.playerHasTinderbox(player),
+                consumeFiremakingLog: (player, logId, slotIndex) =>
+                    this.consumeFiremakingLog(player, logId, slotIndex),
+                walkPlayerAwayFromFire: (player, fireTile) => {
+                    const westTile = { x: fireTile.x - 1, y: fireTile.y };
+                    const canStep = this.options.pathService?.canNpcStep(
+                        { x: player.tileX, y: player.tileY, plane: player.level },
+                        westTile,
+                    ) ?? true;
+                    if (canStep && (westTile.x !== player.tileX || westTile.y !== player.tileY)) {
+                        player.setPath([westTile], false);
+                    }
+                },
+                getCookingRecipeByRawItemId: (itemId) => {
+                    const recipe = getCookingRecipeByRawItemId(itemId);
+                    if (!recipe) return undefined;
+                    return { cookedItemId: recipe.cookedItemId, xp: recipe.xp };
+                },
+                restoreInventoryItems: (player, itemId, removed) =>
+                    this.restoreInventoryItems(player, itemId, removed),
             },
         });
         logger.info(
@@ -7788,10 +7817,6 @@ export class WSServer {
      */
     private createSkillActionHandler(): SkillActionHandler {
         const services: SkillActionServices = {
-            // --- Core ---
-            getCurrentTick: () => this.options.ticker.currentTick(),
-            getNpc: (id) => this.npcManager?.getById(id) ?? undefined,
-
             // --- Player Skills ---
             getSkill: (player, skillId) => {
                 const skill = player.getSkill(skillId);
@@ -7812,18 +7837,13 @@ export class WSServer {
                 this.setInventorySlot(player, slot, itemId, quantity),
             addItemToInventory: (player, itemId, quantity) =>
                 this.addItemToInventory(player, itemId, quantity),
-            addItemToBank: (player, itemId, quantity) =>
-                this.bankingManager.addItemToBank(player, itemId, quantity),
-            queueBankSnapshot: (player) => this.bankingManager.queueBankSnapshot(player),
             hasInventorySlot: (player) => this.hasInventorySlot(player),
-            canStoreItem: (player, itemId) => this.canStoreItem(player, itemId),
             playerHasItem: (player, itemId) => this.playerHasItem(player, itemId),
             restoreInventoryItems: (player, itemId, removed) =>
                 this.restoreInventoryItems(player, itemId, removed),
             takeInventoryItems: (player, inputs) => this.takeInventoryItems(player, inputs),
             restoreInventoryRemovals: (player, removed) =>
                 this.restoreInventoryRemovals(player, removed),
-            collectCarriedItemIds: (player) => this.collectCarriedItemIds(player),
             getEquipArray: (player) => this.ensureEquipArray(player),
 
             // --- Action Scheduling ---
@@ -7843,81 +7863,16 @@ export class WSServer {
             getCookingRecipeById: (id) => getCookingRecipeById(id),
             getCookingRecipeByRawItemId: (itemId) => getCookingRecipeByRawItemId(itemId),
             getTanningRecipeById: (id) => getTanningRecipeById(id),
-            getFletchingRecipeById: (id) => getFletchingRecipeById(id),
-            getSpinningRecipeById: (id) => getSpinningRecipeById(id),
             getSmeltingRecipeById: (id) => getSmeltingRecipeById(id),
-            getFiremakingLogDefinition: (logId) => getFiremakingLogDefinition(logId) as any,
-            getWoodcuttingTreeById: (id) => getWoodcuttingTreeById(id),
-            getWoodcuttingTreeDefinition: (locId) => this.getWoodcuttingTreeDefinition(locId),
-            getMiningRockById: (id) => getMiningRockById(id),
-            getMiningRockDefinition: (locId) => this.getMiningRockDefinition(locId),
-            getFishingSpotById: (id) => getFishingSpotById(id),
-            getFishingSpotDefinition: (npcTypeId) => this.getFishingSpotDefinition(npcTypeId),
-            getFishingMethodById: (spot, methodId) => getFishingMethodById(spot, methodId),
-            getFishingToolDefinition: (toolId) => getFishingToolDefinition(toolId),
-
-            // --- Tool Selection ---
-            selectHatchetByLevel: (itemIds, level) => selectHatchetByLevel(itemIds, level),
-            selectPickaxeByLevel: (itemIds, level) => selectPickaxeByLevel(itemIds, level),
-            selectFishingTool: (toolId, itemIds) => selectFishingTool(toolId, itemIds),
-            pickFishingCatch: (method, level) => pickFishingCatch(method, level),
 
             // --- Skill Success Rolls ---
             rollCookingOutcome: (recipe, level, options) =>
                 rollCookingOutcome(recipe as any, level, options),
-            rollWoodcuttingSuccess: (level, treeLevel, hatchet) =>
-                this.rollWoodcuttingSuccess(level, treeLevel, hatchet),
-            rollMiningSuccess: (level, rockLevel, pickaxe) =>
-                this.rollMiningSuccess(level, rockLevel, pickaxe),
-            rollFishingSuccess: (level, catchLevel, tool) =>
-                this.rollFishingSuccess(level, catchLevel, tool),
             rollSmeltingSuccess: (level, recipe, equip, ringCharges) =>
                 this.rollSmeltingSuccess(level, recipe as any, equip, ringCharges),
-            rollFiremakingSuccess: (level, logLevel) => this.rollFiremakingSuccess(level, logLevel),
-            shouldDepleteTree: (tree) => this.shouldDepleteTree(tree),
-
-            // --- Resource Tracking ---
-            isWoodcuttingDepleted: (key) => this.gatheringSystem.isWoodcuttingDepleted(key),
-            markWoodcuttingDepleted: (info, tick) =>
-                this.gatheringSystem.markWoodcuttingDepleted(info as any, tick),
-            isMiningDepleted: (key) => this.gatheringSystem.isMiningDepleted(key),
-            markMiningDepleted: (info, tick) =>
-                this.gatheringSystem.markMiningDepleted(info as any, tick),
-            isFlaxDepleted: (tile, level) =>
-                this.gatheringSystem.flaxTracker.isDepleted(tile, level),
-            markFlaxDepleted: (info, tick) =>
-                this.gatheringSystem.markFlaxDepleted(info, tick),
-            isTileLit: (tile, level) => this.gatheringSystem.isTileLit(tile, level),
-            isFiremakingTileBlocked: (tile, level) => this.isFiremakingTileBlocked(tile, level),
-            lightFire: (params) =>
-                this.firemakingTracker.light({
-                    ...params,
-                    burnTicks: params.burnTicks,
-                }),
-            buildWoodcuttingTileKey: (tile, level) =>
-                this.gatheringSystem.buildWoodcuttingTileKey(tile, level),
-            buildMiningTileKey: (tile, level) =>
-                this.gatheringSystem.buildMiningTileKey(tile, level),
-
-            // --- Adjacency Checks ---
-            isAdjacentToLoc: (player, locId, tile, level) =>
-                this.isAdjacentToLoc(player, locId, tile, level),
-            isAdjacentToNpc: (player, npc) => this.isAdjacentToNpc(player, npc),
-
-            // --- Facing ---
-            faceGatheringTarget: (player, tile) => this.faceGatheringTarget(player, tile),
-
-            // --- Item Helpers ---
-            isSinewSourceItem: (itemId) => isSinewSourceItem(itemId),
-            playerHasTinderbox: (player) => this.playerHasTinderbox(player),
-            consumeFiremakingLog: (player, logId, slotIndex) =>
-                this.consumeFiremakingLog(player, logId, slotIndex),
 
             // --- Description Helpers ---
-            describeLog: (itemId) => this.describeLog(itemId),
-            describeOre: (itemId) => this.describeOre(itemId),
             describeBar: (itemId) => this.describeBar(itemId),
-            describeFish: (itemId) => this.describeFish(itemId),
 
             // --- Interface Updates ---
             updateSmithingInterface: (player) => this.updateSmithingInterface(player),
@@ -7930,36 +7885,6 @@ export class WSServer {
             getRingOfForgingCharges: (player) => player.getRingOfForgingCharges(),
             consumeRingOfForgingCharge: (player, effects) =>
                 this.consumeRingOfForgingCharge(player, effects),
-
-            // --- Firemaking Helpers ---
-            computeFireLightingDelayTicks: (level) => computeFireLightingDelayTicks(level),
-            walkPlayerAwayFromFire: (player, fireTile) => {
-                // OSRS parity: after lighting a fire the player walks one tile west.
-                // Skip if the west tile is blocked by collision (wall, object, etc.).
-                const westTile = { x: fireTile.x - 1, y: fireTile.y };
-                const canStep = this.options.pathService?.canNpcStep(
-                    { x: player.tileX, y: player.tileY, plane: player.level },
-                    westTile,
-                ) ?? true;
-                if (canStep && (westTile.x !== player.tileX || westTile.y !== player.tileY)) {
-                    player.setPath([westTile], false);
-                }
-            },
-
-            // --- Location Changes ---
-            emitLocChange: (fromLocId, toLocId, tile, level, opts) =>
-                this.emitLocChange(fromLocId, toLocId, tile, level, opts),
-            enqueueSoundBroadcast: (soundId, x, y, level) =>
-                this.enqueueSoundBroadcast(soundId, x, y, level),
-            sendSound: (player, soundId, opts) => this.sendSound(player, soundId, opts),
-
-            // --- Varbit / Loc Change ---
-            setPlayerVarbit: (player, varbitId, value) => {
-                player.setVarbitValue(varbitId, value);
-                this.queueVarbit(player.id, varbitId, value);
-            },
-            sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
-                this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
 
             // --- Logging ---
             log: (level, message, data) => {
@@ -10229,54 +10154,6 @@ export class WSServer {
                 return this.skillActionHandler.executeSkillTanAction(
                     player,
                     action.data as SkillTanActionData,
-                    tick,
-                );
-            case "skill.fletch":
-                return this.skillActionHandler.executeSkillFletchAction(
-                    player,
-                    action.data as SkillFletchActionData,
-                    tick,
-                );
-            case "skill.spin":
-                return this.skillActionHandler.executeSkillSpinAction(
-                    player,
-                    action.data as SkillSpinActionData,
-                    tick,
-                );
-            case "skill.sinew":
-                return this.skillActionHandler.executeSkillSinewAction(
-                    player,
-                    action.data as SkillSinewActionData,
-                    tick,
-                );
-            case "skill.flax":
-                return this.skillActionHandler.executeSkillFlaxAction(
-                    player,
-                    action.data as SkillFlaxActionData,
-                    tick,
-                );
-            case "skill.woodcut":
-                return this.skillActionHandler.executeSkillWoodcutAction(
-                    player,
-                    action.data as SkillWoodcuttingActionData,
-                    tick,
-                );
-            case "skill.firemaking":
-                return this.skillActionHandler.executeSkillFiremakingAction(
-                    player,
-                    action.data as SkillFiremakingActionData,
-                    tick,
-                );
-            case "skill.mine":
-                return this.skillActionHandler.executeSkillMiningAction(
-                    player,
-                    action.data as SkillMiningActionData,
-                    tick,
-                );
-            case "skill.fish":
-                return this.skillActionHandler.executeSkillFishingAction(
-                    player,
-                    action.data as SkillFishingActionData,
                     tick,
                 );
             case "skill.smelt":

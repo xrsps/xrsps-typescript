@@ -738,7 +738,7 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
     // Phase 0: Attempt — prechecks + attempt message
     if (data.phase === 0) {
         const thievingSkill = services.getSkill?.(player, THIEVING_SKILL_ID);
-        const thievingLevel = thievingSkill?.baseLevel ?? 1;
+        const thievingLevel = Math.max(1, (thievingSkill?.baseLevel ?? 1) + (thievingSkill?.boost ?? 0));
 
         if (thievingLevel < data.reqLevel) {
             effects.push(buildMessageEffect(player,
@@ -771,7 +771,7 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
     // Phase 1: Resolve success/fail
     if (data.phase === 1) {
         const thievingSkill = services.getSkill?.(player, THIEVING_SKILL_ID);
-        const thievingLevel = thievingSkill?.baseLevel ?? 1;
+        const thievingLevel = Math.max(1, (thievingSkill?.baseLevel ?? 1) + (thievingSkill?.boost ?? 0));
         const equipArray = services.getEquipArray?.(player) ?? [];
         const success = rollPickpocketSuccess(thievingLevel, data.reqLevel, equipArray);
 

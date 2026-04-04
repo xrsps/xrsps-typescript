@@ -900,4 +900,7 @@ export enum Opcodes {
     // notifications_sendlocal(title, body, arg1, arg2) -> notificationId
     // Triggers the authentic OSRS notification display via CS2 script 3343
     NOTIFICATIONS_SENDLOCAL = 6800,
+
+    // Loot tracker (enhanced client)
+    LOOTTRACKER_LOOTADD = 7628,
 }
