@@ -457,6 +457,7 @@ export class PlayerState extends Actor {
     autocastEnabled: boolean = false;
     autocastMode: "autocast" | "defensive_autocast" | null = null;
     pendingAutocastDefensive?: boolean; // Tracks if defensive autocast was selected when popup opened
+    pendingAutocastWeaponId?: number; // Weapon ID when autocast popup was opened (for slot→spell mapping)
     lastSpellCastTick: number = Number.MIN_SAFE_INTEGER;
     /** Pending player spell damage for scheduled combat actions */
     pendingPlayerSpellDamage?: { targetId: number };

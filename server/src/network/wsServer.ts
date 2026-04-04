@@ -7848,7 +7848,7 @@ export class WSServer {
             estimateProjectileTiming: (opts) => this.estimateProjectileTiming(opts),
             buildAndQueueSpellProjectileLaunch: (opts) => {
                 if (!this.projectileSystem) return;
-                this.projectileSystem.queueSpellProjectileLaunch({
+                const launch = this.projectileSystem.buildSpellProjectileLaunch({
                     player: opts.player,
                     targetNpc: opts.targetNpc,
                     targetPlayer: opts.targetPlayer,
@@ -7859,6 +7859,9 @@ export class WSServer {
                     timing: opts.timing,
                     impactDelayTicks: opts.impactDelayTicks,
                 });
+                if (launch) {
+                    this.queueProjectileForViewers(launch);
+                }
             },
 
             // --- Effects ---
@@ -14834,6 +14837,7 @@ export class WSServer {
                 //   - widgetId = (interfaceId << 16) | componentId
                 //   - slot = inventory slot or -1
                 const payload = parsed.payload;
+                console.log(`[DEBUG widget_action] RECEIVED widgetId=${payload.widgetId} group=${(payload.widgetId >>> 16) & 0xffff} child=${payload.widgetId & 0xffff} buttonNum=${payload.buttonNum} slot=${payload.slot} itemId=${payload.itemId}`);
                 const player = this.players?.get(ws);
                 if (player) {
                     const groupId = payload.groupId ?? (payload.widgetId >> 16) & 0xffff;

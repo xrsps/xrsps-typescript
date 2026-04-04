@@ -1186,21 +1186,46 @@ export function isSpellAutocastable(spellId: number): boolean {
     return SPELL_ID_TO_AUTOCAST_INDEX.has(spellId);
 }
 
+/**
+ * Build the ordered list of autocast spell indices visible for a given weapon.
+ * Replicates the CS2 autocast_setup script logic: iterates enum_1986 entries
+ * (autocast indices 1-58 in order) and includes only spells compatible with
+ * the weapon. The result order matches the CC_CREATE childIndex assignment,
+ * so result[slot] gives the autocast spell index for that dynamic child slot.
+ */
+export function buildVisibleAutocastIndices(weaponItemId: number): number[] {
+    const result: number[] = [];
+    for (let idx = 1; idx <= 58; idx++) {
+        const spellId = AUTOCAST_INDEX_TO_SPELL_ID[idx];
+        if (spellId === undefined || spellId <= 0) continue;
+        const compat = canWeaponAutocastSpell(weaponItemId, spellId);
+        if (compat.compatible) {
+            result.push(idx);
+        }
+    }
+    return result;
+}
+
 // ========== STAFF-SPELL AUTOCAST COMPATIBILITY ==========
 
 /**
  * Weapons that can autocast Ancient Magicks spells.
- * OSRS: Ancient staff, Ahrim's staff, Master wand, Kodai wand, Nightmare staff variants
+ * OSRS: Ancient staff, Ahrim's staff, Master wand, Kodai wand, Nightmare staff variants,
+ * Staff of the dead variants, Staff of balance, Void knight mace
  */
 const ANCIENT_AUTOCAST_WEAPONS = new Set<number>([
     4675, // Ancient staff
     4710, // Ahrim's staff
     6914, // Master wand
+    8841, // Void knight mace
+    11791, // Staff of the dead
+    12904, // Toxic staff of the dead
     21006, // Kodai wand
+    22296, // Staff of balance
     24422, // Nightmare staff
+    24423, // Harmonised nightmare staff
     24424, // Eldritch nightmare staff
     24425, // Volatile nightmare staff
-    24423, // Harmonised nightmare staff
 ]);
 
 /**
