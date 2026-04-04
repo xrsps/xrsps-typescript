@@ -14,9 +14,7 @@ export default defineConfig({
         siteTitle: false,
         nav: [
             { text: 'Home', link: '/' },
-            { text: 'Setup', link: '/setup' },
-            { text: 'Architecture', link: '/ARCHITECTURE' },
-            { text: 'FAQ', link: '/faq' },
+            { text: 'Docs', link: '/setup' }
         ],
         sidebar: [
             {
