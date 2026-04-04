@@ -262,14 +262,10 @@ import type { GamemodeBridge, GamemodeDefinition, GamemodeUiController } from ".
 import { getGamemodeDataDir } from "../game/gamemodes/GamemodeRegistry";
 import { LockState } from "../game/model/LockState";
 import {
-    handleBoardingTick1,
-    handleBoardingTick2,
-    handleDisembarkTick,
     isPlayerOnDockedSailingBoat,
-    resetSailingState,
     restoreDockedSailingState,
     restoreSailingInstanceUi,
-} from "../game/scripts/modules/quests/pandemonium";
+} from "../../../extrascripts/vanilla-skills/sailing";
 import { ACTIVE_COMBAT_TIMER, STUN_TIMER } from "../game/model/timer/Timers";
 import { createLootPickupNotification } from "../game/notifications/LootPickupNotification";
 import { NpcState, type NpcUpdateDelta } from "../game/npc";
@@ -9787,17 +9783,6 @@ export class WSServer {
                 );
             case "emote.play":
                 return this.executeEmotePlayAction(player, action.data as EmotePlayActionData);
-            case "sailing.board_tick1": {
-                const data = action.data as { playerName: string };
-                handleBoardingTick1(player, data, this.scriptRuntime.getServices());
-                return { ok: true };
-            }
-            case "sailing.board_tick2":
-                handleBoardingTick2(player, this.scriptRuntime.getServices());
-                return { ok: true };
-            case "sailing.disembark":
-                handleDisembarkTick(player, this.scriptRuntime.getServices());
-                return { ok: true };
             case "npc.trade": {
                 const tradeData = action.data as { npcTypeId?: number; shopId?: string };
                 this.scriptRuntime.getServices().openShop?.(player, tradeData);

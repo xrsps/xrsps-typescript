@@ -1,4 +1,4 @@
-import { BaseComponentUids } from "../../../../widgets/viewport/ViewportEnumService";
+import { BaseComponentUids } from "../../../src/widgets/viewport/ViewportEnumService";
 import {
     buildSailingOverlayTemplates,
     SAILING_DOCKED_NPC_SPAWNS,
@@ -14,14 +14,14 @@ import {
     PORT_SARIM_RETURN_LEVEL,
     PORT_SARIM_RETURN_X,
     PORT_SARIM_RETURN_Y,
-} from "../../../sailing/SailingInstance";
-import type { PlayerState } from "../../../player";
+} from "../../../src/game/sailing/SailingInstance";
+import type { PlayerState } from "../../../src/game/player";
 import type {
     NpcInteractionEvent,
     ScriptDialogRequest,
     ScriptModule,
     ScriptServices,
-} from "../../types";
+} from "../../../src/game/scripts/types";
 
 // ============================================================================
 // NPC IDs
@@ -274,6 +274,28 @@ export const pandemoniumQuestModule: ScriptModule = {
             if (!isPlayerOnDockedSailingBoat(player)) return;
             executeDisembarkSequence(player, services);
         }, "disembark");
+
+        registry.registerActionHandler("sailing.board_tick1", (ctx) => {
+            const data = ctx.data as { playerName: string };
+            handleBoardingTick1(ctx.player, data, ctx.services);
+            return { ok: true };
+        });
+
+        registry.registerActionHandler("sailing.board_tick2", (ctx) => {
+            handleBoardingTick2(ctx.player, ctx.services);
+            return { ok: true };
+        });
+
+        registry.registerActionHandler("sailing.disembark", (ctx) => {
+            handleDisembarkTick(ctx.player, ctx.services);
+            return { ok: true };
+        });
+
+        registry.registerCommand("sail", (event) => {
+            const playerName = event.player.name ?? "You";
+            handleBoardingTick1(event.player, { playerName }, services);
+            handleBoardingTick2(event.player, services);
+        });
     },
 };
 

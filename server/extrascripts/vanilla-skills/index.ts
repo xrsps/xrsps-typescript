@@ -10,6 +10,7 @@ import { prayerSkillModule } from "./prayer/index";
 import { productionModule } from "./production/index";
 import { thievingModule } from "./thieving/index";
 import { woodcuttingModule } from "./woodcutting/index";
+import { sailingModule } from "./sailing/index";
 
 const skillModules: ScriptModule[] = [
     thievingModule,
@@ -23,6 +24,7 @@ const skillModules: ScriptModule[] = [
     fishingModule,
     productionModule,
     consumablesModule,
+    sailingModule,
 ];
 
 export const module: ScriptModule = {

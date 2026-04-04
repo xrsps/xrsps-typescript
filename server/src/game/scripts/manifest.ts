@@ -117,11 +117,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/items/followers.ts")],
     },
     {
-        id: "quest.pandemonium",
-        load: loadModule("modules/quests/pandemonium", "pandemoniumQuestModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/quests/pandemonium.ts")],
-    },
-    {
         id: "packs",
         load: loadModule("modules/items/packs", "packsModule"),
         watch: [path.resolve(MODULE_DIR, "modules/items/packs.ts")],

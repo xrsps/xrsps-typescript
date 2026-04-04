@@ -19,10 +19,6 @@ import { clearAutocastState } from "../game/combat/AutocastState";
 import type { NpcState } from "../game/npc";
 import type { PlayerState } from "../game/player";
 import type { NpcSpawnConfig } from "../game/npc";
-import {
-    handleBoardingTick1,
-    handleBoardingTick2,
-} from "../game/scripts/modules/quests/pandemonium";
 import type { ScriptDialogRequest } from "../game/scripts/types";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import type { WorldEntityBuildArea } from "../../../src/shared/worldentity/WorldEntityTypes";
@@ -1429,16 +1425,6 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         targetPlayerIds: [sender.id],
                     });
                     logger.info(`[cmd] ::spawn - Player ${sender.id} teleported to Lumbridge`);
-                    return;
-                }
-
-                if (root === "sail") {
-                    const playerName = sender.name ?? "You";
-                    handleBoardingTick1(sender, { playerName }, services);
-                    handleBoardingTick2(sender, services);
-                    logger.info(
-                        `[cmd] ::sail - Player ${sender.id} fast-forwarded to Pandemonium docked sailing state`,
-                    );
                     return;
                 }
 
