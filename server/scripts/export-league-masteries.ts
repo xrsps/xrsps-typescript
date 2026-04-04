@@ -44,7 +44,7 @@ function formatLeagueMasteriesTs(
     const challengeLines = challenges.map((c) => `  ${JSON.stringify(c)}`);
 
     return (
-        `import type { LeagueRelicRow, LeagueMasteryNodeRow, LeagueMasteryChallengeRow } from "./leagueTypes";\n\n` +
+        `import type { LeagueRelicRow, LeagueMasteryNodeRow, LeagueMasteryChallengeRow } from "../../../../src/shared/leagues/leagueTypes";\n\n` +
         `// Generated snapshot of cache league data.\n` +
         `// Source of truth: caches/ (r235)\n\n` +
         `// League 5 Relics (structs 1116-1135, param_879=name, param_880=desc)\n` +
@@ -336,7 +336,7 @@ function main(): void {
     const masteryChallenges = extractMasteryChallenges(structTypeLoader);
 
     if (relics.length > 0 || masteryNodes.length > 0 || masteryChallenges.length > 0) {
-        const outPath = path.resolve("src/shared/leagues/leagueMasteries.data.ts");
+        const outPath = path.resolve("server/gamemodes/leagues-v/data/leagueMasteries.data.ts");
         fs.mkdirSync(path.dirname(outPath), { recursive: true });
         fs.writeFileSync(
             outPath,

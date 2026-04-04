@@ -12,8 +12,8 @@ import {
     type RegisteredCustomTask,
     getAllCustomChallenges,
     getAllCustomTasks,
-} from "../../../src/shared/leagues/custom";
-import { LEAGUE_TASKS } from "../../../src/shared/leagues/leagueTasks.data";
+} from "./data/custom";
+import { LEAGUE_TASKS } from "./data/leagueTasks.data";
 import type { LeagueTaskRow } from "../../../src/shared/leagues/leagueTypes";
 import {
     type TriggerParserLoaders,

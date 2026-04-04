@@ -1841,8 +1841,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     /**
-     * Mirrors Actor.addHitSplat from references/runescape-client/src/main/java/Actor.java.
-     *
      * OSRS Parity:
      * - All cycle values are in CLIENT CYCLES (20ms each), NOT server ticks
      * - hitSplatCycles stores: currentCycle + displayCycles + delayCycles (the END cycle)

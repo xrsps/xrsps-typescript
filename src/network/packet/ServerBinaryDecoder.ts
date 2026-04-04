@@ -1725,6 +1725,31 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
             }
         }
 
+        case ServerPacketId.GAMEMODE_DATA: {
+            const flags = reader.readByte();
+            reader.readInt(); // jsonLength (reserved for pre-allocation)
+            const compressed = (flags & 1) !== 0;
+            const rawBytes = reader.readBytes(reader.remaining);
+            let jsonStr: string;
+            if (compressed) {
+                const pako = require("pako");
+                const inflated = pako.inflate(rawBytes);
+                jsonStr = new TextDecoder().decode(inflated);
+            } else {
+                jsonStr = new TextDecoder().decode(rawBytes);
+            }
+            try {
+                const payload = JSON.parse(jsonStr);
+                return {
+                    type: "gamemode_data",
+                    payload,
+                };
+            } catch {
+                console.log("[gamemode_data] failed to parse JSON payload");
+                return null;
+            }
+        }
+
         default:
             console.warn(`Unknown server packet opcode: ${opcode}`);
             return null;

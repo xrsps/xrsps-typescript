@@ -1,6 +1,4 @@
-// Derived from references/230.1 anims.json and animation_names.txt
 // Maps canonical emote sequence names to SeqType IDs for this cache family.
-// Canonical names use the "emote_*" naming seen in references.
 
 export const EMOTE_NAME_TO_SEQ: Record<string, number> = {
     emote_yes: 855,

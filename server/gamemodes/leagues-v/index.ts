@@ -40,6 +40,7 @@ import type {
     GamemodeUiController,
     HandshakeBridge,
 } from "../../src/game/gamemodes/GamemodeDefinition";
+import { LeagueContentProvider } from "./LeagueContentProvider";
 import { LeaguesVUiController } from "./LeaguesVUiController";
 
 const TUTORIAL_SPAWN = { x: 3094, y: 3107, level: 0 };
@@ -58,6 +59,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
     private initBridge: GamemodeBridge | undefined;
     private leagueSummary: LeagueSummaryTracker | undefined;
     private uiBridge: GamemodeUiBridge | undefined;
+    private contentProvider: LeagueContentProvider = new LeagueContentProvider();
 
     // === XP ===
 
@@ -357,10 +359,17 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         ];
     }
 
+    // === Content Data ===
+
+    getContentDataPacket(): Uint8Array | null {
+        return this.contentProvider.getPacket();
+    }
+
     // === Server Lifecycle ===
 
     initialize(context: GamemodeInitContext): void {
         this.initBridge = context.bridge;
+        this.contentProvider.build();
         try {
             this.taskManager = LeagueTaskManager.create(
                 context.npcTypeLoader,

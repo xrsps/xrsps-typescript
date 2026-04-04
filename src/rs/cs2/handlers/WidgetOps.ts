@@ -76,7 +76,6 @@ function getTargetWidget(ctx: HandlerContext, intOp: number): WidgetNode | null 
     return intOp === 1 ? ctx.dotWidget : ctx.activeWidget;
 }
 
-// references/runelite/.../InterfaceID.java: ToplevelOsm.GAMEFRAME
 const MOBILE_TOPLEVEL_GAMEFRAME_UID = 0x02590014;
 
 function getWidgetScriptHeight(ctx: HandlerContext, w: WidgetNode | null | undefined): number {
@@ -1268,7 +1267,6 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.CC_GETLAYER, (ctx, intOp) => {
         // OSRS PARITY (r215+): CC_GETLAYER only pushes the widget's parentId (parent widget UID).
         // It does NOT change the active/dot widget selection.
-        // Reference: references/runescape-client/src/main/java/class367.java (ScriptOpcodes.CC_GETLAYER).
         const w = getTargetWidget(ctx, intOp);
         let parentUid = w?.parentUid ?? -1;
         if (w && typeof parentUid === "number" && parentUid !== -1) {

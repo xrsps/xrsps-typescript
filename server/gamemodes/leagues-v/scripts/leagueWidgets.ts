@@ -126,7 +126,6 @@ const FLAG_TRANSMIT_OP2 = 1 << 2;
 const ACCOUNT_SUMMARY_COLLECTION_ACTION_FLAGS = FLAG_TRANSMIT_OP1 | FLAG_TRANSMIT_OP2;
 const ACCOUNT_SUMMARY_PLAYTIME_ACTION_FLAGS = FLAG_TRANSMIT_OP1;
 
-// League unlock sound effects (synth IDs from references/osrs-synths.json)
 const SYNTH_TRAILBLAZER_UNLOCK_MAP = 2353; // trailblazer_unlock_map - area unlock
 const SYNTH_TRAILBLAZER_UNLOCK_POWER = 2344; // trailblazer_unlock_power - relic unlock (L2)
 const SYNTH_TRAILBLAZER_UNLOCK_RAISE = 2330; // trailblazer_unlock_raise - alternative
@@ -138,7 +137,6 @@ const ENUM_LEAGUE_AREA_UNLOCKS = 5677; // enum_5677
 const PARAM_LEAGUE_AREA_TASKS_REQUIRED = 1010; // param_1010
 
 // region_data DB columns (cache authoritative)
-// Source: references/cs2-data/learned-db-columns.json
 const DB_COL_REGION_DATA_REGION_ID = 335872; // region_data:region_id
 const DB_COL_REGION_DATA_AREA_TELEPORT_COORD = 336048; // region_data:area_teleport_coord
 

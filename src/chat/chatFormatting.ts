@@ -1,8 +1,6 @@
 /**
  * OSRS public chat formatting parsing for outgoing messages.
  *
- * Reference: `GrandExchangeOfferOwnWorldComparator.method1249` and
- * `CollisionMap.method4475` in `references/runescape-client` (r215).
  *
  * Format:
  *   - One optional colour prefix: `yellow:` ... `rainbow:` OR `pattern<spec>:`.

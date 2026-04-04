@@ -7,7 +7,7 @@
  * - Enum IDs that need overrides
  */
 
-import type { TaskTrigger } from "../../../../server/gamemodes/leagues-v/triggers/TriggerTypes";
+import type { TaskTrigger } from "../../triggers/TriggerTypes";
 
 // =============================================================================
 // STRUCT ID RANGES (won't conflict with cache)

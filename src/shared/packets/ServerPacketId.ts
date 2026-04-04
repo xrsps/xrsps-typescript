@@ -130,6 +130,11 @@ export const enum ServerPacketId {
     NOTIFICATION = 200,
 
     // ========================================
+    // GAMEMODE (210-219)
+    // ========================================
+    GAMEMODE_DATA = 210,
+
+    // ========================================
     // DEBUG (250-255)
     // ========================================
     DEBUG = 250,
@@ -227,6 +232,8 @@ export const SERVER_PACKET_LENGTHS: Record<ServerPacketId, number> = {
     [ServerPacketId.COLLECTION_LOG_SNAPSHOT]: -2, // count(2) + slots(var)
 
     [ServerPacketId.NOTIFICATION]: -1, // kind(1) + title(var) + message(var) + itemId(2) + quantity(4) + durationMs(2)
+
+    [ServerPacketId.GAMEMODE_DATA]: -2,
 
     [ServerPacketId.DEBUG]: -2,
 };

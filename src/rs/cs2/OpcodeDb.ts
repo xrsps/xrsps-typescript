@@ -43,7 +43,6 @@ export function loadOpcodeDbOsrs(_baseDir: string): OpcodeDb {
     const db = new OpcodeDb();
     // This list is derived from the reference Instructions.java file
     // It populates the OpcodeDb with all known OSRS opcodes and their names
-    // See references/runelite/cache/src/main/java/net/runelite/cache/script/Instructions.java
 
     const add = (op: number, name: string) => db.add(op, name, 0, 0, 0, 0);
 

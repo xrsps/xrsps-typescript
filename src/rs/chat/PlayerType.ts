@@ -1,5 +1,4 @@
 // OSRS `PlayerType` mapping from the reference client (r215).
-// See `references/runescape-client/src/main/java/PlayerType.java`.
 
 export type PlayerTypeInfo = {
     id: number;

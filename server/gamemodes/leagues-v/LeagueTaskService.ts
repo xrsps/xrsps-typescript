@@ -1,5 +1,5 @@
 import { LEAGUE_TASK_COMPLETION_VARPS } from "../../../src/shared/leagues/leagueTaskVarps";
-import { getLeagueTaskByTaskId } from "../../../src/shared/leagues/leagueTasks";
+import { getLeagueTaskByTaskId } from "./data/leagueTaskLookup";
 import {
     VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED,
     VARP_LEAGUE_POINTS_CLAIMED,

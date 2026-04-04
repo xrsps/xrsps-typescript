@@ -57,7 +57,6 @@ function encodeStepDirection(dx: number, dy: number): number | undefined {
 
 /**
  * Traversal type flags mirroring class231 in Player.java.
- * Reference: references/runescape-client/src/main/java/class231.java
  *
  * These flags distinguish between:
  * - SLOW: Half-speed step (var8 >>= 1)

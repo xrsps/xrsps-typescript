@@ -101,6 +101,9 @@ export interface GamemodeDefinition {
     // === UI Controller ===
     createUiController?(bridge: GamemodeUiBridge): GamemodeUiController;
 
+    // === Content Data ===
+    getContentDataPacket?(): Uint8Array | null;
+
     // === Server Lifecycle ===
     initialize(context: GamemodeInitContext): void;
     dispose?(): void;

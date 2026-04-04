@@ -725,11 +725,9 @@ const NPC_PROTECTION_REDUCTION = 1.0;
 const PVP_PROTECTION_REDUCTION = 0.4;
 const DEFAULT_MISS_SOUND = 2564; // Generic block/miss sound
 // Unarmed (no weapon equipped): style-specific hit sounds.
-// Source: references/cs2-data/synth-names.json
 const UNARMED_KICK_SOUND = 2565; // unarmed_kick
 const UNARMED_PUNCH_SOUND = 2566; // unarmed_punch
 const NPC_ATTACK_SOUND = 2549; // Generic NPC attack sound
-// SoundEffectID.TAKE_DAMAGE_SPLAT / ZERO_DAMAGE_SPLAT (references/runelite/runelite-api)
 const PLAYER_TAKE_DAMAGE_SOUND = 510;
 const PLAYER_ZERO_DAMAGE_SOUND = 511;
 const DEFAULT_MAGIC_SPLASH_SOUND = 227;
@@ -780,7 +778,6 @@ const TILE_UNIT = 128;
 // Binary player sync uses OSRS-style update masks (r215):
 // - bit 0x80 in the first byte indicates a second mask byte follows
 // - bit 0x4000 (bit 14) indicates a third mask byte follows
-// See `references/runescape-client/src/main/java/SoundSystem.java` method877.
 
 // Test-only deterministic RNG (optional)
 const TEST_RNG_SEED_RAW = process.env.TEST_RNG_SEED?.trim() ?? "";
@@ -13069,6 +13066,14 @@ export class WSServer {
                                     }),
                                     "varbit",
                                 ),
+                            );
+                        }
+
+                        // Send gamemode content data (tasks, masteries, etc.) before any varps
+                        const contentDataPacket = this.gamemode.getContentDataPacket?.();
+                        if (contentDataPacket) {
+                            this.withDirectSendBypass("gamemode_data", () =>
+                                this.sendWithGuard(ws, contentDataPacket, "gamemode_data"),
                             );
                         }
 

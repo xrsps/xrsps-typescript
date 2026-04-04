@@ -517,7 +517,8 @@ export type ServerToClient =
     | { type: "logout_response"; payload: LogoutResponsePayload }
     | { type: "notification"; payload: NotificationPayload }
     | { type: "smithing"; payload: SmithingServerPayload }
-    | { type: "collection_log"; payload: CollectionLogServerPayload };
+    | { type: "collection_log"; payload: CollectionLogServerPayload }
+    | { type: "gamemode_data"; payload: { packet: Uint8Array } };
 
 export type ClientToServer =
     | { type: "hello"; payload: { client: string; version?: string } }
@@ -987,6 +988,9 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
                 return serverEncoder.encodeCollectionLogSnapshot(payload.slots ?? []);
             }
             throw new Error(`Unknown collection_log payload kind: ${payload.kind}`);
+
+        case "gamemode_data":
+            return payload.packet;
 
         default:
             // All message types should be handled above

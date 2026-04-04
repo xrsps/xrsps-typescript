@@ -1,8 +1,3 @@
-// Crafting XP/level values sourced from
-// references/runelite/runelite-client/src/main/java/net/runelite/client/plugins/skillcalculator/skills/CraftingAction.java
-// Spinning wheel object ids sourced from
-// references/runelite/runelite-api/src/main/java/net/runelite/api/gameval/ObjectID.java
-// Animation id 894 ("human_spinningwheel") sourced from references/230.1 anims.json.
 
 export interface SpinningRecipe {
     id: string;

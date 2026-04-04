@@ -2129,6 +2129,14 @@ function processServerMessage(msg: any): void {
         } catch (err) {
             console.warn("chat listener error", err);
         }
+    } else if (msg.type === "gamemode_data") {
+        try {
+            const { loadFromPayload } = require("../shared/leagues/GamemodeContentStore");
+            loadFromPayload(msg.payload);
+            console.log(`[ws] gamemode_data loaded: ${msg.payload?.gamemodeId ?? "unknown"}`);
+        } catch (err) {
+            console.log("[ws] failed to load gamemode_data", err);
+        }
     } else if (msg.type === "notification") {
         const payload = msg.payload as NotificationEvent;
         for (const cb of notificationListeners) cb(payload);
