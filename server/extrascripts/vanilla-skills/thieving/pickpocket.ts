@@ -804,8 +804,7 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
             effects.push(buildMessageEffect(player,
                 `You pick the ${npcNameLower}'s pocket.`));
 
-            schedulePickpocket(services, player.id, { ...data, phase: 0 }, tick);
-            return { ok: true, cooldownTicks: 1, effects };
+            return { ok: true, effects };
         }
 
         // Fail: message + NPC forced chat + set busy varbit

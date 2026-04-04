@@ -167,11 +167,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/skills/prayerAltars.ts")],
     },
     {
-        id: "skills.herblore",
-        load: loadModule("modules/skills/herblore", "herbloreModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/skills/herblore.ts")],
-    },
-    {
         id: "skills.fletching",
         load: loadModule("modules/skills/fletching", "fletchingModule"),
         watch: [path.resolve(MODULE_DIR, "modules/skills/fletching.ts")],

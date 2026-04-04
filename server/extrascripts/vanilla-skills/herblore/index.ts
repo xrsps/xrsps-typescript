@@ -1,12 +1,16 @@
-import { SkillId } from "../../../../../../src/rs/skill/skills";
-import type { PlayerState } from "../../../player";
-import { logger } from "../../../../utils/logger";
-import { type ScriptModule } from "../../types";
+import { SkillId } from "../../../../src/rs/skill/skills";
+import type { ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { PlayerState } from "../../../src/game/player";
 
-// OSRS-like herblore data sourced from the Elvarg references included in this repo.
-// - Cleanable herbs (id, level, xp)
-// - Unfinished potions (herb + vial of water -> unf, level)
-// - Finished potions (unf + secondary -> potion(3), level, xp)
+// ---------------------------------------------------------------------------
+// Herblore Skill
+//
+// Data-driven herblore module covering:
+// - Herb cleaning (grimy -> clean)
+// - Unfinished potions (clean herb + vial of water)
+// - Finished potions (unfinished + secondary ingredient)
+// - Stamina potion conversion (super energy + amylase crystals)
+// ---------------------------------------------------------------------------
 
 const VIAL_OF_WATER = 227;
 const AMYLASE_CRYSTAL = 12640;
@@ -32,7 +36,6 @@ const CLEAN_LIST: CleanHerb[] = [
     { grimy: 2485, clean: 2481, level: 67, xp: 16 },
     { grimy: 217, clean: 267, level: 70, xp: 18 },
     { grimy: 219, clean: 269, level: 75, xp: 21 },
-    // Spirit weed / Wergali exist in references but are uncommon; omit for brevity
 ];
 
 const UNF_LIST: Unf[] = [
@@ -53,16 +56,15 @@ const UNF_LIST: Unf[] = [
 ];
 
 const FINISHED_LIST: Finished[] = [
-    { product3: 121, unf: 91, secondary: 221, level: 1, xp: 25 }, // Attack
-    { product3: 175, unf: 93, secondary: 235, level: 5, xp: 38 }, // Antipoison
-    { product3: 115, unf: 95, secondary: 225, level: 12, xp: 50 }, // Strength
-    { product3: 127, unf: 97, secondary: 223, level: 22, xp: 63 }, // Restore
+    { product3: 121, unf: 91, secondary: 221, level: 1, xp: 25 },   // Attack
+    { product3: 175, unf: 93, secondary: 235, level: 5, xp: 38 },   // Antipoison
+    { product3: 115, unf: 95, secondary: 225, level: 12, xp: 50 },   // Strength
+    { product3: 127, unf: 97, secondary: 223, level: 22, xp: 63 },   // Restore
     { product3: 3010, unf: 97, secondary: 1975, level: 26, xp: 68 }, // Energy
-    { product3: 133, unf: 99, secondary: 239, level: 30, xp: 75 }, // Defence
+    { product3: 133, unf: 99, secondary: 239, level: 30, xp: 75 },   // Defence
     { product3: 3034, unf: 3002, secondary: 2152, level: 34, xp: 80 }, // Agility
     { product3: 9741, unf: 97, secondary: 9736, level: 36, xp: 84 }, // Combat
-    { product3: 139, unf: 99, secondary: 231, level: 38, xp: 88 }, // Prayer
-    // Super attack / fishing / super antipoison share Irit unf in ref; register each explicitly
+    { product3: 139, unf: 99, secondary: 231, level: 38, xp: 88 },   // Prayer
     { product3: 145, unf: 101, secondary: 221, level: 45, xp: 100 }, // Super attack
     { product3: 181, unf: 101, secondary: 231, level: 48, xp: 106 }, // Fishing potion
     { product3: 181, unf: 101, secondary: 235, level: 48, xp: 103 }, // Super antipoison
@@ -82,28 +84,18 @@ const FINISHED_LIST: Finished[] = [
 ];
 
 const STAMINA_RECIPES: StaminaRecipe[] = [
-    { superEnergy: 3016, stamina: 12625, doses: 4 }, // (4)
-    { superEnergy: 3018, stamina: 12627, doses: 3 }, // (3)
-    { superEnergy: 3020, stamina: 12629, doses: 2 }, // (2)
-    { superEnergy: 3022, stamina: 12631, doses: 1 }, // (1)
+    { superEnergy: 3016, stamina: 12625, doses: 4 },
+    { superEnergy: 3018, stamina: 12627, doses: 3 },
+    { superEnergy: 3020, stamina: 12629, doses: 2 },
+    { superEnergy: 3022, stamina: 12631, doses: 1 },
 ];
 
-function herbloreLevel(player: PlayerState): number {
-    return player.getSkill(SkillId.Herblore).baseLevel;
-}
-
-type InventoryEntry = { itemId: number; quantity: number };
-
-function getInventoryEntry(player: PlayerState, slotIndex: number): InventoryEntry | undefined {
-    const inventory = player.getInventoryEntries();
-    if (slotIndex < 0 || slotIndex >= inventory.length) return undefined;
-    const entry = inventory[slotIndex];
-    if (!entry) return undefined;
-    return entry;
+function herbloreLevel(services: ScriptServices, player: PlayerState): number {
+    return services.getSkill?.(player, SkillId.Herblore)?.baseLevel ?? 1;
 }
 
 export const herbloreModule: ScriptModule = {
-    id: "skills.herblore",
+    id: "vanilla-skills.herblore",
     register(registry, services) {
         const consumeItem = services.consumeItem;
         const setInventorySlot = services.setInventorySlot;
@@ -115,7 +107,7 @@ export const herbloreModule: ScriptModule = {
             registry.registerItemAction(
                 h.grimy,
                 ({ player, source }) => {
-                    const level = herbloreLevel(player);
+                    const level = herbloreLevel(services, player);
                     if (level < h.level) {
                         services.sendGameMessage(
                             player,
@@ -137,7 +129,7 @@ export const herbloreModule: ScriptModule = {
         // Unfinished potions (herb + vial of water)
         for (const u of UNF_LIST) {
             const handler = ({ player, source, target }: any) => {
-                const level = herbloreLevel(player);
+                const level = herbloreLevel(services, player);
                 if (level < u.level) {
                     services.sendGameMessage(
                         player,
@@ -145,16 +137,13 @@ export const herbloreModule: ScriptModule = {
                     );
                     return;
                 }
-                // Decide which slot is herb vs vial
                 const isSourceHerb = source.itemId === u.cleanHerb;
                 const herbSlot = isSourceHerb ? source.slot : target.slot;
                 const vialSlot = isSourceHerb ? target.slot : source.slot;
                 if (!consumeItem(player, herbSlot)) return;
                 setInventorySlot(player, vialSlot, u.unf, 1);
                 services.sendGameMessage(player, "You mix the herb into the water.");
-                if (snapshotInventory) {
-                    snapshotInventory(player);
-                }
+                snapshotInventory(player);
             };
             registry.registerItemOnItem(u.cleanHerb, VIAL_OF_WATER, handler);
         }
@@ -163,10 +152,10 @@ export const herbloreModule: ScriptModule = {
         const seenPairs = new Set<string>();
         for (const f of FINISHED_LIST) {
             const key = `${f.unf}|${f.secondary}`;
-            if (seenPairs.has(key)) continue; // avoid accidental duplicates
+            if (seenPairs.has(key)) continue;
             seenPairs.add(key);
             const handler = ({ player, source, target }: any) => {
-                const level = herbloreLevel(player);
+                const level = herbloreLevel(services, player);
                 if (level < f.level) {
                     services.sendGameMessage(
                         player,
@@ -174,7 +163,6 @@ export const herbloreModule: ScriptModule = {
                     );
                     return;
                 }
-                // Identify which slot is unf vs secondary
                 const srcIsUnf = source.itemId === f.unf;
                 const unfSlot = srcIsUnf ? source.slot : target.slot;
                 const secSlot = srcIsUnf ? target.slot : source.slot;
@@ -184,20 +172,18 @@ export const herbloreModule: ScriptModule = {
                     addSkillXp(player, SkillId.Herblore, f.xp);
                 }
                 services.sendGameMessage(player, "You combine the ingredients to make a potion.");
-                if (snapshotInventory) {
-                    snapshotInventory(player);
-                }
+                snapshotInventory(player);
             };
             registry.registerItemOnItem(f.unf, f.secondary, handler);
         }
 
-        // Amylase crystal conversions -> stamina potions (OSRS authentic behaviour)
+        // Amylase crystal conversions -> stamina potions
         for (const recipe of STAMINA_RECIPES) {
             registry.registerItemOnItem(
                 recipe.superEnergy,
                 AMYLASE_CRYSTAL,
                 ({ player, source, target }: any) => {
-                    const level = herbloreLevel(player);
+                    const level = herbloreLevel(services, player);
                     if (level < STAMINA_LEVEL) {
                         services.sendGameMessage(
                             player,
@@ -208,7 +194,8 @@ export const herbloreModule: ScriptModule = {
                     const sourceIsPotion = source.itemId === recipe.superEnergy;
                     const potionSlot = sourceIsPotion ? source.slot : target.slot;
                     const crystalSlot = sourceIsPotion ? target.slot : source.slot;
-                    const crystalEntry = getInventoryEntry(player, crystalSlot);
+                    const inv = services.getInventoryItems(player);
+                    const crystalEntry = inv[crystalSlot];
                     if (!crystalEntry || crystalEntry.itemId !== AMYLASE_CRYSTAL) return;
                     const required = Math.max(1, recipe.doses);
                     if (crystalEntry.quantity < required) {
@@ -221,7 +208,7 @@ export const herbloreModule: ScriptModule = {
                     }
                     for (let i = 0; i < required; i++) {
                         if (!consumeItem(player, crystalSlot)) {
-                            logger?.warn?.(
+                            console.log(
                                 `[herblore] failed to consume amylase crystal slot=${crystalSlot}`,
                             );
                             return;
@@ -232,9 +219,7 @@ export const herbloreModule: ScriptModule = {
                         player,
                         "You mix the amylase crystals into the potion.",
                     );
-                    if (snapshotInventory) {
-                        snapshotInventory(player);
-                    }
+                    snapshotInventory(player);
                 },
             );
         }
