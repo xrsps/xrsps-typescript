@@ -8643,17 +8643,6 @@ export class WSServer {
         return new EquipmentHandler(services);
     }
 
-    private handleVoteCommand(player: PlayerState, args: string[]): string {
-        const mode = String(args[0] ?? "")
-            .trim()
-            .toLowerCase();
-        if (mode === "help") {
-            return "Usage: ::vote";
-        }
-        this.cs2ModalManager.openVoteModal(player);
-        return "Vote menu opened.";
-    }
-
     /**
      * Create the TickPhaseOrchestrator with all required services.
      */
@@ -8860,7 +8849,6 @@ export class WSServer {
             queueChatMessage: (msg) => this.queueChatMessage(msg),
             getPublicChatPlayerType: (player) => this.getPublicChatPlayerType(player),
             enqueueLevelUpPopup: (player, data) => this.enqueueLevelUpPopup(player, data),
-            handleVoteCommand: (player, args) => this.handleVoteCommand(player, args),
             findScriptCommand: (name) => this.scriptRegistry.findCommand(name),
             getCurrentTick: () => this.options.ticker.currentTick(),
 

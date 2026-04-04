@@ -294,7 +294,6 @@ export interface MessageHandlerServices {
     }) => void;
     getPublicChatPlayerType: (player: PlayerState) => number;
     enqueueLevelUpPopup: (player: PlayerState, data: any) => void;
-    handleVoteCommand: (player: PlayerState, args: string[]) => string | undefined;
     findScriptCommand: (name: string) => ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: any }) => string | void | Promise<string | void>) | undefined;
     getCurrentTick: () => number;
 
@@ -1276,20 +1275,6 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                 logger.info(`[cmd] Player ${sender.id} (${senderName}) used command: ::${cmd}`);
                 const parts = cmd.split(/\s+/).filter((part) => part.length > 0);
                 const root = parts[0] ?? "";
-
-                if (root === "vote") {
-                    const voteArgs = parts.slice(1);
-                    const response = services.handleVoteCommand(sender, voteArgs);
-                    if (response?.trim()) {
-                        services.queueChatMessage({
-                            messageType: "game",
-                            text: response.trim(),
-                            targetPlayerIds: [sender.id],
-                        });
-                    }
-                    return;
-                }
-
 
                 if (root === "clear") {
                     try {
