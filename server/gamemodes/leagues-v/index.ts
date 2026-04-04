@@ -34,12 +34,12 @@ import { LEAGUE_SUMMARY_GROUP_ID } from "../../../src/shared/ui/leagueSummary";
 import { LeagueSummaryTracker } from "./leagueSummary";
 import type {
     GamemodeBridge,
-    GamemodeDefinition,
     GamemodeInitContext,
     GamemodeUiBridge,
     GamemodeUiController,
     HandshakeBridge,
 } from "../../src/game/gamemodes/GamemodeDefinition";
+import { VanillaGamemode } from "../vanilla/index";
 import { LeagueContentProvider } from "./LeagueContentProvider";
 import { LeaguesVUiController } from "./LeaguesVUiController";
 
@@ -51,9 +51,9 @@ function getTutorialCompleteStep(player: PlayerState): number {
     return leagueType === 3 ? 14 : 12;
 }
 
-export class LeaguesVGamemode implements GamemodeDefinition {
-    readonly id = "leagues-v";
-    readonly name = "Raging Echoes";
+export class LeaguesVGamemode extends VanillaGamemode {
+    override readonly id = "leagues-v";
+    override readonly name = "Raging Echoes";
 
     private taskManager: LeagueTaskManager | undefined;
     private initBridge: GamemodeBridge | undefined;
@@ -63,7 +63,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
 
     // === XP ===
 
-    getSkillXpMultiplier(player: PlayerState): number {
+    override getSkillXpMultiplier(player: PlayerState): number {
         if (!isLeagueWorld(player)) return 1;
         const leagueType = getActiveLeagueType(player);
         const pointsClaimed = player.getVarpValue(VARP_LEAGUE_POINTS_CLAIMED);
@@ -72,25 +72,25 @@ export class LeaguesVGamemode implements GamemodeDefinition {
 
     // === Drops ===
 
-    getDropRateMultiplier(player: PlayerState | undefined): number {
+    override getDropRateMultiplier(player: PlayerState | undefined): number {
         return getLeagueVDropRateMultiplier(player);
     }
 
-    isDropBoostEligible(entry: { dropBoostEligible?: boolean }): boolean {
+    override isDropBoostEligible(entry: { dropBoostEligible?: boolean }): boolean {
         return entry.dropBoostEligible === true;
     }
 
-    transformDropItemId(npcTypeId: number, itemId: number, player: PlayerState | undefined): number {
+    override transformDropItemId(npcTypeId: number, itemId: number, player: PlayerState | undefined): number {
         return getLeagueVReplacementItemId(npcTypeId, itemId, isLeagueVWorldPlayer(player));
     }
 
     // === Player Rules ===
 
-    hasInfiniteRunEnergy(player: PlayerState): boolean {
+    override hasInfiniteRunEnergy(player: PlayerState): boolean {
         return isLeagueVWorld(player);
     }
 
-    canInteract(player: PlayerState): boolean {
+    override canInteract(player: PlayerState): boolean {
         const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         return tutorialStep >= getTutorialCompleteStep(player);
     }
@@ -104,7 +104,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
 
     // === Player Lifecycle ===
 
-    initializePlayer(player: PlayerState): void {
+    override initializePlayer(player: PlayerState): void {
         if (player.getVarbitValue(VARBIT_LEAGUE_TYPE) === 0) {
             player.setVarbitValue(VARBIT_LEAGUE_TYPE, 5);
         }
@@ -130,7 +130,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         }
     }
 
-    serializePlayerState(player: PlayerState): Record<string, unknown> | undefined {
+    override serializePlayerState(player: PlayerState): Record<string, unknown> | undefined {
         const map = player.gamemodeState.get("taskProgress") as Map<number, number> | undefined;
         if (!map || map.size === 0) return undefined;
         const progress: Record<number, number> = {};
@@ -140,7 +140,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         return Object.keys(progress).length > 0 ? { progress } : undefined;
     }
 
-    deserializePlayerState(player: PlayerState, data: Record<string, unknown>): void {
+    override deserializePlayerState(player: PlayerState, data: Record<string, unknown>): void {
         const raw = (data.progress ?? data.leagueTaskProgress) as Record<string, number> | undefined;
         if (!raw) return;
         for (const [key, value] of Object.entries(raw)) {
@@ -151,13 +151,13 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         }
     }
 
-    onNpcKill(playerId: number, npcTypeId: number): void {
+    override onNpcKill(playerId: number, npcTypeId: number): void {
         this.taskManager?.onNpcKill(playerId, npcTypeId);
     }
 
     // === Login / Handshake ===
 
-    isTutorialActive(player: PlayerState): boolean {
+    override isTutorialActive(player: PlayerState): boolean {
         const tutorialStep = player.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         return tutorialStep < getTutorialCompleteStep(player);
     }
@@ -167,11 +167,11 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         return tutorialStep === 0;
     }
 
-    getSpawnLocation(_player: PlayerState): { x: number; y: number; level: number } {
+    override getSpawnLocation(_player: PlayerState): { x: number; y: number; level: number } {
         return TUTORIAL_SPAWN;
     }
 
-    onPlayerHandshake(player: PlayerState, bridge: HandshakeBridge): void {
+    override onPlayerHandshake(player: PlayerState, bridge: HandshakeBridge): void {
         // Set map_flags_cached to indicate league world (bit 30 set)
         player.setVarpValue(VARP_MAP_FLAGS_CACHED, MAP_FLAGS_LEAGUE_WORLD);
         bridge.sendVarp(VARP_MAP_FLAGS_CACHED, MAP_FLAGS_LEAGUE_WORLD);
@@ -213,14 +213,6 @@ export class LeaguesVGamemode implements GamemodeDefinition {
             if (value !== 0) {
                 bridge.sendVarp(varpId, value);
             }
-        }
-    }
-
-    onPlayerLogin(player: PlayerState, _bridge: GamemodeBridge): void {
-        // After design complete or login, show tutorial overlay if active
-        if (this.isTutorialActive(player)) {
-            // The UI controller handles the overlay — this is called after login
-            // The actual overlay queueing happens via gamemodeUi in wsServer
         }
     }
 
@@ -299,7 +291,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
 
     // === Display ===
 
-    getDisplayName(player: PlayerState, baseName: string, isAdmin: boolean): string {
+    override getDisplayName(player: PlayerState, baseName: string, isAdmin: boolean): string {
         if (!baseName) return "";
         if (!isAdmin || !isLeagueWorld(player)) return baseName;
         const ADMIN_CROWN_ICON = 1;
@@ -307,7 +299,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         return baseName.startsWith(prefix) ? baseName : `${prefix}${baseName}`;
     }
 
-    getChatPlayerType(player: PlayerState, isAdmin: boolean): number {
+    override getChatPlayerType(player: PlayerState, isAdmin: boolean): number {
         if (isLeagueWorld(player)) return 6;
         return isAdmin ? 2 : 0;
     }
@@ -336,7 +328,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         return new LeaguesVUiController(bridge);
     }
 
-    getScriptManifest(): ScriptManifestEntry[] {
+    override getScriptManifest(): ScriptManifestEntry[] {
         const SCRIPTS_DIR = path.resolve(__dirname, "scripts");
         const loadModule = (relativePath: string, exportName: string): (() => ScriptModule) => {
             const resolved = path.resolve(SCRIPTS_DIR, relativePath);
@@ -372,7 +364,7 @@ export class LeaguesVGamemode implements GamemodeDefinition {
 
     // === Server Lifecycle ===
 
-    initialize(context: GamemodeInitContext): void {
+    override initialize(context: GamemodeInitContext): void {
         this.initBridge = context.bridge;
         this.contentProvider.build();
         try {
@@ -400,6 +392,6 @@ export class LeaguesVGamemode implements GamemodeDefinition {
     }
 }
 
-export function createGamemode(): GamemodeDefinition {
+export function createGamemode(): LeaguesVGamemode {
     return new LeaguesVGamemode();
 }

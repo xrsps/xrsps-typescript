@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
     title: 'XRSPS',
     description: 'OSRS Leagues V Documentation',
-    base: '/xrsps-typescript/',
+    base: '/',
     themeConfig: {
         nav: [
             { text: 'Home', link: '/' },

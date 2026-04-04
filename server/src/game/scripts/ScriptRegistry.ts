@@ -1,4 +1,5 @@
 import {
+    type CommandHandler,
     type EquipmentActionHandler,
     type IScriptRegistry,
     type ItemOnItemHandler,
@@ -68,6 +69,7 @@ export class ScriptRegistry implements IScriptRegistry {
     private readonly widgetHandlers = new Map<RegistryKey, WidgetActionHandler[]>();
     /** RSMod-style button handlers keyed by (interfaceId << 16) | componentId */
     private readonly buttonHandlers = new Map<number, WidgetActionHandler>();
+    private readonly commandHandlers = new Map<string, CommandHandler>();
 
     registerNpcInteraction(
         npcId: number,
@@ -273,6 +275,20 @@ export class ScriptRegistry implements IScriptRegistry {
         };
     }
 
+    registerCommand(name: string, handler: CommandHandler): ScriptRegistrationResult {
+        const normalized = name.trim().toLowerCase();
+        this.commandHandlers.set(normalized, handler);
+        return {
+            unregister: () => {
+                this.commandHandlers.delete(normalized);
+            },
+        };
+    }
+
+    findCommand(name: string): CommandHandler | undefined {
+        return this.commandHandlers.get(name.trim().toLowerCase());
+    }
+
     findNpcInteraction(npcId: number, option?: string): NpcInteractionHandler | undefined {
         const key = makeNpcKey(npcId, option);
         const direct = this.npcHandlers.get(key);
@@ -397,5 +413,6 @@ export class ScriptRegistry implements IScriptRegistry {
         this.tickHandlers.clear();
         this.widgetHandlers.clear();
         this.buttonHandlers.clear();
+        this.commandHandlers.clear();
     }
 }

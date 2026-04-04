@@ -8644,11 +8644,6 @@ export class WSServer {
         return "Vote menu opened.";
     }
 
-    private handleItemSpawnerCommand(player: PlayerState, args: string[]): string {
-        const query = args.join(" ").trim();
-        return this.cs2ModalManager.openItemSpawnerModal(player, query);
-    }
-
     private spawnInventoryItem(
         player: PlayerState,
         itemId: number,
@@ -8874,6 +8869,8 @@ export class WSServer {
             getWeaponSpecialCostPercent: (weaponId) => this.getWeaponSpecialCostPercent(weaponId),
             queueCombatState: (player) => this.queueCombatState(player),
             ensureEquipArray: (player) => this.ensureEquipArray(player),
+            openItemSpawnerModal: (player, query) =>
+                this.cs2ModalManager?.openItemSpawnerModal(player, query),
             gamemodeServices: this.gamemode.getGamemodeServices?.() ?? {},
 
             // Chat
@@ -8881,7 +8878,8 @@ export class WSServer {
             getPublicChatPlayerType: (player) => this.getPublicChatPlayerType(player),
             enqueueLevelUpPopup: (player, data) => this.enqueueLevelUpPopup(player, data),
             handleVoteCommand: (player, args) => this.handleVoteCommand(player, args),
-            handleItemSpawnerCommand: (player, args) => this.handleItemSpawnerCommand(player, args),
+            findScriptCommand: (name) => this.scriptRegistry.findCommand(name),
+            getCurrentTick: () => this.options.ticker.currentTick(),
 
             // Debug
             broadcast: (message, context) => this.broadcast(message, context),

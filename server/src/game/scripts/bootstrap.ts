@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
+import { loadExtrascriptEntries } from "./ExtrascriptLoader";
 import { ScriptRuntime } from "./ScriptRuntime";
 import type { ScriptManifestEntry } from "./manifest";
 
@@ -37,7 +38,8 @@ export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefi
     const loadAll = () => {
         const coreEntries = loadManifestEntries();
         const gamemodeEntries = gamemode?.getScriptManifest() ?? [];
-        const entries = [...coreEntries, ...gamemodeEntries];
+        const extrascriptEntries = loadExtrascriptEntries();
+        const entries = [...coreEntries, ...gamemodeEntries, ...extrascriptEntries];
         runtime.reset();
         for (const entry of entries) {
             if (entry.watch) {

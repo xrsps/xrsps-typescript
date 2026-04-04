@@ -295,7 +295,8 @@ export interface MessageHandlerServices {
     getPublicChatPlayerType: (player: PlayerState) => number;
     enqueueLevelUpPopup: (player: PlayerState, data: any) => void;
     handleVoteCommand: (player: PlayerState, args: string[]) => string | undefined;
-    handleItemSpawnerCommand: (player: PlayerState, args: string[]) => string | undefined;
+    findScriptCommand: (name: string) => ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: any }) => string | void | Promise<string | void>) | undefined;
+    getCurrentTick: () => number;
 
     // Debug
     broadcast: (message: string | Uint8Array, context: string) => void;
@@ -1289,18 +1290,6 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     return;
                 }
 
-                if (root === "itemspawner") {
-                    const searchArgs = parts.slice(1);
-                    const response = services.handleItemSpawnerCommand(sender, searchArgs);
-                    if (response?.trim()) {
-                        services.queueChatMessage({
-                            messageType: "game",
-                            text: response.trim(),
-                            targetPlayerIds: [sender.id],
-                        });
-                    }
-                    return;
-                }
 
                 if (root === "clear") {
                     try {
@@ -1627,6 +1616,31 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     logger.info(
                         `[cmd] ::${root} - Player ${sender.id} switched to ${root} spellbook`,
                     );
+                    return;
+                }
+
+                // Fallthrough to script-registered commands
+                const scriptCmd = services.findScriptCommand?.(root);
+                if (scriptCmd) {
+                    try {
+                        const result = scriptCmd({
+                            player: sender,
+                            command: root,
+                            args: parts.slice(1),
+                            tick: services.getCurrentTick(),
+                            services,
+                        });
+                        const response = typeof result === "string" ? result : undefined;
+                        if (response?.trim()) {
+                            services.queueChatMessage({
+                                messageType: "game",
+                                text: response.trim(),
+                                targetPlayerIds: [sender.id],
+                            });
+                        }
+                    } catch (err) {
+                        logger.warn(`[cmd] script command ::${root} failed`, err);
+                    }
                 }
                 return;
             }

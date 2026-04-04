@@ -106,6 +106,14 @@ export interface TickScriptEvent extends ScriptExecutionContext {}
 
 export type TickHandler = (event: TickScriptEvent) => void | Promise<void>;
 
+export interface CommandEvent extends ScriptExecutionContext {
+    player: PlayerState;
+    command: string;
+    args: string[];
+}
+
+export type CommandHandler = (event: CommandEvent) => string | void | Promise<string | void>;
+
 export interface ScriptModule {
     id: string;
     register(registry: IScriptRegistry, services: ScriptServices): void;
@@ -238,6 +246,8 @@ export interface IScriptRegistry {
     registerNpcAction(option: string, handler: NpcInteractionHandler): ScriptRegistrationResult;
     registerRegionHandler(regionId: number, handler: RegionEventHandler): ScriptRegistrationResult;
     registerTickHandler(handler: TickHandler): ScriptRegistrationResult;
+    registerCommand(name: string, handler: CommandHandler): ScriptRegistrationResult;
+    findCommand(name: string): CommandHandler | undefined;
     findNpcInteraction(npcId: number, option?: string): NpcInteractionHandler | undefined;
     /** Lookup only npc-specific handlers (instance or type), skipping generic action fallbacks. */
     findNpcInteractionDirect(npcId: number, option?: string): NpcInteractionHandler | undefined;
@@ -735,5 +745,6 @@ export interface ScriptServices {
     setWorldEntityPosition?: (playerId: number, entityIndex: number, position: { x: number; y: number; z: number; orientation: number }) => void;
     queueWorldEntityMask?: (playerId: number, entityIndex: number, mask: { animationId?: number; sequenceFrame?: number; actionMask?: number }) => void;
     buildSailingDockedCollision?: () => void;
+    openItemSpawnerModal?: (player: PlayerState, query?: string) => void;
     gamemodeServices?: Record<string, unknown>;
 }
