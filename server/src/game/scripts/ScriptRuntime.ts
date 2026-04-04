@@ -2,6 +2,7 @@ import { logger as defaultLogger } from "../../utils/logger";
 import { ScriptScheduler } from "../systems/ScriptScheduler";
 import { ScriptRegistry } from "./ScriptRegistry";
 import {
+    type ClientMessageHandler,
     type EquipmentActionEvent,
     type EquipmentActionHandler,
     type IScriptRegistry,
@@ -505,6 +506,10 @@ export class ScriptRuntime {
             findButton: (interfaceId, component) =>
                 this.registry.findButton(interfaceId, component),
             findNpcAction: (option) => this.registry.findNpcAction(option),
+            registerClientMessageHandler: (messageType: string, handler: ClientMessageHandler) =>
+                track(this.registry.registerClientMessageHandler(messageType, handler)),
+            findClientMessageHandler: (messageType: string) =>
+                this.registry.findClientMessageHandler(messageType),
         } as IScriptRegistry;
     }
 }

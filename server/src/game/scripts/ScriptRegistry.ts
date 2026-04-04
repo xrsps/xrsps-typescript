@@ -1,4 +1,5 @@
 import {
+    type ClientMessageHandler,
     type CommandHandler,
     type EquipmentActionHandler,
     type IScriptRegistry,
@@ -70,6 +71,7 @@ export class ScriptRegistry implements IScriptRegistry {
     /** RSMod-style button handlers keyed by (interfaceId << 16) | componentId */
     private readonly buttonHandlers = new Map<number, WidgetActionHandler>();
     private readonly commandHandlers = new Map<string, CommandHandler>();
+    private readonly clientMessageHandlers = new Map<string, ClientMessageHandler>();
 
     registerNpcInteraction(
         npcId: number,
@@ -289,6 +291,23 @@ export class ScriptRegistry implements IScriptRegistry {
         return this.commandHandlers.get(name.trim().toLowerCase());
     }
 
+    registerClientMessageHandler(
+        messageType: string,
+        handler: ClientMessageHandler,
+    ): ScriptRegistrationResult {
+        const key = messageType.trim().toLowerCase();
+        this.clientMessageHandlers.set(key, handler);
+        return {
+            unregister: () => {
+                this.clientMessageHandlers.delete(key);
+            },
+        };
+    }
+
+    findClientMessageHandler(messageType: string): ClientMessageHandler | undefined {
+        return this.clientMessageHandlers.get(messageType.trim().toLowerCase());
+    }
+
     findItemAction(itemId: number, option?: string): ItemOnItemHandler | undefined {
         const key = makeItemKey(itemId, undefined, option);
         const direct = this.itemActionHandlers.get(key);
@@ -431,5 +450,6 @@ export class ScriptRegistry implements IScriptRegistry {
         this.widgetHandlers.clear();
         this.buttonHandlers.clear();
         this.commandHandlers.clear();
+        this.clientMessageHandlers.clear();
     }
 }

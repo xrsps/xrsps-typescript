@@ -1880,8 +1880,6 @@ export class WSServer {
                 setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
                 queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
                 buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
-                openItemSpawnerModal: (player: any, query?: string) =>
-                    this.cs2ModalManager?.openItemSpawnerModal(player, query),
                 openDialog: (player, request) =>
                     this.widgetDialogHandler.openDialog(player, request as any),
                 openDialogOptions: (player, options) =>
@@ -8391,8 +8389,6 @@ export class WSServer {
             setSmithingBarType: (player, barType) =>
                 player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType),
             openSmithingForgeInterface: (player) => this.openSmithingForgeInterface(player),
-            spawnInventoryItem: (player, itemId, quantity) =>
-                this.spawnInventoryItem(player, itemId, quantity),
         };
         return new Cs2ModalManager(services);
     }
@@ -8658,31 +8654,6 @@ export class WSServer {
         return "Vote menu opened.";
     }
 
-    private spawnInventoryItem(
-        player: PlayerState,
-        itemId: number,
-        quantity: number,
-    ): { requested: number; completed: number; itemName: string } {
-        const requested = Math.max(1, Math.floor(Number.isFinite(quantity) ? quantity : 1));
-        const tx = player.addItem(itemId, requested, { assureFullInsertion: true });
-        const itemName =
-            this.getObjType(itemId)?.name?.trim() ||
-            getItemDefinition(itemId)?.name?.trim() ||
-            `Item ${itemId}`;
-
-        if (tx.completed > 0) {
-            logger.info(
-                `[cmd] ::itemspawner - Gave player ${player.id} item ${itemId} (${itemName}) x${tx.completed}`,
-            );
-        }
-
-        return {
-            requested,
-            completed: tx.completed,
-            itemName,
-        };
-    }
-
     /**
      * Create the TickPhaseOrchestrator with all required services.
      */
@@ -8883,8 +8854,6 @@ export class WSServer {
             getWeaponSpecialCostPercent: (weaponId) => this.getWeaponSpecialCostPercent(weaponId),
             queueCombatState: (player) => this.queueCombatState(player),
             ensureEquipArray: (player) => this.ensureEquipArray(player),
-            openItemSpawnerModal: (player, query) =>
-                this.cs2ModalManager?.openItemSpawnerModal(player, query),
             gamemodeServices: this.gamemode.getGamemodeServices?.() ?? {},
 
             // Chat
@@ -15131,6 +15100,25 @@ export class WSServer {
                     const hasValidSlot = slotVal !== undefined && slotVal >= 0 && slotVal !== 65535;
                     const childId = hasValidSlot ? slotVal : componentId;
 
+                    // Check script registry button handlers first (extrascript modals)
+                    const buttonHandler = this.scriptRegistry.findButton(groupId, componentId);
+                    if (buttonHandler) {
+                        const tick = this.options.ticker.currentTick();
+                        buttonHandler({
+                            tick,
+                            services: this.scriptRuntime.getServices(),
+                            player,
+                            widgetId: payload.widgetId,
+                            groupId,
+                            childId,
+                            option: payload.option,
+                            opId,
+                            slot: slotVal,
+                            itemId: payload.itemId,
+                        });
+                        break;
+                    }
+
                     if (
                         this.cs2ModalManager.handleWidgetAction(
                             player,
@@ -15208,10 +15196,17 @@ export class WSServer {
             case "item_spawner_search": {
                 const player = this.players?.get(ws);
                 if (player) {
-                    this.cs2ModalManager.updateItemSpawnerModalQuery(
-                        player,
-                        String(parsed.payload?.query ?? ""),
-                    );
+                    const msgHandler = this.scriptRegistry.findClientMessageHandler("item_spawner_search");
+                    if (msgHandler) {
+                        const tick = this.options.ticker.currentTick();
+                        msgHandler({
+                            tick,
+                            services: this.scriptRuntime.getServices(),
+                            player,
+                            messageType: "item_spawner_search",
+                            payload: parsed.payload ?? {},
+                        });
+                    }
                 }
                 break;
             }

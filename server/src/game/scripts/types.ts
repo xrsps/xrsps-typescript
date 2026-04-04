@@ -114,6 +114,14 @@ export interface CommandEvent extends ScriptExecutionContext {
 
 export type CommandHandler = (event: CommandEvent) => string | void | Promise<string | void>;
 
+export interface ClientMessageEvent extends ScriptExecutionContext {
+    player: PlayerState;
+    messageType: string;
+    payload: Record<string, unknown>;
+}
+
+export type ClientMessageHandler = (event: ClientMessageEvent) => void | Promise<void>;
+
 export interface ScriptModule {
     id: string;
     register(registry: IScriptRegistry, services: ScriptServices): void;
@@ -275,6 +283,11 @@ export interface IScriptRegistry {
      */
     findButton(interfaceId: number, component: number): WidgetActionHandler | undefined;
     findNpcAction(option?: string): NpcInteractionHandler | undefined;
+    registerClientMessageHandler(
+        messageType: string,
+        handler: ClientMessageHandler,
+    ): ScriptRegistrationResult;
+    findClientMessageHandler(messageType: string): ClientMessageHandler | undefined;
 }
 
 export interface ScriptRegistrationResult {
@@ -745,6 +758,5 @@ export interface ScriptServices {
     setWorldEntityPosition?: (playerId: number, entityIndex: number, position: { x: number; y: number; z: number; orientation: number }) => void;
     queueWorldEntityMask?: (playerId: number, entityIndex: number, mask: { animationId?: number; sequenceFrame?: number; actionMask?: number }) => void;
     buildSailingDockedCollision?: () => void;
-    openItemSpawnerModal?: (player: PlayerState, query?: string) => void;
     gamemodeServices?: Record<string, unknown>;
 }

@@ -37,16 +37,6 @@ import {
     VOTE_MODAL_GROUP_ID,
 } from "../../../../src/shared/ui/voteModal";
 import {
-    ITEM_SPAWNER_MODAL_COMPONENT_BODY as ITEM_SPAWNER_MODAL_BODY_COMPONENT,
-    ITEM_SPAWNER_MODAL_COMPONENT_CLOSE as ITEM_SPAWNER_MODAL_CLOSE_COMPONENT,
-    ITEM_SPAWNER_MODAL_COMPONENT_FRAME as ITEM_SPAWNER_MODAL_FRAME_COMPONENT,
-    ITEM_SPAWNER_MODAL_COMPONENT_HELPER as ITEM_SPAWNER_MODAL_HELPER_COMPONENT,
-    ITEM_SPAWNER_MODAL_COMPONENT_QUERY as ITEM_SPAWNER_MODAL_QUERY_COMPONENT,
-    ITEM_SPAWNER_MODAL_COMPONENT_SEARCH_BACKGROUND,
-    ITEM_SPAWNER_MODAL_COMPONENT_SLOT_ICON_START,
-    ITEM_SPAWNER_MODAL_COMPONENT_SUMMARY as ITEM_SPAWNER_MODAL_SUMMARY_COMPONENT,
-    ITEM_SPAWNER_MODAL_COMPONENT_TITLE as ITEM_SPAWNER_MODAL_TITLE_COMPONENT,
-    ITEM_SPAWNER_MODAL_GROUP_ID,
     SMITHING_BAR_MODAL_COMPONENT_ADAMANT,
     SMITHING_BAR_MODAL_COMPONENT_ADAMANT_ICON,
     SMITHING_BAR_MODAL_COMPONENT_ADAMANT_TEXT,
@@ -106,12 +96,6 @@ type SmithingBarOption = {
     label: string;
 };
 
-export type ItemSpawnerSpawnResult = {
-    requested: number;
-    completed: number;
-    itemName: string;
-};
-
 export type IndexedMenuRequest = {
     title: string;
     options: string[];
@@ -134,7 +118,6 @@ export interface Cs2ModalManagerServices {
     queueGameMessage: (playerId: number, text: string) => void;
     setSmithingBarType: (player: PlayerState, barType: number) => void;
     openSmithingForgeInterface: (player: PlayerState) => void;
-    spawnInventoryItem: (player: PlayerState, itemId: number, quantity: number) => ItemSpawnerSpawnResult;
 }
 
 const DEFAULT_TOPG_URL = "https://topg.org/runescape-private-servers/";
@@ -262,10 +245,6 @@ function formatRewardDisplayText(value: string | undefined): string {
     return `<col=ffcf70>Rewards:</col> <col=40ff40>${perVote}</col><br><col=ffd15a>${bonus}</col>`;
 }
 
-function getItemSpawnerSlotIndexFromIconComponent(componentId: number): number {
-    return (componentId | 0) - ITEM_SPAWNER_MODAL_COMPONENT_SLOT_ICON_START;
-}
-
 /**
  * Reusable manager for custom CS2-driven modals mounted in mainmodal.
  */
@@ -291,25 +270,6 @@ export class Cs2ModalManager {
         this.services.openModal(player, SMITHING_BAR_MODAL_GROUP_ID);
         this.applySmithingBarModalLayout(player);
     }
-
-    openItemSpawnerModal(player: PlayerState, query?: string): string {
-        const normalizedQuery = this.normalizeItemSpawnerQuery(query);
-        this.services.openModal(player, ITEM_SPAWNER_MODAL_GROUP_ID);
-        this.applyItemSpawnerModalLayout(player);
-        this.setWidgetTextInGroup(
-            player.id,
-            ITEM_SPAWNER_MODAL_GROUP_ID,
-            ITEM_SPAWNER_MODAL_QUERY_COMPONENT,
-            this.escapeWidgetText(normalizedQuery),
-        );
-
-        if (normalizedQuery.length === 0) {
-            return "Item spawner opened. Type in the search bar to find cache items.";
-        }
-        return `Item spawner opened for "${normalizedQuery}".`;
-    }
-
-    updateItemSpawnerModalQuery(_player: PlayerState, _query: string): void {}
 
     openIndexedMenu(player: PlayerState, request: IndexedMenuRequest): void {
         const title = String(request.title ?? "").trim();
@@ -378,10 +338,6 @@ export class Cs2ModalManager {
         if (normalizedGroupId === SMITHING_BAR_MODAL_GROUP_ID) {
             return this.handleSmithingBarModalAction(player, componentId, option);
         }
-        if (normalizedGroupId === ITEM_SPAWNER_MODAL_GROUP_ID) {
-            return this.handleItemSpawnerModalAction(player, componentId, option, itemId);
-        }
-
         const playerId = player.id;
         const currentModal = this.services.getCurrentModal(player);
         if (currentModal !== VOTE_MODAL_GROUP_ID) {
@@ -517,50 +473,6 @@ export class Cs2ModalManager {
         return true;
     }
 
-    private handleItemSpawnerModalAction(
-        player: PlayerState,
-        componentId: number,
-        option?: string,
-        itemId?: number,
-    ): boolean {
-        if (
-            componentId === ITEM_SPAWNER_MODAL_COMPONENT_SEARCH_BACKGROUND ||
-            componentId === ITEM_SPAWNER_MODAL_QUERY_COMPONENT
-        ) {
-            return true;
-        }
-
-        if (componentId === ITEM_SPAWNER_MODAL_CLOSE_COMPONENT || option === "Close") {
-            this.closeItemSpawnerModal(player);
-            return true;
-        }
-
-        const slotIndex = getItemSpawnerSlotIndexFromIconComponent(componentId);
-        if (slotIndex < 0) {
-            return false;
-        }
-
-        const selectedItemId = typeof itemId === "number" ? itemId | 0 : -1;
-        if (!(selectedItemId > 0)) {
-            return true;
-        }
-
-        const spawnResult = this.services.spawnInventoryItem(player, selectedItemId, 1);
-        if (spawnResult.completed < spawnResult.requested) {
-            this.sendGameMessage(
-                player,
-                `Not enough inventory space to spawn ${spawnResult.itemName} (${selectedItemId}).`,
-            );
-            return true;
-        }
-
-        this.sendGameMessage(
-            player,
-            `Spawned ${spawnResult.itemName} (${selectedItemId}) x${spawnResult.completed}.`,
-        );
-        return true;
-    }
-
     private applyVoteModalLayout(player: PlayerState): void {
         const playerId = player.id;
 
@@ -679,63 +591,9 @@ export class Cs2ModalManager {
         );
     }
 
-    private applyItemSpawnerModalLayout(player: PlayerState): void {
-        const playerId = player.id;
-        this.runScript(playerId, SCRIPT_STEELBORDER_NOCLOSE, [
-            this.getWidgetUidInGroup(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_FRAME_COMPONENT),
-            "Item Spawner",
-        ]);
-        this.drawStoneButtonInGroup(
-            playerId,
-            ITEM_SPAWNER_MODAL_GROUP_ID,
-            ITEM_SPAWNER_MODAL_CLOSE_COMPONENT,
-            "Close",
-        );
-        this.setWidgetHiddenInGroup(
-            playerId,
-            ITEM_SPAWNER_MODAL_GROUP_ID,
-            ITEM_SPAWNER_MODAL_TITLE_COMPONENT,
-            true,
-        );
-        this.setWidgetHiddenInGroup(
-            playerId,
-            ITEM_SPAWNER_MODAL_GROUP_ID,
-            ITEM_SPAWNER_MODAL_BODY_COMPONENT,
-            true,
-        );
-        this.setWidgetTextInGroup(
-            playerId,
-            ITEM_SPAWNER_MODAL_GROUP_ID,
-            ITEM_SPAWNER_MODAL_TITLE_COMPONENT,
-            "",
-        );
-        this.setWidgetTextInGroup(
-            playerId,
-            ITEM_SPAWNER_MODAL_GROUP_ID,
-            ITEM_SPAWNER_MODAL_BODY_COMPONENT,
-            "",
-        );
-        this.setWidgetTextInGroup(
-            playerId,
-            ITEM_SPAWNER_MODAL_GROUP_ID,
-            ITEM_SPAWNER_MODAL_HELPER_COMPONENT,
-            "<col=c5b79b>Type to search cache items.</col>",
-        );
-        this.setWidgetTextInGroup(
-            playerId,
-            ITEM_SPAWNER_MODAL_GROUP_ID,
-            ITEM_SPAWNER_MODAL_SUMMARY_COMPONENT,
-            "<col=c5b79b>Start typing to filter cache item names.</col>",
-        );
-    }
-
     private closeSmithingBarModal(player: PlayerState): void {
         const playerId = player.id;
         this.activeSmithingBarModalPlayers.delete(playerId);
-        this.services.closeModal(player);
-    }
-
-    private closeItemSpawnerModal(player: PlayerState): void {
         this.services.closeModal(player);
     }
 
@@ -1065,16 +923,6 @@ export class Cs2ModalManager {
             uid: this.getWidgetUidInGroup(groupId, componentId),
             hidden: !!hidden,
         });
-    }
-
-    private normalizeItemSpawnerQuery(query: string | undefined): string {
-        return String(query ?? "")
-            .replace(/\s+/g, " ")
-            .trim();
-    }
-
-    private escapeWidgetText(value: string): string {
-        return String(value ?? "").replace(/[<>]/g, "");
     }
 
     private getWidgetUid(componentId: number): number {
