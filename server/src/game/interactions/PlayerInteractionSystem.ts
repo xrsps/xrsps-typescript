@@ -46,7 +46,6 @@ import {
  */
 const PLAYER_CHASE_DISTANCE_TILES = 32;
 
-const LEAGUE_TUTOR_NPC_TYPE_ID = 315;
 
 /**
  * Calculates the Chebyshev distance from a point to the nearest tile of a rectangular entity.
@@ -434,15 +433,16 @@ export class PlayerInteractionSystem {
         if (!npc) return { ok: false, message: "npc not found" };
         if (npc.getHitpoints() <= 0) return { ok: false, message: "npc_dead" };
 
-        // Block interactions during tutorial
-        const normalizedOption = String(option ?? "")
-            .trim()
-            .toLowerCase();
-        const leagueTutorTalkAllowed =
-            npc.typeId === LEAGUE_TUTOR_NPC_TYPE_ID &&
-            (normalizedOption === "" || normalizedOption === "talk-to");
-        if (!me.canInteract() && !leagueTutorTalkAllowed) {
-            return { ok: false, message: "interaction_blocked" };
+        // Block interactions during tutorial (gamemode can override per NPC)
+        if (!me.canInteract()) {
+            const normalizedOption = String(option ?? "").trim().toLowerCase();
+            const { PlayerState } = require("../player");
+            const allowed = PlayerState.gamemodeRef?.canInteractWithNpc?.(
+                me, npc.typeId, normalizedOption,
+            ) ?? false;
+            if (!allowed) {
+                return { ok: false, message: "interaction_blocked" };
+            }
         }
 
         // OSRS parity: Starting a new NPC interaction cancels any active skill actions

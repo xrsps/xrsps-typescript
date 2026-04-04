@@ -93,6 +93,13 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         return tutorialStep >= getTutorialCompleteStep(player);
     }
 
+    canInteractWithNpc(player: PlayerState, npcTypeId: number, option: string): boolean {
+        if (this.canInteract(player)) return true;
+        const LEAGUE_TUTOR_NPC_TYPE_ID = 315;
+        return npcTypeId === LEAGUE_TUTOR_NPC_TYPE_ID &&
+            (option === "" || option === "talk-to");
+    }
+
     // === Player Lifecycle ===
 
     initializePlayer(player: PlayerState): void {
