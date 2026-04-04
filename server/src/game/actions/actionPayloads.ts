@@ -128,6 +128,8 @@ export interface CombatAttackActionData {
     special?: CombatSpecialPayloadData;
     projectile?: CombatProjectileParamsData;
     additionalProjectiles?: CombatProjectileParamsData[];
+    /** Set when onMagicAttack already consumed runes and awarded base XP at schedule time. */
+    magicAutocastHandled?: boolean;
 }
 
 export interface CombatAutocastActionData {

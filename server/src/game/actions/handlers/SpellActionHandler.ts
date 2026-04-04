@@ -509,6 +509,9 @@ export class SpellActionHandler {
         player.lastSpellCastTick = tick;
 
         // Queue projectile for viewers
+        const scheduledImpactDelayTicks = timing
+            ? Math.max(1, Math.ceil(timing.startDelay + timing.travelTime))
+            : undefined;
         this.services.buildAndQueueSpellProjectileLaunch({
             player,
             spellData,
@@ -516,6 +519,7 @@ export class SpellActionHandler {
             targetNpc: npc,
             timing,
             endHeight: targetEndHeight,
+            impactDelayTicks: scheduledImpactDelayTicks,
         });
 
         const totalHitDelay = timing ? timing.startDelay + timing.travelTime : undefined;

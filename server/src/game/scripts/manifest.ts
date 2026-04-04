@@ -77,6 +77,11 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/romeo.ts")],
     },
     {
+        id: "content.zaff",
+        load: loadModule("modules/zaff", "zaffModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/zaff.ts")],
+    },
+    {
         id: "content.al-kharid-border",
         load: loadModule("modules/alKharidBorder", "alKharidBorderModule"),
         watch: [path.resolve(MODULE_DIR, "modules/alKharidBorder.ts")],

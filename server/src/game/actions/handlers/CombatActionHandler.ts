@@ -667,7 +667,8 @@ export class CombatActionHandler {
         }
 
         // Magic autocast rune consumption
-        if (plannedAttackType === "magic" && player.autocastEnabled) {
+        // Skip if onMagicAttack already handled runes at schedule time (prevents double consumption)
+        if (plannedAttackType === "magic" && player.autocastEnabled && !data.magicAutocastHandled) {
             const result = this.handleAutocastRuneConsumption(player, npc, weaponItemId);
             if (!result.ok) {
                 return result;
@@ -706,76 +707,80 @@ export class CombatActionHandler {
             }
         }
 
-        // Queue attack animation
-        const specialVisual = specialActivated
-            ? this.services.pickSpecialAttackVisualOverride(weaponItemId)
-            : undefined;
-        const attackSeq = specialVisual?.seqId ?? this.services.pickAttackSequence(player);
-        if (Number.isFinite(attackSeq) && attackSeq >= 0) {
-            player.queueOneShotSeq(attackSeq, 0);
-        }
-        const specialSpotId = specialVisual?.spotId;
-        if (
-            specialActivated &&
-            typeof specialSpotId === "number" &&
-            Number.isFinite(specialSpotId) &&
-            specialSpotId > 0
-        ) {
-            const scheduleTick = Number.isFinite(tick)
-                ? (tick as number)
-                : this.services.getCurrentTick();
-            const spotHeight =
-                typeof specialVisual?.spotHeight === "number" ? specialVisual.spotHeight : 0;
-            this.services.enqueueSpotAnimation({
-                tick: scheduleTick,
-                playerId: player.id,
-                spotId: specialSpotId,
-                delay: 0,
-                height: spotHeight,
-            });
-        }
+        // Queue attack animation & combat sounds
+        // Skip when autocast handler already queued the spell cast animation and GFX
+        let attackSeq: number | undefined;
+        if (!data.magicAutocastHandled) {
+            const specialVisual = specialActivated
+                ? this.services.pickSpecialAttackVisualOverride(weaponItemId)
+                : undefined;
+            attackSeq = specialVisual?.seqId ?? this.services.pickAttackSequence(player);
+            if (Number.isFinite(attackSeq) && attackSeq >= 0) {
+                player.queueOneShotSeq(attackSeq, 0);
+            }
+            const specialSpotId = specialVisual?.spotId;
+            if (
+                specialActivated &&
+                typeof specialSpotId === "number" &&
+                Number.isFinite(specialSpotId) &&
+                specialSpotId > 0
+            ) {
+                const scheduleTick = Number.isFinite(tick)
+                    ? (tick as number)
+                    : this.services.getCurrentTick();
+                const spotHeight =
+                    typeof specialVisual?.spotHeight === "number" ? specialVisual.spotHeight : 0;
+                this.services.enqueueSpotAnimation({
+                    tick: scheduleTick,
+                    playerId: player.id,
+                    spotId: specialSpotId,
+                    delay: 0,
+                    height: spotHeight,
+                });
+            }
 
-        // Play combat sound immediately when animation starts
-        // Note: The cache doesn't have frameSounds for most attack animations,
-        // so the server sends sounds directly
-        if (specialActivated && weaponItemId > 0) {
-            const specDef = this.services.getSpecialAttack(weaponItemId);
-            // Use ammo-resolved soundId (e.g., Dark bow dragon vs regular arrows) if available
-            let resolvedSoundId: number | undefined;
-            if (specDef) {
-                resolvedSoundId = specDef.soundId;
-            }
-            if (data.special && data.special.specSoundId !== undefined) {
-                resolvedSoundId = data.special.specSoundId;
-            }
-            if (resolvedSoundId && resolvedSoundId > 0) {
-                this.services.withDirectSendBypass("special_attack_sound", () =>
-                    this.services.broadcastSound(
-                        {
-                            soundId: resolvedSoundId,
-                            x: player.tileX,
-                            y: player.tileY,
-                            level: player.level,
-                        },
-                        "special_attack_sound",
-                    ),
-                );
-            }
-        } else {
-            // Regular attack - play weapon sound at attack time
-            const weaponSoundId = this.services.pickCombatSound(player, true);
-            if (weaponSoundId > 0) {
-                this.services.withDirectSendBypass("combat_attack_sound", () =>
-                    this.services.broadcastSound(
-                        {
-                            soundId: weaponSoundId,
-                            x: player.tileX,
-                            y: player.tileY,
-                            level: player.level,
-                        },
-                        "combat_attack_sound",
-                    ),
-                );
+            // Play combat sound immediately when animation starts
+            // Note: The cache doesn't have frameSounds for most attack animations,
+            // so the server sends sounds directly
+            if (specialActivated && weaponItemId > 0) {
+                const specDef = this.services.getSpecialAttack(weaponItemId);
+                // Use ammo-resolved soundId (e.g., Dark bow dragon vs regular arrows) if available
+                let resolvedSoundId: number | undefined;
+                if (specDef) {
+                    resolvedSoundId = specDef.soundId;
+                }
+                if (data.special && data.special.specSoundId !== undefined) {
+                    resolvedSoundId = data.special.specSoundId;
+                }
+                if (resolvedSoundId && resolvedSoundId > 0) {
+                    this.services.withDirectSendBypass("special_attack_sound", () =>
+                        this.services.broadcastSound(
+                            {
+                                soundId: resolvedSoundId,
+                                x: player.tileX,
+                                y: player.tileY,
+                                level: player.level,
+                            },
+                            "special_attack_sound",
+                        ),
+                    );
+                }
+            } else {
+                // Regular attack - play weapon sound at attack time
+                const weaponSoundId = this.services.pickCombatSound(player, true);
+                if (weaponSoundId > 0) {
+                    this.services.withDirectSendBypass("combat_attack_sound", () =>
+                        this.services.broadcastSound(
+                            {
+                                soundId: weaponSoundId,
+                                x: player.tileX,
+                                y: player.tileY,
+                                level: player.level,
+                            },
+                            "combat_attack_sound",
+                        ),
+                    );
+                }
             }
         }
 
@@ -811,7 +816,10 @@ export class CombatActionHandler {
                 : Math.max(1, this.services.pickHitDelay(player));
 
         // Award magic base XP on cast
-        this.awardMagicBaseXpOnCast(player, plannedAttackType, hitPayload, effects);
+        // Skip if onMagicAttack already awarded base XP at schedule time (prevents double XP)
+        if (!data.magicAutocastHandled) {
+            this.awardMagicBaseXpOnCast(player, plannedAttackType, hitPayload, effects);
+        }
 
         // Schedule hits for each hit payload
         let hitIndex = 0;

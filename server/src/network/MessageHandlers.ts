@@ -13,7 +13,9 @@ import {
 } from "../../../src/shared/input/modifierFlags";
 import { getItemDefinition } from "../data/items";
 import { ALL_RUNE_ITEM_IDS, RUNE_IDS } from "../data/runes";
+import { getSpellData } from "../data/spells";
 import { getCollectionLogItems } from "../game/collectionlog";
+import { clearAutocastState } from "../game/combat/AutocastState";
 import type { NpcState } from "../game/npc";
 import type { PlayerState } from "../game/player";
 import type { NpcSpawnConfig } from "../game/npc";
@@ -1589,6 +1591,18 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     sender.setVarbitValue(VARBIT_ACTIVE_SPELLBOOK, value);
                     // Transmit varbit to client
                     services.queueVarbit(sender.id, VARBIT_ACTIVE_SPELLBOOK, value);
+
+                    // OSRS parity: Clear autocast when switching to a spellbook
+                    // that doesn't contain the current autocast spell.
+                    if (sender.autocastEnabled && sender.combatSpellId > 0) {
+                        const autocastSpellData = getSpellData(sender.combatSpellId);
+                        if (!autocastSpellData || autocastSpellData.spellbook !== root) {
+                            clearAutocastState(sender, {
+                                sendVarbit: (player, varbitId, varbitValue) =>
+                                    services.queueVarbit(player.id, varbitId, varbitValue),
+                            });
+                        }
+                    }
                     // Run CS2 script 2610 to redraw the spellbook interface,
                     // passing the varbit inline so the script sees it immediately
                     const SCRIPT_MAGIC_SPELLBOOK_REDRAW = 2610;

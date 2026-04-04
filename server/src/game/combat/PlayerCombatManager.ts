@@ -597,14 +597,22 @@ export class PlayerCombatManager {
 
         // Handle auto-attack decay
         if (!state.engagement.playerAutoAttack) {
-            // Clear melee locks when player stops auto-attacking
-            if (isMelee) {
-                state.timing.stepLockUntilTick = undefined;
-            }
-            state.engagement.aggroHoldTicks--;
-            if (state.engagement.aggroHoldTicks <= 0) {
-                this.endCombat(playerId, ctx.tick, "disengaged");
-                return { effects, ended: true, endReason: "disengaged" };
+            // OSRS parity: If autocast is still active with a valid spell, resume auto-attack.
+            // This handles: manual cast interrupt, movement interrupt, etc.
+            // Autocast should always resume as long as the configuration remains valid.
+            if (player.autocastEnabled && player.combatSpellId > 0) {
+                state.engagement.playerAutoAttack = true;
+                state.engagement.aggroHoldTicks = DEFAULT_AGGRO_HOLD_TICKS;
+            } else {
+                // Clear melee locks when player stops auto-attacking
+                if (isMelee) {
+                    state.timing.stepLockUntilTick = undefined;
+                }
+                state.engagement.aggroHoldTicks--;
+                if (state.engagement.aggroHoldTicks <= 0) {
+                    this.endCombat(playerId, ctx.tick, "disengaged");
+                    return { effects, ended: true, endReason: "disengaged" };
+                }
             }
         } else {
             // Reset aggro hold when player is auto-attacking
@@ -1238,7 +1246,11 @@ export class PlayerCombatManager {
         // NOTE: Ranged spot animation (249) is now queued in CombatActionHandler
         // AFTER the ammo check, to prevent animation playing when out of ammo.
         // See: CombatActionHandler.executeCombatAttackAction()
+        // Track whether onMagicAttack already handled rune consumption and base XP
+        // to prevent double processing in executeCombatAttackAction.
+        let magicAutocastHandled = false;
         if (basePlan.attackStyle.kind === "magic") {
+            const autocastActive = player.autocastEnabled && player.combatSpellId > 0;
             const handlerResult = ctx.onMagicAttack?.({
                 player,
                 npc,
@@ -1247,6 +1259,11 @@ export class PlayerCombatManager {
             });
             if (handlerResult === false) {
                 return { ok: false, hitDelay: 0 };
+            }
+            // If autocast was active and the handler ran successfully, it already
+            // consumed runes and awarded base magic XP.
+            if (autocastActive && handlerResult === true) {
+                magicAutocastHandled = true;
             }
             // Check for powered staff spell data first (built-in spells)
             const weaponId = player.combatWeaponItemId ?? -1;
@@ -1267,8 +1284,8 @@ export class PlayerCombatManager {
                 castSpot = spellData?.castSpotAnim ?? DEFAULT_MAGIC_CAST_SPOT;
             }
 
-            if (castSpot >= 0) {
-                // Cast animation on the player
+            if (castSpot >= 0 && !magicAutocastHandled) {
+                // Cast animation on the player (skip if autocast handler already queued it)
                 ctx.queueSpotAnimation?.({
                     tick: ctx.tick,
                     playerId: player.id,
@@ -1344,6 +1361,9 @@ export class PlayerCombatManager {
             attackDelay: basePlan.attackDelay,
             hit: hitData,
         };
+        if (magicAutocastHandled) {
+            actionPayload.magicAutocastHandled = true;
+        }
         if (extraHits) {
             actionPayload.hits = [hitData, ...extraHits];
         }
