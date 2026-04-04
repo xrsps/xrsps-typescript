@@ -121,11 +121,26 @@ export class LeaguesVGamemode implements GamemodeDefinition {
         }
     }
 
-    serializePlayerState(_player: PlayerState): Record<string, unknown> | undefined {
-        return undefined;
+    serializePlayerState(player: PlayerState): Record<string, unknown> | undefined {
+        const map = player.gamemodeState.get("leagueTaskProgress") as Map<number, number> | undefined;
+        if (!map || map.size === 0) return undefined;
+        const leagueTaskProgress: Record<number, number> = {};
+        for (const [taskId, value] of map.entries()) {
+            if (value > 0) leagueTaskProgress[taskId] = value;
+        }
+        return Object.keys(leagueTaskProgress).length > 0 ? { leagueTaskProgress } : undefined;
     }
 
-    deserializePlayerState(_player: PlayerState, _data: Record<string, unknown>): void {}
+    deserializePlayerState(player: PlayerState, data: Record<string, unknown>): void {
+        const raw = data.leagueTaskProgress as Record<string, number> | undefined;
+        if (!raw) return;
+        for (const [key, value] of Object.entries(raw)) {
+            const taskId = parseInt(key, 10);
+            if (!Number.isNaN(taskId)) {
+                player.setLeagueTaskProgress(taskId, value);
+            }
+        }
+    }
 
     onNpcKill(playerId: number, npcTypeId: number): void {
         this.taskManager?.onNpcKill(playerId, npcTypeId);

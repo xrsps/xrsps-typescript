@@ -555,8 +555,6 @@ export class PlayerState extends Actor {
     private nextSkillBoostDecayTick: number = 0;
     private varpValues: Map<number, number> = new Map();
     private varbitValues: Map<number, number> = new Map();
-    private leagueTaskProgress: Map<number, number> = new Map();
-
     // Music region tracking for area-based music
     private lastMusicRegionId: number = -1;
     private lastPlayedMusicTrackId: number = -1;
@@ -1620,22 +1618,29 @@ export class PlayerState extends Actor {
     }
 
     getLeagueTaskProgress(taskId: number): number {
-        return this.leagueTaskProgress.get(taskId | 0) ?? 0;
+        const map = this.gamemodeState.get("leagueTaskProgress") as Map<number, number> | undefined;
+        return map?.get(taskId | 0) ?? 0;
     }
 
     setLeagueTaskProgress(taskId: number, value: number): void {
         const normalizedTaskId = taskId | 0;
         if (normalizedTaskId < 0) return;
         const normalizedValue = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+        let map = this.gamemodeState.get("leagueTaskProgress") as Map<number, number> | undefined;
+        if (!map) {
+            map = new Map();
+            this.gamemodeState.set("leagueTaskProgress", map);
+        }
         if (normalizedValue > 0) {
-            this.leagueTaskProgress.set(normalizedTaskId, normalizedValue);
+            map.set(normalizedTaskId, normalizedValue);
         } else {
-            this.leagueTaskProgress.delete(normalizedTaskId);
+            map.delete(normalizedTaskId);
         }
     }
 
     clearLeagueTaskProgress(taskId: number): void {
-        this.leagueTaskProgress.delete(taskId | 0);
+        const map = this.gamemodeState.get("leagueTaskProgress") as Map<number, number> | undefined;
+        map?.delete(taskId | 0);
     }
 
     // Music region tracking
@@ -2598,7 +2603,6 @@ export class PlayerState extends Actor {
         const snapshot: PlayerPersistentVars = {};
         const varps: Record<number, number> = {};
         const varbits: Record<number, number> = {};
-        const leagueTaskProgress: Record<number, number> = {};
         for (const [id, value] of this.varpValues.entries()) {
             if (NON_PERSISTENT_VARPS.has(id)) {
                 continue;
@@ -2615,16 +2619,8 @@ export class PlayerState extends Actor {
                 varbits[id] = value;
             }
         }
-        for (const [taskId, value] of this.leagueTaskProgress.entries()) {
-            if (value > 0) {
-                leagueTaskProgress[taskId] = value;
-            }
-        }
         if (Object.keys(varps).length > 0) snapshot.varps = varps;
         if (Object.keys(varbits).length > 0) snapshot.varbits = varbits;
-        if (Object.keys(leagueTaskProgress).length > 0) {
-            snapshot.leagueTaskProgress = leagueTaskProgress;
-        }
         const gamemodeData = PlayerState.gamemodeRef?.serializePlayerState(this);
         if (gamemodeData && Object.keys(gamemodeData).length > 0) {
             snapshot.gamemodeData = gamemodeData;
@@ -2722,7 +2718,6 @@ export class PlayerState extends Actor {
     applyPersistentVars(state?: PlayerPersistentVars): void {
         this.varpValues.clear();
         this.varbitValues.clear();
-        this.leagueTaskProgress.clear();
         this.gamemodeState.clear();
         if (!state) {
             this.setVarbitValue(VARBIT_XPDROPS_ENABLED, DEFAULT_XPDROPS_ENABLED);
@@ -2769,19 +2764,13 @@ export class PlayerState extends Actor {
                 }
             }
         }
-        if (state.leagueTaskProgress) {
-            for (const [key, value] of Object.entries(state.leagueTaskProgress)) {
-                const taskId = parseInt(key, 10);
-                if (!Number.isNaN(taskId)) {
-                    this.setLeagueTaskProgress(taskId, value);
-                }
-            }
+        // Restore gamemode-specific state (supports both new gamemodeData and legacy leagueTaskProgress)
+        const gamemodeData = (state.gamemodeData as Record<string, unknown>) ?? {};
+        if (state.leagueTaskProgress && !gamemodeData.leagueTaskProgress) {
+            gamemodeData.leagueTaskProgress = state.leagueTaskProgress;
         }
-        if (state.gamemodeData) {
-            PlayerState.gamemodeRef?.deserializePlayerState(
-                this,
-                state.gamemodeData as Record<string, unknown>,
-            );
+        if (Object.keys(gamemodeData).length > 0) {
+            PlayerState.gamemodeRef?.deserializePlayerState(this, gamemodeData);
         }
         if (
             !state.varbits ||
