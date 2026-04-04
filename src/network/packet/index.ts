@@ -1,5 +1,5 @@
 /**
- * Packet Module - Binary packet encoding for OSRS protocol
+ * Packet Module - Binary packet encoding matching OSRS reference client
  */
 
 export { PacketBuffer, BITMASKS, type IIsaacCipher } from "./PacketBuffer";

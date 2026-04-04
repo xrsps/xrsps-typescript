@@ -653,7 +653,8 @@ export class SoundEffectSystem {
     }
 
     /**
-     * Compute the easing value for a given progress (0..1) using EasingFunction curve types.
+     * Compute the easing value for a given progress (0..1) using the reference client's
+     * EasingFunction curve types.
      */
     private static ease(progress: number, curveId: number = 0): number {
         if (progress <= 0) return 0;
@@ -750,7 +751,7 @@ export class SoundEffectSystem {
 
     /**
      * Compute manhattan distance from a point to a rectangle, minus half a tile (64 fine units).
-     * Computes manhattan distance from a point to a rectangle, minus half a tile (64 fine units).
+     * Matches the reference client's distanceToAmbientSoundRect.
      */
     private static distanceToRect(
         px: number, py: number,
@@ -767,7 +768,7 @@ export class SoundEffectSystem {
 
     /**
      * Compute distance-based volume for an ambient sound instance.
-     * Uses minDistance/maxDistance with easing curve for distance-based attenuation.
+     * Uses minDistance/maxDistance with easing curve, matching the reference client.
      */
     private computeAmbientVolume(instance: AmbientSoundInstance): number {
         // Compute effective size considering orientation

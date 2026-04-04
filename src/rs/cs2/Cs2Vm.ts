@@ -1037,13 +1037,14 @@ export class Cs2Vm {
                 console.log(text);
             },
 
-            // Client revision for revision-specific opcode behavior
+            // PARITY: Client revision for revision-specific opcode behavior
+            // This project targets OSRS r235.
             get clientRevision() {
                 return vm.context.clientRevision ?? 235;
             },
 
             // Local string access for array operations
-            // Arrays are objects stored in local string variables
+            // In modern OSRS (R235+), arrays are objects stored in local string variables
             getLocalString: (index: number) => {
                 if (index < 0 || index >= vm.currentLocalStrings.length) {
                     throw new Error("RuntimeException");

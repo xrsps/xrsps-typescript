@@ -653,86 +653,6 @@ export function subscribeServerPath(
 export function getLastServerPath(): { x: number; y: number }[] | undefined {
     return lastServerPath ? lastServerPath.slice() : undefined;
 }
-export interface RebuildRegionPayload {
-    regionX: number;
-    regionY: number;
-    forceReload: boolean;
-    templateChunks: number[][][];
-    xteaKeys: number[][];
-    mapRegions: number[];
-}
-const rebuildRegionListeners = new Set<(payload: RebuildRegionPayload) => void>();
-export function subscribeRebuildRegion(fn: (payload: RebuildRegionPayload) => void): () => void {
-    rebuildRegionListeners.add(fn);
-    return () => rebuildRegionListeners.delete(fn);
-}
-export interface RebuildNormalPayload {
-    regionX: number;
-    regionY: number;
-    forceReload: boolean;
-    xteaKeys: number[][];
-    mapRegions: number[];
-}
-const rebuildNormalListeners = new Set<(payload: RebuildNormalPayload) => void>();
-export function subscribeRebuildNormal(fn: (payload: RebuildNormalPayload) => void): () => void {
-    rebuildNormalListeners.add(fn);
-    return () => rebuildNormalListeners.delete(fn);
-}
-
-export interface RebuildWorldEntityPayload {
-    entityIndex: number;
-    configId: number;
-    sizeX: number;
-    sizeZ: number;
-    zoneX: number;
-    zoneZ: number;
-    regionX: number;
-    regionY: number;
-    forceReload: boolean;
-    templateChunks: number[][][];
-    xteaKeys: number[][];
-    mapRegions: number[];
-    buildAreas: import("../shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[];
-}
-const rebuildWorldEntityListeners = new Set<(payload: RebuildWorldEntityPayload) => void>();
-export function subscribeRebuildWorldEntity(fn: (payload: RebuildWorldEntityPayload) => void): () => void {
-    rebuildWorldEntityListeners.add(fn);
-    return () => rebuildWorldEntityListeners.delete(fn);
-}
-
-export interface WorldEntityMaskPayload {
-    animationId?: number;
-    sequenceFrame?: number;
-    actionMask?: number;
-}
-
-export interface WorldEntityOldUpdate {
-    updateType: number;
-    positionDelta?: { x: number; y: number; z: number; orientation: number };
-    mask?: WorldEntityMaskPayload;
-}
-
-export interface WorldEntityNewSpawn {
-    entityIndex: number;
-    sizeX: number;
-    sizeZ: number;
-    configId: number;
-    drawMode: number;
-    position: { x: number; y: number; z: number; orientation: number };
-    mask?: WorldEntityMaskPayload;
-}
-
-export interface WorldEntityInfoPayload {
-    oldCount: number;
-    oldUpdates: WorldEntityOldUpdate[];
-    newSpawns: WorldEntityNewSpawn[];
-}
-const worldEntityInfoListeners = new Set<(payload: WorldEntityInfoPayload) => void>();
-export function subscribeWorldEntityInfo(fn: (payload: WorldEntityInfoPayload) => void): () => void {
-    worldEntityInfoListeners.add(fn);
-    return () => worldEntityInfoListeners.delete(fn);
-}
-
 const welcomeListeners = new Set<(info: { tickMs: number; serverTime: number }) => void>();
 const loginResponseListeners = new Set<
     (info: { success: boolean; error?: string; displayName?: string }) => void
@@ -1701,42 +1621,6 @@ function processServerMessage(msg: any): void {
         // Keep authoritative world destination to avoid base-shift drift.
         ClientState.destinationWorldX = worldX;
         ClientState.destinationWorldY = worldY;
-    } else if (msg.type === "rebuild_region") {
-        ClientState.inInstance = true;
-        ClientState.instanceTemplateChunks = msg.payload.templateChunks;
-        ClientState.regionX = msg.payload.regionX;
-        ClientState.regionY = msg.payload.regionY;
-        for (const cb of rebuildRegionListeners) {
-            try {
-                cb(msg.payload);
-            } catch {}
-        }
-    } else if (msg.type === "rebuild_normal") {
-        ClientState.inInstance = false;
-        ClientState.instanceTemplateChunks = null;
-        ClientState.regionX = msg.payload.regionX;
-        ClientState.regionY = msg.payload.regionY;
-        for (const cb of rebuildNormalListeners) {
-            try {
-                cb(msg.payload);
-            } catch {}
-        }
-    } else if (msg.type === "rebuild_worldentity") {
-        // World entity overlays don't change instance state —
-        // they render on top of the normal world.
-        for (const cb of rebuildWorldEntityListeners) {
-            try {
-                cb(msg.payload);
-            } catch {}
-        }
-    } else if (msg.type === "worldentity_info") {
-        for (const cb of worldEntityInfoListeners) {
-            try {
-                cb(msg.payload);
-            } catch (err) {
-                console.warn("[ws] worldentity_info listener error:", err);
-            }
-        }
     } else if (msg.type === "path") {
         const { id, ok, waypoints, message } = msg.payload;
         const cb = pending.get(id);
@@ -1829,7 +1713,7 @@ function processServerMessage(msg: any): void {
         } catch (err) {
             console.warn("failed to process player_sync payload", err);
             try {
-                // The client hard-fails on malformed updatePlayers streams.
+                // OSRS parity: the reference client hard-fails on malformed updatePlayers streams.
                 // In this dev client, force a reconnect to resynchronise player sync state.
                 const message = (err as any)?.message?.toString?.() ?? "";
                 if (
@@ -2129,14 +2013,6 @@ function processServerMessage(msg: any): void {
         } catch (err) {
             console.warn("chat listener error", err);
         }
-    } else if (msg.type === "gamemode_data") {
-        try {
-            const { loadFromPayload } = require("../shared/gamemode/GamemodeContentStore");
-            loadFromPayload(msg.payload);
-            console.log(`[ws] gamemode_data loaded: ${msg.payload?.gamemodeId ?? "unknown"}`);
-        } catch (err) {
-            console.log("[ws] failed to load gamemode_data", err);
-        }
     } else if (msg.type === "notification") {
         const payload = msg.payload as NotificationEvent;
         for (const cb of notificationListeners) cb(payload);
@@ -2158,34 +2034,6 @@ function processServerMessage(msg: any): void {
             }
         } catch (err) {
             console.warn("loc_change handler error", err);
-        }
-    } else if (msg.type === "loc_add_change") {
-        const payload = msg.payload;
-        try {
-            const g: any = (typeof window !== "undefined" ? window : globalThis) as any;
-            const mv = g?.__osrsClient;
-            if (mv && typeof mv.onLocAddChange === "function") {
-                mv.onLocAddChange(
-                    payload.locId,
-                    payload.tile,
-                    payload.level,
-                    payload.shape,
-                    payload.rotation,
-                );
-            }
-        } catch (err) {
-            console.warn("loc_add_change handler error", err);
-        }
-    } else if (msg.type === "loc_del") {
-        const payload = msg.payload;
-        try {
-            const g: any = (typeof window !== "undefined" ? window : globalThis) as any;
-            const mv = g?.__osrsClient;
-            if (mv && typeof mv.onLocDel === "function") {
-                mv.onLocDel(payload.tile, payload.level, payload.shape, payload.rotation);
-            }
-        } catch (err) {
-            console.warn("loc_del handler error", err);
         }
     } else if (msg.type === "vars") {
         const payload = msg.payload;

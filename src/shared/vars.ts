@@ -434,6 +434,13 @@ export const VARP_AUTOCAST_SPELLPOS = 664;
 export const VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE = 10078;
 
 /**
+ * Level-up pop-up notifications dropdown varbit.
+ * 0 = Disabled, 1 = Show level only, 2 = Show level & unlocks.
+ * Controlled by the settings modal dropdown "Level-up pop-up notifications".
+ */
+export const VARBIT_LEVEL_UP_POPUP_NOTIFICATIONS = 2513;
+
+/**
  * Music unlock tracking varps (musicmulti_1 through musicmulti_27).
  * Each varp is a 32-bit bitfield storing unlock status for up to 32 tracks.
  * Total capacity: 27 * 32 = 864 tracks.

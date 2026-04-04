@@ -6,7 +6,6 @@ import {
     VARP_SPECIAL_ATTACK,
 } from "../../../../../src/shared/vars";
 import {
-    buildVisibleAutocastIndices,
     canWeaponAutocastSpell,
     getAutocastCompatibilityMessage,
     getSpellIdFromAutocastIndex,
@@ -30,7 +29,7 @@ import { type ScriptModule } from "../types";
  * Combat widgets handlers for interface 593 (combat options tab) and 201 (autocast popup).
  *
  * Uses onButton registration since binary IF_BUTTON packets don't send option strings.
- * Component IDs from cache:
+ * Component IDs from OSRS r235 cache:
  * - 593:6 = Combat style button 1
  * - 593:10 = Combat style button 2
  * - 593:14 = Combat style button 3
@@ -55,33 +54,22 @@ const SPECIAL_ATTACK_BUTTON_COMPONENT = 39; // "Use Special Attack" button
 
 // Autocast popup (201) components
 const AUTOCAST_CANCEL_COMPONENT = 0; // Cancel button
-const AUTOCAST_SPELL_CONTAINER_COMPONENT = 1; // Layer where CS2 CC_CREATEs dynamic spell icons
 
 // Special weapons that use their item id as the autocast "spellpos" selector (script 243 switch table).
 // For normal staves, passing the raw weapon id causes script 243 to return (-1,-1) for all spells,
 // resulting in an empty chooser.
-// Weapons with unique autocast spell lists (ancient, god spells, etc.) MUST be listed here
-// so the CS2 script shows the correct spells in the autocast popup.
 const AUTOCAST_SPELLPOS_WEAPON_IDS = new Set<number>([
     1409, // Iban's staff
-    2415, // Saradomin staff (god spell)
-    2416, // Guthix staff (god spell)
-    2417, // Zamorak staff (god spell)
     4170, // Slayer's staff
     4675, // Ancient staff
     4710, // Ahrim's staff
-    6914, // Master wand
     8841, // Void knight mace
+    9013, // Trident of the seas (legacy)
     11791, // Staff of the dead
-    12658, // Iban's staff (u)
-    12904, // Toxic staff of the dead
     21006, // Kodai wand
-    21255, // Slayer's staff (e)
+    21276, // Trident of the swamp
     22296, // Staff of balance
-    24422, // Nightmare staff
-    24423, // Harmonised nightmare staff
-    24424, // Eldritch nightmare staff
-    24425, // Volatile nightmare staff
+    24144, // Sanguinesti staff
     27676, // Thammaron's sceptre
     27679, // Accursed sceptre
     27785, // Thammaron's sceptre (u)
@@ -292,39 +280,20 @@ export const combatWidgetModule: ScriptModule = {
             openAutocastPopup(event.player, true, services);
         });
 
-        // ============ AUTOCAST POPUP SPELL SELECTION (201:1 dynamic children) ============
-        // The CS2 autocast_setup script creates spell icon widgets via CC_CREATE under
-        // component 1 (the spell grid layer). Clicks on dynamic children arrive with
-        // group=201, child=1 (the parent layer), and slot = CC_CREATE childIndex.
-        // We map the sequential slot back to the autocast spell index using the same
-        // weapon-based visible spell list that the CS2 script builds.
-        registry.onButton(AUTOCAST_POPUP_GROUP_ID, AUTOCAST_SPELL_CONTAINER_COMPONENT, (event) => {
-            const slot = event.slot;
-            if (slot === undefined || slot < 1 || slot === 0xffff) {
-                // Background click on the layer or slot 0 header — ignore
-                return;
-            }
-            const weaponId = event.player.pendingAutocastWeaponId ?? 0;
-            const visibleSpells = buildVisibleAutocastIndices(weaponId);
-            // CC_CREATE childIndex is 1-based (slot 0 is a header/spacer), so subtract 1
-            const arrayIndex = slot - 1;
-            if (arrayIndex >= visibleSpells.length) {
-                services.logger?.warn?.(
-                    `[script:combat-widgets] Autocast slot=${slot} out of range ` +
-                        `(visible=${visibleSpells.length}) for player=${event.player.id}`,
-                );
-                return;
-            }
-            const autocastIndex = visibleSpells[arrayIndex];
-            handleAutocastSpellSelection(event.player, autocastIndex, services);
-        });
+        // ============ AUTOCAST POPUP SPELL SELECTION (201:1-58) ============
+        // Register handlers for spell buttons in autocast popup
+        for (let spellIndex = 1; spellIndex <= 58; spellIndex++) {
+            const index = spellIndex; // Capture for closure
+            registry.onButton(AUTOCAST_POPUP_GROUP_ID, spellIndex, (event) => {
+                handleAutocastSpellSelection(event.player, index, services);
+            });
+        }
 
         // ============ AUTOCAST POPUP CANCEL (201:0) ============
         registry.onButton(AUTOCAST_POPUP_GROUP_ID, AUTOCAST_CANCEL_COMPONENT, (event) => {
             const player = event.player;
             // Clear temporary state
             player.pendingAutocastDefensive = undefined;
-            player.pendingAutocastWeaponId = undefined;
 
             const combatTabUid = getCombatTabUid(player);
             services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
@@ -344,41 +313,13 @@ function openAutocastPopup(player: any, isDefensive: boolean, services: any): vo
     const spellposSelector =
         weaponObjId > 0 && AUTOCAST_SPELLPOS_WEAPON_IDS.has(weaponObjId) ? weaponObjId : -1;
 
-    // Store autocast popup state so the handler can reconstruct the visible spell list
+    // Store whether this is defensive autocast in a temporary state
     player.pendingAutocastDefensive = isDefensive;
-    player.pendingAutocastWeaponId = weaponObjId;
 
     // Open the autocast popup (interface 201) in the Combat tab container
     const combatTabUid = getCombatTabUid(player);
     services.openSubInterface?.(player, combatTabUid, AUTOCAST_POPUP_GROUP_ID, 1, {
         varps: { [VARP_AUTOCAST_SPELLPOS]: spellposSelector },
-    });
-
-    // OSRS parity: IF_SETEVENTS for the autocast popup.
-    // The CS2 autocast_setup script runs on widget 201's onLoad and creates dynamic
-    // spell icon widgets via CC_CREATE under the spell grid layer (component 1).
-    // Dynamic children have id=parentUid and childIndex=slot, so transmit flags must
-    // be set on the PARENT component's UID with the slot range covering all children.
-    // IMPORTANT: Flags must be sent AFTER openSubInterface because opening resets flags.
-    const IF_SETEVENTS_TRANSMIT_OP1 = 1 << 1;
-
-    // Enable transmission for dynamic spell icon children under the spell container (201:1).
-    // The CS2 creates children at sequential childIndex 0..N for each visible spell.
-    services.queueWidgetEvent?.(player.id, {
-        action: "set_flags_range",
-        uid: (AUTOCAST_POPUP_GROUP_ID << 16) | AUTOCAST_SPELL_CONTAINER_COMPONENT,
-        fromSlot: 0,
-        toSlot: 64, // generous upper bound for all possible spell slots
-        flags: IF_SETEVENTS_TRANSMIT_OP1,
-    });
-
-    // Enable transmission for the cancel button (201:0, static widget).
-    services.queueWidgetEvent?.(player.id, {
-        action: "set_flags_range",
-        uid: (AUTOCAST_POPUP_GROUP_ID << 16) | AUTOCAST_CANCEL_COMPONENT,
-        fromSlot: -1,
-        toSlot: -1,
-        flags: IF_SETEVENTS_TRANSMIT_OP1,
     });
 
     services.logger?.info?.(
@@ -415,7 +356,6 @@ function handleAutocastSpellSelection(player: any, spellIndex: number, services:
         );
         // Clear temporary state and close popup
         player.pendingAutocastDefensive = undefined;
-        player.pendingAutocastWeaponId = undefined;
         const combatTabUid = getCombatTabUid(player);
         services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
         return;
@@ -426,7 +366,6 @@ function handleAutocastSpellSelection(player: any, spellIndex: number, services:
         queueCombatState: services.queueCombatState,
     });
     player.pendingAutocastDefensive = undefined;
-    player.pendingAutocastWeaponId = undefined;
 
     // Return to the combat options tab UI
     const combatTabUid = getCombatTabUid(player);

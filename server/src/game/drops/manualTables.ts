@@ -9,13 +9,13 @@ function drop(
     itemName: string,
     quantity: string | number,
     rarity?: string | number,
-    dropBoostEligible = false,
+    leagueBoostEligible = false,
 ): NpcDropEntryDefinition {
     return {
         itemName,
         quantity,
         rarity,
-        dropBoostEligible,
+        leagueBoostEligible,
     };
 }
 

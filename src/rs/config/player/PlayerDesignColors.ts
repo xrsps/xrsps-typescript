@@ -1,4 +1,5 @@
 // OSRS PlayerDesign / PlayerComposition body color palettes + recolor sources.
+// Source: references/runescape-client (r215) class345.field3685/field3684/field3686/field3683
 // Used by:
 // - PlayerComposition.getModel recolors (hair/torso/legs/feet/skin)
 // - PlayerComposition.method6388 cycling bounds (palette lengths)

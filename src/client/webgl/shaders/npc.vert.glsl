@@ -30,7 +30,6 @@ uniform int u_npcDataOffset;
 uniform highp usampler2D u_npcDataTexture;
 uniform mediump isampler2DArray u_heightMap;
 uniform float u_modelYOffset;
-uniform mat4 u_worldEntityTransform;
 
 layout(location = 0) in uvec3 a_vertex;
 
@@ -134,7 +133,7 @@ void main() {
         (1.0 - isLoading) * v_fogAmount;
 
     // View-space position
-    vec4 viewPos = u_worldEntityTransform * (u_viewMatrix * localPos);
+    vec4 viewPos = u_viewMatrix * localPos;
 
     // Depth layering (pre-projection)
     const float PLANE_LAYER_EPSILON      = 0.01;     // plane separation

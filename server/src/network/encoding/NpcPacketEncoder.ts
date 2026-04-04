@@ -428,13 +428,7 @@ export class NpcPacketEncoder {
 
             writer.writeBits(16, npcId & 0xffff);
             writer.writeBits(1, needsUpdate ? 1 : 0);
-            const wvId = npc.worldViewId | 0;
-            if (wvId >= 0) {
-                writer.writeBits(1, 1);
-                writer.writeBits(32, wvId & 0xffff);
-            } else {
-                writer.writeBits(1, 0);
-            }
+            writer.writeBits(1, 0); // unused 32-bit field flag
             writer.writeBits(1, teleport ? 1 : 0);
 
             if (needsLarge) {

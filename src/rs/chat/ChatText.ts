@@ -42,7 +42,7 @@ function isSpaceCharOsrs(ch: string): boolean {
 
 function toTitleCaseOsrs(ch: string): string {
     const code = ch.charCodeAt(0);
-    // Preserve the special cases for title casing.
+    // Preserve the special cases in the reference client.
     if (code === 181 /* µ */ || code === 402 /* ƒ */) return ch;
     const upper = ch.toUpperCase();
     return upper.length === 1 ? upper : ch;

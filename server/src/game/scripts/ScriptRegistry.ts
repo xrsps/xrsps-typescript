@@ -1,6 +1,4 @@
 import {
-    type ClientMessageHandler,
-    type CommandHandler,
     type EquipmentActionHandler,
     type IScriptRegistry,
     type ItemOnItemHandler,
@@ -8,7 +6,6 @@ import {
     type LocInteractionHandler,
     type NpcInteractionHandler,
     type RegionEventHandler,
-    type ScriptActionHandler,
     type ScriptRegistrationResult,
     type TickHandler,
     type WidgetActionHandler,
@@ -71,9 +68,6 @@ export class ScriptRegistry implements IScriptRegistry {
     private readonly widgetHandlers = new Map<RegistryKey, WidgetActionHandler[]>();
     /** RSMod-style button handlers keyed by (interfaceId << 16) | componentId */
     private readonly buttonHandlers = new Map<number, WidgetActionHandler>();
-    private readonly commandHandlers = new Map<string, CommandHandler>();
-    private readonly clientMessageHandlers = new Map<string, ClientMessageHandler>();
-    private readonly actionHandlers = new Map<string, ScriptActionHandler>();
 
     registerNpcInteraction(
         npcId: number,
@@ -279,64 +273,6 @@ export class ScriptRegistry implements IScriptRegistry {
         };
     }
 
-    registerCommand(name: string, handler: CommandHandler): ScriptRegistrationResult {
-        const normalized = name.trim().toLowerCase();
-        this.commandHandlers.set(normalized, handler);
-        return {
-            unregister: () => {
-                this.commandHandlers.delete(normalized);
-            },
-        };
-    }
-
-    findCommand(name: string): CommandHandler | undefined {
-        return this.commandHandlers.get(name.trim().toLowerCase());
-    }
-
-    registerClientMessageHandler(
-        messageType: string,
-        handler: ClientMessageHandler,
-    ): ScriptRegistrationResult {
-        const key = messageType.trim().toLowerCase();
-        this.clientMessageHandlers.set(key, handler);
-        return {
-            unregister: () => {
-                this.clientMessageHandlers.delete(key);
-            },
-        };
-    }
-
-    findClientMessageHandler(messageType: string): ClientMessageHandler | undefined {
-        return this.clientMessageHandlers.get(messageType.trim().toLowerCase());
-    }
-
-    registerActionHandler(
-        kind: string,
-        handler: ScriptActionHandler,
-    ): ScriptRegistrationResult {
-        this.actionHandlers.set(kind, handler);
-        return {
-            unregister: () => {
-                this.actionHandlers.delete(kind);
-            },
-        };
-    }
-
-    findActionHandler(kind: string): ScriptActionHandler | undefined {
-        return this.actionHandlers.get(kind);
-    }
-
-    findItemAction(itemId: number, option?: string): ItemOnItemHandler | undefined {
-        const key = makeItemKey(itemId, undefined, option);
-        const direct = this.itemActionHandlers.get(key);
-        if (direct) return direct;
-        if (option) {
-            const fallback = makeItemKey(itemId, undefined, undefined);
-            return this.itemActionHandlers.get(fallback);
-        }
-        return undefined;
-    }
-
     findNpcInteraction(npcId: number, option?: string): NpcInteractionHandler | undefined {
         const key = makeNpcKey(npcId, option);
         const direct = this.npcHandlers.get(key);
@@ -370,13 +306,7 @@ export class ScriptRegistry implements IScriptRegistry {
         const direct = this.itemHandlers.get(key);
         if (direct) return direct;
         const actionKey = makeItemKey(sourceItemId, undefined, option);
-        const actionDirect = this.itemActionHandlers.get(actionKey);
-        if (actionDirect) return actionDirect;
-        if (option) {
-            const fallback = makeItemKey(sourceItemId, undefined, undefined);
-            return this.itemActionHandlers.get(fallback);
-        }
-        return undefined;
+        return this.itemActionHandlers.get(actionKey);
     }
 
     findItemOnLoc(
@@ -467,8 +397,5 @@ export class ScriptRegistry implements IScriptRegistry {
         this.tickHandlers.clear();
         this.widgetHandlers.clear();
         this.buttonHandlers.clear();
-        this.commandHandlers.clear();
-        this.clientMessageHandlers.clear();
-        this.actionHandlers.clear();
     }
 }

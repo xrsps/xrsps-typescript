@@ -1,4 +1,5 @@
 import {
+    VARBIT_LEVEL_UP_POPUP_NOTIFICATIONS,
     VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE,
     VARP_OPTION_ATTACK_PRIORITY_NPC,
     VARP_OPTION_ATTACK_PRIORITY_PLAYER,
@@ -23,6 +24,7 @@ const MUSIC_UNLOCK_MESSAGE_TOGGLE_CHILD_ID = 127;
 // Settings side dropdown IDs (see proc settings_get_dropdown / settings_side_dropdown_create)
 const SETTINGS_DROPDOWN_PLAYER_ATTACK_OPTIONS = 55;
 const SETTINGS_DROPDOWN_NPC_ATTACK_OPTIONS = 56;
+const SETTINGS_DROPDOWN_LEVEL_UP_POPUP_NOTIFICATIONS = 315;
 
 // Widget UIDs for attack option dropdown rows in group 116 (rev 235 cache)
 const SETTINGS_SIDE_ATTACK_PRIORITY_PLAYER_ROW_UID = (SETTINGS_SIDE_GROUP_ID << 16) | 6;
@@ -36,9 +38,22 @@ const SETTINGS_SIDE_DROPDOWN_LIST_UIDS = new Set<number>([
     (SETTINGS_SIDE_GROUP_ID << 16) | 40,
     (SETTINGS_SIDE_GROUP_ID << 16) | 41,
 ]);
+const SETTINGS_MODAL_DROPDOWN_LIST_UIDS = new Set<number>([
+    (SETTINGS_MODAL_GROUP_ID << 16) | 29,
+    (SETTINGS_MODAL_GROUP_ID << 16) | 30,
+]);
 
 const MAX_PLAYER_ATTACK_OPTION = 4;
 const MAX_NPC_ATTACK_OPTION = 3;
+const LEVEL_UP_POPUP_OPTIONS = new Map<string, number>([
+    ["disabled", 0],
+    ["show level only", 1],
+    ["show level & unlocks", 2],
+]);
+
+function normalizeDropdownLabel(value: string | undefined): string {
+    return (value ?? "").trim().toLowerCase();
+}
 
 export const settingsWidgetsModule: ScriptModule = {
     id: "content.settings-widgets",
@@ -47,6 +62,7 @@ export const settingsWidgetsModule: ScriptModule = {
         // The option list is rendered via shared dropdown list widgets, so the selection click alone
         // doesn't identify which setting row initiated it.
         const activeSideDropdownSettingByPlayerId = new Map<number, number>();
+        const activeModalDropdownSettingByPlayerId = new Map<number, number>();
 
         // Handle "All Settings" button click in settings_side (widget 116)
         // Opens the settings modal (134) in the mainmodal container
@@ -160,6 +176,65 @@ export const settingsWidgetsModule: ScriptModule = {
             });
         }
 
+        registry.registerWidgetAction({
+            handler: ({ player, groupId, option, target }) => {
+                if (groupId !== SETTINGS_MODAL_GROUP_ID) return;
+
+                const optionLabel = normalizeDropdownLabel(option);
+                const targetLabel = normalizeDropdownLabel(target);
+                if (
+                    optionLabel.includes("level-up pop-up notifications") ||
+                    targetLabel.includes("level-up pop-up notifications")
+                ) {
+                    activeModalDropdownSettingByPlayerId.set(
+                        player.id,
+                        SETTINGS_DROPDOWN_LEVEL_UP_POPUP_NOTIFICATIONS,
+                    );
+                }
+            },
+        });
+
+        const handleModalDropdownSelect = ({
+            player,
+            widgetId,
+            childId,
+            option,
+            target,
+            services: svc,
+        }: WidgetActionEvent) => {
+            if (!SETTINGS_MODAL_DROPDOWN_LIST_UIDS.has(widgetId)) return;
+            if (option && option !== "Select") return;
+
+            const activeSetting = activeModalDropdownSettingByPlayerId.get(player.id);
+            const targetLabel = normalizeDropdownLabel(target);
+            const selectedValueFromTarget = LEVEL_UP_POPUP_OPTIONS.get(targetLabel);
+            if (
+                activeSetting !== SETTINGS_DROPDOWN_LEVEL_UP_POPUP_NOTIFICATIONS &&
+                selectedValueFromTarget === undefined
+            ) {
+                return;
+            }
+
+            const selectedIndex = selectedValueFromTarget ?? childId - 1;
+            if (selectedIndex < 0 || selectedIndex > 2) return;
+
+            player.setVarbitValue(VARBIT_LEVEL_UP_POPUP_NOTIFICATIONS, selectedIndex);
+            svc.sendVarbit?.(player, VARBIT_LEVEL_UP_POPUP_NOTIFICATIONS, selectedIndex);
+            activeModalDropdownSettingByPlayerId.delete(player.id);
+
+            svc.logger?.info?.(
+                `[settings-widgets] level-up popup notifications set player=${player.id} value=${selectedIndex}`,
+            );
+        };
+
+        for (const wid of SETTINGS_MODAL_DROPDOWN_LIST_UIDS) {
+            registry.registerWidgetAction({
+                widgetId: wid,
+                option: "Select",
+                handler: handleModalDropdownSelect,
+            });
+        }
+
         // Handle close button click in settings modal (widget 134, child 4, op 1)
         // The close button fires op=1 with an empty option string (runs clientscript if_close).
         registry.registerWidgetAction({
@@ -172,6 +247,7 @@ export const settingsWidgetsModule: ScriptModule = {
                 const mainmodalUid = getMainmodalUid(player.displayMode);
 
                 svc.closeSubInterface?.(player, mainmodalUid);
+                activeModalDropdownSettingByPlayerId.delete(player.id);
 
                 svc.logger?.info?.(
                     `[settings-widgets] Closed settings modal for player=${player.id}`,

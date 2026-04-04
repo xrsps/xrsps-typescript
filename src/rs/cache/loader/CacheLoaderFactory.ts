@@ -18,7 +18,6 @@ import { SeqFrameLoader } from "../../model/seq/SeqFrameLoader";
 import { SkeletalSeqLoader } from "../../model/skeletal/SkeletalSeqLoader";
 import { IndexedSprite } from "../../sprite/IndexedSprite";
 import { TextureLoader } from "../../texture/TextureLoader";
-import { WorldEntityTypeLoader } from "../../config/worldentitytype/WorldEntityTypeLoader";
 import { CacheIndex } from "../CacheIndex";
 import { CacheInfo } from "../CacheInfo";
 import { CacheSystem } from "../CacheSystem";
@@ -58,8 +57,6 @@ export interface CacheLoaderFactory {
     getSkeletalSeqLoader(): SkeletalSeqLoader | undefined;
 
     getMapFileLoader(): MapFileLoader;
-
-    getWorldEntityTypeLoader(): WorldEntityTypeLoader | undefined;
 
     getMapScenes(): IndexedSprite[];
     getMapFunctions(): IndexedSprite[];

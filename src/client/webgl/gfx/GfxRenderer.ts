@@ -1,7 +1,7 @@
 import { vec2 } from "gl-matrix";
 import PicoGL, { DrawCall, Texture } from "picogl";
 
-import { WebGLMapSquare } from "../WebGLMapSquare";
+import type { WebGLMapSquare } from "../WebGLMapSquare";
 import type { WebGLOsrsRenderer } from "../WebGLOsrsRenderer";
 import { GfxCache } from "./GfxCache";
 import { GfxManager } from "./GfxManager";
@@ -182,10 +182,8 @@ export class GfxRenderer {
                     .texture("u_textureMaterials", (this.renderer as any).textureMaterials)
                     .uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
                     .uniform("u_npcDataOffset", baseOffset | 0)
-                    .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                     .texture("u_npcDataTexture", actorDataTexture)
-                    .texture("u_heightMap", map.heightMapTexture)
-                    .uniform("u_sceneBorderSize", map.borderSize);
+                    .texture("u_heightMap", map.heightMapTexture);
 
                 (this.renderer as any).app.disable(PicoGL.CULL_FACE);
 
@@ -201,11 +199,15 @@ export class GfxRenderer {
                 }
 
                 for (const [yOff, groupInstances] of yOffsetGroups) {
-                    dc.uniform("u_modelYOffset", yOff | 0);
+                    dc.uniform("u_modelYOffset", yOff);
+                    const drawRanges: Array<[number, number, number]> = [];
+                    const drawIndices: number[] = [];
                     for (const inst of groupInstances) {
-                        dc.uniform("u_drawIdOverride", inst.slot | 0);
-                        dc.draw();
+                        drawRanges.push([0, vaoRec.indexCount, 1]);
+                        drawIndices.push(inst.slot | 0);
                     }
+                    dc.uniform("u_drawIdOverride", -1);
+                    (this.renderer as any).draw(dc, drawRanges, drawIndices);
                 }
 
                 if ((this.renderer as any).cullBackFace)

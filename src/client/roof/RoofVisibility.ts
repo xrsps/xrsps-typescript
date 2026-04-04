@@ -391,12 +391,8 @@ export function sampleBridgeHeightForWorldTile<T extends MapSquare>(
         return result;
     }
 
-    // For instances, the height data may be at source coordinates while the map
-    // is registered at instance coordinates. Use baseWorldX/Y if available.
-    const mapWorldX = typeof (map as any).baseWorldX === "number" ? (map as any).baseWorldX : mapX * Scene.MAP_SQUARE_SIZE;
-    const mapWorldY = typeof (map as any).baseWorldY === "number" ? (map as any).baseWorldY : mapY * Scene.MAP_SQUARE_SIZE;
-    const localPxX = Math.floor((worldX - mapWorldX) * 128);
-    const localPxY = Math.floor((worldY - mapWorldY) * 128);
+    const localPxX = Math.floor((worldX - mapX * Scene.MAP_SQUARE_SIZE) * 128);
+    const localPxY = Math.floor((worldY - mapY * Scene.MAP_SQUARE_SIZE) * 128);
 
     let tileX = localPxX >> 7;
     let tileY = localPxY >> 7;

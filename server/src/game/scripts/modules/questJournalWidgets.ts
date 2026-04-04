@@ -219,10 +219,6 @@ const QUEST_COMPLETION_DATA = new Map<string, QuestCompletionInfo>([
     ["vampyre slayer", { varpId: 178, completionValue: 3 }],
     ["witch's potion", { varpId: 67, completionValue: 3 }],
     ["black knights' fortress", { varpId: 130, completionValue: 4 }],
-    [
-        "pandemonium",
-        { varpId: -1, completionValue: 0, varbitEntries: [{ varbitId: 18314, value: 6 }] },
-    ],
 ]);
 
 // ============================================================================
@@ -267,7 +263,7 @@ export const questJournalWidgetsModule: ScriptModule = {
 
         // Handle quest journal Close button (119:8)
         registry.onButton(QUEST_JOURNAL_GROUP_ID, QJ_CLOSE_CHILD, (event) => {
-            const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
+            const floaterUid = BaseComponentUids.MAINMODAL_BACKGROUNDS;
             services.closeSubInterface?.(event.player, floaterUid, QUEST_JOURNAL_GROUP_ID);
         });
 
@@ -289,7 +285,7 @@ export const questJournalWidgetsModule: ScriptModule = {
             }
 
             // Re-open journal with overview text
-            const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
+            const floaterUid = BaseComponentUids.MAINMODAL_BACKGROUNDS;
             services.openSubInterface?.(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
 
             services.queueWidgetEvent?.(player.id, {
@@ -357,7 +353,7 @@ function openQuestJournal(
     // 2. Open quest journal interface on the floater container.
     // Use type=0 (modal) so PlayerWidgetManager tracks it and closeInterruptibleInterfaces
     // closes it on walk/interaction, matching OSRS behavior where the journal dismisses on move.
-    const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
+    const floaterUid = BaseComponentUids.MAINMODAL_BACKGROUNDS;
     services.openSubInterface?.(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
 
     // 2b. Enable transmit flags on Close (119:8) and Switch View (119:9) buttons.

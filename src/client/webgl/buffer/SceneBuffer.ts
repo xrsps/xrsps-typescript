@@ -166,13 +166,13 @@ export class SceneBuffer {
         }
     }
 
-    addTerrain(scene: Scene, borderSize: number, maxLevel: number, coreSize: number = Scene.MAP_SQUARE_SIZE, worldTileOffset: number = borderSize): number {
+    addTerrain(scene: Scene, borderSize: number, maxLevel: number): number {
         const startX = borderSize;
         const startY = borderSize;
-        const endX = borderSize + coreSize;
-        const endY = borderSize + coreSize;
+        const endX = borderSize + Scene.MAP_SQUARE_SIZE;
+        const endY = borderSize + Scene.MAP_SQUARE_SIZE;
 
-        const vertexOffset = worldTileOffset * -128;
+        const vertexOffset = borderSize * -128;
 
         const terrainStartVertexCount = this.vertexCount();
         for (let level = 0; level < scene.levels; level++) {

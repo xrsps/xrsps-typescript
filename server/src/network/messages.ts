@@ -517,8 +517,7 @@ export type ServerToClient =
     | { type: "logout_response"; payload: LogoutResponsePayload }
     | { type: "notification"; payload: NotificationPayload }
     | { type: "smithing"; payload: SmithingServerPayload }
-    | { type: "collection_log"; payload: CollectionLogServerPayload }
-    | { type: "gamemode_data"; payload: { packet: Uint8Array } };
+    | { type: "collection_log"; payload: CollectionLogServerPayload };
 
 export type ClientToServer =
     | { type: "hello"; payload: { client: string; version?: string } }
@@ -692,63 +691,6 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
 
         case "destination":
             return serverEncoder.encodeDestination(payload.worldX, payload.worldY);
-
-        case "loc_add_change":
-            return serverEncoder.encodeLocAddChange(
-                payload.locId,
-                payload.tile,
-                payload.level,
-                payload.shape,
-                payload.rotation,
-            );
-
-        case "loc_del":
-            return serverEncoder.encodeLocDel(
-                payload.tile,
-                payload.level,
-                payload.shape,
-                payload.rotation,
-            );
-
-        case "rebuild_normal":
-            return serverEncoder.encodeRebuildNormal(
-                payload.regionX,
-                payload.regionY,
-                payload.forceReload ?? false,
-                payload.xteaKeys,
-            );
-
-        case "rebuild_region":
-            return serverEncoder.encodeRebuildRegion(
-                payload.regionX,
-                payload.regionY,
-                payload.forceReload ?? false,
-                payload.templateChunks,
-                payload.xteaKeys,
-            );
-
-        case "rebuild_worldentity":
-            return serverEncoder.encodeRebuildWorldEntity(
-                payload.entityIndex,
-                payload.configId,
-                payload.sizeX,
-                payload.sizeZ,
-                payload.zoneX,
-                payload.zoneZ,
-                payload.regionX,
-                payload.regionY,
-                payload.forceReload ?? false,
-                payload.templateChunks,
-                payload.xteaKeys,
-                payload.buildAreas,
-            );
-
-        case "worldentity_info":
-            return serverEncoder.encodeWorldEntityInfo(
-                payload.oldCount,
-                payload.oldUpdates,
-                payload.newSpawns,
-            );
 
         case "handshake":
             return serverEncoder.encodeHandshake(
@@ -988,9 +930,6 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
                 return serverEncoder.encodeCollectionLogSnapshot(payload.slots ?? []);
             }
             throw new Error(`Unknown collection_log payload kind: ${payload.kind}`);
-
-        case "gamemode_data":
-            return payload.packet;
 
         default:
             // All message types should be handled above

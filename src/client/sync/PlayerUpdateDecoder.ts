@@ -1,5 +1,5 @@
 import { normalizePublicChatTextOsrs } from "../../rs/chat/ChatText";
-import { MovementDirection, directionToDelta, runDirectionToDelta, runDirectionToWalkDirections } from "../../shared/Direction";
+import { MovementDirection, directionToDelta, runDirectionToDelta } from "../../shared/Direction";
 import { BitStream } from "./BitStream";
 import { getPlayerSyncHuffman } from "./HuffmanProvider";
 import { PlayerSyncContext, type PlayerSyncState } from "./PlayerSyncContext";
@@ -47,7 +47,7 @@ function resolveTraversalDefault(state: PlayerSyncState): number {
 export interface PlayerUpdateDecodeOptions {
     /** Packet payload size in bytes. Required to mirror the reference bitstream guard. */
     packetSize: number;
-    /** Current server tick used for translating delay counters. */
+    /** Current server tick used for translating delay counters (loopCycle in the reference client). */
     loopCycle: number;
     /** Current client cycle (20 ms) when the packet is decoded (mirrors Client.cycle). */
     clientCycle?: number;
@@ -69,7 +69,7 @@ export class PlayerUpdateDecoder {
 
     /**
      * Returns true when a tile coordinate is outside the current 104x104 scene window.
-     * Guards against invalid deltas that would corrupt path queues.
+     * Mirrors the reference client guard so invalid deltas do not corrupt path queues.
      */
     private isOutsideScene(context: PlayerSyncContext, tileX: number, tileY: number): boolean {
         const localX = (tileX | 0) - (context.baseX | 0);
@@ -312,20 +312,14 @@ export class PlayerUpdateDecoder {
             if (!delta) return;
             const targetX = (state.tileX + (delta.dx | 0)) | 0;
             const targetY = (state.tileY + (delta.dy | 0)) | 0;
-            // Decode the combined run code into 2 walk directions so the
-            // movement sync receives explicit per-step data.  This avoids
-            // client-side route reconstruction which fails inside WorldViews
-            // (client collision doesn't have WorldView blocking).
-            const walkDirs = runDirectionToWalkDirections(code);
-            const dirs: number[] = walkDirs
-                ? [walkDirs[0] & 7, walkDirs[1] & 7]
-                : [];
             const traversal = resolveTraversalDefault(state);
             if (needsUpdate && !localOutOfBounds) {
                 state.pendingMove = {
                     tileX: targetX,
                     tileY: targetY,
-                    directions: dirs,
+                    // OSRS parity: moveType=2 does NOT send per-step directions; the client
+                    // reconstructs any intermediate tile via class232 (GraphicsObject.method2132).
+                    directions: [],
                     movedTwoTiles: true,
                 };
             } else {
@@ -334,7 +328,7 @@ export class PlayerUpdateDecoder {
                     state,
                     targetX,
                     targetY,
-                    dirs,
+                    [],
                     traversal,
                     index,
                     movements,
@@ -419,12 +413,6 @@ export class PlayerUpdateDecoder {
             const regionY = packed & 0xff;
             const coordX = stream.readBits(13) & 0x1fff;
             const coordY = stream.readBits(13) & 0x1fff;
-            const hasWorldView = stream.readBits(1) === 1;
-            let worldViewId = -1;
-            if (hasWorldView) {
-                worldViewId = stream.readBits(16) & 0xffff;
-                if (worldViewId === 0) worldViewId = -1;
-            }
             const needsUpdate = stream.readBits(1) === 1;
 
             const worldX = (regionX << 13) | coordX | 0;
@@ -450,7 +438,6 @@ export class PlayerUpdateDecoder {
                 tile: { x: worldX, y: worldY, level: plane },
                 preserveQueue: false,
                 needsAppearance: true,
-                worldViewId,
             });
             return true;
         }
@@ -568,7 +555,7 @@ export class PlayerUpdateDecoder {
                     }
                 }
                 if ((mask & PlayerUpdateMask.MovementType) !== 0) {
-                    // readByteNeg for movement type enum ordinal.
+                    // readByteNeg (class231 enum ordinal in the reference client).
                     update.movementType = toSignedByte(stream.readUnsignedByteC()) | 0;
                     const normalized = clampTraversal(update.movementType);
                     if (normalized !== undefined) {

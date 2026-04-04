@@ -85,15 +85,9 @@ export const enum ServerPacketId {
     // WORLD UPDATES (130-149)
     // ========================================
     LOC_CHANGE = 130,
-    LOC_ADD_CHANGE = 134,
-    LOC_DEL = 135,
     SOUND = 131,
     PLAY_JINGLE = 132,
     PLAY_SONG = 133,
-    REBUILD_REGION = 140,
-    REBUILD_NORMAL = 141,
-    REBUILD_WORLDENTITY = 142,
-    WORLDENTITY_INFO = 143,
 
     // ========================================
     // SHOP/TRADE (150-169)
@@ -128,11 +122,6 @@ export const enum ServerPacketId {
     // NOTIFICATIONS (200-209)
     // ========================================
     NOTIFICATION = 200,
-
-    // ========================================
-    // GAMEMODE (210-219)
-    // ========================================
-    GAMEMODE_DATA = 210,
 
     // ========================================
     // DEBUG (250-255)
@@ -202,17 +191,10 @@ export const SERVER_PACKET_LENGTHS: Record<ServerPacketId, number> = {
     [ServerPacketId.CHAT_MESSAGE]: -1,
 
     [ServerPacketId.LOC_CHANGE]: -1,
-    [ServerPacketId.LOC_ADD_CHANGE]: -1,
-    [ServerPacketId.LOC_DEL]: -1,
     [ServerPacketId.SOUND]: -1,
     [ServerPacketId.PLAY_JINGLE]: 5, // jingleId(2) + delay(3, IME)
     // OSRS parity: mirrors Skills.method6928([trackId], outDelay, outDur, inDelay, inDur)
     [ServerPacketId.PLAY_SONG]: 10, // trackId(2) + outDelay(2) + outDur(2) + inDelay(2) + inDur(2)
-
-    [ServerPacketId.REBUILD_REGION]: -2,
-    [ServerPacketId.REBUILD_NORMAL]: -2,
-    [ServerPacketId.REBUILD_WORLDENTITY]: -2,
-    [ServerPacketId.WORLDENTITY_INFO]: -1, // count(1) + per-entity updates + new spawns
 
     [ServerPacketId.SHOP_OPEN]: -2,
     [ServerPacketId.SHOP_SLOT]: -1,
@@ -232,8 +214,6 @@ export const SERVER_PACKET_LENGTHS: Record<ServerPacketId, number> = {
     [ServerPacketId.COLLECTION_LOG_SNAPSHOT]: -2, // count(2) + slots(var)
 
     [ServerPacketId.NOTIFICATION]: -1, // kind(1) + title(var) + message(var) + itemId(2) + quantity(4) + durationMs(2)
-
-    [ServerPacketId.GAMEMODE_DATA]: -2,
 
     [ServerPacketId.DEBUG]: -2,
 };

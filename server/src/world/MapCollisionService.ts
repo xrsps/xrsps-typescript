@@ -320,36 +320,6 @@ export class MapCollisionService {
         return undefined;
     }
 
-    /**
-     * Build an instance scene from template chunks and return its collision maps.
-     * Used for per-WorldView collision (e.g., sailing boat deck).
-     */
-    buildInstanceCollision(
-        templateChunks: number[][][],
-        baseX: number,
-        baseY: number,
-        sizeX: number,
-        sizeY: number,
-    ): CollisionMap[] | undefined {
-        const builder = this.ensureSceneBuilder();
-        if (!builder) return undefined;
-        try {
-            const scene = builder.buildInstanceScene(
-                templateChunks,
-                baseX,
-                baseY,
-                sizeX,
-                sizeY,
-                false,
-                LocLoadType.NO_MODELS,
-            );
-            return scene.collisionMaps;
-        } catch (e) {
-            console.warn("[MapCollisionService] buildInstanceCollision failed", e);
-            return undefined;
-        }
-    }
-
     // Convenience helpers for server systems to query world-space data
     getTileFlagsAt(worldX: number, worldY: number, plane: number): number | undefined {
         const mapX = this.mapSquareCoord(worldX);

@@ -213,7 +213,6 @@ export class NpcState extends Actor {
     /** Flag to force a sync update to clients (e.g., when path is cleared during combat) */
     private forceSyncUpdate: boolean = false;
     private followerState?: NpcFollowerState;
-    worldViewId: number = -1;
 
     constructor(
         id: number,

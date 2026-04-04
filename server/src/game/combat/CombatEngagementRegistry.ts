@@ -9,7 +9,7 @@ export interface CombatEngagementEntry {
 
 /**
  * Stores active player-vs-NPC combat engagements keyed by player PID.
- * Centralizes per-entity combat state under manager ownership.
+ * Mirrors deob-style manager ownership where per-entity state is centralized.
  */
 export class CombatEngagementRegistry {
     private readonly byPlayerId = new Map<number, CombatEngagementEntry>();

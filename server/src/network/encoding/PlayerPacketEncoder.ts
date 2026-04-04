@@ -668,13 +668,6 @@ export class PlayerPacketEncoder {
             const coordY = tileY & 0x1fff;
             writer.writeBits(13, coordX);
             writer.writeBits(13, coordY);
-            const wvId = view.worldViewId ?? -1;
-            if (wvId >= 0) {
-                writer.writeBits(1, 1);
-                writer.writeBits(16, wvId & 0xffff);
-            } else {
-                writer.writeBits(1, 0);
-            }
             writer.writeBits(1, 1);
             pendingUpdateWriteOrder.push(id);
             return true;

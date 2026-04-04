@@ -1,8 +1,8 @@
 import { ByteBuffer } from "../../io/ByteBuffer";
 
 /**
- * Legacy SoundEnvelope implementation for synthesized sound effects (pre-Vorbis).
- * Used to shape volume/pitch envelopes.
+ * Legacy SoundEnvelope implementation ported from the RuneScape client.
+ * Used by legacy synthesized sound effects (pre-Vorbis) to shape volume/pitch.
  */
 export class SoundEnvelope {
     private segments = 2;

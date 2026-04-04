@@ -180,6 +180,7 @@ export class BitmapFont {
     }
 
     private readMetrics(data: Int8Array) {
+        // Aligns with references/runescape-client AbstractFont.readMetrics
         if (data.length === 257) {
             const buf = new ByteBuffer(data);
             for (let i = 0; i < 256; i++) this.advances[i] = buf.readUnsignedByte();

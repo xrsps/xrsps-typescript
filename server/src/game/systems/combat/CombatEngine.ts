@@ -1270,15 +1270,6 @@ export class CombatEngine {
             return { kind: "ranged", mode, bonusIndex: AttackBonusIndex.Ranged };
         }
         if (mappedAttackType === "melee") {
-            // OSRS parity: Autocast overrides melee style on staves.
-            // When autocast is enabled with a valid spell, the attack is magic even if
-            // the style slot maps to a melee attack type (e.g., "Bash" on style 0).
-            if (autocastEnabled && hasCombatSpell) {
-                const autocastMode = player.autocastMode;
-                const mode: MagicStyleMode =
-                    autocastMode === "defensive_autocast" ? "defensive" : "accurate";
-                return { kind: "magic", mode, bonusIndex: AttackBonusIndex.Magic };
-            }
             // Use weapon-specific style data for correct XP mode
             const weaponId = player.combatWeaponItemId ?? -1;
             const meleeMode = this.getMeleeStyleMode(weaponId, styleSlot);

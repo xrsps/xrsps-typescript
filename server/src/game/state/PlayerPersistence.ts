@@ -216,7 +216,7 @@ function mergeStates(
     if (!defaults && !overrides) return undefined;
     const varps: Record<number, number> = {};
     const varbits: Record<number, number> = {};
-    let gamemodeData: Record<string, unknown> | undefined;
+    const leagueTaskProgress: Record<number, number> = {};
     const sources: PlayerPersistentVars[] = [defaults ?? {}, overrides ?? {}];
     for (const source of sources) {
         if (source.varps) {
@@ -235,16 +235,31 @@ function mergeStates(
                 }
             }
         }
-        // Merge gamemodeData (shallow merge, latest source wins per key)
-        if (source.gamemodeData) {
-            gamemodeData = { ...(gamemodeData ?? {}), ...source.gamemodeData };
+        if (source.leagueTaskProgress) {
+            for (const [key, value] of Object.entries(source.leagueTaskProgress)) {
+                const taskId = parseInt(key, 10);
+                if (!Number.isNaN(taskId)) {
+                    leagueTaskProgress[taskId] = value;
+                }
+            }
         }
     }
     const result: PlayerPersistentVars = {};
     if (Object.keys(varps).length > 0) result.varps = varps;
     if (Object.keys(varbits).length > 0) result.varbits = varbits;
-    if (gamemodeData && Object.keys(gamemodeData).length > 0) {
-        result.gamemodeData = gamemodeData;
+    if (Object.keys(leagueTaskProgress).length > 0) {
+        const sanitizedLeagueTaskProgress: Record<number, number> = {};
+        for (const [key, value] of Object.entries(leagueTaskProgress)) {
+            const taskId = parseInt(key, 10);
+            if (Number.isNaN(taskId) || taskId < 0) continue;
+            const normalized = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+            if (normalized > 0) {
+                sanitizedLeagueTaskProgress[taskId] = normalized;
+            }
+        }
+        if (Object.keys(sanitizedLeagueTaskProgress).length > 0) {
+            result.leagueTaskProgress = sanitizedLeagueTaskProgress;
+        }
     }
     const bankSource = overrides?.bank ?? defaults?.bank;
     if (bankSource) {

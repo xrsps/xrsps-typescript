@@ -126,13 +126,13 @@ export class PlayerChatheadFactory {
         if (equip && equip.length > 0) {
             const rawHead = equip[0];
             if (rawHead >= 256 && rawHead < 512) {
-                // 256-511 encodes a kit (id = val - 256)
+                // RuneScape client: 256-511 encodes a kit (id = val - 256)
                 const kitId = rawHead - 256;
                 console.log("[PlayerChatheadFactory] Head slot encoded as kit", { rawHead, kitId });
                 pushKitModels(kitId);
                 headCoveredByItem = true;
             } else if (rawHead >= 0 && this.objTypeLoader) {
-                // Item ids encoded as val - 512 (but try raw first)
+                // RuneScape client: item ids encoded as val - 512 (but try raw first)
                 const candidates: number[] = [];
                 const masked = rawHead & 0x7fff;
                 const offsets = [0, -512, -1024, -2048, 512, 1024, 2048];

@@ -27,7 +27,7 @@ export const BaseComponentUids = {
     MAINMODAL: (161 << 16) | 16, // toplevel_osrs_stretch:mainmodal
     VIEWPORT_TRACKER_BACK: (161 << 16) | 15,
     VIEWPORT_TRACKER_FRONT: (161 << 16) | 17,
-    FLOATER_OVERLAY: (161 << 16) | 18,
+    MAINMODAL_BACKGROUNDS: (161 << 16) | 18,
     XP_DROPS: (161 << 16) | 19,
     HUD_CONTAINER_BACK: (161 << 16) | 20,
     HUD_CONTAINER_FRONT: (161 << 16) | 21,

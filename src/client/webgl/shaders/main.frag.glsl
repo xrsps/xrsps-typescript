@@ -8,7 +8,6 @@ layout(std140, column_major) uniform;
 
 uniform highp sampler2DArray u_textures;
 uniform highp isampler2D u_textureMaterials;
-uniform float u_worldEntityOpacity;
 
 #include "./includes/material.glsl";
 
@@ -57,5 +56,5 @@ void main() {
 
     vec3 finalRgb = mix(surface, u_skyColor.rgb, fog);
 
-    fragColor = vec4(clamp(finalRgb, 0.0, 1.0), alpha * u_worldEntityOpacity);
+    fragColor = vec4(clamp(finalRgb, 0.0, 1.0), alpha);
 }

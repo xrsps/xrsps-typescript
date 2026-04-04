@@ -46,6 +46,7 @@ import {
  */
 const PLAYER_CHASE_DISTANCE_TILES = 32;
 
+const LEAGUE_TUTOR_NPC_TYPE_ID = 315;
 
 /**
  * Calculates the Chebyshev distance from a point to the nearest tile of a rectangular entity.
@@ -154,6 +155,15 @@ export class PlayerInteractionSystem {
         player: PlayerState,
         interaction: GroundItemInteractionState,
     ) => void;
+    private onLocInteraction?: (
+        player: PlayerState,
+        interaction: {
+            locId: number;
+            tile: { x: number; y: number };
+            level: number;
+            action?: string;
+        },
+    ) => void;
     private onGameMessage?: (player: PlayerState, text: string) => void;
     /**
      * OSRS parity: Callback to interrupt/cancel all queued skill actions for a player.
@@ -228,6 +238,20 @@ export class PlayerInteractionSystem {
         callback: (player: PlayerState, interaction: GroundItemInteractionState) => void,
     ): void {
         this.onGroundItemInteraction = callback;
+    }
+
+    setLocInteractionCallback(
+        callback: (
+            player: PlayerState,
+            interaction: {
+                locId: number;
+                tile: { x: number; y: number };
+                level: number;
+                action?: string;
+            },
+        ) => void,
+    ): void {
+        this.onLocInteraction = callback;
     }
 
     setGameMessageCallback(callback: (player: PlayerState, text: string) => void): void {
@@ -433,16 +457,15 @@ export class PlayerInteractionSystem {
         if (!npc) return { ok: false, message: "npc not found" };
         if (npc.getHitpoints() <= 0) return { ok: false, message: "npc_dead" };
 
-        // Block interactions during tutorial (gamemode can override per NPC)
-        if (!me.canInteract()) {
-            const normalizedOption = String(option ?? "").trim().toLowerCase();
-            const { PlayerState } = require("../player");
-            const allowed = PlayerState.gamemodeRef?.canInteractWithNpc?.(
-                me, npc.typeId, normalizedOption,
-            ) ?? false;
-            if (!allowed) {
-                return { ok: false, message: "interaction_blocked" };
-            }
+        // Block interactions during tutorial
+        const normalizedOption = String(option ?? "")
+            .trim()
+            .toLowerCase();
+        const leagueTutorTalkAllowed =
+            npc.typeId === LEAGUE_TUTOR_NPC_TYPE_ID &&
+            (normalizedOption === "" || normalizedOption === "talk-to");
+        if (!me.canInteract() && !leagueTutorTalkAllowed) {
+            return { ok: false, message: "interaction_blocked" };
         }
 
         // OSRS parity: Starting a new NPC interaction cancels any active skill actions
@@ -1478,6 +1501,12 @@ export class PlayerInteractionSystem {
             level: interactionLevel,
             action: info.action,
         };
+        this.onLocInteraction?.(player, {
+            locId: info.id,
+            tile: { x: info.tile.x, y: info.tile.y },
+            level: interactionLevel,
+            action: info.action,
+        });
         const scriptHandled = immediate
             ? this.scriptRuntime?.runLocInteractionNow(event) ?? false
             : this.scriptRuntime?.queueLocInteraction(event) ?? false;

@@ -17,7 +17,6 @@ export type NpcSpawn = {
     level: number;
     rot: number;
     teleport: boolean;
-    worldViewId: number;
 };
 
 export type NpcMovement = {
@@ -166,10 +165,8 @@ export class NpcUpdateDecoder {
 
             const needsUpdate = (stream.readBits(1) | 0) === 1;
             const hasExtra32 = (stream.readBits(1) | 0) === 1;
-            let worldViewId = -1;
             if (hasExtra32) {
-                worldViewId = stream.readBits(32) & 0xffff;
-                if (worldViewId === 0) worldViewId = -1;
+                stream.readBits(32);
             }
             const teleport = (stream.readBits(1) | 0) === 1;
 
@@ -204,7 +201,6 @@ export class NpcUpdateDecoder {
                 level: opts.level | 0,
                 rot,
                 teleport,
-                worldViewId,
             });
             nextIndices.push(npcId);
             if (needsUpdate) needsUpdateIds.push(npcId);

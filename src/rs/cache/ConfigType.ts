@@ -34,7 +34,6 @@ export class ConfigType {
         mapFunctions: 35,
         dbRow: 38,
         dbTable: 39,
-        worldEntity: 72,
     };
 
     static readonly RS2 = {

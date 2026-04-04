@@ -73,50 +73,28 @@ export type StaffSubstitution = {
     negatesRune: number; // Rune ID that is negated when wielding this staff
 };
 
-// Staves and equipment that negate rune costs (OSRS parity).
-// Each entry lists weapon item IDs that provide unlimited runes of a given type.
+// Elemental staves that negate rune costs
 export const STAFF_SUBSTITUTIONS: StaffSubstitution[] = [
-    // ---- Air rune providers ----
-    // Staff of air (1381), Air battlestaff (1397), Mystic air staff (1405)
-    { itemIds: [1381, 1397, 1405], negatesRune: RUNE_IDS.AIR },
-    // Smoke battlestaff (21198), Mystic smoke staff (12000) — Air + Fire
-    { itemIds: [21198, 12000], negatesRune: RUNE_IDS.AIR },
-    // Mist battlestaff (21200) — Air + Water
-    { itemIds: [21200], negatesRune: RUNE_IDS.AIR },
-    // Dust battlestaff (21202) — Air + Earth
-    { itemIds: [21202], negatesRune: RUNE_IDS.AIR },
-
-    // ---- Water rune providers ----
-    // Staff of water (1383), Water battlestaff (1399), Mystic water staff (1407)
-    { itemIds: [1383, 1399, 1407], negatesRune: RUNE_IDS.WATER },
-    // Mud battlestaff (6562), Mystic mud staff (6563) — Water + Earth
-    { itemIds: [6562, 6563], negatesRune: RUNE_IDS.WATER },
-    // Steam battlestaff (11787), Mystic steam staff (11998) — Water + Fire
-    { itemIds: [11787, 11998], negatesRune: RUNE_IDS.WATER },
-    // Mist battlestaff (21200) — Air + Water
-    { itemIds: [21200], negatesRune: RUNE_IDS.WATER },
-    // Kodai wand (21006)
-    { itemIds: [21006], negatesRune: RUNE_IDS.WATER },
-
-    // ---- Earth rune providers ----
-    // Staff of earth (1385), Earth battlestaff (1401)
-    { itemIds: [1385, 1401], negatesRune: RUNE_IDS.EARTH },
-    // Mud battlestaff (6562), Mystic mud staff (6563) — Water + Earth
-    { itemIds: [6562, 6563], negatesRune: RUNE_IDS.EARTH },
-    // Lava battlestaff (11789) — Earth + Fire
-    { itemIds: [11789], negatesRune: RUNE_IDS.EARTH },
-    // Dust battlestaff (21202) — Air + Earth
-    { itemIds: [21202], negatesRune: RUNE_IDS.EARTH },
-
-    // ---- Fire rune providers ----
-    // Staff of fire (1387), Fire battlestaff (1403), Mystic fire staff (1411)
-    { itemIds: [1387, 1403, 1411], negatesRune: RUNE_IDS.FIRE },
-    // Smoke battlestaff (21198), Mystic smoke staff (12000) — Air + Fire
-    { itemIds: [21198, 12000], negatesRune: RUNE_IDS.FIRE },
-    // Steam battlestaff (11787), Mystic steam staff (11998) — Water + Fire
-    { itemIds: [11787, 11998], negatesRune: RUNE_IDS.FIRE },
-    // Lava battlestaff (11789) — Earth + Fire
-    { itemIds: [11789], negatesRune: RUNE_IDS.FIRE },
+    // Air staves
+    { itemIds: [1381, 1397, 1405, 3053, 11736, 11738, 21777, 21793], negatesRune: RUNE_IDS.AIR },
+    // Water staves
+    { itemIds: [1383, 1395, 1403, 6562, 6563, 22296, 22305], negatesRune: RUNE_IDS.WATER },
+    // Earth staves
+    { itemIds: [1385, 1399, 1407, 3054, 6562, 22289, 22298], negatesRune: RUNE_IDS.EARTH },
+    // Fire staves
+    {
+        itemIds: [1387, 1393, 1401, 3055, 6563, 20736, 22280, 22299, 22292],
+        negatesRune: RUNE_IDS.FIRE,
+    },
+    // Lava battlestaff (negates both earth and fire)
+    { itemIds: [21198, 22294], negatesRune: RUNE_IDS.FIRE },
+    { itemIds: [21198, 22294], negatesRune: RUNE_IDS.EARTH },
+    // Mud battlestaff (negates both water and earth)
+    { itemIds: [6562], negatesRune: RUNE_IDS.WATER },
+    { itemIds: [6562], negatesRune: RUNE_IDS.EARTH },
+    // Steam battlestaff (negates both water and fire)
+    { itemIds: [6563], negatesRune: RUNE_IDS.WATER },
+    { itemIds: [6563], negatesRune: RUNE_IDS.FIRE },
 ];
 
 // Tome of fire provides infinite fire runes

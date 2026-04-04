@@ -1,9 +1,9 @@
-uniform int u_sceneBorderSize;
+const int sceneBorderSize = 6;
 const int tileSize = 128;
 const int tileSizeShift = 7;
 
 int getTileHeight(int x, int z, uint plane) {
-    return texelFetch(u_heightMap, ivec3(u_sceneBorderSize + x, u_sceneBorderSize + z, plane), 0).r * 8;
+    return texelFetch(u_heightMap, ivec3(sceneBorderSize + x, sceneBorderSize + z, plane), 0).r * 8;
 }
 
 // Height interpolation that matches the terrain mesh surface.

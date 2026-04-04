@@ -78,7 +78,7 @@ export interface OverheadTextEntry {
     colorId?: number;
     effect: number;
     modIcon?: number;
-    /** Per-character palette for extended colours. */
+    /** Per-character palette for extended colours (field1198 in the reference client). */
     pattern?: Int32Array;
     life: number;
     remaining: number;

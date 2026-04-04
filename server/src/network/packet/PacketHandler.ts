@@ -822,7 +822,7 @@ export function decodePacket(opcode: number, data: Uint8Array): DecodedPacket {
         }
 
         // APPEARANCE_SET (37) - Submit player appearance selection (PlayerDesign confirm)
-        // Length 13:
+        // ClientPacket.field3200 in deob, length 13:
         // - gender (byte)
         // - kits (7 bytes, -1 = 0xff)
         // - colors (5 bytes)

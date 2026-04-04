@@ -3,9 +3,9 @@ import type { PathService } from "../../pathfinding/PathService";
 import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { WidgetAction } from "../../widgets/WidgetManager";
 import { type DoorStateManager } from "../../world/DoorStateManager";
-import { type ActionEffect, type ActionEnqueueResult, type ActionExecutionResult, type ActionKind, type ActionRequest } from "../actions";
+import { type ActionEnqueueResult, type ActionKind, type ActionRequest } from "../actions";
 import type { OwnedItemLocation } from "../items/playerItemOwnership";
-import { type NpcSpawnConfig, type NpcState } from "../npc";
+import { type NpcState } from "../npc";
 import { type PlayerState } from "../player";
 import type { FishingSpotDefinition } from "../skills/fishing";
 import type { MiningRockDefinition } from "../skills/mining";
@@ -105,33 +105,6 @@ export type RegionEventHandler = (event: RegionEvent) => void | Promise<void>;
 export interface TickScriptEvent extends ScriptExecutionContext {}
 
 export type TickHandler = (event: TickScriptEvent) => void | Promise<void>;
-
-export interface CommandEvent extends ScriptExecutionContext {
-    player: PlayerState;
-    command: string;
-    args: string[];
-}
-
-export type CommandHandler = (event: CommandEvent) => string | void | Promise<string | void>;
-
-export interface ClientMessageEvent extends ScriptExecutionContext {
-    player: PlayerState;
-    messageType: string;
-    payload: Record<string, unknown>;
-}
-
-export type ClientMessageHandler = (event: ClientMessageEvent) => void | Promise<void>;
-
-export interface ScriptActionHandlerContext {
-    player: PlayerState;
-    data: unknown;
-    tick: number;
-    services: ScriptServices;
-}
-
-export type ScriptActionHandler = (
-    ctx: ScriptActionHandlerContext,
-) => ActionExecutionResult;
 
 export interface ScriptModule {
     id: string;
@@ -265,8 +238,6 @@ export interface IScriptRegistry {
     registerNpcAction(option: string, handler: NpcInteractionHandler): ScriptRegistrationResult;
     registerRegionHandler(regionId: number, handler: RegionEventHandler): ScriptRegistrationResult;
     registerTickHandler(handler: TickHandler): ScriptRegistrationResult;
-    registerCommand(name: string, handler: CommandHandler): ScriptRegistrationResult;
-    findCommand(name: string): CommandHandler | undefined;
     findNpcInteraction(npcId: number, option?: string): NpcInteractionHandler | undefined;
     /** Lookup only npc-specific handlers (instance or type), skipping generic action fallbacks. */
     findNpcInteractionDirect(npcId: number, option?: string): NpcInteractionHandler | undefined;
@@ -294,16 +265,6 @@ export interface IScriptRegistry {
      */
     findButton(interfaceId: number, component: number): WidgetActionHandler | undefined;
     findNpcAction(option?: string): NpcInteractionHandler | undefined;
-    registerClientMessageHandler(
-        messageType: string,
-        handler: ClientMessageHandler,
-    ): ScriptRegistrationResult;
-    findClientMessageHandler(messageType: string): ClientMessageHandler | undefined;
-    registerActionHandler(
-        kind: string,
-        handler: ScriptActionHandler,
-    ): ScriptRegistrationResult;
-    findActionHandler(kind: string): ScriptActionHandler | undefined;
 }
 
 export interface ScriptRegistrationResult {
@@ -533,7 +494,6 @@ export interface ScriptServices {
             preScripts?: Array<{ scriptId: number; args: (number | string)[] }>;
             postScripts?: Array<{ scriptId: number; args: (number | string)[] }>;
             hiddenUids?: number[];
-            modal?: boolean;
         },
     ) => void;
     /**
@@ -564,70 +524,6 @@ export interface ScriptServices {
         y: number,
         level: number,
         forceRebuild?: boolean,
-    ) => void;
-    /**
-     * Teleport a player into a dynamic instance (REBUILD_REGION).
-     * Sends the instance template chunks + XTEA keys before the teleport.
-     * @param player The player to teleport
-     * @param x Target tile X coordinate
-     * @param y Target tile Y coordinate
-     * @param level Target level/plane (0-3)
-     * @param templateChunks 4×13×13 packed template chunk grid (-1 = empty)
-     */
-    /**
-     * Spawn a loc at a world tile (LOC_ADD_CHANGE).
-     * Sends the loc to all nearby players. Does not persist across server restarts.
-     */
-    spawnLoc?: (
-        locId: number,
-        tile: { x: number; y: number },
-        level: number,
-        shape: number,
-        rotation: number,
-    ) => void;
-    /**
-     * Spawn a loc for a specific player only (LOC_ADD_CHANGE).
-     */
-    spawnLocForPlayer?: (
-        player: PlayerState,
-        locId: number,
-        tile: { x: number; y: number },
-        level: number,
-        shape: number,
-        rotation: number,
-    ) => void;
-    teleportToInstance?: (
-        player: PlayerState,
-        x: number,
-        y: number,
-        level: number,
-        templateChunks: number[][][],
-        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
-    ) => void;
-    teleportToWorldEntity?: (
-        player: PlayerState,
-        x: number,
-        y: number,
-        level: number,
-        entityIndex: number,
-        configId: number,
-        sizeX: number,
-        sizeZ: number,
-        templateChunks: number[][][],
-        buildAreas: import("../../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
-        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
-    ) => void;
-    sendWorldEntity?: (
-        player: PlayerState,
-        entityIndex: number,
-        configId: number,
-        sizeX: number,
-        sizeZ: number,
-        templateChunks: number[][][],
-        buildAreas: import("../../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
-        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
-        extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
-        drawMode?: number,
     ) => void;
     /**
      * Schedule a teleport through the server action scheduler.
@@ -696,7 +592,7 @@ export interface ScriptServices {
     queueWidgetEvent?: (playerId: number, event: WidgetAction) => void;
     /**
      * Queue a custom notification payload to be sent to the client.
-     * Used for server-driven toast notifications (gamemode tasks, etc.).
+     * Used for server-driven toast notifications (league tasks, etc.).
      */
     queueNotification?: (playerId: number, payload: any) => void;
     /**
@@ -742,7 +638,7 @@ export interface ScriptServices {
     /** Access InterfaceService for server-managed modal interfaces (shops, banks, etc.). */
     getInterfaceService?: () => InterfaceService | undefined;
     /**
-     * Open the remaining tab interfaces when the gamemode tutorial completes.
+     * Open the remaining tab interfaces when the league tutorial completes.
      * During the tutorial, only the Quest tab is shown. When the tutorial finishes,
      * this method opens all the other tabs (Combat, Skills, Inventory, etc.).
      * @param player The player to open tabs for
@@ -765,90 +661,4 @@ export interface ScriptServices {
         player: PlayerState,
     ) => { ok: true; npcId: number } | { ok: false; reason: string };
     despawnFollowerForPlayer?: (playerId: number, clearPersistentState?: boolean) => boolean;
-    spawnNpc?: (config: NpcSpawnConfig) => NpcState | undefined;
-    removeNpc?: (npcId: number) => boolean;
-    initSailingInstance?: (player: PlayerState) => void;
-    disposeSailingInstance?: (player: PlayerState) => void;
-    removeWorldEntity?: (playerId: number, entityIndex: number) => void;
-    queueWorldEntityPosition?: (playerId: number, entityIndex: number, position: { x: number; y: number; z: number; orientation: number }) => void;
-    setWorldEntityPosition?: (playerId: number, entityIndex: number, position: { x: number; y: number; z: number; orientation: number }) => void;
-    queueWorldEntityMask?: (playerId: number, entityIndex: number, mask: { animationId?: number; sequenceFrame?: number; actionMask?: number }) => void;
-    buildSailingDockedCollision?: () => void;
-    gamemodeServices?: Record<string, unknown>;
-    // --- Action handler services ---
-    getNpc?: (id: number) => NpcState | undefined;
-    getSkill?: (player: PlayerState, skillId: number) => { baseLevel: number; boost: number; xp?: number };
-    isPlayerStunned?: (player: PlayerState) => boolean;
-    isPlayerInCombat?: (player: PlayerState) => boolean;
-    hasInventorySlot?: (player: PlayerState) => boolean;
-    applyPlayerHitsplat?: (
-        player: PlayerState,
-        style: number,
-        damage: number,
-        tick: number,
-    ) => { amount: number; style: number; hpCurrent: number; hpMax: number };
-    stunPlayer?: (player: PlayerState, ticks: number) => void;
-    queueNpcForcedChat?: (npc: NpcState, text: string) => void;
-    queueNpcSeq?: (npc: NpcState, seqId: number) => void;
-    faceNpcToPlayer?: (npc: NpcState, player: PlayerState) => void;
-    clearPlayerFaceTarget?: (player: PlayerState) => void;
-    scheduleAction?: (
-        playerId: number,
-        request: ActionRequest,
-        tick: number,
-    ) => { ok: boolean; reason?: string };
-    getEquipArray?: (player: PlayerState) => number[];
-    // --- Gathering / production skill services ---
-    isAdjacentToLoc?: (player: PlayerState, locId: number, tile: { x: number; y: number }, level: number) => boolean;
-    isAdjacentToNpc?: (player: PlayerState, npc: NpcState) => boolean;
-    faceGatheringTarget?: (player: PlayerState, tile: { x: number; y: number }) => void;
-    collectCarriedItemIds?: (player: PlayerState) => number[];
-    addItemToBank?: (player: PlayerState, itemId: number, quantity: number) => boolean;
-    findInventorySlotWithItem?: (player: PlayerState, itemId: number) => number | undefined;
-    canStoreItem?: (player: PlayerState, itemId: number) => boolean;
-    playerHasItem?: (player: PlayerState, itemId: number) => boolean;
-    enqueueSoundBroadcast?: (soundId: number, x: number, y: number, level: number) => void;
-    stopPlayerAnimation?: (player: PlayerState) => void;
-    stopGatheringInteraction?: (player: PlayerState) => void;
-    // --- Woodcutting depletion ---
-    isWoodcuttingDepleted?: (key: string) => boolean;
-    markWoodcuttingDepleted?: (info: {
-        key: string; locId: number; stumpId: number;
-        tile: { x: number; y: number }; level: number; treeId: string;
-        respawnTicks?: { min: number; max: number };
-    }, tick: number) => void;
-    // --- Mining depletion ---
-    isMiningDepleted?: (key: string) => boolean;
-    markMiningDepleted?: (info: {
-        key: string; locId: number; depletedLocId?: number;
-        tile: { x: number; y: number }; level: number; rockId: string;
-        respawnTicks?: { min: number; max: number };
-    }, tick: number) => void;
-    // --- Flax depletion ---
-    isFlaxDepleted?: (tile: { x: number; y: number }, level: number) => boolean;
-    markFlaxDepleted?: (info: {
-        tile: { x: number; y: number }; level: number; locId: number; respawnTicks: number;
-    }, tick: number) => void;
-    // --- Firemaking ---
-    isTileLit?: (tile: { x: number; y: number }, level: number) => boolean;
-    isFiremakingTileBlocked?: (tile: { x: number; y: number }, level: number) => boolean;
-    lightFire?: (params: {
-        tile: { x: number; y: number }; level: number; logItemId: number;
-        currentTick: number; burnTicks: { min: number; max: number };
-        fireObjectId: number; previousLocId: number; ownerId: number;
-    }) => { fireObjectId: number };
-    playerHasTinderbox?: (player: PlayerState) => boolean;
-    consumeFiremakingLog?: (player: PlayerState, logId: number, slotIndex?: number) => number | undefined;
-    walkPlayerAwayFromFire?: (player: PlayerState, fireTile: { x: number; y: number }) => void;
-    // --- Recipe lookups (for echo perk auto-cook) ---
-    getCookingRecipeByRawItemId?: (itemId: number) => { cookedItemId: number; xp: number } | undefined;
-    // --- Inventory restore ---
-    restoreInventoryItems?: (player: PlayerState, itemId: number, removed: Map<number, number>) => void;
-    // --- Production skill services ---
-    takeInventoryItems?: (player: PlayerState, inputs: Array<{ itemId: number; quantity: number }>) => { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> };
-    restoreInventoryRemovals?: (player: PlayerState, removed: Map<number, { itemId: number; quantity: number }>) => void;
-    updateSmithingInterface?: (player: PlayerState) => void;
-    updateSmeltingInterface?: (player: PlayerState) => void;
-    getRingOfForgingCharges?: (player: PlayerState) => number | undefined;
-    consumeRingOfForgingCharge?: (player: PlayerState) => void;
 }

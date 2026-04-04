@@ -23,7 +23,7 @@ export type NpcDropEntryDefinition = {
     altRarity?: ProbabilityInput;
     condition?: DropConditionDefinition;
     altCondition?: DropConditionDefinition;
-    dropBoostEligible?: boolean;
+    leagueBoostEligible?: boolean;
 };
 
 export type NpcDropPoolDefinition = {
@@ -45,7 +45,7 @@ export type NpcDropEntry = {
     altProbability?: number;
     condition?: DropConditionDefinition;
     altCondition?: DropConditionDefinition;
-    dropBoostEligible: boolean;
+    leagueBoostEligible: boolean;
 };
 
 export type NpcDropPool = {
@@ -64,7 +64,8 @@ export type NpcDropTable = {
 export type DropRecipient = {
     ownerId?: number;
     player?: PlayerState;
-    dropRateMultiplier: number;
+    isLeagueVWorld: boolean;
+    leagueDropRateMultiplier: number;
 };
 
 export type DropContext = {
@@ -73,8 +74,6 @@ export type DropContext = {
     tile: { x: number; y: number; level: number };
     isWilderness: boolean;
     recipients: DropRecipient[];
-    worldViewId?: number;
-    transformItemId?: (npcTypeId: number, itemId: number, recipient: DropRecipient) => number;
 };
 
 export type DropRollResult = PendingNpcDrop[];

@@ -1,7 +1,6 @@
 import { MapFileIndex, getMapSquareId } from "../rs/map/MapFileIndex";
 import { Scene } from "../rs/scene/Scene";
 import { Camera } from "./Camera";
-import { ClientState } from "./ClientState";
 
 // Returns squared distance (no sqrt needed for sorting)
 function getMapDistanceSq(x: number, z: number, mapX: number, mapY: number): number {
@@ -43,8 +42,6 @@ export class MapManager<T extends MapSquare> {
 
     invalidMapIds: Set<number> = new Set();
     loadingMapIds: Set<number> = new Set();
-    /** Map IDs that belong to world entity overlays — always included in visible set. */
-    worldEntityMapIds: Set<number> = new Set();
 
     // Legacy resident budget knobs kept for compatibility with existing settings UI.
     // Top-level streaming now prunes maps strictly to the active grid for OSRS parity.
@@ -341,9 +338,6 @@ export class MapManager<T extends MapSquare> {
     }
 
     private pruneOutsideGrid(gridSet: Set<number>): void {
-        // In instance mode, don't prune — the instance map won't be in the normal grid
-        if (ClientState.inInstance) return;
-
         const staleMapIds: number[] = [];
         for (const mapId of this.mapSquares.keys()) {
             if (!gridSet.has(mapId)) {
@@ -457,17 +451,6 @@ export class MapManager<T extends MapSquare> {
         sceneBaseY?: number,
         expandedMapLoading?: number,
     ): void {
-        // In instance mode, skip grid rebuild entirely — only render the instance scene
-        if (ClientState.inInstance) {
-            this.visibleMapCount = 0;
-            for (const mapSquare of this.mapSquares.values()) {
-                if (mapSquare.canRender(frameCount)) {
-                    this.visibleMaps[this.visibleMapCount++] = mapSquare;
-                }
-            }
-            return;
-        }
-
         const playerMapX = Math.floor(posX / Scene.MAP_SQUARE_SIZE);
         const playerMapY = Math.floor(posZ / Scene.MAP_SQUARE_SIZE);
         const baseX = Number(sceneBaseX) | 0;
@@ -656,34 +639,18 @@ export class MapManager<T extends MapSquare> {
 
         // Collect visible maps from the active grid only.
         this.visibleMapCount = 0;
+        const renderMapIds = this.collectRenderGridMapIds(sortX, sortZ);
+        for (let i = 0; i < renderMapIds.length; i++) {
+            const mapId = renderMapIds[i];
 
-        if (ClientState.inInstance) {
-            // Instance mode: all loaded maps are visible (no grid filtering)
-            for (const mapSquare of this.mapSquares.values()) {
-                if (mapSquare.canRender(frameCount)) {
-                    this.visibleMaps[this.visibleMapCount++] = mapSquare;
-                }
-            }
-        } else {
-            const renderMapIds = this.collectRenderGridMapIds(sortX, sortZ);
-            for (let i = 0; i < renderMapIds.length; i++) {
-                const mapId = renderMapIds[i];
-
-                this._lastUsed.set(mapId, this._useCounter++);
-                const mapSquare = this.mapSquares.get(mapId);
-                if (!mapSquare) continue;
-                if (mapSquare.canRender(frameCount)) {
-                    this.visibleMaps[this.visibleMapCount++] = mapSquare;
-                }
-            }
-
-            // World entity overlays are always visible on top of the normal world
-            for (const weMapId of this.worldEntityMapIds) {
-                const mapSquare = this.mapSquares.get(weMapId);
-                if (!mapSquare) continue;
-                if (mapSquare.canRender(frameCount)) {
-                    this.visibleMaps[this.visibleMapCount++] = mapSquare;
-                }
+            this._lastUsed.set(mapId, this._useCounter++);
+            const mapSquare = this.mapSquares.get(mapId);
+            if (!mapSquare) continue;
+            // Avoid coarse 64x64 frustum culling at map-square granularity.
+            // It can drop edge squares too aggressively; fine-grained scene culling
+            // inside the renderer handles visibility.
+            if (mapSquare.canRender(frameCount)) {
+                this.visibleMaps[this.visibleMapCount++] = mapSquare;
             }
         }
     }

@@ -1,5 +1,4 @@
 import { DirectionFlag } from "../../../src/shared/Direction";
-import type { SailingWorldView } from "../game/sailing/SailingWorldView";
 import { CollisionOverlayStore } from "../world/CollisionOverlayStore";
 import { MapCollisionService } from "../world/MapCollisionService";
 import { resolveCollisionPlaneAt } from "../world/PlaneResolver";
@@ -17,7 +16,6 @@ export type PathRequest = {
     from: { x: number; y: number; plane: number };
     to: { x: number; y: number };
     size?: number;
-    worldViewId?: number;
 };
 
 const clampPlane = (plane: number): number => Math.max(0, Math.min(Math.trunc(plane), 3));
@@ -28,7 +26,6 @@ export class PathService {
     private map: MapCollisionService;
     private pf: Pathfinder;
     private collisionOverlays?: CollisionOverlayStore;
-    private worldViewCollision: Map<number, SailingWorldView> = new Map();
 
     constructor(map: MapCollisionService, graphSize = 128) {
         this.map = map;
@@ -48,42 +45,6 @@ export class PathService {
      */
     getCollisionOverlays(): CollisionOverlayStore | undefined {
         return this.collisionOverlays;
-    }
-
-    registerWorldViewCollision(worldViewId: number, view: SailingWorldView): void {
-        this.worldViewCollision.set(worldViewId, view);
-    }
-
-    removeWorldViewCollision(worldViewId: number): void {
-        this.worldViewCollision.delete(worldViewId);
-    }
-
-    /**
-     * Resolve the effective worldViewId for a pathfinding request.
-     *
-     * If the request already carries a worldViewId, honour it.
-     * Otherwise, auto-detect by checking whether the source tile falls inside
-     * any registered WorldView.  This ensures EVERY pathfinding call is
-     * automatically constrained — callers never need to remember to pass
-     * worldViewId themselves.
-     */
-    private resolveWorldViewId(req: PathRequest): number | undefined {
-        if (req.worldViewId !== undefined && req.worldViewId >= 0) return req.worldViewId;
-        for (const [id, wv] of this.worldViewCollision) {
-            if (wv.containsWorldTile(req.from.x, req.from.y)) return id;
-        }
-        return undefined;
-    }
-
-    /** Clamp a destination tile to the bounds of a WorldView (no-op when not in one). */
-    clampToWorldView(worldViewId: number | undefined, x: number, y: number): { x: number; y: number } {
-        if (worldViewId === undefined || worldViewId < 0) return { x, y };
-        const wv = this.worldViewCollision.get(worldViewId);
-        if (!wv) return { x, y };
-        return {
-            x: Math.max(wv.baseX, Math.min(wv.baseX + wv.sizeX - 1, x)),
-            y: Math.max(wv.baseY, Math.min(wv.baseY + wv.sizeY - 1, y)),
-        };
     }
 
     /**
@@ -312,11 +273,8 @@ export class PathService {
                 return { ok: true, steps: [] };
             }
 
-            // Auto-resolve WorldView from source position so callers don't need
-            // to pass worldViewId explicitly.
-            const effectiveWvId = this.resolveWorldViewId(req);
-
-            this.fillFlagsAcrossMaps(fromX, fromY, plane, effectiveWvId);
+            // Fill flags window
+            this.fillFlagsAcrossMaps(fromX, fromY, plane);
 
             const collisionStrategy = NORMAL_STRATEGY;
             let rs = routeStrategy ?? new ExactRouteStrategy();
@@ -415,32 +373,16 @@ export class PathService {
         }
     }
 
-    private fillFlagsAcrossMaps(srcTileX: number, srcTileY: number, plane: number, worldViewId?: number): void {
+    private fillFlagsAcrossMaps(srcTileX: number, srcTileY: number, plane: number): void {
         const pf = this.pf;
         const graphBaseX = srcTileX - (pf.graphSize >> 1);
         const graphBaseY = srcTileY - (pf.graphSize >> 1);
-
-        // If player is in a WorldView, use that view's collision
-        const wvCollision = worldViewId !== undefined && worldViewId >= 0
-            ? this.worldViewCollision.get(worldViewId)
-            : undefined;
-
         // Initialize to -1 (treated as blocked)
         for (let i = 0; i < pf.graphSize; i++) pf.flags[i].fill(-1);
         for (let gx = 0; gx < pf.graphSize; gx++) {
             for (let gy = 0; gy < pf.graphSize; gy++) {
                 const wx = graphBaseX + gx;
                 const wy = graphBaseY + gy;
-
-                // When inside a WorldView, only that view's tiles are walkable.
-                // Tiles outside stay as -1 (blocked) — no fallthrough to overworld.
-                if (wvCollision) {
-                    if (wvCollision.containsWorldTile(wx, wy)) {
-                        pf.flags[gx][gy] = wvCollision.getCollisionFlag(plane, wx, wy);
-                    }
-                    continue;
-                }
-
                 const mapX = this.mapSquareCoord64(wx);
                 const mapY = this.mapSquareCoord64(wy);
                 if (mapX < 0 || mapY < 0) continue;
@@ -453,6 +395,7 @@ export class PathService {
                 const cm = ms.collisionMaps[effectivePlane];
                 if (cm && cm.isWithinBounds(localX, localY)) {
                     let flags = cm.getFlag(localX, localY);
+                    // Apply dynamic collision overlays (e.g., open doors)
                     if (this.collisionOverlays) {
                         flags = this.collisionOverlays.applyOverlay(wx, wy, effectivePlane, flags);
                     }
@@ -497,9 +440,8 @@ export class PathService {
                 return { ok: true, waypoints: [] };
             }
 
-            // Auto-resolve WorldView from source position.
-            const effectiveWvId = this.resolveWorldViewId(req);
-            this.fillFlagsAcrossMaps(fromX, fromY, plane, effectiveWvId);
+            // Fill flags window
+            this.fillFlagsAcrossMaps(fromX, fromY, plane);
 
             // Choose collision strategy.
             // NOTE: Do not auto-switch to BLOCKED_STATEGY based on FLOOR bits.
@@ -540,14 +482,6 @@ export class PathService {
 
     /** Return raw collision flag for a world tile at a given plane, or undefined if out-of-bounds. */
     getCollisionFlagAt(worldX: number, worldY: number, plane: number): number | undefined {
-        // Check WorldView collision first — if the tile is inside any registered
-        // WorldView, that view is authoritative and overworld data is irrelevant.
-        for (const [, wv] of this.worldViewCollision) {
-            if (wv.containsWorldTile(worldX, worldY)) {
-                return wv.getCollisionFlag(plane, worldX, worldY);
-            }
-        }
-
         const mapX = this.mapSquareCoord64(worldX);
         const mapY = this.mapSquareCoord64(worldY);
         if (mapX < 0 || mapY < 0) return undefined;
@@ -560,6 +494,7 @@ export class PathService {
         const cm = ms.collisionMaps[l];
         if (!cm?.isWithinBounds(lx, ly)) return undefined;
         let flags = cm.getFlag(lx, ly);
+        // Apply dynamic collision overlays (e.g., open doors)
         if (this.collisionOverlays) {
             flags = this.collisionOverlays.applyOverlay(worldX, worldY, l, flags);
         }

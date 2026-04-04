@@ -76,6 +76,7 @@ function getTargetWidget(ctx: HandlerContext, intOp: number): WidgetNode | null 
     return intOp === 1 ? ctx.dotWidget : ctx.activeWidget;
 }
 
+// references/runelite/.../InterfaceID.java: ToplevelOsm.GAMEFRAME
 const MOBILE_TOPLEVEL_GAMEFRAME_UID = 0x02590014;
 
 function getWidgetScriptHeight(ctx: HandlerContext, w: WidgetNode | null | undefined): number {
@@ -124,7 +125,7 @@ function setTargetWidget(ctx: HandlerContext, intOp: number, w: WidgetNode | nul
 
 /**
  * Pop a CS2 value using the script-var-type id from int stack.
- * Pops a CS2 value using the script-var-type id from int stack.
+ * Deob parity: class34.method710 -> class180.method4601.
  */
 function popValueByScriptVarType(ctx: HandlerContext, scriptVarTypeId: number): any {
     // -1 is used as a null sentinel in script calls that skip a secondary match.
@@ -305,7 +306,8 @@ function ensureWidgetLayout(ctx: HandlerContext, w: WidgetNode): void {
 }
 
 /**
- * CC_SETOBJECT derives itemQuantityMode from ItemComposition.isStackable.
+ * OSRS PARITY/PERF: CC_SETOBJECT derives itemQuantityMode from ItemComposition.isStackable.
+ * Reference: MouseHandler.method721 (r215).
  *
  * Cache the computed mode per item id to avoid repeated loader lookups when large interfaces
  * (e.g., bank) rebuild many slots.
@@ -904,7 +906,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_FIND_CHILD, (ctx, intOp) => {
-        // Opcode 210:
+        // Deob parity (class147 opcode 210):
         // int stack layout (bottom->top):
         // [parentUid, param1Id, value1, param2Id, value2, value1Type, value2Type]
         //
@@ -1264,8 +1266,9 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.CC_GETLAYER, (ctx, intOp) => {
-        // CC_GETLAYER only pushes the widget's parentId (parent widget UID).
+        // OSRS PARITY (r215+): CC_GETLAYER only pushes the widget's parentId (parent widget UID).
         // It does NOT change the active/dot widget selection.
+        // Reference: references/runescape-client/src/main/java/class367.java (ScriptOpcodes.CC_GETLAYER).
         const w = getTargetWidget(ctx, intOp);
         let parentUid = w?.parentUid ?? -1;
         if (w && typeof parentUid === "number" && parentUid !== -1) {
@@ -2301,7 +2304,8 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (w && (w.itemId !== itemId || w.itemQuantity !== amount)) {
             w.itemId = itemId;
             w.itemQuantity = amount;
-            // CC_SETOBJECT sets quantity mode based on stackability; stackable items force mode=1.
+            // OSRS PARITY: CC_SETOBJECT sets quantity mode based on stackability.
+            // Reference: MouseHandler.method721 (r215): stackable items force mode=1.
             w.itemQuantityMode = getSetObjectQuantityMode(ctx, itemId);
             w.itemShowQuantity = undefined;
             markWidgetInteractionDirty(w);
@@ -2449,7 +2453,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // cc_setparam(paramId, value, scriptVarType): set widget param.
-    // Pop type, pop typed value, pop paramId.
+    // Deob parity (class11 opcode 1704): pop type, pop typed value, pop paramId.
     handlers.set(Opcodes.CC_SETPARAM, (ctx, intOp) => {
         const scriptVarTypeId = ctx.popInt() | 0;
         const value = popValueByScriptVarType(ctx, scriptVarTypeId);
@@ -3193,7 +3197,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // if_param(paramId, widgetUid, childIndex): read widget/child param.
-    // Default value comes from ParamType, not script stack.
+    // Deob parity (class180 opcode 2703): default value comes from ParamType, not script stack.
     handlers.set(Opcodes.IF_PARAM, (ctx) => {
         if (ctx.intStackSize < 3) {
             throw new Error("RuntimeException");
@@ -3219,7 +3223,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // if_setparam(paramId, value, widgetUid, childIndex, scriptVarType): set widget/child param.
-    // Pop value by script-var-type id.
+    // Deob parity (class180 opcode 2704): pop value by script-var-type id.
     handlers.set(Opcodes.IF_SETPARAM, (ctx) => {
         if (ctx.intStackSize < 4) {
             throw new Error("RuntimeException");

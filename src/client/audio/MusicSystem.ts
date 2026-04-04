@@ -83,7 +83,7 @@ export class MusicSystem {
     private contextResumeCleanup: (() => void) | null = null;
     private fadeInterval: ReturnType<typeof setInterval> | null = null;
 
-    // MIDI manager state (mirrors SongTask queue behavior)
+    // OSRS-style MIDI manager state (mirrors runescape-client SongTask queue behavior)
     private readonly osrsRequests: OsrsMusicSong[] = [];
     private readonly osrsSongs: OsrsMusicSong[] = [];
     private readonly osrsTaskQueue: OsrsSongTask[] = [];

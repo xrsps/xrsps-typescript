@@ -51,8 +51,8 @@ function normalizeCombatPayload(raw: CombatStatePayload | undefined): CombatStat
 
 /**
  * Dedicated client combat state channel.
- * Subsystem ownership rather than embedding combat state handling inside
- * the global network transport file.
+ * Mirrors deob-style subsystem ownership rather than embedding combat state
+ * handling inside the global network transport file.
  */
 export class CombatStateStore {
     private readonly listeners = new Set<CombatStateListener>();

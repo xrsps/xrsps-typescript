@@ -5,14 +5,7 @@
  * Returns the same message format as the JSON protocol for compatibility.
  */
 import { SERVER_PACKET_LENGTHS, ServerPacketId } from "../../shared/packets/ServerPacketId";
-import {
-    INSTANCE_CHUNK_COUNT,
-    PLANE_COUNT,
-    deriveRegionsFromCenter,
-    deriveRegionsFromTemplates,
-} from "../../shared/instance/InstanceTypes";
 import type { ProjectileLaunch } from "../../shared/projectiles/ProjectileLaunch";
-import type { WorldEntityBuildArea } from "../../shared/worldentity/WorldEntityTypes";
 
 /**
  * Binary packet buffer for client decoding
@@ -20,7 +13,6 @@ import type { WorldEntityBuildArea } from "../../shared/worldentity/WorldEntityT
 export class ServerPacketReader {
     readonly data: Uint8Array;
     offset: number = 0;
-    private bitPos: number = 0;
 
     constructor(data: Uint8Array | ArrayBuffer) {
         this.data = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
@@ -28,32 +20,6 @@ export class ServerPacketReader {
 
     get remaining(): number {
         return this.data.length - this.offset;
-    }
-
-    initBitAccess(): void {
-        this.bitPos = this.offset * 8;
-    }
-
-    readBits(count: number): number {
-        let bytePos = this.bitPos >> 3;
-        let bitOffset = 8 - (this.bitPos & 7);
-        let value = 0;
-        this.bitPos += count;
-        while (count > bitOffset) {
-            value += (this.data[bytePos++] & ((1 << bitOffset) - 1)) << (count - bitOffset);
-            count -= bitOffset;
-            bitOffset = 8;
-        }
-        if (count === bitOffset) {
-            value += this.data[bytePos] & ((1 << bitOffset) - 1);
-        } else {
-            value += (this.data[bytePos] >> (bitOffset - count)) & ((1 << count) - 1);
-        }
-        return value;
-    }
-
-    finishBitAccess(): void {
-        this.offset = (this.bitPos + 7) >> 3;
     }
 
     private ensureRemaining(bytes: number, op: string): void {
@@ -337,209 +303,6 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
                     worldY: reader.readShort(),
                 },
             };
-
-        case ServerPacketId.REBUILD_REGION: {
-            const rebuildRegionY = reader.readShort();
-            const rebuildForceReload = reader.readByte() === 1;
-            const rebuildRegionX = reader.readShort();
-            const numXteaKeys = reader.readShort();
-
-            const templateChunks: number[][][] = new Array(PLANE_COUNT);
-            for (let p = 0; p < PLANE_COUNT; p++) {
-                templateChunks[p] = new Array(INSTANCE_CHUNK_COUNT);
-                for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
-                    templateChunks[p][cx] = new Array(INSTANCE_CHUNK_COUNT);
-                }
-            }
-
-            reader.initBitAccess();
-            for (let p = 0; p < PLANE_COUNT; p++) {
-                for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
-                    for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
-                        const present = reader.readBits(1);
-                        if (present === 1) {
-                            templateChunks[p][cx][cy] = reader.readBits(26);
-                        } else {
-                            templateChunks[p][cx][cy] = -1;
-                        }
-                    }
-                }
-            }
-            reader.finishBitAccess();
-
-            const xteaKeys: number[][] = new Array(numXteaKeys);
-            for (let i = 0; i < numXteaKeys; i++) {
-                xteaKeys[i] = [reader.readInt(), reader.readInt(), reader.readInt(), reader.readInt()];
-            }
-
-            const mapRegions = deriveRegionsFromTemplates(templateChunks);
-
-            return {
-                type: "rebuild_region",
-                payload: {
-                    regionX: rebuildRegionX,
-                    regionY: rebuildRegionY,
-                    forceReload: rebuildForceReload,
-                    templateChunks,
-                    xteaKeys,
-                    mapRegions,
-                },
-            };
-        }
-
-        case ServerPacketId.REBUILD_NORMAL: {
-            const normalRegionX = reader.readShort();
-            const normalRegionY = reader.readShort();
-            const normalForceReload = reader.readByte() === 0;
-            const normalNumXtea = reader.readShort();
-
-            const normalXteaKeys: number[][] = new Array(normalNumXtea);
-            for (let i = 0; i < normalNumXtea; i++) {
-                normalXteaKeys[i] = [reader.readInt(), reader.readInt(), reader.readInt(), reader.readInt()];
-            }
-
-            const normalMapRegions = deriveRegionsFromCenter(normalRegionX, normalRegionY);
-
-            return {
-                type: "rebuild_normal",
-                payload: {
-                    regionX: normalRegionX,
-                    regionY: normalRegionY,
-                    forceReload: normalForceReload,
-                    xteaKeys: normalXteaKeys,
-                    mapRegions: normalMapRegions,
-                },
-            };
-        }
-
-        case ServerPacketId.WORLDENTITY_INFO: {
-            const weInfoOldCount = reader.readByte() & 0xff;
-
-            interface WeOldUpdate {
-                updateType: number;
-                positionDelta?: { x: number; y: number; z: number; orientation: number };
-                mask?: { animationId?: number; sequenceFrame?: number; actionMask?: number };
-            }
-            const weOldUpdates: WeOldUpdate[] = [];
-            for (let i = 0; i < weInfoOldCount; i++) {
-                const updateType = reader.readByte() & 0xff;
-                let positionDelta: WeOldUpdate["positionDelta"];
-                if (updateType >= 2) {
-                    positionDelta = readPositionDelta(reader);
-                }
-                let mask: WeOldUpdate["mask"];
-                if (updateType !== 0) {
-                    mask = readMaskUpdate(reader);
-                }
-                weOldUpdates.push({ updateType, positionDelta, mask });
-            }
-
-            interface WeNewSpawn {
-                entityIndex: number;
-                sizeX: number;
-                sizeZ: number;
-                configId: number;
-                drawMode: number;
-                position: { x: number; y: number; z: number; orientation: number };
-                mask?: { animationId?: number; sequenceFrame?: number; actionMask?: number };
-            }
-            const weInfoNewSpawns: WeNewSpawn[] = [];
-            while (reader.remaining > 0) {
-                const entityIndex = reader.readShort() & 0xffff;
-                const sizeX = reader.readByte() & 0xff;
-                const sizeZ = reader.readByte() & 0xff;
-                const configId = reader.readShort();
-                const position = readPositionDelta(reader);
-                const drawMode = reader.readByte() & 0xff;
-                const mask = readMaskUpdate(reader);
-                weInfoNewSpawns.push({ entityIndex, sizeX, sizeZ, configId, drawMode, position, mask });
-            }
-            return {
-                type: "worldentity_info",
-                payload: {
-                    oldCount: weInfoOldCount,
-                    oldUpdates: weOldUpdates,
-                    newSpawns: weInfoNewSpawns,
-                },
-            };
-        }
-
-        case ServerPacketId.REBUILD_WORLDENTITY: {
-            const weEntityIndex = reader.readShort();
-            const weConfigId = reader.readShort();
-            const weSizeX = reader.readByte() & 0xff;
-            const weSizeZ = reader.readByte() & 0xff;
-            const weZoneX = reader.readShort();
-            const weZoneZ = reader.readShort();
-            const weRegionY = reader.readShort();
-            const weForceReload = reader.readByte() === 1;
-            const weRegionX = reader.readShort();
-            const weNumXteaKeys = reader.readShort();
-
-            // Build areas
-            const weNumBuildAreas = reader.readByte() & 0xff;
-            const weBuildAreas: WorldEntityBuildArea[] = [];
-            for (let i = 0; i < weNumBuildAreas; i++) {
-                weBuildAreas.push({
-                    sourceBaseX: reader.readShort(),
-                    sourceBaseY: reader.readShort(),
-                    destBaseX: reader.readShort(),
-                    destBaseY: reader.readShort(),
-                    planes: reader.readByte() & 0xff,
-                    rotation: reader.readByte() & 0xff,
-                });
-            }
-
-            // Bit-packed template chunks: 4 planes × 13 × 13
-            const weTemplateChunks: number[][][] = new Array(PLANE_COUNT);
-            for (let p = 0; p < PLANE_COUNT; p++) {
-                weTemplateChunks[p] = new Array(INSTANCE_CHUNK_COUNT);
-                for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
-                    weTemplateChunks[p][cx] = new Array(INSTANCE_CHUNK_COUNT);
-                }
-            }
-
-            reader.initBitAccess();
-            for (let p = 0; p < PLANE_COUNT; p++) {
-                for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
-                    for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
-                        const present = reader.readBits(1);
-                        if (present === 1) {
-                            weTemplateChunks[p][cx][cy] = reader.readBits(26);
-                        } else {
-                            weTemplateChunks[p][cx][cy] = -1;
-                        }
-                    }
-                }
-            }
-            reader.finishBitAccess();
-
-            const weXteaKeys: number[][] = new Array(weNumXteaKeys);
-            for (let i = 0; i < weNumXteaKeys; i++) {
-                weXteaKeys[i] = [reader.readInt(), reader.readInt(), reader.readInt(), reader.readInt()];
-            }
-
-            const weMapRegions = deriveRegionsFromTemplates(weTemplateChunks);
-
-            return {
-                type: "rebuild_worldentity",
-                payload: {
-                    entityIndex: weEntityIndex,
-                    configId: weConfigId,
-                    sizeX: weSizeX,
-                    sizeZ: weSizeZ,
-                    zoneX: weZoneX,
-                    zoneZ: weZoneZ,
-                    regionX: weRegionX,
-                    regionY: weRegionY,
-                    forceReload: weForceReload,
-                    templateChunks: weTemplateChunks,
-                    xteaKeys: weXteaKeys,
-                    mapRegions: weMapRegions,
-                    buildAreas: weBuildAreas,
-                },
-            };
-        }
 
         case ServerPacketId.HANDSHAKE: {
             const id = reader.readInt();
@@ -1204,38 +967,6 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
             };
         }
 
-        case ServerPacketId.LOC_ADD_CHANGE: {
-            const locId = reader.readShort();
-            const addTile = { x: reader.readShort(), y: reader.readShort() };
-            const addLevel = reader.readByte();
-            const shapeRot = reader.readByte();
-            return {
-                type: "loc_add_change",
-                payload: {
-                    locId,
-                    tile: addTile,
-                    level: addLevel,
-                    shape: shapeRot >> 2,
-                    rotation: shapeRot & 3,
-                },
-            };
-        }
-
-        case ServerPacketId.LOC_DEL: {
-            const delTile = { x: reader.readShort(), y: reader.readShort() };
-            const delLevel = reader.readByte();
-            const delShapeRot = reader.readByte();
-            return {
-                type: "loc_del",
-                payload: {
-                    tile: delTile,
-                    level: delLevel,
-                    shape: delShapeRot >> 2,
-                    rotation: delShapeRot & 3,
-                },
-            };
-        }
-
         // ========================================
         // COMBAT STATE
         // ========================================
@@ -1725,31 +1456,6 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
             }
         }
 
-        case ServerPacketId.GAMEMODE_DATA: {
-            const flags = reader.readByte();
-            reader.readInt(); // jsonLength (reserved for pre-allocation)
-            const compressed = (flags & 1) !== 0;
-            const rawBytes = reader.readBytes(reader.remaining);
-            let jsonStr: string;
-            if (compressed) {
-                const pako = require("pako");
-                const inflated = pako.inflate(rawBytes);
-                jsonStr = new TextDecoder().decode(inflated);
-            } else {
-                jsonStr = new TextDecoder().decode(rawBytes);
-            }
-            try {
-                const payload = JSON.parse(jsonStr);
-                return {
-                    type: "gamemode_data",
-                    payload,
-                };
-            } catch {
-                console.log("[gamemode_data] failed to parse JSON payload");
-                return null;
-            }
-        }
-
         default:
             console.warn(`Unknown server packet opcode: ${opcode}`);
             return null;
@@ -1827,43 +1533,4 @@ export function decodeBatchedServerPackets(data: Uint8Array | ArrayBuffer): Deco
     }
 
     return messages;
-}
-
-/**
- * Read a position delta using the OSRS typed-value tag format.
- * Flags byte packs encoding width (0=zero, 1=byte, 2=short, 3=int)
- * for x (bits 0-1), y (bits 2-3), z (bits 4-5), orientation (bits 6-7).
- */
-function readPositionDelta(reader: ServerPacketReader): { x: number; y: number; z: number; orientation: number } {
-    const flags = reader.readSignedByte();
-    if (flags === 0) return { x: 0, y: 0, z: 0, orientation: 0 };
-    const x = readTypedValue(reader, flags, 0);
-    const y = readTypedValue(reader, flags, 2);
-    const z = readTypedValue(reader, flags, 4);
-    const orientation = readTypedValue(reader, flags, 6);
-    return { x, y, z, orientation };
-}
-
-function readTypedValue(reader: ServerPacketReader, flags: number, bitShift: number): number {
-    const encoding = (flags >> bitShift) & 3;
-    if (encoding === 3) return reader.readInt();
-    if (encoding === 2) return reader.readSignedShort();
-    if (encoding === 1) return reader.readSignedByte();
-    return 0;
-}
-
-function readMaskUpdate(reader: ServerPacketReader): { animationId?: number; sequenceFrame?: number; actionMask?: number } | undefined {
-    const maskByte = reader.readByte() & 0xff;
-    if (maskByte === 0) return undefined;
-    let animationId: number | undefined;
-    let sequenceFrame: number | undefined;
-    let actionMask: number | undefined;
-    if (maskByte & 1) {
-        animationId = reader.readShort() & 0xffff;
-        sequenceFrame = reader.readByte() & 0xff;
-    }
-    if (maskByte & 2) {
-        actionMask = reader.readByte() & 0xff;
-    }
-    return { animationId, sequenceFrame, actionMask };
 }

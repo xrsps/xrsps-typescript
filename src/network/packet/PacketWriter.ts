@@ -1,6 +1,7 @@
 /**
  * PacketWriter - Queue and send binary packets to server
  *
+ * Matches the reference client's PacketWriter/packetWriter pattern.
  * Packets are queued and flushed to the WebSocket as binary data.
  */
 import { CLIENT_PACKET_LENGTHS, ClientPacketId } from "./ClientPacket";
@@ -8,6 +9,7 @@ import { PacketBuffer } from "./PacketBuffer";
 
 /**
  * A node in the packet queue containing a packet buffer and its type
+ * Matches reference client's PacketBufferNode
  *
  * Packet format: [opcode][length_prefix?][payload]
  * - Fixed: [opcode][payload] - length prefix omitted
@@ -50,6 +52,7 @@ export class PacketBufferNode {
 
     /**
      * Reset the node for reuse (pooling support)
+     * Matches reference client's node reuse pattern
      */
     reset(packetType: ClientPacketId): void {
         this.packetType = packetType;
@@ -134,7 +137,8 @@ export class PacketBufferNode {
 }
 
 /**
- * Pool for reusing PacketBufferNode instances to reduce GC pressure
+ * Pool for reusing PacketBufferNode instances
+ * Matches reference client's node pooling to reduce GC pressure
  */
 class PacketBufferNodePool {
     private pool: PacketBufferNode[] = [];
@@ -164,6 +168,7 @@ class PacketBufferNodePool {
 /**
  * Packet writer that queues and sends packets
  *
+ * Matches the reference client's PacketWriter implementation:
  * - Pre-allocated 5000 byte buffer for batching
  * - Tracks bufferSize as packets are added
  * - Handles buffer overflow (sends partial batch if needed)
@@ -238,6 +243,7 @@ export class PacketWriter {
     /**
      * Flush all queued packets to the socket
      *
+     * Matches reference client's flush() exactly:
      * - Uses pre-allocated buffer
      * - Copies packets into buffer until full
      * - Sends when buffer would overflow or queue is empty
@@ -364,6 +370,7 @@ export class PacketWriter {
 
 /**
  * ISAAC cipher for packet encryption
+ * Matches the reference client's IsaacCipher
  */
 export class IsaacCipher {
     private count: number = 0;

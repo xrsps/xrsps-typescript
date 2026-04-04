@@ -256,9 +256,7 @@ export class GroundItemHandler {
         const playerGroundChunk = this.services.getPlayerGroundChunk();
 
         const lastSerial = playerGroundSerial.get(playerId);
-        // Include worldViewId in chunk key so switching views forces a snapshot
-        const baseChunkKey = this.services.getGroundChunkKey(player);
-        const chunkKey = baseChunkKey ^ ((player.worldViewId & 0xffff) << 16);
+        const chunkKey = this.services.getGroundChunkKey(player);
         const lastChunk = playerGroundChunk.get(playerId);
 
         if (lastSerial === currentSerial && lastChunk === chunkKey) return;
@@ -271,7 +269,6 @@ export class GroundItemHandler {
                 GROUND_ITEM_STREAM_RADIUS_TILES,
                 currentTick,
                 player.id,
-                player.worldViewId,
             )
             .map((stack) => this.toPayloadStack(stack, currentTick, playerId));
 
@@ -422,7 +419,6 @@ export class GroundItemHandler {
                     0,
                     this.services.getCurrentTick(),
                     player.id,
-                    player.worldViewId,
                 );
             const matchingStack = visibleStacks.find((stack) => stack.itemId === itemId);
             if (matchingStack) {
@@ -481,7 +477,7 @@ export class GroundItemHandler {
         const nowTick = this.services.getCurrentTick();
         const groundItems = this.services.getGroundItems();
         const targetStack = groundItems
-            .queryArea(tile.x, tile.y, tile.level, 0, nowTick, player.id, player.worldViewId)
+            .queryArea(tile.x, tile.y, tile.level, 0, nowTick, player.id)
             .find((stack) => stack.id === stackId && stack.itemId === itemId);
 
         if (!targetStack) {
@@ -541,7 +537,7 @@ export class GroundItemHandler {
             const inWilderness = this.services.isInWilderness(tile.x, tile.y);
             groundItems.spawn(itemId, removed.removed, tile, nowTick, {
                 privateTicks: inWilderness ? 0 : undefined,
-            }, player.worldViewId);
+            });
             return;
         }
 

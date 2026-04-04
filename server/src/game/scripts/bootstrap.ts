@@ -1,8 +1,6 @@
 import fs from "fs";
 import path from "path";
 
-import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
-import { loadExtrascriptEntries } from "./ExtrascriptLoader";
 import { ScriptRuntime } from "./ScriptRuntime";
 import type { ScriptManifestEntry } from "./manifest";
 
@@ -34,12 +32,9 @@ function invalidateRequireCache(filePath: string): void {
     } catch {}
 }
 
-export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefinition): void {
+export function bootstrapScripts(runtime: ScriptRuntime): void {
     const loadAll = () => {
-        const coreEntries = loadManifestEntries();
-        const gamemodeEntries = gamemode?.getScriptManifest() ?? [];
-        const extrascriptEntries = loadExtrascriptEntries();
-        const entries = [...coreEntries, ...gamemodeEntries, ...extrascriptEntries];
+        const entries = loadManifestEntries();
         runtime.reset();
         for (const entry of entries) {
             if (entry.watch) {

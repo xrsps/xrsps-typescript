@@ -65,7 +65,6 @@ export interface AppearanceSnapshotEntry {
         turned: boolean;
         snap: boolean;
         directions?: number[];
-        worldViewId?: number;
     };
 }
 
@@ -144,7 +143,6 @@ export class PlayerAppearanceManager {
             turned: boolean;
             snap: boolean;
             directions?: number[];
-            worldViewId?: number;
         }>,
     ): void {
         const pendingSnapshots = this.services.getPendingAppearanceSnapshots();
@@ -163,7 +161,6 @@ export class PlayerAppearanceManager {
             turned: false,
             snap: false,
             directions: undefined as number[] | undefined,
-            worldViewId: player.worldViewId >= 0 ? player.worldViewId : undefined,
         });
 
         let entry = pendingSnapshots.find((snap) => snap.playerId === player.id);

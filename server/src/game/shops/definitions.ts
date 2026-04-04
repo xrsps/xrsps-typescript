@@ -183,33 +183,11 @@ const CATHERBY_RANGE_SHOP: ShopDefinition = {
     ],
 };
 
-const ZAFFS_SUPERIOR_STAFFS: ShopDefinition = {
-    id: "zaffs_superior_staffs",
-    name: "Zaff's Superior Staffs!",
-    npcIds: [2880],
-    currencyItemId: 995,
-    capacity: 40,
-    generalStore: false,
-    restockTicks: 100,
-    buyPriceMultiplier: 1,
-    sellPriceMultiplier: 0.55,
-    stock: [
-        { itemId: 1391, quantity: 5, price: 7000, restockTicks: 100 },   // Battlestaff
-        { itemId: 1379, quantity: 5, price: 15, restockTicks: 100 },     // Staff
-        { itemId: 1389, quantity: 5, price: 200, restockTicks: 200 },    // Magic staff
-        { itemId: 1381, quantity: 2, price: 1500, restockTicks: 1000 },  // Staff of air
-        { itemId: 1383, quantity: 2, price: 1500, restockTicks: 1000 },  // Staff of water
-        { itemId: 1385, quantity: 2, price: 1500, restockTicks: 1000 },  // Staff of earth
-        { itemId: 1387, quantity: 2, price: 1500, restockTicks: 1000 },  // Staff of fire
-    ],
-};
-
 const SHOP_DEFINITIONS: ShopDefinition[] = [
     VARROCK_GENERAL_STORE,
     TEST_WEAPONS_SHOP,
     AUBURY_RUNE_SHOP,
     CATHERBY_RANGE_SHOP,
-    ZAFFS_SUPERIOR_STAFFS,
 ];
 
 export function getShopDefinitionById(id: string): ShopDefinition | undefined {

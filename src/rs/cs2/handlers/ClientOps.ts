@@ -15,7 +15,8 @@ import type { HandlerMap } from "./HandlerTypes";
 
 export function registerClientOps(handlers: HandlerMap): void {
     // === Clock ===
-    // clientclock returns Client.cycleCntr (20ms cycles)
+    // OSRS parity: clientclock returns Client.cycleCntr (20ms cycles)
+    // Reference: ScriptOpcodes.CLIENTCLOCK in GameBuild.java
     handlers.set(Opcodes.CLIENTCLOCK, (ctx) => {
         ctx.pushInt(getClientClock() | 0);
     });
@@ -650,7 +651,7 @@ export function registerClientOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.SETHIDETOOLTIP, (ctx) => {
-        // Pop one int, no side effects.
+        // Deob parity (3131): pop one int, no side effects.
         --ctx.intStackSize;
     });
 
@@ -1232,13 +1233,6 @@ export function registerClientOps(handlers: HandlerMap): void {
 
         // Return notification ID (always 0 for now)
         ctx.pushInt(0);
-    });
-
-    // === Loot Tracker ===
-    // loottracker_lootadd(string, obj, int, int) - stub, loot tracker not implemented
-    handlers.set(Opcodes.LOOTTRACKER_LOOTADD, (ctx) => {
-        ctx.intStackSize -= 3;
-        ctx.stringStackSize -= 1;
     });
 
     // === Sound ===

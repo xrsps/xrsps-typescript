@@ -2,7 +2,6 @@ import { logger as defaultLogger } from "../../utils/logger";
 import { ScriptScheduler } from "../systems/ScriptScheduler";
 import { ScriptRegistry } from "./ScriptRegistry";
 import {
-    type ClientMessageHandler,
     type EquipmentActionEvent,
     type EquipmentActionHandler,
     type IScriptRegistry,
@@ -16,7 +15,6 @@ import {
     type NpcInteractionHandler,
     type RegionEvent,
     type RegionEventHandler,
-    type ScriptActionHandler,
     type ScriptModule,
     type ScriptRegistrationResult,
     type ScriptServices,
@@ -62,10 +60,6 @@ export class ScriptRuntime {
             logger: hostServices.logger ?? this.logger,
             hotReloadEnabled: this.hotReloadEnabled,
         };
-    }
-
-    getServices(): ScriptServices {
-        return this.services;
     }
 
     loadModule(module: ScriptModule): void {
@@ -491,9 +485,6 @@ export class ScriptRuntime {
                 track(this.registry.registerRegionHandler(regionId, handler)),
             registerTickHandler: (handler: TickHandler) =>
                 track(this.registry.registerTickHandler(handler)),
-            registerCommand: (name: string, handler: any) =>
-                track(this.registry.registerCommand(name, handler)),
-            findCommand: (name: string) => this.registry.findCommand(name),
             findNpcInteraction: (npcId, option) => this.registry.findNpcInteraction(npcId, option),
             findLocInteraction: (locId, action) => this.registry.findLocInteraction(locId, action),
             findItemOnItem: (sourceItemId, targetItemId, option) =>
@@ -507,14 +498,6 @@ export class ScriptRuntime {
             findButton: (interfaceId, component) =>
                 this.registry.findButton(interfaceId, component),
             findNpcAction: (option) => this.registry.findNpcAction(option),
-            registerClientMessageHandler: (messageType: string, handler: ClientMessageHandler) =>
-                track(this.registry.registerClientMessageHandler(messageType, handler)),
-            findClientMessageHandler: (messageType: string) =>
-                this.registry.findClientMessageHandler(messageType),
-            registerActionHandler: (kind: string, handler: ScriptActionHandler) =>
-                track(this.registry.registerActionHandler(kind, handler)),
-            findActionHandler: (kind: string) =>
-                this.registry.findActionHandler(kind),
         } as IScriptRegistry;
     }
 }

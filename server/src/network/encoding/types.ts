@@ -91,7 +91,6 @@ export interface PlayerViewSnapshot {
     turned: boolean;
     snap: boolean;
     directions?: number[];
-    worldViewId?: number;
 }
 
 /**

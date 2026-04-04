@@ -207,7 +207,8 @@ export class NpcMovementSync {
                     const localY = (worldY - baseY) | 0;
                     const traversal =
                         typeof step.traversal === "number" ? step.traversal | 0 : step.run ? 2 : 1;
-                    // Base walk speed is 4 sub-tile units per client tick (not 5).
+                    // OSRS parity: Base walk speed is 4 sub-tile units per client tick (not 5).
+                    // Reference: GraphicsObject.method2141 in the deob client.
                     // Walk: 128 / 4 = 32 client ticks = 640ms per tile (slightly slower than server tick)
                     // Run: 128 / 8 = 16 client ticks = 320ms per tile (4 << 1)
                     // Crawl: 128 / 2 = 64 client ticks = 1280ms per tile (4 >> 1)

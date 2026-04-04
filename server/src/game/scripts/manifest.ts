@@ -27,6 +27,11 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/climbing.ts")],
     },
     {
+        id: "content.picklock",
+        load: loadModule("modules/picklock", "picklockModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/picklock.ts")],
+    },
+    {
         id: "content.doors",
         load: loadModule("modules/doors", "doorInteractionsModule"),
         watch: [path.resolve(MODULE_DIR, "modules/doors.ts")],
@@ -97,11 +102,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/romeo.ts")],
     },
     {
-        id: "content.zaff",
-        load: loadModule("modules/zaff", "zaffModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/zaff.ts")],
-    },
-    {
         id: "content.al-kharid-border",
         load: loadModule("modules/alKharidBorder", "alKharidBorderModule"),
         watch: [path.resolve(MODULE_DIR, "modules/alKharidBorder.ts")],
@@ -110,6 +110,11 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         id: "content.wilderness-access",
         load: loadModule("modules/wildernessAccess", "wildernessAccessModule"),
         watch: [path.resolve(MODULE_DIR, "modules/wildernessAccess.ts")],
+    },
+    {
+        id: "content.league-tutor",
+        load: loadModule("modules/leagueTutor", "leagueTutorModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/leagueTutor.ts")],
     },
     {
         id: "content.default-talk",
@@ -142,6 +147,16 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/collectionLogWidgets.ts")],
     },
     {
+        id: "content.league-widgets",
+        load: loadModule("modules/leagueWidgets", "leagueWidgetModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/leagueWidgets.ts")],
+    },
+    {
+        id: "content.league-tutorial-widgets",
+        load: loadModule("modules/leagueTutorialWidgets", "leagueTutorialWidgetModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/leagueTutorialWidgets.ts")],
+    },
+    {
         id: "content.equipment",
         load: loadModule("modules/equipment", "equipmentActionsModule"),
         watch: [path.resolve(MODULE_DIR, "modules/equipment.ts")],
@@ -152,19 +167,80 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/equipmentWidgets.ts")],
     },
     {
+        id: "content.skill-surfaces",
+        load: loadModule("modules/skills", "skillSurfaceModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/skills.ts")],
+    },
+    {
         id: "content.poh-pools",
         load: loadModule("modules/pohPools", "pohPoolModule"),
         watch: [path.resolve(MODULE_DIR, "modules/pohPools.ts")],
     },
     {
+        id: "skills.prayer",
+        load: loadModule("modules/skills/prayer", "prayerModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/skills/prayer.ts")],
+    },
+    {
+        id: "skills.prayer-altars",
+        load: loadModule("modules/skills/prayerAltars", "prayerAltarModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/skills/prayerAltars.ts")],
+    },
+    {
+        id: "skills.herblore",
+        load: loadModule("modules/skills/herblore", "herbloreModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/skills/herblore.ts")],
+    },
+    {
+        id: "skills.fletching",
+        load: loadModule("modules/skills/fletching", "fletchingModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/skills/fletching.ts")],
+    },
+    {
+        id: "skills.flax",
+        load: loadModule("modules/skills/flax", "flaxModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/skills/flax.ts")],
+    },
+    {
+        id: "skills.spinning",
+        load: loadModule("modules/skills/spinning", "spinningModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/skills/spinning.ts")],
+    },
+    {
+        id: "skills.firemaking",
+        load: loadModule("modules/skills/firemaking", "firemakingModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/skills/firemaking.ts")],
+    },
+    {
+        id: "skills.woodcutting",
+        load: loadModule("modules/woodcutting", "woodcuttingModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/woodcutting.ts")],
+        enableWhen: () => true,
+    },
+    {
+        id: "skills.mining",
+        load: loadModule("modules/mining", "miningModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/mining.ts")],
+    },
+    {
+        id: "skills.fishing",
+        load: loadModule("modules/fishing", "fishingModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/fishing.ts")],
+    },
+    {
+        id: "skills.thieving",
+        load: loadModule("modules/thieving", "thievingModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/thieving.ts")],
+    },
+    {
+        id: "consumables",
+        load: loadModule("modules/items/consumables", "consumablesModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/items/consumables.ts")],
+    },
+    {
         id: "followers",
         load: loadModule("modules/items/followers", "followerItemModule"),
         watch: [path.resolve(MODULE_DIR, "modules/items/followers.ts")],
-    },
-    {
-        id: "quest.pandemonium",
-        load: loadModule("modules/quests/pandemonium", "pandemoniumQuestModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/quests/pandemonium.ts")],
     },
     {
         id: "packs",

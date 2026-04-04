@@ -2,6 +2,7 @@
  * Binary Appearance Encoder
  *
  * Encodes player appearance block in OSRS binary format.
+ * Reference: Player.read() in references/runescape-client/src/main/java/Player.java
  *
  * Binary format:
  * 1. gender (byte)

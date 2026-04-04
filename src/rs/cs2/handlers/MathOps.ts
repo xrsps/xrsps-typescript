@@ -192,6 +192,7 @@ export function registerMathOps(handlers: HandlerMap): void {
         // OSRS parity: ScriptOpcodes.INTERPOLATE (4006)
         // Stack order (bottom -> top): a, b, c, d, e
         // Java: a + (b - a) * (e - c) / (d - c)
+        // Reference: references/runescape-client/src/main/java/class358.java
         ctx.intStackSize -= 5;
         const a = ctx.intStack[ctx.intStackSize] | 0;
         const b = ctx.intStack[ctx.intStackSize + 1] | 0;

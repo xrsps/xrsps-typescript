@@ -154,10 +154,6 @@ export class LegacyCacheLoaderFactory implements CacheLoaderFactory {
         return undefined;
     }
 
-    getWorldEntityTypeLoader(): undefined {
-        return undefined;
-    }
-
     getMapFileLoader(): MapFileLoader {
         return new LegacyMapFileLoader(this.mapIndex, new Dat2MapIndex(this.mapIndex));
     }

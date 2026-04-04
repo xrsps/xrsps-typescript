@@ -17,7 +17,7 @@ export class ExactRouteStrategy extends RouteStrategy {
 }
 
 // Client parity: ApproximateRouteStrategy is the default "walk to tile" strategy and only
-// checks for exact tile arrival.
+// checks for exact tile arrival (see references/runescape-client/.../ApproximateRouteStrategy.java).
 export class ApproximateRouteStrategy extends RouteStrategy {
     constructor(destX: number, destY: number) {
         super();

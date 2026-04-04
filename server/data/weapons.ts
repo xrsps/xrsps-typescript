@@ -1406,6 +1406,7 @@ const poweredStaffHitSounds = { crush: 2540 }; // sever sound for magic attacks
 // ====================================================================================
 // RANGED WEAPON SOUNDS
 // OSRS uses specific sounds for different bow/crossbow/thrown weapon types
+// Sound IDs from references/cs2-data/synth-names.json
 // ====================================================================================
 
 // --- BOW SOUNDS ---

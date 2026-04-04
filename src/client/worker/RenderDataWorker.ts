@@ -33,6 +33,8 @@ import { LocLoadType, SceneBuilder } from "../../rs/scene/SceneBuilder";
 import { IndexedSprite } from "../../rs/sprite/IndexedSprite";
 import { SpriteLoader } from "../../rs/sprite/SpriteLoader";
 import { TextureLoader } from "../../rs/texture/TextureLoader";
+// Register custom items in worker context (workers don't share global state)
+import "../../shared/custom-items";
 import { Hasher } from "../../util/Hasher";
 import { LoadedCache } from "../Caches";
 import { ObjSpawn } from "../data/obj/ObjSpawn";

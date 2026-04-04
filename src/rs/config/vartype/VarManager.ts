@@ -88,7 +88,7 @@ export class VarManager {
 
     /**
      * Register league-related varbits that may not be in the cache.
-     * These definitions match OSRS cache varbit layouts.
+     * These definitions match OSRS cache r235 varbit layouts.
      */
     private registerLeagueVarbits(): void {
         // Varbit 10046: league_total_tasks_completed

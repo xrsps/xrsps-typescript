@@ -153,7 +153,6 @@ export class ProjectileRenderer {
                 .uniform("u_npcDataOffset", baseOffset | 0)
                 .texture("u_npcDataTexture", actorDataTexture)
                 .texture("u_heightMap", map.heightMapTexture)
-                .uniform("u_sceneBorderSize", map.borderSize)
                 .uniform("u_projectileSubOffset", subOffset);
 
             (this.renderer as any).app.disable(PicoGL.CULL_FACE);

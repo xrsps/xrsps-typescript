@@ -137,11 +137,6 @@ export class EquipmentHandler {
             player.markEquipmentDirty();
             this.services.refreshCombatWeaponCategory(player);
             this.services.refreshAppearanceKits(player);
-
-            // OSRS parity: Unequipping the weapon clears autocast state
-            if (equipSlot === EquipmentSlot.WEAPON && player.autocastEnabled) {
-                this.services.resetAutocast(player);
-            }
         }
 
         return result.ok;

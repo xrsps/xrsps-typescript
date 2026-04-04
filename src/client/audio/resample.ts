@@ -1,6 +1,7 @@
 /**
  * Resample a mono Float32Array to a target sample rate using linear interpolation.
- * Lightweight linear-interpolation decimator suitable for SFX work in the browser.
+ * Mirrors the behaviour of the RuneScape client decimator closely enough for SFX work
+ * while remaining lightweight for the browser.
  */
 export function resampleToSampleRate(
     input: Float32Array,
