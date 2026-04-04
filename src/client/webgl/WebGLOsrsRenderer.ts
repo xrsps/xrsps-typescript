@@ -1,5 +1,6 @@
 import Denque from "denque";
 import { mat4, vec2, vec3, vec4 } from "gl-matrix";
+import { WorldEntityAnimator } from "./WorldEntityAnimator";
 import { button, folder } from "leva";
 import { Schema } from "leva/dist/declarations/src/types";
 import {
@@ -136,6 +137,7 @@ import {
     resolveCollisionSamplePlaneForWorldTile,
     resolveGroundItemStackPlane,
     resolveHeightSamplePlaneForLocal,
+    resolveInteractionPlaneForLocal,
     resolveInteractionPlaneForWorldTile,
 } from "../scene/PlaneResolver";
 import { SceneRaycastHit, SceneRaycaster } from "../scene/SceneRaycaster";
@@ -205,6 +207,10 @@ interface LocHighlightTarget {
     plane: number;
     locModelType?: number;
     locRotation?: number;
+    /** Set when the outline model was sourced from an overworld visual proxy
+     *  rather than the loc's own model.  Suppresses world-entity transforms
+     *  and deck-height offsets for the highlight. */
+    overworldProxy?: boolean;
 }
 
 interface NpcHighlightTarget {
@@ -339,6 +345,38 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     private locOverrides: Map<
         string,
         { newId: number; newRotation?: number; moveToX?: number; moveToY?: number }
+    > = new Map();
+    /** When true, an instance scene is active and normal map streaming is suppressed. */
+    private instanceActive: boolean = false;
+    private instanceTemplateChunks: number[][][] | null = null;
+    private instanceRegionX: number = 0;
+    private instanceRegionY: number = 0;
+    private instanceLocRebuildTimer: ReturnType<typeof setTimeout> | null = null;
+    /** Active world entity overlays (rendered on top of normal world). */
+    private worldEntityOverlays: Map<number, {
+        entityIndex: number;
+        configId: number;
+        templateChunks: number[][][];
+        regionX: number;
+        regionY: number;
+        worldX: number;
+        worldY: number;
+        sizeX: number;
+        sizeZ: number;
+        extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>;
+        extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>;
+        basePlane: number;
+        deckHeight?: number;
+    }> = new Map();
+    private worldEntityLocRebuildTimer: ReturnType<typeof setTimeout> | null = null;
+    private nextWorldEntityLoadToken: number = 1;
+    private worldEntityLoadTokens: Map<number, number> = new Map();
+    private worldEntityReloadAfterMs: Map<number, number> = new Map();
+    worldEntityAnimator?: WorldEntityAnimator;
+    /** Dynamically spawned locs (LOC_ADD_CHANGE). Keyed by "x,y,level,shape". */
+    private addedLocs: Map<
+        string,
+        { locId: number; x: number; y: number; level: number; shape: number; rotation: number }
     > = new Map();
     // Track spawned locs not in base map data: Map<"x,y,level", {id,type,rotation}>
     private locSpawns: Map<string, { id: number; type: number; rotation: number }> = new Map();
@@ -788,6 +826,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.toCssEvent(gx, gy, this.currentFrameCount);
         // Initialize SceneRaycaster for raycast-all menu behavior
         this.sceneRaycaster = new SceneRaycaster(this.mapManager, osrsClient);
+        this.sceneRaycaster.worldEntityTransformProvider = (map) =>
+            this.getWorldEntityTransformForMap(map);
         const previousOnMapRemoved = this.mapManager.onMapRemoved;
         this.mapManager.onMapRemoved = (mapX: number, mapY: number) => {
             this.minimapIcons.delete(getMapSquareId(mapX | 0, mapY | 0));
@@ -1801,8 +1841,6 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     /**
-     * Mirrors Actor.addHitSplat from references/runescape-client/src/main/java/Actor.java.
-     *
      * OSRS Parity:
      * - All cycle values are in CLIENT CYCLES (20ms each), NOT server ticks
      * - hitSplatCycles stores: currentCycle + displayCycles + delayCycles (the END cycle)
@@ -4695,6 +4733,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     private queueStreamMapData(mapData: SdMapData, streamGeneration?: number): void {
+        // Reject normal map data while an instance scene is active
+        if (this.instanceActive) return;
+
         const mapId = getMapSquareId(mapData.mapX, mapData.mapY);
         const inTargetGrid = this.mapManager.isMapInTargetGrid(mapData.mapX, mapData.mapY);
         if (!inTargetGrid) {
@@ -5136,6 +5177,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         // Don't try to load maps before cache is initialized
         if (!this.osrsClient.loadedCache) return;
 
+        // Suppress normal map streaming while an instance scene is active
+        if (this.instanceActive && typeof locReloadBatchId !== "number") return;
+
         const input: SdMapLoaderInput = {
             mapX,
             mapY,
@@ -5146,6 +5190,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             minimizeDrawCalls: !this.hasMultiDraw,
             loadedTextureIds: this.loadedTextureIds,
             locOverrides: this.locOverrides,
+            extraLocs: this.getExtraLocsForMap(mapX, mapY),
             locSpawns: this.locSpawns,
         };
 
@@ -5174,6 +5219,425 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 this.resolveLocReloadBatchMap(locReloadBatchId, mapId, undefined);
             }
         }
+    }
+
+    /**
+     * Load an instance scene from REBUILD_REGION template chunks.
+     * Queues a single map load with the instance data attached.
+     *
+     * LOC_ADD_CHANGE packets typically arrive after REBUILD_REGION over the
+     * same WebSocket, so they land in addedLocs while the worker builds the
+     * initial scene.  After the first build completes we schedule a deferred
+     * rebuild that picks up any locs that accumulated during the build.
+     */
+    async loadInstanceScene(
+        templateChunks: number[][][],
+        regionX: number,
+        regionY: number,
+    ): Promise<void> {
+        if (!this.osrsClient.loadedCache) return;
+
+        // Suppress normal map streaming while the instance is active
+        this.instanceActive = true;
+        this.instanceTemplateChunks = templateChunks;
+        this.instanceRegionX = regionX;
+        this.instanceRegionY = regionY;
+
+        // regionX/Y are chunk coordinates from the REBUILD_REGION packet.
+        // The player tile = regionX*8, regionY*8. Map square = tile / 64.
+        const playerMapX = ((regionX * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+        const playerMapY = ((regionY * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+
+        console.log(
+            `[WebGLOsrsRenderer] Loading instance scene at map (${playerMapX}, ${playerMapY}) from region (${regionX}, ${regionY})...`,
+        );
+
+        // Clear existing maps so the instance scene is the only one rendered
+        this.mapManager.clearMaps();
+
+        await this.doInstanceSceneBuild(templateChunks, regionX, regionY, playerMapX, playerMapY);
+
+        // LOC_ADD_CHANGE packets arrive after REBUILD_REGION on the same socket.
+        // By now they are stored in addedLocs. Schedule a deferred rebuild to
+        // include them; the short delay batches any remaining in-flight packets.
+        if (this.addedLocs.size > 0) {
+            this.scheduleInstanceLocRebuild();
+        }
+    }
+
+    private async doInstanceSceneBuild(
+        templateChunks: number[][][],
+        regionX: number,
+        regionY: number,
+        playerMapX: number,
+        playerMapY: number,
+    ): Promise<void> {
+        const extraLocs = this.getInstanceExtraLocs(playerMapX, playerMapY);
+
+        const input: SdMapLoaderInput = {
+            mapX: playerMapX,
+            mapY: playerMapY,
+            maxLevel: Math.max(0, Math.min(Scene.MAX_LEVELS - 1, this.maxLevel | 0)),
+            loadObjs: this.loadObjs,
+            loadNpcs: this.loadNpcs,
+            smoothTerrain: this.smoothTerrain,
+            minimizeDrawCalls: !this.hasMultiDraw,
+            loadedTextureIds: this.loadedTextureIds,
+            instance: { templateChunks, regionX, regionY },
+            extraLocs,
+        };
+
+        const mapData = await this.osrsClient.workerPool.queueLoad<
+            SdMapLoaderInput,
+            SdMapData | undefined,
+            SdMapDataLoader
+        >(this.dataLoader, input);
+
+        if (mapData) {
+            console.log(
+                `[WebGLOsrsRenderer] Instance scene loaded: vertices=${mapData.vertices?.length ?? 0} indices=${mapData.indices?.length ?? 0} mapX=${mapData.mapX} mapY=${mapData.mapY} border=${mapData.borderSize} extraLocs=${extraLocs?.length ?? 0}`,
+            );
+            // Clear any in-flight normal map loads that arrived during the async instance build
+            this.mapsToLoad.clear();
+            this.pendingStreamMapsByGeneration.clear();
+            // Bypass grid/generation checks — instance scenes are always valid
+            this.mapsToLoad.push(mapData);
+            // Register the map in MapManager so it isn't pruned
+            this.mapManager.loadingMapIds.add(getMapSquareId(playerMapX, playerMapY));
+        } else {
+            console.warn("[WebGLOsrsRenderer] Instance scene load returned no data");
+        }
+    }
+
+    private getInstanceExtraLocs(
+        playerMapX: number,
+        playerMapY: number,
+    ): SdMapLoaderInput["extraLocs"] {
+        if (this.addedLocs.size === 0) return undefined;
+
+        // Instance scene is built as a single map square at (playerMapX, playerMapY).
+        // Collect all addedLocs — the scene builder will filter by bounds.
+        const locs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
+        for (const loc of this.addedLocs.values()) {
+            locs.push({
+                id: loc.locId,
+                x: loc.x,
+                y: loc.y,
+                level: loc.level,
+                shape: loc.shape,
+                rotation: loc.rotation,
+            });
+        }
+        return locs.length > 0 ? locs : undefined;
+    }
+
+    private scheduleInstanceLocRebuild(): void {
+        if (this.instanceLocRebuildTimer !== null) {
+            clearTimeout(this.instanceLocRebuildTimer);
+        }
+        this.instanceLocRebuildTimer = setTimeout(() => {
+            this.instanceLocRebuildTimer = null;
+            if (!this.instanceActive || !this.instanceTemplateChunks) return;
+            const playerMapX = ((this.instanceRegionX * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+            const playerMapY = ((this.instanceRegionY * 8) / Scene.MAP_SQUARE_SIZE) | 0;
+            console.log(
+                `[WebGLOsrsRenderer] Rebuilding instance scene with ${this.addedLocs.size} extra locs`,
+            );
+            this.doInstanceSceneBuild(
+                this.instanceTemplateChunks,
+                this.instanceRegionX,
+                this.instanceRegionY,
+                playerMapX,
+                playerMapY,
+            );
+        }, 100);
+    }
+
+    clearInstance(): void {
+        this.instanceActive = false;
+        this.instanceTemplateChunks = null;
+        if (this.instanceLocRebuildTimer !== null) {
+            clearTimeout(this.instanceLocRebuildTimer);
+            this.instanceLocRebuildTimer = null;
+        }
+        this.mapManager.clearMaps();
+        console.log("[WebGLOsrsRenderer] Instance cleared, normal map streaming resumed");
+    }
+
+    async loadWorldEntityScene(
+        entityIndex: number,
+        templateChunks: number[][][],
+        regionX: number,
+        regionY: number,
+        worldX: number,
+        worldY: number,
+        sizeX: number,
+        sizeZ: number,
+        extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+        configId: number = -1,
+        extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
+        basePlane: number = 0,
+    ): Promise<void> {
+        if (!this.osrsClient.loadedCache) return;
+
+        const loadToken = this.nextWorldEntityLoadToken++;
+        this.worldEntityLoadTokens.set(entityIndex, loadToken);
+        if (this.worldEntityOverlays.has(entityIndex)) {
+            this.clearWorldEntity(entityIndex);
+            this.worldEntityLoadTokens.set(entityIndex, loadToken);
+        }
+
+        const sceneTilesX = (templateChunks[0]?.length ?? 13) * 8;
+        const sceneTilesY = (templateChunks[0]?.[0]?.length ?? 13) * 8;
+        const sceneSizeHalf = sceneTilesX / 2;
+        const entityWorldBaseX = worldX - sceneSizeHalf;
+        const entityWorldBaseY = worldY - sceneTilesY / 2;
+
+        // Use a unique mapX/Y for the overlay that won't collide with real map squares
+        const overlayMapX = 200 + entityIndex;
+        const overlayMapY = 200 + entityIndex;
+        const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+        this.mapManager.loadingMapIds.add(overlayMapId);
+
+        console.log(
+            `[WebGLOsrsRenderer] Loading world entity overlay: entity=${entityIndex} config=${configId} source=(${regionX},${regionY}) worldPos=(${worldX},${worldY}) renderBase=(${entityWorldBaseX},${entityWorldBaseY})`,
+        );
+
+        this.worldEntityOverlays.set(entityIndex, {
+            entityIndex, configId, templateChunks, regionX, regionY,
+            worldX, worldY, sizeX, sizeZ, extraLocs, extraNpcs, basePlane,
+        });
+
+        // Register with WorldViewManager
+        this.osrsClient.worldViewManager.createWorldView(entityIndex, sceneTilesX, sceneTilesY, {
+            baseX: Math.floor(entityWorldBaseX),
+            baseY: Math.floor(entityWorldBaseY),
+            configId,
+            templateChunks,
+            regionX,
+            regionY,
+            worldX,
+            worldY,
+            sizeXEntity: sizeX,
+            sizeZEntity: sizeZ,
+            extraLocs,
+            extraNpcs,
+        });
+
+        if (configId >= 0) {
+            this.ensureWorldEntityAnimator();
+            this.worldEntityAnimator?.addEntity(entityIndex, configId, this.lastTick);
+        }
+
+        // Collect extra locs from addedLocs that fall within the source region
+        const CHUNK_SIZE = 8;
+        const sceneBaseX = (regionX - 6) * CHUNK_SIZE;
+        const sceneBaseY = (regionY - 6) * CHUNK_SIZE;
+        const sceneMaxX = sceneBaseX + 13 * CHUNK_SIZE;
+        const sceneMaxY = sceneBaseY + 13 * CHUNK_SIZE;
+        const allExtraLocs: typeof extraLocs = [...extraLocs];
+        for (const loc of this.addedLocs.values()) {
+            if (loc.x >= sceneBaseX && loc.x < sceneMaxX && loc.y >= sceneBaseY && loc.y < sceneMaxY) {
+                allExtraLocs.push({
+                    id: loc.locId, x: loc.x, y: loc.y,
+                    level: loc.level, shape: loc.shape, rotation: loc.rotation,
+                });
+            }
+        }
+        console.log(`[WebGLOsrsRenderer] World entity overlay: ${allExtraLocs.length} extra locs, ${extraNpcs?.length ?? 0} extra NPCs`);
+
+        const input: SdMapLoaderInput = {
+            mapX: overlayMapX,
+            mapY: overlayMapY,
+            maxLevel: Math.max(0, Math.min(Scene.MAX_LEVELS - 1, this.maxLevel | 0)),
+            loadObjs: this.loadObjs,
+            loadNpcs: this.loadNpcs,
+            smoothTerrain: this.smoothTerrain,
+            minimizeDrawCalls: !this.hasMultiDraw,
+            loadedTextureIds: this.loadedTextureIds,
+            instance: { templateChunks, regionX, regionY },
+            overrideRenderPos: { x: entityWorldBaseX, y: entityWorldBaseY },
+            extraLocs: allExtraLocs.length > 0 ? allExtraLocs : undefined,
+            extraNpcs: extraNpcs && extraNpcs.length > 0 ? extraNpcs : undefined,
+        };
+
+        const mapData = await this.osrsClient.workerPool.queueLoad<
+            SdMapLoaderInput,
+            SdMapData | undefined,
+            SdMapDataLoader
+        >(this.dataLoader, input);
+
+        if (this.worldEntityLoadTokens.get(entityIndex) !== loadToken) {
+            return;
+        }
+
+        if (mapData) {
+            console.log(
+                `[WebGLOsrsRenderer] World entity overlay loaded: entity=${entityIndex} vertices=${mapData.vertices?.length ?? 0}`,
+            );
+            this.mapsToLoad.push(mapData);
+            this.mapManager.loadingMapIds.add(overlayMapId);
+            this.mapManager.worldEntityMapIds.add(overlayMapId);
+        } else {
+            this.mapManager.loadingMapIds.delete(overlayMapId);
+        }
+
+    }
+
+    private ensureWorldEntityOverlaysLoaded(nowMs: number): void {
+        for (const [entityIndex, overlay] of this.worldEntityOverlays) {
+            const overlayMapX = 200 + entityIndex;
+            const overlayMapY = 200 + entityIndex;
+            const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+            if (this.mapManager.mapSquares.has(overlayMapId)) continue;
+            if (this.mapManager.loadingMapIds.has(overlayMapId)) continue;
+
+            const retryAfter = this.worldEntityReloadAfterMs.get(entityIndex) ?? 0;
+            if (nowMs < retryAfter) continue;
+
+            this.worldEntityReloadAfterMs.set(entityIndex, nowMs + 250);
+            console.warn(
+                `[WebGLOsrsRenderer] Missing world entity overlay map, reloading entity=${entityIndex}`,
+            );
+            void this.loadWorldEntityScene(
+                overlay.entityIndex,
+                overlay.templateChunks,
+                overlay.regionX,
+                overlay.regionY,
+                overlay.worldX,
+                overlay.worldY,
+                overlay.sizeX,
+                overlay.sizeZ,
+                overlay.extraLocs,
+                overlay.configId,
+                overlay.extraNpcs,
+                overlay.basePlane,
+            );
+        }
+    }
+
+    scheduleWorldEntityLocRebuild(entityIndex: number): void {
+        if (this.worldEntityLocRebuildTimer !== null) return;
+        this.worldEntityLocRebuildTimer = setTimeout(() => {
+            this.worldEntityLocRebuildTimer = null;
+            const overlay = this.worldEntityOverlays.get(entityIndex);
+            if (!overlay) return;
+            console.log(`[WebGLOsrsRenderer] Rebuilding world entity overlay with deferred locs`);
+            this.loadWorldEntityScene(
+                overlay.entityIndex, overlay.templateChunks,
+                overlay.regionX, overlay.regionY,
+                overlay.worldX, overlay.worldY,
+                overlay.sizeX, overlay.sizeZ,
+                overlay.extraLocs,
+                overlay.configId,
+                overlay.extraNpcs,
+                overlay.basePlane,
+            );
+        }, 150);
+    }
+
+    private ensureWorldEntityAnimator(): void {
+        if (this.worldEntityAnimator) return;
+        this.worldEntityAnimator = new WorldEntityAnimator(
+            this.osrsClient.worldEntityTypeLoader,
+            this.osrsClient.seqTypeLoader,
+            this.osrsClient.skeletalSeqLoader,
+        );
+    }
+
+    private getWorldEntityIndexForMapId(mapId: number): number | undefined {
+        for (const [entityIndex] of this.worldEntityOverlays) {
+            const overlayMapX = 200 + entityIndex;
+            const overlayMapY = 200 + entityIndex;
+            if (getMapSquareId(overlayMapX, overlayMapY) === mapId) {
+                return entityIndex;
+            }
+        }
+        return undefined;
+    }
+
+    getOverlayMapForEntity(entityIndex: number): WebGLMapSquare | undefined {
+        const overlayMapId = getMapSquareId(200 + entityIndex, 200 + entityIndex);
+        return this.mapManager.mapSquares.get(overlayMapId);
+    }
+
+    getWorldEntityTransformForMap(map: WebGLMapSquare): Float32Array {
+        if (!this.mapManager.worldEntityMapIds.has(map.id)) {
+            return WebGLMapSquare.IDENTITY_MAT4;
+        }
+        const entityIndex = this.getWorldEntityIndexForMapId(map.id);
+        if (entityIndex === undefined) return WebGLMapSquare.IDENTITY_MAT4;
+        return this.worldEntityAnimator?.getTransform(entityIndex) ?? WebGLMapSquare.IDENTITY_MAT4;
+    }
+
+    getWorldEntityTransformForMapOrOverlap(map: WebGLMapSquare): Float32Array {
+        const direct = this.getWorldEntityTransformForMap(map);
+        if (direct !== WebGLMapSquare.IDENTITY_MAT4) return direct;
+        for (const [entityIndex, overlay] of this.worldEntityOverlays) {
+            const entityMapX = Math.floor(overlay.worldX / 64) | 0;
+            const entityMapY = Math.floor(overlay.worldY / 64) | 0;
+            if (map.mapX === entityMapX && map.mapY === entityMapY) {
+                return this.worldEntityAnimator?.getTransform(entityIndex) ?? WebGLMapSquare.IDENTITY_MAT4;
+            }
+        }
+        return WebGLMapSquare.IDENTITY_MAT4;
+    }
+
+    getWorldEntityDeckHeight(_overworldTileX: number, _overworldTileY: number): number {
+        for (const [, overlay] of this.worldEntityOverlays) {
+            if (overlay.deckHeight !== undefined && overlay.deckHeight !== 0) {
+                return overlay.deckHeight;
+            }
+        }
+        return 0;
+    }
+
+    getWorldEntityTransformForTile(tileX: number, tileY: number): Float32Array {
+        for (const [entityIndex, overlay] of this.worldEntityOverlays) {
+            const halfSize = (overlay.sizeX * 8) / 2;
+            const minX = overlay.worldX - halfSize;
+            const maxX = overlay.worldX + halfSize;
+            const minY = overlay.worldY - halfSize;
+            const maxY = overlay.worldY + halfSize;
+            if (tileX >= minX && tileX < maxX && tileY >= minY && tileY < maxY) {
+                return this.worldEntityAnimator?.getTransform(entityIndex) ?? WebGLMapSquare.IDENTITY_MAT4;
+            }
+        }
+        return WebGLMapSquare.IDENTITY_MAT4;
+    }
+
+    clearWorldEntity(entityIndex: number): void {
+        const overlayMapX = 200 + entityIndex;
+        const overlayMapY = 200 + entityIndex;
+        const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+        this.mapManager.worldEntityMapIds.delete(overlayMapId);
+        this.mapManager.loadingMapIds.delete(overlayMapId);
+        this.mapManager.removeMap(overlayMapX, overlayMapY);
+        this.worldEntityOverlays.delete(entityIndex);
+        this.worldEntityLoadTokens.delete(entityIndex);
+        this.worldEntityReloadAfterMs.delete(entityIndex);
+        this.worldEntityAnimator?.removeEntity(entityIndex);
+        this.osrsClient.worldViewManager.removeWorldView(entityIndex);
+    }
+
+    clearAllWorldEntities(): void {
+        for (const [entityIndex] of this.worldEntityOverlays) {
+            const overlayMapX = 200 + entityIndex;
+            const overlayMapY = 200 + entityIndex;
+            const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+            this.mapManager.worldEntityMapIds.delete(overlayMapId);
+            this.mapManager.loadingMapIds.delete(overlayMapId);
+            this.mapManager.removeMap(overlayMapX, overlayMapY);
+        }
+        if (this.worldEntityLocRebuildTimer !== null) {
+            clearTimeout(this.worldEntityLocRebuildTimer);
+            this.worldEntityLocRebuildTimer = null;
+        }
+        this.worldEntityOverlays.clear();
+        this.worldEntityLoadTokens.clear();
+        this.worldEntityReloadAfterMs.clear();
+        this.worldEntityAnimator?.clear();
+        this.osrsClient.worldViewManager.clear();
     }
 
     private resolveLocReloadBatchMap(
@@ -5329,6 +5793,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.osrsClient.npcEcs,
         );
 
+        // For instances, set base world position for height sampling.
+        // The height data is at source coordinates, not instance coordinates.
+        if (mapData.renderPosX != null) {
+            (loadedMap as any).baseWorldX = (mapData.renderPosX - mapData.borderSize / Scene.MAP_SQUARE_SIZE) * Scene.MAP_SQUARE_SIZE;
+            (loadedMap as any).baseWorldY = (mapData.renderPosY! - mapData.borderSize / Scene.MAP_SQUARE_SIZE) * Scene.MAP_SQUARE_SIZE;
+        }
         this.mapManager.addMap(mapX, mapY, loadedMap);
         this.rebuildGroundItemsForMap(loadedMap, this.groundItemStacks.get(mapId));
 
@@ -6909,6 +7379,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         } catch {}
         profiler.endPhase();
 
+        this.ensureWorldEntityOverlaysLoaded(time);
+
         let mapApplyCount = 0;
         // Load new map squares
         profiler.startPhase("mapApply");
@@ -6933,7 +7405,11 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             }
 
             for (const pendingMap of toApply) {
-                if (!this.isValidMapData(pendingMap)) continue;
+                if (!this.isValidMapData(pendingMap)) {
+                    console.warn(`[WebGLOsrsRenderer] mapsToLoad rejected: mapX=${pendingMap.mapX} mapY=${pendingMap.mapY} cacheName=${pendingMap.cacheName} loadObjs=${pendingMap.loadObjs} loadNpcs=${pendingMap.loadNpcs} smooth=${pendingMap.smoothTerrain}`);
+                    continue;
+                }
+                console.log(`[WebGLOsrsRenderer] mapsToLoad applying: mapX=${pendingMap.mapX} mapY=${pendingMap.mapY} verts=${pendingMap.vertices?.length}`);
                 mapApplyCount++;
                 this.loadMap(
                     this.mainProgram,
@@ -6945,6 +7421,35 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     pendingMap,
                     this.skipMapFadeIn ? -1.0 : timeSec,
                 );
+
+                // Configure world entity overlay maps: set interactionPlane + deck height
+                for (const [entityIndex, overlay] of this.worldEntityOverlays) {
+                    const overlayMapX = 200 + entityIndex;
+                    const overlayMapY = 200 + entityIndex;
+                    if (pendingMap.mapX !== overlayMapX || pendingMap.mapY !== overlayMapY) continue;
+                    const overlayMapId = getMapSquareId(overlayMapX, overlayMapY);
+                    const overlayMap = this.mapManager.mapSquares.get(overlayMapId);
+                    if (!overlayMap) continue;
+                    // Use server-provided basePlane (authoritative), fall back to cache
+                    const weType = this.osrsClient.worldEntityTypeLoader?.load(overlay.configId);
+                    const basePlane = overlay.basePlane || (weType?.basePlane ?? 0);
+
+                    // Single source of truth: all interaction/height queries
+                    // on this overlay map use the deck plane.
+                    overlayMap.interactionPlane = basePlane;
+
+                    if (overlay.deckHeight !== undefined && overlay.deckHeight !== 0) continue;
+                    if (basePlane === 0) { overlay.deckHeight = 0; continue; }
+                    if (!overlayMap.heightMapData) continue;
+                    const hmSize = overlayMap.heightMapSize;
+                    const hmX = 48 + 4;
+                    const hmY = 48 + 4;
+                    if (hmX >= 0 && hmX < hmSize && hmY >= 0 && hmY < hmSize) {
+                        const idx = basePlane * hmSize * hmSize + hmY * hmSize + hmX;
+                        const rawVal = overlayMap.heightMapData[idx] ?? 0;
+                        overlay.deckHeight = -(rawVal * 8);
+                    }
+                }
             }
         }
         profiler.endPhase();
@@ -7423,28 +7928,18 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         tileY: number,
         plane: number,
     ): number | undefined {
-        const mapX = getMapIndexFromTile(tileX);
-        const mapY = getMapIndexFromTile(tileY);
-        const map = this.mapManager.getMap(mapX, mapY) as WebGLMapSquare | undefined;
+        const map = this.getPreferredMapForWorldTile(tileX, tileY);
         if (!map) return undefined;
 
-        const localX = tileX - mapX * Scene.MAP_SQUARE_SIZE;
-        const localY = tileY - mapY * Scene.MAP_SQUARE_SIZE;
-        if (
-            localX < 0 ||
-            localY < 0 ||
-            localX >= Scene.MAP_SQUARE_SIZE ||
-            localY >= Scene.MAP_SQUARE_SIZE
-        ) {
-            return undefined;
-        }
+        const local = this.getMapLocalTile(map, tileX, tileY);
+        if (!local) return undefined;
 
         const size = map.heightMapSize | 0;
         if (size <= 0) return undefined;
         const samplePlane = Math.max(0, Math.min(3, plane | 0));
         const base = samplePlane * size * size;
-        const ix = localX + map.borderSize;
-        const iz = localY + map.borderSize;
+        const ix = local.x + map.borderSize;
+        const iz = local.y + map.borderSize;
         const data = map.heightMapData as Int16Array;
         const texel = data[base + iz * size + ix] ?? 0;
         const worldUnits = (texel * Scene.UNITS_TILE_HEIGHT_BASIS) | 0;
@@ -7601,7 +8096,17 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const focalSubX = this.followCamFocalXSub;
         const focalSubZ = this.followCamFocalZSub;
         const basePlane = pe.getLevel(playerEcsIndex) | 0;
-        this.updateCameraTerrainPitchPressure(focalSubX, focalSubZ, basePlane);
+        const onWorldEntity = this.getControlledPlayerWorldViewId() >= 0;
+        if (!onWorldEntity) {
+            this.updateCameraTerrainPitchPressure(focalSubX, focalSubZ, basePlane);
+        } else {
+            // On a world entity (ship) the deck is flat; let pressure decay to the minimum
+            // so it doesn't artificially restrict the camera pitch.
+            const current = this.cameraTerrainPitchPressure | 0;
+            if (current > 32768) {
+                this.cameraTerrainPitchPressure = current + (((32768 - current) / 80) | 0);
+            }
+        }
 
         const targetX = focalSubX / 128;
         const targetZ = focalSubZ / 128;
@@ -7947,20 +8452,27 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
 
     // Sample height at an exact plane without any bridge promotion
     private sampleHeightAtExactPlane(worldX: number, worldZ: number, plane: number): number {
-        const mapX = getMapIndexFromTile(worldX);
-        const mapY = getMapIndexFromTile(worldZ);
-        const map = this.mapManager.getMap(mapX, mapY);
+        const map = this.getPreferredMapForWorldTile(Math.floor(worldX), Math.floor(worldZ));
         if (!map || !map.heightMapData) {
             return 0;
         }
 
-        const localPxX = Math.floor((worldX - mapX * 64) * 128);
-        const localPxZ = Math.floor((worldZ - mapY * 64) * 128);
+        const localPxX = Math.floor((worldX - map.getRenderBaseWorldX()) * 128);
+        const localPxZ = Math.floor((worldZ - map.getRenderBaseWorldY()) * 128);
+        const mapTileSpan = map.getLocalTileSpan();
 
         let tileX = localPxX >> 7;
         let tileZ = localPxZ >> 7;
-        tileX = Math.max(0, Math.min(63, tileX));
-        tileZ = Math.max(0, Math.min(63, tileZ));
+        if (
+            tileX < 0 ||
+            tileZ < 0 ||
+            tileX >= mapTileSpan ||
+            tileZ >= mapTileSpan
+        ) {
+            return 0;
+        }
+        tileX = Math.max(0, Math.min(mapTileSpan - 1, tileX));
+        tileZ = Math.max(0, Math.min(mapTileSpan - 1, tileZ));
 
         const offX = localPxX & 0x7f;
         const offZ = localPxZ & 0x7f;
@@ -8138,6 +8650,21 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         this.syncInteractHighlightActiveTargetFromLocalInteraction();
         this.maybeExpireInteractHighlightTarget();
 
+        const getWeTransform = (target: InteractHighlightTarget): Float32Array | undefined => {
+            if (target.kind === "npc") {
+                const wvId = this.osrsClient.npcEcs.getWorldViewId?.(target.ecsId) ?? -1;
+                if (wvId >= 0) return this.worldEntityAnimator?.getTransform(wvId);
+            }
+            if (target.kind === "loc" && !target.overworldProxy) {
+                const map = this.getPreferredMapForWorldTile(target.tileX, target.tileY);
+                if (map && this.mapManager.worldEntityMapIds.has(map.id)) {
+                    const weIdx = this.getWorldEntityIndexForMapId(map.id);
+                    if (weIdx !== undefined) return this.worldEntityAnimator?.getTransform(weIdx);
+                }
+            }
+            return undefined;
+        };
+
         if (config.showInteract && this.interactHighlightActiveTarget) {
             const trianglePoints = this.buildHighlightTrianglePoints(
                 this.interactHighlightActiveTarget,
@@ -8147,6 +8674,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     trianglePoints,
                     color: config.interactColor,
                     alpha: 0.45,
+                    worldEntityTransform: getWeTransform(this.interactHighlightActiveTarget),
                 });
             }
         }
@@ -8167,6 +8695,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         trianglePoints,
                         color: config.hoverColor,
                         alpha: 0.45,
+                        worldEntityTransform: getWeTransform(this.interactHighlightHoverTarget),
                     });
                 }
             }
@@ -8331,6 +8860,53 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         return this.interactNpcModelLoader;
     }
 
+    private hasNoVisibleFaces(model: Model): boolean {
+        if (!model.faceAlphas) return false;
+        for (let i = 0; i < model.faceAlphas.length; i++) {
+            if ((model.faceAlphas[i] & 0xff) < 254) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Finds a visible animated loc at the same tile to use as outline geometry
+     * for an invisible interaction volume (e.g. gangplank proxy pattern).
+     */
+    private findVisualProxyModel(
+        locModelLoader: LocModelLoader,
+        target: LocHighlightTarget,
+        modelType: number,
+        modelRotation: number,
+    ): Model | undefined {
+        for (let mi = 0; mi < this.mapManager.visibleMapCount; mi++) {
+            const map = this.mapManager.visibleMaps[mi];
+            if (!map) continue;
+            const local = this.getMapLocalTile(map, target.tileX, target.tileY);
+            if (!local) continue;
+            const rsX = (local.x * 128 + 64) | 0;
+            const rsY = (local.y * 128 + 64) | 0;
+            for (const anim of map.locsAnimated) {
+                if (anim.id === (target.locId | 0)) continue;
+                if (anim.x !== rsX || anim.y !== rsY) continue;
+                const proxyType = this.osrsClient.locTypeLoader.load(anim.id);
+                if (!proxyType) continue;
+                const proxyModel =
+                    locModelLoader.getModelAnimated(
+                        proxyType, LocModelType.NORMAL, anim.rotation ?? 0,
+                        anim.seqType?.id ?? -1, anim.frame | 0,
+                    ) ??
+                    locModelLoader.getModelAnimated(
+                        proxyType, modelType as LocModelType, modelRotation,
+                        anim.seqType?.id ?? -1, anim.frame | 0,
+                    );
+                if (proxyModel && !this.hasNoVisibleFaces(proxyModel)) {
+                    return proxyModel;
+                }
+            }
+        }
+        return undefined;
+    }
+
     private buildLocModelHighlightTriangles(
         target: LocHighlightTarget,
     ): ReadonlyArray<readonly [number, number, number]> | undefined {
@@ -8366,13 +8942,50 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             modelRotation = (rawRotation + 4) & 0x7;
         }
 
-        const model = locModelLoader.getModelAnimated(
+        // Find the current animation frame from the map's animated loc list.
+        // LocAnimated x/y are in RS sub-tile units (localTile * 128 + 64).
+        let seqId = locType.seqId ?? -1;
+        let seqFrame = 0;
+        const locMap = this.getPreferredMapForWorldTile(target.tileX, target.tileY);
+        if (locMap) {
+            const localTile = this.getMapLocalTile(locMap, target.tileX, target.tileY);
+            if (localTile) {
+                const rsX = (localTile.x * 128 + 64) | 0;
+                const rsY = (localTile.y * 128 + 64) | 0;
+                for (const anim of locMap.locsAnimated) {
+                    if (
+                        anim.id === (target.locId | 0) &&
+                        anim.x === rsX &&
+                        anim.y === rsY &&
+                        anim.level === (target.plane | 0)
+                    ) {
+                        seqId = anim.seqType?.id ?? seqId;
+                        seqFrame = anim.frame | 0;
+                        break;
+                    }
+                }
+            }
+        }
+        let model = locModelLoader.getModelAnimated(
             locType,
             modelType as LocModelType,
             modelRotation,
-            -1,
-            -1,
+            seqId,
+            seqFrame,
         );
+
+        // Invisible interaction volumes (all faces fully transparent) use a
+        // visual proxy loc at the same tile for the highlight outline.
+        if (model && this.hasNoVisibleFaces(model)) {
+            const proxy = this.findVisualProxyModel(
+                locModelLoader, target, modelType, modelRotation,
+            );
+            if (proxy) {
+                model = proxy;
+                target.overworldProxy = true;
+            }
+        }
+
         if (!model || !model.verticesX || !model.verticesY || !model.verticesZ) {
             return undefined;
         }
@@ -8384,16 +8997,22 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         }
         const entityX = (target.tileX << 7) + (sizeX << 6);
         const entityZ = (target.tileY << 7) + (sizeY << 6);
-        // Match SceneLoc rendering: loc geometry stays on its map level, but bridge tiles sample
-        // height from the promoted render surface. Using exact plane height here puts highlights
-        // under bridge walkways.
-        const baseY = sampleBridgeHeightForWorldTile(
+        // For world entity overlay locs, sample overworld height (plane 0) — the GPU
+        // renders at the overlay's source plane height which sits at sea level, not a
+        // full UNITS_LEVEL_HEIGHT below.
+        const heightMap = this.getPreferredMapForWorldTile(target.tileX, target.tileY);
+        const isOverlay = !target.overworldProxy && heightMap && heightMap.interactionPlane >= 0;
+        const heightPlane = isOverlay ? 0 : (target.plane | 0);
+        let baseY = sampleBridgeHeightForWorldTile(
             this.mapManager,
             entityX / 128.0,
             entityZ / 128.0,
-            target.plane | 0,
+            heightPlane,
             BridgePlaneStrategy.RENDER,
         ).height;
+        if (isOverlay) {
+            baseY += this.getWorldEntityDeckHeight(0, 0) / 128.0;
+        }
         return this.buildModelTrianglePoints(model, (i) => ({
             x: (entityX + model.verticesX[i]) / 128.0,
             y: baseY + model.verticesY[i] / 128.0,
@@ -8459,14 +9078,19 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         const centerSceneZ = (mapY << 13) + (npcEcs.getY(ecsId) | 0);
         const plane = npcEcs.getLevel(ecsId) | 0;
         target.plane = plane;
-        // Match NPC rendering/overlay height sampling on bridge tiles.
-        const baseY = sampleBridgeHeightForWorldTile(
+        // Match NPC rendering height: bridge-aware sampling + deck height for world entities.
+        let baseY = sampleBridgeHeightForWorldTile(
             this.mapManager,
             centerSceneX / 128.0,
             centerSceneZ / 128.0,
             plane | 0,
             BridgePlaneStrategy.RENDER,
         ).height;
+        const wvId = npcEcs.getWorldViewId?.(ecsId) ?? -1;
+        if (wvId >= 0) {
+            const deckH = this.getWorldEntityDeckHeight(0, 0);
+            baseY += deckH / 128.0;
+        }
         const angle = (npcEcs.getRotation(ecsId) | 0) * RS_TO_RADIANS;
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
@@ -9009,53 +9633,92 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 return idx !== undefined ? this.osrsClient.playerEcs.getLevel(idx) : 0;
             })();
 
-        return sampleBridgeHeightForWorldTile(
-            this.mapManager,
-            worldX,
-            worldY,
-            resolvedBasePlane,
-            BridgePlaneStrategy.RENDER,
-        ).height;
+        const tileX = Math.floor(worldX);
+        const tileY = Math.floor(worldY);
+        const plane = this.getEffectivePlaneForTile(tileX, tileY, resolvedBasePlane);
+        return this.sampleHeightAtExactPlane(worldX, worldY, plane);
     }
 
     // Compute height sampling at a fixed plane without applying bridge promotion per-sample.
     private getTileHeightAtPlane(worldX: number, worldY: number, plane: number): number {
-        return sampleBridgeHeightForWorldTile(
-            this.mapManager,
-            worldX,
-            worldY,
-            plane,
-            BridgePlaneStrategy.RENDER,
-        ).height;
+        return this.sampleHeightAtExactPlane(worldX, worldY, plane);
+    }
+
+    private getControlledPlayerWorldViewId(): number {
+        const idx = this.osrsClient.playerEcs.getIndexForServerId(
+            this.osrsClient.controlledPlayerServerId,
+        );
+        return idx !== undefined ? this.osrsClient.playerEcs.getWorldViewId(idx) | 0 : -1;
+    }
+
+    private getPreferredMapForWorldTile(tileX: number, tileY: number): WebGLMapSquare | undefined {
+        const preferredWorldViewId = this.getControlledPlayerWorldViewId();
+        if (preferredWorldViewId >= 0) {
+            const preferredView = this.osrsClient.worldViewManager.getWorldView(preferredWorldViewId);
+            if (preferredView?.containsTile(tileX | 0, tileY | 0)) {
+                const overlayMap = this.osrsClient.worldViewManager.getOverlayMapSquare(
+                    preferredWorldViewId,
+                    this.mapManager,
+                );
+                if (overlayMap) {
+                    return overlayMap;
+                }
+            }
+        }
+        return this.mapManager.getMap(
+            getMapIndexFromTile(tileX),
+            getMapIndexFromTile(tileY),
+        ) as WebGLMapSquare | undefined;
+    }
+
+    private getMapLocalTile(
+        map: WebGLMapSquare,
+        tileX: number,
+        tileY: number,
+    ): { x: number; y: number } | undefined {
+        const mapTileSpan = map.getLocalTileSpan();
+        const localX = (tileX | 0) - map.getRenderBaseTileX();
+        const localY = (tileY | 0) - map.getRenderBaseTileY();
+        if (
+            localX < 0 ||
+            localY < 0 ||
+            localX >= mapTileSpan ||
+            localY >= mapTileSpan
+        ) {
+            return undefined;
+        }
+        return { x: localX | 0, y: localY | 0 };
     }
 
     // Derive the effective surface plane for a given world tile based on basePlane and bridge flag.
     private getEffectivePlaneForTile(tileX: number, tileY: number, basePlane: number): number {
-        return resolveInteractionPlaneForWorldTile(this.mapManager, basePlane, tileX, tileY);
+        const map = this.getPreferredMapForWorldTile(tileX, tileY);
+        if (map && map.interactionPlane >= 0) return map.interactionPlane;
+        const local = map ? this.getMapLocalTile(map, tileX, tileY) : undefined;
+        if (!map || !local) {
+            return resolveInteractionPlaneForWorldTile(this.mapManager, basePlane, tileX, tileY);
+        }
+        return resolveInteractionPlaneForLocal(map, basePlane, local.x, local.y);
     }
 
     // Derive occupancy plane matching collision map demotion rules.
     private getOccupancyPlaneForTile(tileX: number, tileY: number, basePlane: number): number {
-        return resolveCollisionSamplePlaneForWorldTile(this.mapManager, basePlane, tileX, tileY);
+        const map = this.getPreferredMapForWorldTile(tileX, tileY);
+        const local = map ? this.getMapLocalTile(map, tileX, tileY) : undefined;
+        if (!map || !local) {
+            return resolveCollisionSamplePlaneForWorldTile(this.mapManager, basePlane, tileX, tileY);
+        }
+        return resolveCollisionSamplePlaneForLocal(map, basePlane, local.x, local.y);
     }
 
     private isBridgeSurfaceTile(tileX: number, tileY: number, plane: number): boolean {
-        const map = this.mapManager.getMap(
-            getMapIndexFromTile(tileX),
-            getMapIndexFromTile(tileY),
-        ) as WebGLMapSquare | undefined;
+        const map = this.getPreferredMapForWorldTile(tileX, tileY);
         if (!map || typeof map.isBridgeSurface !== "function") return false;
-        const localX = tileX - map.mapX * Scene.MAP_SQUARE_SIZE;
-        const localY = tileY - map.mapY * Scene.MAP_SQUARE_SIZE;
-        if (
-            localX < 0 ||
-            localY < 0 ||
-            localX >= Scene.MAP_SQUARE_SIZE ||
-            localY >= Scene.MAP_SQUARE_SIZE
-        ) {
+        const local = this.getMapLocalTile(map, tileX, tileY);
+        if (!local) {
             return false;
         }
-        return map.isBridgeSurface(plane, localX, localY);
+        return map.isBridgeSurface(plane, local.x, local.y);
     }
 
     // PERF: Helper method to convert game coordinates to CSS event (avoids closure per frame)
@@ -9148,30 +9811,25 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     override getCollisionFlagAt(level: number, tileX: number, tileY: number): number {
-        const map = this.mapManager.getMap(
-            getMapIndexFromTile(tileX),
-            getMapIndexFromTile(tileY),
-        ) as any;
+        const map = this.getPreferredMapForWorldTile(tileX, tileY) as any;
         // OSRS parity: missing/unloaded tiles are treated as blocked via the 0x1000000 sentinel bit
         // (see CollisionMap.clear + class142.method3226 terrain decode step).
         if (!map || typeof (map as any).getCollisionFlag !== "function") return 0x1000000;
-        const localX = tileX & 63;
-        const localY = tileY & 63;
-        return (map as any).getCollisionFlag(level | 0, localX, localY) | 0;
+        const local = this.getMapLocalTile(map, tileX, tileY);
+        if (!local) return 0x1000000;
+        return (map as any).getCollisionFlag(level | 0, local.x, local.y) | 0;
     }
 
     // Return loc ids anchored at the origin of the given world tile,
     // resolving effective plane using the same bridge logic as heights.
     private getLocIdsAtTile(tileX: number, tileY: number, basePlane: number): number[] {
         try {
-            const mapX = getMapIndexFromTile(tileX);
-            const mapY = getMapIndexFromTile(tileY);
-            const map = this.mapManager.getMap(mapX, mapY) as any;
+            const map = this.getPreferredMapForWorldTile(tileX, tileY) as any;
             if (!map || typeof (map as any).getLocIdsAtLocal !== "function") return [];
-            const localX = tileX & 63;
-            const localY = tileY & 63;
+            const local = this.getMapLocalTile(map, tileX, tileY);
+            if (!local) return [];
             const effPlane = this.getEffectivePlaneForTile(tileX, tileY, basePlane) | 0;
-            return (map as any).getLocIdsAtLocal(effPlane, localX, localY) as number[];
+            return (map as any).getLocIdsAtLocal(effPlane, local.x, local.y) as number[];
         } catch {
             return [];
         }
@@ -9182,18 +9840,16 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         tileY: number,
     ): { id: number; level: number; typeRot?: number }[] {
         try {
-            const mapX = getMapIndexFromTile(tileX);
-            const mapY = getMapIndexFromTile(tileY);
-            const map = this.mapManager.getMap(mapX, mapY) as any;
+            const map = this.getPreferredMapForWorldTile(tileX, tileY) as any;
             if (!map || typeof (map as any).getLocIdsAtLocal !== "function") return [];
-            const localX = tileX & 63;
-            const localY = tileY & 63;
+            const local = this.getMapLocalTile(map, tileX, tileY);
+            if (!local) return [];
             const out: { id: number; level: number; typeRot?: number }[] = [];
             for (let lvl = 0; lvl < 4; lvl++) {
-                const ids = (map as any).getLocIdsAtLocal(lvl, localX, localY) as number[];
+                const ids = (map as any).getLocIdsAtLocal(lvl, local.x, local.y) as number[];
                 const typeRots =
                     typeof (map as any).getLocTypeRotsAtLocal === "function"
-                        ? ((map as any).getLocTypeRotsAtLocal(lvl, localX, localY) as number[])
+                        ? ((map as any).getLocTypeRotsAtLocal(lvl, local.x, local.y) as number[])
                         : undefined;
                 if (!ids) continue;
                 for (let i = 0; i < ids.length; i++) {
@@ -9321,22 +9977,32 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         plane: number,
     ): number | undefined {
         try {
-            const mapX = getMapIndexFromTile(tileX);
-            const mapY = getMapIndexFromTile(tileY);
-            const map = this.mapManager.getMap(mapX, mapY) as any;
-            if (!map || typeof map.getLocIdsAtLocal !== "function") return undefined;
-            if (typeof map.getLocTypeRotsAtLocal !== "function") return undefined;
-            const localX = tileX & 63;
-            const localY = tileY & 63;
-            const level = Math.max(0, Math.min(Scene.MAX_LEVELS - 1, plane | 0));
-            const ids = map.getLocIdsAtLocal(level, localX, localY) as number[];
-            const typeRots = map.getLocTypeRotsAtLocal(level, localX, localY) as number[];
-            for (let i = 0; i < ids.length; i++) {
-                if ((ids[i] | 0) !== (locId | 0)) continue;
-                if (i < typeRots.length) {
-                    return (typeRots[i] | 0) & 0xff;
+            const tryMap = (map: any): number | undefined => {
+                if (!map || typeof map.getLocIdsAtLocal !== "function") return undefined;
+                if (typeof map.getLocTypeRotsAtLocal !== "function") return undefined;
+                const local = this.getMapLocalTile(map, tileX, tileY);
+                if (!local) return undefined;
+                const level = Math.max(0, Math.min(Scene.MAX_LEVELS - 1, plane | 0));
+                const ids = map.getLocIdsAtLocal(level, local.x, local.y) as number[];
+                const typeRots = map.getLocTypeRotsAtLocal(level, local.x, local.y) as number[];
+                for (let i = 0; i < ids.length; i++) {
+                    if ((ids[i] | 0) !== (locId | 0)) continue;
+                    if (i < typeRots.length) {
+                        return (typeRots[i] | 0) & 0xff;
+                    }
+                    break;
                 }
-                break;
+                return undefined;
+            };
+            // Check preferred map first, then fall back to all visible maps.
+            const preferred = this.getPreferredMapForWorldTile(tileX, tileY);
+            const result = tryMap(preferred);
+            if (result !== undefined) return result;
+            for (let i = 0; i < this.mapManager.visibleMapCount; i++) {
+                const map = this.mapManager.visibleMaps[i];
+                if (map === preferred) continue;
+                const r = tryMap(map);
+                if (r !== undefined) return r;
             }
             return undefined;
         } catch {
@@ -9427,6 +10093,9 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             this.addWorldGfxRenderData(map);
         }
 
+        this.worldEntityAnimator?.tick(clientCycle);
+        this.osrsClient.worldViewManager.interpolateEntities(clientCycle, this.clientTickPhase);
+
         // Propagate listener position for positional audio and advance ambient loops.
         const soundSystem = this.osrsClient.soundEffectSystem;
         if (soundSystem) {
@@ -9471,17 +10140,31 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const py = pe.getY(i) | 0;
             const tileX = (px / 128) | 0;
             const tileY = (py / 128) | 0;
-            const mapX = getMapIndexFromTile(tileX);
-            const mapY = getMapIndexFromTile(tileY);
-            // Only update if the player's current map square is loaded and matches this map
-            if (mapX !== map.mapX || mapY !== map.mapY) continue;
+            const worldViewId = pe.getWorldViewId(i) | 0;
+            let occMapX = map.mapX | 0;
+            let occMapY = map.mapY | 0;
+            if (worldViewId >= 0) {
+                const overlayView = this.osrsClient.worldViewManager.getWorldView(worldViewId);
+                if (!overlayView || (overlayView.overlayMapId | 0) !== (map.id | 0)) continue;
+            } else {
+                const mapX = getMapIndexFromTile(tileX);
+                const mapY = getMapIndexFromTile(tileY);
+                if (mapX !== map.mapX || mapY !== map.mapY) continue;
+                occMapX = mapX | 0;
+                occMapY = mapY | 0;
+            }
 
             // Compute effective plane using bridge flag
-            const localTileX = tileX - map.mapX * 64;
-            const localTileY = tileY - map.mapY * 64;
-            const tx = clamp(localTileX, 0, 63);
-            const ty = clamp(localTileY, 0, 63);
-            const plane = resolveCollisionSamplePlaneForLocal(map, pe.getLevel(i) | 0, tx, ty);
+            const local = this.getMapLocalTile(map, tileX, tileY);
+            if (!local) continue;
+            const localTileX = local.x;
+            const localTileY = local.y;
+            const plane = resolveCollisionSamplePlaneForLocal(
+                map,
+                pe.getLevel(i) | 0,
+                localTileX,
+                localTileY,
+            );
 
             const oldPlane = pe.getOccPlane(i) | 0;
             const oldMapX = pe.getOccMapX?.(i) ?? 255;
@@ -9492,18 +10175,18 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             // First-time init: set occ to current and inc
             if (oldPlane === 255) {
                 map.incPlayerOcc(plane, localTileX, localTileY);
-                pe.setOccTileWithMap?.(i, mapX, mapY, localTileX, localTileY, plane);
+                pe.setOccTileWithMap?.(i, occMapX, occMapY, localTileX, localTileY, plane);
                 continue;
             }
 
             // If map changed, dec on old map (if loaded), inc on new
-            if (oldMapX !== mapX || oldMapY !== mapY) {
+            if (oldMapX !== occMapX || oldMapY !== occMapY) {
                 const oldMap = this.mapManager.getMap(oldMapX as number, oldMapY as number) as
                     | WebGLMapSquare
                     | undefined;
                 if (oldMap) oldMap.decPlayerOcc(oldPlane, oldTileX, oldTileY);
                 map.incPlayerOcc(plane, localTileX, localTileY);
-                pe.setOccTileWithMap?.(i, mapX, mapY, localTileX, localTileY, plane);
+                pe.setOccTileWithMap?.(i, occMapX, occMapY, localTileX, localTileY, plane);
                 continue;
             }
 
@@ -9541,7 +10224,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 map.decPlayerOcc(oldPlane, oldTileX, oldTileY);
                 map.incPlayerOcc(plane, localTileX, localTileY);
             }
-            pe.setOccTileWithMap?.(i, mapX, mapY, localTileX, localTileY, plane);
+            pe.setOccTileWithMap?.(i, occMapX, occMapY, localTileX, localTileY, plane);
         }
     }
 
@@ -9811,6 +10494,28 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     private shouldRenderNpcOwnershipFromMap(map: WebGLMapSquare, ecsId: number): boolean {
         const ecs = this.osrsClient.npcEcs;
         if (!ecs.isActive(ecsId) || !ecs.isLinked(ecsId)) return false;
+
+        const worldViewId = ecs.getWorldViewId(ecsId) | 0;
+        if (worldViewId >= 0) {
+            const worldView = this.osrsClient.worldViewManager.getWorldView(worldViewId);
+            if (!worldView) {
+                return false;
+            }
+            if ((map.id | 0) === (worldView.overlayMapId | 0)) {
+                return true;
+            }
+
+            const overlayMap = this.mapManager.mapSquares.get(
+                worldView.overlayMapId,
+            ) as WebGLMapSquare | undefined;
+            if (overlayMap?.npcEntityIds?.indexOf(ecsId | 0) !== -1) {
+                for (let i = 0; i < this.mapManager.visibleMapCount; i++) {
+                    if (this.mapManager.visibleMaps[i] === overlayMap) {
+                        return false;
+                    }
+                }
+            }
+        }
 
         const ownerMapX = ecs.getMapX(ecsId) | 0;
         const ownerMapY = ecs.getMapY(ecsId) | 0;
@@ -10318,6 +11023,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         if (this.unifiedActorData) {
             const ids: number[] = map.npcEntityIds as any;
             const ecs = this.osrsClient.npcEcs;
+            const overlayView = this.osrsClient.worldViewManager.getWorldViewByOverlayMapId(map.id);
+            const renderBaseTileX = map.getRenderBaseTileX();
+            const renderBaseTileY = map.getRenderBaseTileY();
+            const mapTileSpan = map.getLocalTileSpan();
             const npcCount = ids.length | 0;
 
             if (npcCount === 0) {
@@ -10349,13 +11058,21 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     this.actorRenderData[offset + 7] = 0;
                     continue;
                 }
-                // NPC geometry ownership can lag one map refresh behind ECS ownership while an NPC
-                // crosses a 64x64 map-square boundary. Convert from world space back into the
-                // currently drawn map so the existing draw batch remains stable until refresh.
-                const npcX = ecs.getLocalXForMap(id, map.mapX);
-                const npcY = ecs.getLocalYForMap(id, map.mapY);
-                const localTileX = clamp((npcX >> 7) | 0, 0, 63);
-                const localTileY = clamp((npcY >> 7) | 0, 0, 63);
+                const npcWorldViewId = ecs.getWorldViewId(id) | 0;
+                let npcX: number;
+                let npcY: number;
+                if (overlayView && (npcWorldViewId | 0) === (overlayView.id | 0)) {
+                    npcX = (ecs.getWorldX(id) - renderBaseTileX * 128) | 0;
+                    npcY = (ecs.getWorldY(id) - renderBaseTileY * 128) | 0;
+                } else {
+                    // NPC geometry ownership can lag one map refresh behind ECS ownership while an NPC
+                    // crosses a 64x64 map-square boundary. Convert from world space back into the
+                    // currently drawn map so the existing draw batch remains stable until refresh.
+                    npcX = ecs.getLocalXForMap(id, map.mapX);
+                    npcY = ecs.getLocalYForMap(id, map.mapY);
+                }
+                const localTileX = clamp((npcX >> 7) | 0, 0, Math.max(0, mapTileSpan - 1));
+                const localTileY = clamp((npcY >> 7) | 0, 0, Math.max(0, mapTileSpan - 1));
                 const renderPlane = resolveHeightSamplePlaneForLocal(
                     map,
                     ecs.getLevel(id) | 0,
@@ -10695,10 +11412,12 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
     }
 
     private getMapTileDistanceFromPoint(map: WebGLMapSquare, tileX: number, tileY: number): number {
-        const mapMinTileX = map.mapX * Scene.MAP_SQUARE_SIZE;
-        const mapMinTileY = map.mapY * Scene.MAP_SQUARE_SIZE;
-        const mapMaxTileX = mapMinTileX + Scene.MAP_SQUARE_SIZE - 1;
-        const mapMaxTileY = mapMinTileY + Scene.MAP_SQUARE_SIZE - 1;
+        // World entity overlays use baseWorldX/Y for distance instead of mapX/Y
+        const mapMinTileX = map.getRenderBaseTileX();
+        const mapMinTileY = map.getRenderBaseTileY();
+        const mapTileSpan = map.getLocalTileSpan();
+        const mapMaxTileX = mapMinTileX + mapTileSpan - 1;
+        const mapMaxTileY = mapMinTileY + mapTileSpan - 1;
         const dx =
             tileX < mapMinTileX
                 ? mapMinTileX - tileX
@@ -10718,8 +11437,10 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         // OSRS scene visibility is zone-based (8x8 tiles), not map-square based.
         const zoneX = tileX >> 3;
         const zoneY = tileY >> 3;
-        const mapMinZoneX = map.mapX << 3;
-        const mapMinZoneY = map.mapY << 3;
+        const bwx = (map as any).baseWorldX;
+        const bwy = (map as any).baseWorldY;
+        const mapMinZoneX = bwx != null ? ((bwx | 0) >> 3) : map.mapX << 3;
+        const mapMinZoneY = bwy != null ? ((bwy | 0) >> 3) : map.mapY << 3;
         const mapMaxZoneX = mapMinZoneX + 7;
         const mapMaxZoneY = mapMinZoneY + 7;
         const dx =
@@ -10925,7 +11646,19 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             const { drawCall, drawRanges } = map.getDrawCall(transparent, isInteract, isLod);
             const drawRangePlanes = map.getDrawRangesPlanes(transparent, isInteract, isLod);
 
+            const isWorldEntity = this.mapManager.worldEntityMapIds.has(map.id);
+            let weTransform: Float32Array = WebGLMapSquare.IDENTITY_MAT4;
+            let weEntityIndex: number | undefined;
+            if (isWorldEntity) {
+                weEntityIndex = this.getWorldEntityIndexForMapId(map.id);
+                if (weEntityIndex !== undefined) {
+                    weTransform = this.worldEntityAnimator?.getTransform(weEntityIndex) ?? WebGLMapSquare.IDENTITY_MAT4;
+                }
+            }
+
             drawCall.uniform("u_roofPlaneLimit", roofPlaneLimit);
+            drawCall.uniform("u_worldEntityTransform", weTransform);
+            drawCall.uniform("u_worldEntityOpacity", 1.0);
             this.updateAnimatedDrawRanges(
                 map,
                 drawCall,
@@ -10945,6 +11678,8 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     isLod,
                 );
                 groundBatch.drawCall.uniform("u_roofPlaneLimit", roofPlaneLimit);
+                groundBatch.drawCall.uniform("u_worldEntityTransform", weTransform);
+                groundBatch.drawCall.uniform("u_worldEntityOpacity", 1.0);
                 this.drawWithRoofPlaneFilter(
                     groundBatch.drawCall,
                     groundBatch.drawRanges,
@@ -10961,6 +11696,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     isLod,
                 );
                 doorBatch.drawCall.uniform("u_roofPlaneLimit", roofPlaneLimit);
+                doorBatch.drawCall.uniform("u_worldEntityTransform", weTransform);
                 this.drawWithRoofPlaneFilter(
                     doorBatch.drawCall,
                     doorBatch.drawRanges,
@@ -10968,6 +11704,38 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     roofPlaneLimit,
                 );
             }
+
+            // Mode1 overlap ghost: redraw WE with tint + low opacity when actors overlap
+            if (isWorldEntity && weEntityIndex !== undefined && !transparent) {
+                const weEntity = this.osrsClient.worldViewManager.getWorldEntity(weEntityIndex);
+                if (weEntity && weEntity.drawMode === 1) {
+                    const weView = this.osrsClient.worldViewManager.getWorldView(weEntityIndex);
+                    const hasOverlap = weView && (weView.npcIds.size > 0 || weView.playerIds.size > 0);
+                    if (hasOverlap) {
+                        const overlay = this.worldEntityOverlays.get(weEntityIndex);
+                        const weType = overlay?.configId !== undefined && overlay.configId >= 0
+                            ? this.osrsClient.worldEntityTypeLoader?.load(overlay.configId)
+                            : undefined;
+                        if (weType && weType.sceneTintHsl > 0 && this.sceneUniformBuffer) {
+                            this.setSceneHslOverrideFromPacked(weType.sceneTintHsl, 127);
+                            this.sceneUniformBuffer.set(4, this.sceneHslOverride as Float32Array).update();
+
+                            this.app.enable(PicoGL.BLEND);
+                            this.app.blendFunc(PicoGL.SRC_ALPHA, PicoGL.ONE_MINUS_SRC_ALPHA);
+
+                            drawCall.uniform("u_worldEntityOpacity", 0.01);
+                            this.drawWithRoofPlaneFilter(drawCall, drawRanges, drawRangePlanes, roofPlaneLimit);
+                            drawCall.uniform("u_worldEntityOpacity", 1.0);
+
+                            this.app.disable(PicoGL.BLEND);
+
+                            this.clearSceneHslOverride();
+                            this.sceneUniformBuffer.set(4, this.sceneHslOverride as Float32Array).update();
+                        }
+                    }
+                }
+            }
+
         }
 
         if (!transparent) {
@@ -11166,14 +11934,25 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const npcDataOffset = dyn.dataOffset + dyn.npcIndex;
 
                 dynDrawCall.uniform("u_npcDataOffset", npcDataOffset);
-                dynDrawCall.uniform("u_mapPos", [dyn.map.mapX, dyn.map.mapY]);
+                dynDrawCall.uniform("u_mapPos", [dyn.map.renderPosX, dyn.map.renderPosY]);
                 dynDrawCall.uniform("u_timeLoaded", dyn.map.timeLoaded);
-                dynDrawCall.uniform("u_modelYOffset", 0.0);
+                {
+                    const dynWvId = this.osrsClient.npcEcs.getWorldViewId(dyn.ecsId);
+                    if (dynWvId >= 0) {
+                        const dynDeckH = this.getWorldEntityDeckHeight(0, 0);
+                        dynDrawCall.uniform("u_modelYOffset", -dynDeckH);
+                        dynDrawCall.uniform("u_worldEntityTransform", this.worldEntityAnimator?.getTransform(dynWvId) ?? WebGLMapSquare.IDENTITY_MAT4);
+                    } else {
+                        dynDrawCall.uniform("u_modelYOffset", 0.0);
+                        dynDrawCall.uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4);
+                    }
+                }
 
                 // Set height map texture from the map
                 const heightMapTex = (dyn.map as any).heightMapTexture;
                 if (heightMapTex) {
                     dynDrawCall.texture("u_heightMap", heightMapTex);
+                    dynDrawCall.uniform("u_sceneBorderSize", (dyn.map as any).borderSize ?? 6);
                 }
 
                 this.dynamicNpcSingleDrawRange[0] = 0;
@@ -11191,10 +11970,19 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
         for (const stack of stacks) {
             const tileX = stack.tile.x | 0;
             const tileY = stack.tile.y | 0;
-            const mapX = tileX >> 6;
-            const mapY = tileY >> 6;
-            if (mapX < 0 || mapY < 0) continue;
-            const mapId = getMapSquareId(mapX, mapY);
+
+            // Check if this ground item falls within a WorldView overlay
+            let mapId: number;
+            const wv = this.osrsClient.worldViewManager.findWorldViewAt(tileX, tileY);
+            if (wv && !wv.isTopLevel()) {
+                mapId = wv.overlayMapId;
+            } else {
+                const mapX = tileX >> 6;
+                const mapY = tileY >> 6;
+                if (mapX < 0 || mapY < 0) continue;
+                mapId = getMapSquareId(mapX, mapY);
+            }
+
             const clone: ClientGroundItemStack = {
                 ...stack,
                 itemId: stack.itemId | 0,
@@ -11351,12 +12139,26 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                     drawCall
                         .uniform("u_npcDataOffset", baseOffsetNpc)
                         .uniform("u_modelYOffset", 0.0)
+                        .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                         .texture("u_npcDataTexture", actorDataTexture);
                     const ecs = this.osrsClient.npcEcs;
                     const ids: number[] = map.npcEntityIds as any;
+
+                    // Track world-entity NPCs for second pass with bobbing transform
+                    const weNpcIndices: number[] = [];
+
                     for (let j = 0; j < npcCount; j++) {
                         const id = ids[j] | 0;
                         if (!this.shouldRenderNpcFromMap(map, id)) {
+                            (drawCall as any).offsets[j] = 0;
+                            (drawCall as any).numElements[j] = 0;
+                            drawRanges[j] = NULL_DRAW_RANGE;
+                            continue;
+                        }
+
+                        // NPCs assigned to a world entity skip the overworld pass
+                        if (ecs.getWorldViewId(id) >= 0) {
+                            weNpcIndices.push(j);
                             (drawCall as any).offsets[j] = 0;
                             (drawCall as any).numElements[j] = 0;
                             drawRanges[j] = NULL_DRAW_RANGE;
@@ -11433,6 +12235,37 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                         drawRanges[j] = frame;
                     }
                     this.draw(drawCall, drawRanges);
+
+                    // Second pass: draw world-entity NPCs with deck height + bobbing transform
+                    if (weNpcIndices.length > 0) {
+                        const firstWeId = ids[weNpcIndices[0]] | 0;
+                        const weEntityIdx = ecs.getWorldViewId(firstWeId);
+                        const weTransform = this.worldEntityAnimator?.getTransform(weEntityIdx) ?? WebGLMapSquare.IDENTITY_MAT4;
+                        const weDeckH = this.getWorldEntityDeckHeight(0, 0);
+
+
+                        drawCall
+                            .uniform("u_modelYOffset", -weDeckH)
+                            .uniform("u_worldEntityTransform", weTransform);
+
+                        for (let j = 0; j < npcCount; j++) {
+                            (drawCall as any).offsets[j] = 0;
+                            (drawCall as any).numElements[j] = 0;
+                            drawRanges[j] = NULL_DRAW_RANGE;
+                        }
+                        for (const wj of weNpcIndices) {
+                            const wid = ids[wj] | 0;
+                            const anim = this._resolveNpcAnimation(map, wj, ecs, wid);
+                            const wFrameId = ecs.getSeqId(wid) >= 0 && ecs.getSeqDelay?.(wid) === 0
+                                ? ecs.getFrameIndex(wid) | 0
+                                : ecs.getMovementFrameIndex?.(wid) | 0;
+                            const frame = anim.frames[Math.max(0, Math.min((anim.frames.length - 1) | 0, wFrameId))];
+                            (drawCall as any).offsets[wj] = frame[0];
+                            (drawCall as any).numElements[wj] = frame[1];
+                            drawRanges[wj] = frame;
+                        }
+                        this.draw(drawCall, drawRanges);
+                    }
                 }
             }
 
@@ -11497,14 +12330,25 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                 const npcDataOffset = dyn.dataOffset + dyn.npcIndex;
 
                 dynDrawCall.uniform("u_npcDataOffset", npcDataOffset);
-                dynDrawCall.uniform("u_mapPos", [dyn.map.mapX, dyn.map.mapY]);
+                dynDrawCall.uniform("u_mapPos", [dyn.map.renderPosX, dyn.map.renderPosY]);
                 dynDrawCall.uniform("u_timeLoaded", dyn.map.timeLoaded);
-                dynDrawCall.uniform("u_modelYOffset", 0.0);
+                {
+                    const dynWvId = this.osrsClient.npcEcs.getWorldViewId(dyn.ecsId);
+                    if (dynWvId >= 0) {
+                        const dynDeckH = this.getWorldEntityDeckHeight(0, 0);
+                        dynDrawCall.uniform("u_modelYOffset", -dynDeckH);
+                        dynDrawCall.uniform("u_worldEntityTransform", this.worldEntityAnimator?.getTransform(dynWvId) ?? WebGLMapSquare.IDENTITY_MAT4);
+                    } else {
+                        dynDrawCall.uniform("u_modelYOffset", 0.0);
+                        dynDrawCall.uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4);
+                    }
+                }
 
                 // Set height map texture from the map
                 const heightMapTex = (dyn.map as any).heightMapTexture;
                 if (heightMapTex) {
                     dynDrawCall.texture("u_heightMap", heightMapTex);
+                    dynDrawCall.uniform("u_sceneBorderSize", (dyn.map as any).borderSize ?? 6);
                 }
 
                 this.dynamicNpcSingleDrawRange[0] = 0;
@@ -13230,6 +14074,81 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             );
         } catch (err) {
             console.warn("onLocChange error", err);
+        }
+    }
+
+    private getExtraLocsForMap(
+        mapX: number,
+        mapY: number,
+    ): Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> | undefined {
+        if (this.addedLocs.size === 0) return undefined;
+        const minX = mapX * 64;
+        const minY = mapY * 64;
+        const maxX = minX + 64;
+        const maxY = minY + 64;
+        const locs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
+        for (const loc of this.addedLocs.values()) {
+            if (loc.x >= minX && loc.x < maxX && loc.y >= minY && loc.y < maxY) {
+                locs.push({
+                    id: loc.locId,
+                    x: loc.x,
+                    y: loc.y,
+                    level: loc.level,
+                    shape: loc.shape,
+                    rotation: loc.rotation,
+                });
+            }
+        }
+        return locs.length > 0 ? locs : undefined;
+    }
+
+    onLocAddChange(
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): void {
+        try {
+            const key = `${tile.x},${tile.y},${level},${shape}`;
+            this.addedLocs.set(key, { locId, x: tile.x, y: tile.y, level, shape, rotation });
+
+            const mapX = Math.floor(tile.x / 64);
+            const mapY = Math.floor(tile.y / 64);
+            const mapId = getMapSquareId(mapX, mapY);
+            if (this.instanceActive) {
+                // In instance mode, schedule a deferred instance scene rebuild
+                // that includes the new loc via extraLocs.
+                this.scheduleInstanceLocRebuild();
+            } else {
+                this.pendingLocUpdates.add(mapId);
+                this.scheduleLocReload(mapX, mapY);
+            }
+            console.log(
+                `[WebGLRenderer] Loc add: ${locId} at (${tile.x}, ${tile.y}, ${level}) shape=${shape} -> map (${mapX}, ${mapY})`,
+            );
+        } catch (err) {
+            console.warn("onLocAddChange error", err);
+        }
+    }
+
+    onLocDel(
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): void {
+        try {
+            const key = `${tile.x},${tile.y},${level},${shape}`;
+            this.addedLocs.delete(key);
+
+            const mapX = Math.floor(tile.x / 64);
+            const mapY = Math.floor(tile.y / 64);
+            const mapId = getMapSquareId(mapX, mapY);
+            this.pendingLocUpdates.add(mapId);
+            this.scheduleLocReload(mapX, mapY);
+        } catch (err) {
+            console.warn("onLocDel error", err);
         }
     }
 

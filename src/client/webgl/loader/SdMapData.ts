@@ -25,6 +25,12 @@ export type SdMapData = {
     smoothTerrain: boolean;
 
     borderSize: number;
+    heightMapSize: number;
+
+    /** Override u_mapPos for the shader. When set, positions geometry at these
+     *  world coordinates instead of mapX*64/mapY*64. Used by instances. */
+    renderPosX?: number;
+    renderPosY?: number;
 
     tileRenderFlags: Uint8Array[][];
     collisionDatas: CollisionData[];

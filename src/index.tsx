@@ -9,8 +9,6 @@ import reportWebVitals from "./reportWebVitals";
 import { Bzip2 } from "./rs/compression/Bzip2";
 import { Gzip } from "./rs/compression/Gzip";
 import { registerServiceWorker } from "./serviceWorkerRegistration";
-// Register custom items (shared between client/server) - must be before OsrsClientApp
-import "./shared/custom-items";
 import { installUiDiagnostic } from "./ui/UiScaleDiagnostic";
 
 declare const module: any; // HMR typing

@@ -54,3 +54,6 @@ mcp
 AGENTS.md
 toolkit
 CLAUDE.md
+docs/.vitepress/cache
+docs/.vitepress/dist
+server/data/gamemodes/leagues-v/player-state.json

@@ -112,11 +112,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         watch: [path.resolve(MODULE_DIR, "modules/wildernessAccess.ts")],
     },
     {
-        id: "content.league-tutor",
-        load: loadModule("modules/leagueTutor", "leagueTutorModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/leagueTutor.ts")],
-    },
-    {
         id: "content.default-talk",
         load: loadModule("modules/defaultTalk", "defaultTalkModule"),
         watch: [path.resolve(MODULE_DIR, "modules/defaultTalk.ts")],
@@ -145,16 +140,6 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         id: "content.collection-log-widgets",
         load: loadModule("modules/collectionLogWidgets", "collectionLogWidgetsModule"),
         watch: [path.resolve(MODULE_DIR, "modules/collectionLogWidgets.ts")],
-    },
-    {
-        id: "content.league-widgets",
-        load: loadModule("modules/leagueWidgets", "leagueWidgetModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/leagueWidgets.ts")],
-    },
-    {
-        id: "content.league-tutorial-widgets",
-        load: loadModule("modules/leagueTutorialWidgets", "leagueTutorialWidgetModule"),
-        watch: [path.resolve(MODULE_DIR, "modules/leagueTutorialWidgets.ts")],
     },
     {
         id: "content.equipment",
@@ -241,6 +226,11 @@ export const SCRIPT_MANIFEST: ScriptManifestEntry[] = [
         id: "followers",
         load: loadModule("modules/items/followers", "followerItemModule"),
         watch: [path.resolve(MODULE_DIR, "modules/items/followers.ts")],
+    },
+    {
+        id: "quest.pandemonium",
+        load: loadModule("modules/quests/pandemonium", "pandemoniumQuestModule"),
+        watch: [path.resolve(MODULE_DIR, "modules/quests/pandemonium.ts")],
     },
     {
         id: "packs",

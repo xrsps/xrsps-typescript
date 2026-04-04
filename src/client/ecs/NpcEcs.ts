@@ -104,6 +104,8 @@ export class NpcEcs {
     private occTileX: Uint8Array; // 0..63
     private occTileY: Uint8Array; // 0..63
     private occPlane: Uint8Array; // 0..3
+    // WorldView assignment (-1 = overworld, >= 0 = world entity)
+    private worldViewId: Int16Array;
 
     // OSRS parity: actor path buffers are length 10 with pathLength capped to 9.
     static readonly MAX_SERVER_PATH = 10;
@@ -162,6 +164,8 @@ export class NpcEcs {
         this.occTileX = new Uint8Array(this.capacity);
         this.occTileY = new Uint8Array(this.capacity);
         this.occPlane = new Uint8Array(this.capacity);
+        this.worldViewId = new Int16Array(this.capacity);
+        this.worldViewId.fill(-1);
         this.targetX = new Int16Array(this.capacity);
         this.targetY = new Int16Array(this.capacity);
         this.targetRot = new Uint16Array(this.capacity);
@@ -292,6 +296,9 @@ export class NpcEcs {
         this.occTileX = grow(this.occTileX, newCap);
         this.occTileY = grow(this.occTileY, newCap);
         this.occPlane = grow(this.occPlane, newCap);
+        const oldWv = this.worldViewId;
+        this.worldViewId = grow(this.worldViewId, newCap) as Int16Array;
+        for (let i = oldWv.length; i < newCap; i++) this.worldViewId[i] = -1;
         this.capacity = newCap;
     }
 
@@ -390,6 +397,7 @@ export class NpcEcs {
         this.hasServerState[id] = 0;
         this.interactionIndex[id] = NO_INTERACTION;
         this.clipped[id] = 0;
+        this.worldViewId[id] = -1;
     }
 
     destroyNpcsForMap(mapX: number, mapY: number): void {
@@ -509,6 +517,12 @@ export class NpcEcs {
     }
     getLevel(id: number): number {
         return this.level[id] | 0;
+    }
+    getWorldViewId(id: number): number {
+        return this.worldViewId[id] | 0;
+    }
+    setWorldViewId(id: number, viewId: number): void {
+        this.worldViewId[id] = viewId | 0;
     }
     getRotation(id: number): number {
         return this.rotation[id] | 0;

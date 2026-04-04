@@ -172,6 +172,10 @@ export class DatCacheLoaderFactory implements CacheLoaderFactory {
         return undefined;
     }
 
+    getWorldEntityTypeLoader(): undefined {
+        return undefined;
+    }
+
     getMapFileLoader(): MapFileLoader {
         const mapIndex = this.cacheSystem.getIndex(IndexType.DAT.maps);
         const versionListArchive = this.configIndex.getArchive(ConfigType.DAT.versionList);

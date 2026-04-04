@@ -1,5 +1,4 @@
 // Flax loc ids sourced from RuneLite ObjectID constants (14896, 15075-15079)
-// plus legacy cache id 2646 referenced in references/zaros-server/data/objectSize.cfg.
 
 export const FLAX_ITEM_ID = 1779;
 export const FLAX_PICK_XP = 1;

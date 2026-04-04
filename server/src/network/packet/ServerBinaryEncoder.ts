@@ -8,7 +8,13 @@ import {
     SERVER_PACKET_LENGTHS,
     ServerPacketId,
 } from "../../../../src/shared/packets/ServerPacketId";
+import {
+    INSTANCE_CHUNK_COUNT,
+    PLANE_COUNT,
+} from "../../../../src/shared/instance/InstanceTypes";
+import type { WorldEntityBuildArea } from "../../../../src/shared/worldentity/WorldEntityTypes";
 import type { ProjectileLaunch } from "../../../../src/shared/projectiles/ProjectileLaunch";
+import { BitWriter } from "../BitWriter";
 
 /**
  * Binary packet buffer for server encoding
@@ -979,6 +985,44 @@ export class ServerBinaryEncoder {
         return this.buffer.toPacket(ServerPacketId.LOC_CHANGE);
     }
 
+    /**
+     * LOC_ADD_CHANGE — spawn or change a loc at a world tile.
+     * OSRS parity: zone-relative coords would use (x&7 << 4 | y&7),
+     * but we use absolute world coords for simplicity.
+     */
+    encodeLocAddChange(
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): Uint8Array {
+        this.buffer.reset();
+        this.buffer.writeShort(locId);
+        this.buffer.writeShort(tile.x);
+        this.buffer.writeShort(tile.y);
+        this.buffer.writeByte(level);
+        this.buffer.writeByte((shape << 2) | (rotation & 3));
+        return this.buffer.toPacket(ServerPacketId.LOC_ADD_CHANGE);
+    }
+
+    /**
+     * LOC_DEL — remove a loc at a world tile.
+     */
+    encodeLocDel(
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): Uint8Array {
+        this.buffer.reset();
+        this.buffer.writeShort(tile.x);
+        this.buffer.writeShort(tile.y);
+        this.buffer.writeByte(level);
+        this.buffer.writeByte((shape << 2) | (rotation & 3));
+        return this.buffer.toPacket(ServerPacketId.LOC_DEL);
+    }
+
     // ========================================
     // COMBAT STATE
     // ========================================
@@ -1498,6 +1542,247 @@ export class ServerBinaryEncoder {
         this.buffer.writeString(jsonStr);
         return this.buffer.toPacket(ServerPacketId.DEBUG_PACKET);
     }
+
+    // ========================================
+    // REBUILD_REGION (Dynamic Instances)
+    // ========================================
+
+    encodeRebuildNormal(
+        regionX: number,
+        regionY: number,
+        forceReload: boolean,
+        xteaKeys: number[][],
+    ): Uint8Array {
+        this.buffer.reset();
+
+        this.buffer.writeShort(regionX);
+        this.buffer.writeShort(regionY);
+        this.buffer.writeByte(forceReload ? 0 : 1);
+        this.buffer.writeShort(xteaKeys.length);
+
+        for (let i = 0; i < xteaKeys.length; i++) {
+            const key = xteaKeys[i];
+            for (let j = 0; j < 4; j++) {
+                this.buffer.writeInt(key[j] ?? 0);
+            }
+        }
+
+        return this.buffer.toPacket(ServerPacketId.REBUILD_NORMAL);
+    }
+
+    encodeRebuildRegion(
+        regionX: number,
+        regionY: number,
+        forceReload: boolean,
+        templateChunks: number[][][],
+        xteaKeys: number[][],
+    ): Uint8Array {
+        this.buffer.reset();
+
+        this.buffer.writeShort(regionY);
+        this.buffer.writeByte(forceReload ? 1 : 0);
+        this.buffer.writeShort(regionX);
+        this.buffer.writeShort(xteaKeys.length);
+
+        // Bit-packed template chunks: 4 planes × 13 × 13
+        const bits = new BitWriter();
+        for (let plane = 0; plane < PLANE_COUNT; plane++) {
+            for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
+                    const packed = templateChunks[plane][cx][cy];
+                    if (packed !== -1) {
+                        bits.writeBits(1, 1);
+                        bits.writeBits(26, packed);
+                    } else {
+                        bits.writeBits(1, 0);
+                    }
+                }
+            }
+        }
+        const bitData = bits.toUint8Array();
+        this.buffer.writeBytes(bitData, 0, bitData.length);
+
+        // XTEA keys: one key (4 ints) per region
+        for (let i = 0; i < xteaKeys.length; i++) {
+            const key = xteaKeys[i];
+            for (let j = 0; j < 4; j++) {
+                this.buffer.writeInt(key[j] ?? 0);
+            }
+        }
+
+        return this.buffer.toPacket(ServerPacketId.REBUILD_REGION);
+    }
+
+    encodeRebuildWorldEntity(
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        zoneX: number,
+        zoneZ: number,
+        regionX: number,
+        regionY: number,
+        forceReload: boolean,
+        templateChunks: number[][][],
+        xteaKeys: number[][],
+        buildAreas: WorldEntityBuildArea[],
+    ): Uint8Array {
+        this.buffer.reset();
+
+        this.buffer.writeShort(entityIndex);
+        this.buffer.writeShort(configId);
+        this.buffer.writeByte(sizeX);
+        this.buffer.writeByte(sizeZ);
+        this.buffer.writeShort(zoneX);
+        this.buffer.writeShort(zoneZ);
+        this.buffer.writeShort(regionY);
+        this.buffer.writeByte(forceReload ? 1 : 0);
+        this.buffer.writeShort(regionX);
+        this.buffer.writeShort(xteaKeys.length);
+
+        // Build areas
+        this.buffer.writeByte(buildAreas.length);
+        for (const area of buildAreas) {
+            this.buffer.writeShort(area.sourceBaseX);
+            this.buffer.writeShort(area.sourceBaseY);
+            this.buffer.writeShort(area.destBaseX);
+            this.buffer.writeShort(area.destBaseY);
+            this.buffer.writeByte(area.planes);
+            this.buffer.writeByte(area.rotation);
+        }
+
+        // Bit-packed template chunks: 4 planes × 13 × 13
+        const bits = new BitWriter();
+        for (let plane = 0; plane < PLANE_COUNT; plane++) {
+            for (let cx = 0; cx < INSTANCE_CHUNK_COUNT; cx++) {
+                for (let cy = 0; cy < INSTANCE_CHUNK_COUNT; cy++) {
+                    const packed = templateChunks[plane][cx][cy];
+                    if (packed !== -1) {
+                        bits.writeBits(1, 1);
+                        bits.writeBits(26, packed);
+                    } else {
+                        bits.writeBits(1, 0);
+                    }
+                }
+            }
+        }
+        const bitData = bits.toUint8Array();
+        this.buffer.writeBytes(bitData, 0, bitData.length);
+
+        // XTEA keys
+        for (let i = 0; i < xteaKeys.length; i++) {
+            const key = xteaKeys[i];
+            for (let j = 0; j < 4; j++) {
+                this.buffer.writeInt(key[j] ?? 0);
+            }
+        }
+
+        return this.buffer.toPacket(ServerPacketId.REBUILD_WORLDENTITY);
+    }
+
+    /**
+     * Encode WORLDENTITY_INFO — per-tick world entity lifecycle packet.
+     *
+     * Format (matching deob WorldEntityUpdateParser):
+     *   byte   count          — how many of the OLD active entities are processed
+     *   for each 0..count-1:
+     *     byte  updateType    — 0=despawn, 1=no change, 2=queuePosition, 3=setPosition
+     *     if updateType >= 2: position delta via typed-value tags
+     *     mask update byte (bit 0 = animation, bit 1 = action mask)
+     *   while bytes remain:
+     *     short entityIndex, byte sizeX, byte sizeZ, short configId
+     *     position via typed-value tags
+     *     byte  drawMode
+     *     mask update byte
+     */
+    encodeWorldEntityInfo(
+        oldCount: number,
+        oldUpdates: Array<{
+            updateType: number;
+            positionDelta?: { x: number; y: number; z: number; orientation: number };
+            mask?: { animationId?: number; sequenceFrame?: number; actionMask?: number };
+        }>,
+        newSpawns: Array<{
+            entityIndex: number;
+            sizeX: number;
+            sizeZ: number;
+            configId: number;
+            drawMode: number;
+            position: { x: number; y: number; z: number; orientation: number };
+            mask?: { animationId?: number; sequenceFrame?: number; actionMask?: number };
+        }>,
+    ): Uint8Array {
+        this.buffer.reset();
+        this.buffer.writeByte(oldCount);
+        for (let i = 0; i < oldCount; i++) {
+            const upd = oldUpdates[i];
+            this.buffer.writeByte(upd.updateType);
+            if (upd.updateType >= 2 && upd.positionDelta) {
+                this.writePositionDelta(upd.positionDelta);
+            }
+            if (upd.updateType !== 0) {
+                this.writeMaskUpdate(upd.mask);
+            }
+        }
+        for (const spawn of newSpawns) {
+            this.buffer.writeShort(spawn.entityIndex);
+            this.buffer.writeByte(spawn.sizeX);
+            this.buffer.writeByte(spawn.sizeZ);
+            this.buffer.writeShort(spawn.configId);
+            this.writePositionDelta(spawn.position);
+            this.buffer.writeByte(spawn.drawMode);
+            this.writeMaskUpdate(spawn.mask);
+        }
+        return this.buffer.toPacket(ServerPacketId.WORLDENTITY_INFO);
+    }
+
+    /**
+     * Encode a position delta using the OSRS typed-value tag format.
+     * A flags byte packs the encoding width (0=zero/absent, 1=byte, 2=short, 3=int)
+     * for each of 4 components at bit shifts 0, 2, 4, 6 (x, y, z, orientation).
+     */
+    private writePositionDelta(delta: { x: number; y: number; z: number; orientation: number }): void {
+        const vals = [delta.x | 0, delta.y | 0, delta.z | 0, delta.orientation | 0];
+        let flags = 0;
+        for (let i = 0; i < 4; i++) {
+            flags |= typedValueWidth(vals[i]) << (i * 2);
+        }
+        this.buffer.writeByte(flags);
+        if (flags === 0) return;
+        for (let i = 0; i < 4; i++) {
+            const width = (flags >> (i * 2)) & 3;
+            if (width === 1) this.buffer.writeByte(vals[i]);
+            else if (width === 2) this.buffer.writeShort(vals[i]);
+            else if (width === 3) this.buffer.writeInt(vals[i]);
+        }
+    }
+
+    private writeMaskUpdate(mask?: { animationId?: number; sequenceFrame?: number; actionMask?: number }): void {
+        let maskByte = 0;
+        if (mask) {
+            if (mask.animationId !== undefined) maskByte |= 1;
+            if (mask.actionMask !== undefined) maskByte |= 2;
+        }
+        this.buffer.writeByte(maskByte);
+        if (maskByte & 1) {
+            this.buffer.writeShort(mask!.animationId!);
+            this.buffer.writeByte(mask!.sequenceFrame ?? 0);
+        }
+        if (maskByte & 2) {
+            this.buffer.writeByte(mask!.actionMask!);
+        }
+    }
+}
+
+/**
+ * Determine the minimum encoding width for a typed-value:
+ *   0 = zero (not sent), 1 = signed byte, 2 = signed short, 3 = signed int.
+ */
+function typedValueWidth(v: number): number {
+    if (v === 0) return 0;
+    if (v >= -128 && v <= 127) return 1;
+    if (v >= -32768 && v <= 32767) return 2;
+    return 3;
 }
 
 // Singleton instance

@@ -36,7 +36,7 @@ export const QUEST_TAB_INDEX = 2;
  */
 export interface DesktopInterfaceOptions {
     /**
-     * If true, only include the Quest tab (for league tutorial mode).
+     * If true, only include the Quest tab (for gamemode tutorial mode).
      * When tutorial completes, call openRemainingTabs() to show all tabs.
      */
     tutorialMode?: boolean;

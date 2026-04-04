@@ -19,6 +19,7 @@ export interface SpawnInstruction {
     needsAppearance: boolean;
     subX: number;
     subY: number;
+    worldViewId?: number;
 }
 
 export interface RemovalInstruction {
@@ -84,6 +85,7 @@ export function frameToActions(frame: PlayerSyncFrame): PlayerSyncActions {
             needsAppearance: spawn.needsAppearance,
             subX,
             subY,
+            worldViewId: spawn.worldViewId,
         };
     });
     const removals = frame.removals.map((r) => ({ serverId: r.index }));

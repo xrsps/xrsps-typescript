@@ -16,6 +16,8 @@ export interface InteractHighlightDrawTarget {
     /** 0xRRGGBB */
     color: number;
     alpha?: number;
+    /** World entity bobbing transform (view-space). Identity when not on a world entity. */
+    worldEntityTransform?: Float32Array;
 }
 
 export interface InteractHighlightOverlayContext {
@@ -46,10 +48,12 @@ uniform SceneUniforms {
     float u_isNewTextureAnim;
 };
 
+uniform mat4 u_worldEntityTransform;
+
 layout(location=0) in vec3 a_position;
 
 void main() {
-    vec4 pos = u_viewMatrix * vec4(a_position, 1.0);
+    vec4 pos = u_worldEntityTransform * (u_viewMatrix * vec4(a_position, 1.0));
     gl_Position = u_projectionMatrix * pos;
 }
 `;
@@ -124,6 +128,10 @@ function clamp01(value: number): number {
 }
 
 export class InteractHighlightOverlay implements Overlay {
+    private static readonly IDENTITY_MAT4 = new Float32Array([
+        1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+    ]);
+
     constructor(private readonly ctx: InteractHighlightOverlayContext) {}
 
     private app!: PicoApp;
@@ -223,6 +231,12 @@ export class InteractHighlightOverlay implements Overlay {
             this.triPositions.data(this.triVerts.subarray(0, triCount * 3));
             this.triPositions.numItems = triCount;
             this.triArray.numElements = triCount;
+
+            // Apply world entity bobbing transform (identity for non-overlay entities)
+            this.triDrawCall.uniform(
+                "u_worldEntityTransform",
+                target.worldEntityTransform ?? InteractHighlightOverlay.IDENTITY_MAT4,
+            );
 
             this.app.drawFramebuffer(this.maskFramebuffer);
             this.app.viewport(0, 0, this.maskWidth, this.maskHeight);

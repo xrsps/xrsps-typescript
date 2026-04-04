@@ -49,7 +49,10 @@
     "export-map-images": "npx tsx scripts/cache/export-map-images.ts --force",
     "server:start": "npx tsx scripts/ensure-cache.ts --server && npx tsx server/src/index.ts",
     "server:build": "tsc -p server/tsconfig.json",
-    "server:build-collision": "npx tsx server/scripts/build-collision-cache.ts --include-models --force"
+    "server:build-collision": "npx tsx server/scripts/build-collision-cache.ts --include-models --force",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "eslintConfig": {
     "extends": [
@@ -143,6 +146,7 @@
     "sharp": "^0.32.6",
     "threads-plugin": "^1.4.0",
     "ts-node": "^10.9.1",
-    "ts-shader-loader": "^2.0.2"
+    "ts-shader-loader": "^2.0.2",
+    "vitepress": "^1.6.4"
   }
 }

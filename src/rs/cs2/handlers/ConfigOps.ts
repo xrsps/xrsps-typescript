@@ -7,12 +7,12 @@ import {
     getCollectionLogStructParamOverride,
 } from "../../../shared/collectionlog/custom";
 import {
-    getEnumCountOverride as getCustomEnumCountOverride,
-    getEnumValueOverride as getCustomEnumValueOverride,
-    getStructParam as getCustomStructParam,
-} from "../../../shared/leagues/custom";
-import { getRelicOrMasteryStructParam } from "../../../shared/leagues/leagueMasteries";
-import { getLeagueTaskStructParam } from "../../../shared/leagues/leagueTasks";
+    getCustomEnumCountOverride,
+    getCustomEnumValueOverride,
+    getCustomStructParam,
+    getRelicOrMasteryStructParam,
+    getLeagueTaskStructParam,
+} from "../../../shared/gamemode/GamemodeContentStore";
 import { Opcodes } from "../Opcodes";
 import type { HandlerMap } from "./HandlerTypes";
 

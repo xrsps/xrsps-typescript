@@ -1,5 +1,5 @@
 import { normalizePublicChatTextOsrs } from "../../rs/chat/ChatText";
-import { MovementDirection, directionToDelta, runDirectionToDelta } from "../../shared/Direction";
+import { MovementDirection, directionToDelta, runDirectionToDelta, runDirectionToWalkDirections } from "../../shared/Direction";
 import { BitStream } from "./BitStream";
 import { getPlayerSyncHuffman } from "./HuffmanProvider";
 import { PlayerSyncContext, type PlayerSyncState } from "./PlayerSyncContext";
@@ -312,14 +312,20 @@ export class PlayerUpdateDecoder {
             if (!delta) return;
             const targetX = (state.tileX + (delta.dx | 0)) | 0;
             const targetY = (state.tileY + (delta.dy | 0)) | 0;
+            // Decode the combined run code into 2 walk directions so the
+            // movement sync receives explicit per-step data.  This avoids
+            // client-side route reconstruction which fails inside WorldViews
+            // (client collision doesn't have WorldView blocking).
+            const walkDirs = runDirectionToWalkDirections(code);
+            const dirs: number[] = walkDirs
+                ? [walkDirs[0] & 7, walkDirs[1] & 7]
+                : [];
             const traversal = resolveTraversalDefault(state);
             if (needsUpdate && !localOutOfBounds) {
                 state.pendingMove = {
                     tileX: targetX,
                     tileY: targetY,
-                    // OSRS parity: moveType=2 does NOT send per-step directions; the client
-                    // reconstructs any intermediate tile via class232 (GraphicsObject.method2132).
-                    directions: [],
+                    directions: dirs,
                     movedTwoTiles: true,
                 };
             } else {
@@ -328,7 +334,7 @@ export class PlayerUpdateDecoder {
                     state,
                     targetX,
                     targetY,
-                    [],
+                    dirs,
                     traversal,
                     index,
                     movements,
@@ -413,6 +419,12 @@ export class PlayerUpdateDecoder {
             const regionY = packed & 0xff;
             const coordX = stream.readBits(13) & 0x1fff;
             const coordY = stream.readBits(13) & 0x1fff;
+            const hasWorldView = stream.readBits(1) === 1;
+            let worldViewId = -1;
+            if (hasWorldView) {
+                worldViewId = stream.readBits(16) & 0xffff;
+                if (worldViewId === 0) worldViewId = -1;
+            }
             const needsUpdate = stream.readBits(1) === 1;
 
             const worldX = (regionX << 13) | coordX | 0;
@@ -438,6 +450,7 @@ export class PlayerUpdateDecoder {
                 tile: { x: worldX, y: worldY, level: plane },
                 preserveQueue: false,
                 needsAppearance: true,
+                worldViewId,
             });
             return true;
         }

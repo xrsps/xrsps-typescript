@@ -1,4 +1,4 @@
-import { vec2 } from "gl-matrix";
+import { mat4, vec2 } from "gl-matrix";
 import PicoGL, {
     DrawCall,
     App as PicoApp,
@@ -12,7 +12,7 @@ import PicoGL, {
 import { BasTypeLoader } from "../../rs/config/bastype/BasTypeLoader";
 import { NpcTypeLoader } from "../../rs/config/npctype/NpcTypeLoader";
 import { SeqTypeLoader } from "../../rs/config/seqtype/SeqTypeLoader";
-import { getMapSquareId } from "../../rs/map/MapFileIndex";
+import { getMapIndexFromTile, getMapSquareId } from "../../rs/map/MapFileIndex";
 import { SeqFrameLoader } from "../../rs/model/seq/SeqFrameLoader";
 import { CollisionMap } from "../../rs/scene/CollisionMap";
 import { Scene } from "../../rs/scene/Scene";
@@ -81,6 +81,68 @@ function deleteMapSquareResource(
     runMapSquareAction(mapX, mapY, label, () => resource.delete());
 }
 
+function getWorldEntityOverlayMapId(worldViewId: number): number {
+    const overlayMapX = 200 + (worldViewId | 0);
+    const overlayMapY = 200 + (worldViewId | 0);
+    return getMapSquareId(overlayMapX, overlayMapY);
+}
+
+function resolveNpcOwnerPlacement(
+    currentMapId: number,
+    currentMapX: number,
+    currentMapY: number,
+    renderBaseTileX: number,
+    renderBaseTileY: number,
+    tileX: number,
+    tileY: number,
+    size: number,
+    worldViewId?: number,
+): {
+    mapX: number;
+    mapY: number;
+    tileX: number;
+    tileY: number;
+    startX: number;
+    startY: number;
+    usesOverlayWorldView: boolean;
+} {
+    const normalizedWorldViewId =
+        typeof worldViewId === "number" && worldViewId >= 0 ? worldViewId | 0 : -1;
+    const overlayMapId =
+        normalizedWorldViewId >= 0 ? getWorldEntityOverlayMapId(normalizedWorldViewId) : -1;
+    const usesOverlayWorldView = normalizedWorldViewId >= 0 && (currentMapId | 0) === overlayMapId;
+
+    if (usesOverlayWorldView) {
+        const worldTileX = (renderBaseTileX + (tileX | 0)) | 0;
+        const worldTileY = (renderBaseTileY + (tileY | 0)) | 0;
+        const mapX = getMapIndexFromTile(worldTileX);
+        const mapY = getMapIndexFromTile(worldTileY);
+        const localTileX = worldTileX & (Scene.MAP_SQUARE_SIZE - 1);
+        const localTileY = worldTileY & (Scene.MAP_SQUARE_SIZE - 1);
+        return {
+            mapX,
+            mapY,
+            tileX: localTileX,
+            tileY: localTileY,
+            startX: (localTileX * 128 + (size | 0) * 64) | 0,
+            startY: (localTileY * 128 + (size | 0) * 64) | 0,
+            usesOverlayWorldView: true,
+        };
+    }
+
+    const localTileX = tileX | 0;
+    const localTileY = tileY | 0;
+    return {
+        mapX: currentMapX | 0,
+        mapY: currentMapY | 0,
+        tileX: localTileX,
+        tileY: localTileY,
+        startX: (localTileX * 128 + (size | 0) * 64) | 0,
+        startY: (localTileY * 128 + (size | 0) * 64) | 0,
+        usesOverlayWorldView: false,
+    };
+}
+
 type DoorGeometryResources = {
     interleavedBuffer: GpuInterleavedBuffer;
     indexBuffer: GpuIndexBuffer;
@@ -146,7 +208,10 @@ type GroundItemGeometryResources = {
 };
 
 export class WebGLMapSquare {
+    static readonly IDENTITY_MAT4 = mat4.create() as Float32Array;
+
     readonly id: number;
+    interactionPlane: number;
 
     npcDataTextureOffsets: number[];
     projectileDataTextureOffsets?: number[];
@@ -200,7 +265,12 @@ export class WebGLMapSquare {
 
         const collisionMaps = mapData.collisionDatas.map(CollisionMap.fromData);
 
-        const mapPos = vec2.fromValues(mapX, mapY);
+        const usedRenderX = mapData.renderPosX ?? mapX;
+        const usedRenderY = mapData.renderPosY ?? mapY;
+        if (mapData.renderPosX != null) {
+            console.log(`[WebGLMapSquare] Using renderPos: (${usedRenderX}, ${usedRenderY}) instead of mapXY (${mapX}, ${mapY})`);
+        }
+        const mapPos = vec2.fromValues(usedRenderX, usedRenderY);
 
         const interleavedBuffer = app.createInterleavedBuffer(12, mapData.vertices);
         const indexBuffer = app.createIndexBuffer(PicoGL.UNSIGNED_INT, mapData.indices);
@@ -243,7 +313,7 @@ export class WebGLMapSquare {
             mapData.modelTextureDataInteractLodAlpha,
         );
 
-        const heightMapSize = Scene.MAP_SQUARE_SIZE + borderSize * 2;
+        const heightMapSize = mapData.heightMapSize ?? (Scene.MAP_SQUARE_SIZE + borderSize * 2);
         const heightMapTexture = app.createTextureArray(
             mapData.heightMapTextureData,
             heightMapSize,
@@ -274,10 +344,13 @@ export class WebGLMapSquare {
                 .uniform("u_timeLoaded", time)
                 .uniform("u_mapPos", mapPos)
                 .uniform("u_roofPlaneLimit", 3.0)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
+                .uniform("u_worldEntityOpacity", 1.0)
                 // .uniform("u_drawIdOffset", drawIdOffset)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", heightMapTexture)
+                .uniform("u_sceneBorderSize", borderSize)
                 // .texture("u_modelInfoTexture", modelInfoTexture)
                 .drawRanges(...drawRanges);
             if (modelInfoTexture) {
@@ -519,6 +592,9 @@ export class WebGLMapSquare {
         const npcExtraFrameLengths: (Record<number, number[] | undefined> | undefined)[] = [];
         const npcIdleFrameLengths: number[][] = [];
         const npcWalkFrameLengths: (number[] | undefined)[] = [];
+        const currentMapId = getMapSquareId(mapX, mapY) | 0;
+        const renderBaseTileX = Math.floor(usedRenderX * Scene.MAP_SQUARE_SIZE);
+        const renderBaseTileY = Math.floor(usedRenderY * Scene.MAP_SQUARE_SIZE);
         for (const npc of mapData.npcs) {
             const npcType = npcTypeLoader.load(npc.id);
             npcIdleFrames.push(npc.idleAnim);
@@ -571,22 +647,57 @@ export class WebGLMapSquare {
             }
             if (npcEcs) {
                 runMapSquareAction(mapX, mapY, "npcEcs.createNpc.initial", () => {
-                    const startX = (npc.tileX * 128 + npcType.size * 64) | 0;
-                    const startY = (npc.tileY * 128 + npcType.size * 64) | 0;
-                    const created = npcEcs.createNpc(
+                    const npcWorldViewId =
+                        typeof npc.worldViewId === "number" ? npc.worldViewId | 0 : -1;
+                    const serverIdRaw =
+                        typeof npc.serverId === "number" ? npc.serverId | 0 : undefined;
+                    const placement = resolveNpcOwnerPlacement(
+                        currentMapId,
                         mapX,
                         mapY,
-                        npcType.id | 0,
-                        npcType.size | 0,
-                        startX,
-                        startY,
-                        npc.level | 0,
-                        0,
+                        renderBaseTileX,
+                        renderBaseTileY,
                         npc.tileX | 0,
                         npc.tileY | 0,
-                        (npcType.rotationSpeed | 0) as number,
+                        npcType.size | 0,
+                        npcWorldViewId,
                     );
-                    npcEntityIds.push(created);
+                    let ecsId = 0;
+                    if (serverIdRaw !== undefined && serverIdRaw > 0) {
+                        const mapped = npcEcs.getEcsIdForServer(serverIdRaw | 0);
+                        if (mapped !== undefined && npcEcs.isActive(mapped | 0)) {
+                            const ownerMapId = getMapSquareId(placement.mapX, placement.mapY) | 0;
+                            const mappedMapId = npcEcs.getMapId(mapped | 0) | 0;
+                            if ((mappedMapId | 0) !== (ownerMapId | 0)) {
+                                npcEcs.rebaseToMapSquare(mapped | 0, placement.mapX, placement.mapY);
+                            }
+                            ecsId = mapped | 0;
+                        }
+                    }
+                    if (ecsId === 0) {
+                        ecsId = npcEcs.createNpc(
+                            placement.mapX,
+                            placement.mapY,
+                            npcType.id | 0,
+                            npcType.size | 0,
+                            placement.startX,
+                            placement.startY,
+                            npc.level | 0,
+                            0,
+                            placement.tileX,
+                            placement.tileY,
+                            (npcType.rotationSpeed | 0) as number,
+                        );
+                    }
+                    if (npcWorldViewId >= 0) {
+                        npcEcs.setWorldViewId(ecsId, npcWorldViewId);
+                    }
+                    if (serverIdRaw !== undefined && serverIdRaw > 0) {
+                        if ((npcEcs.getServerId(ecsId) | 0) !== (serverIdRaw | 0)) {
+                            npcEcs.setServerMapping(ecsId, serverIdRaw | 0);
+                        }
+                    }
+                    npcEntityIds.push(ecsId);
                 });
             }
         }
@@ -640,6 +751,8 @@ export class WebGLMapSquare {
         const mapSquare = new WebGLMapSquare(
             mapX,
             mapY,
+            usedRenderX,
+            usedRenderY,
 
             borderSize,
             tileRenderFlags,
@@ -712,6 +825,8 @@ export class WebGLMapSquare {
     constructor(
         readonly mapX: number,
         readonly mapY: number,
+        readonly renderPosX: number,
+        readonly renderPosY: number,
 
         readonly borderSize: number,
         readonly tileRenderFlags: Uint8Array[][],
@@ -792,6 +907,10 @@ export class WebGLMapSquare {
         public tileLocTypeRotByLevel?: Uint8Array[],
     ) {
         this.id = getMapSquareId(mapX, mapY);
+        /** When >= 0, all interaction/height queries on this map use this plane
+         *  instead of the caller's basePlane.  Set for world entity overlays
+         *  whose content lives on a specific source plane (e.g. boat deck = 1). */
+        this.interactionPlane = -1;
         this.npcDataTextureOffsets = new Array(NPC_DATA_TEXTURE_BUFFER_SIZE).fill(-1);
         this.playerDataTextureOffsets = new Array(NPC_DATA_TEXTURE_BUFFER_SIZE).fill(-1);
         this.worldGfxDataTextureOffsets = new Array(NPC_DATA_TEXTURE_BUFFER_SIZE).fill(-1);
@@ -822,6 +941,26 @@ export class WebGLMapSquare {
 
     canRender(frameCount: number): boolean {
         return frameCount - this.frameLoaded >= FRAME_RENDER_DELAY;
+    }
+
+    getRenderBaseWorldX(): number {
+        return this.renderPosX * Scene.MAP_SQUARE_SIZE;
+    }
+
+    getRenderBaseWorldY(): number {
+        return this.renderPosY * Scene.MAP_SQUARE_SIZE;
+    }
+
+    getRenderBaseTileX(): number {
+        return Math.floor(this.getRenderBaseWorldX());
+    }
+
+    getRenderBaseTileY(): number {
+        return Math.floor(this.getRenderBaseWorldY());
+    }
+
+    getLocalTileSpan(): number {
+        return Math.max(0, (this.heightMapSize | 0) - ((this.borderSize | 0) * 2));
     }
 
     getTileRenderFlag(level: number, tileX: number, tileY: number): number {
@@ -1149,15 +1288,18 @@ export class WebGLMapSquare {
                 .fill(0)
                 .map(() => newDrawRange(0, 0, 1));
 
-            const mapPos = vec2.fromValues(this.mapX, this.mapY);
+            const mapPos = vec2.fromValues(this.renderPosX, this.renderPosY);
             const drawCall = app
                 .createDrawCall(npcProgram, this.npcVertexArray)
                 .uniformBlock("SceneUniforms", sceneUniformBuffer)
                 .uniform("u_timeLoaded", this.timeLoaded)
                 .uniform("u_mapPos", mapPos)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
+                .uniform("u_worldEntityOpacity", 1.0)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
+                .uniform("u_sceneBorderSize", this.borderSize)
                 .drawRanges(...drawRangesNpc);
 
             this.drawCallNpc = { drawCall, drawRanges: drawRangesNpc };
@@ -1250,18 +1392,33 @@ export class WebGLMapSquare {
             let ecsId = 0;
             if (npcEcs) {
                 const serverIdRaw =
-                    typeof (npc as any).serverId === "number"
-                        ? (npc as any).serverId | 0
+                    typeof npc.serverId === "number"
+                        ? npc.serverId | 0
                         : undefined;
+                const npcWorldViewId =
+                    typeof npc.worldViewId === "number"
+                        ? npc.worldViewId | 0
+                        : -1;
+                const placement = resolveNpcOwnerPlacement(
+                    getMapSquareId(this.mapX, this.mapY) | 0,
+                    this.mapX,
+                    this.mapY,
+                    this.getRenderBaseTileX(),
+                    this.getRenderBaseTileY(),
+                    tileX,
+                    tileY,
+                    npcType.size | 0,
+                    npcWorldViewId,
+                );
                 if (serverIdRaw !== undefined && serverIdRaw > 0) {
                     const mapped = npcEcs.getEcsIdForServer(serverIdRaw | 0);
                     if (mapped !== undefined && npcEcs.isActive(mapped | 0)) {
-                        const thisMapId = getMapSquareId(this.mapX, this.mapY) | 0;
+                        const ownerMapId = getMapSquareId(placement.mapX, placement.mapY) | 0;
                         const mappedMapId = npcEcs.getMapId(mapped | 0) | 0;
-                        if ((mappedMapId | 0) !== (thisMapId | 0)) {
+                        if ((mappedMapId | 0) !== (ownerMapId | 0)) {
                             // Keep a single ECS entity per server NPC id; rebase local coords when
                             // geometry ownership crosses a map-square boundary.
-                            npcEcs.rebaseToMapSquare(mapped | 0, this.mapX, this.mapY);
+                            npcEcs.rebaseToMapSquare(mapped | 0, placement.mapX, placement.mapY);
                         }
                         ecsId = mapped | 0;
                     }
@@ -1269,20 +1426,25 @@ export class WebGLMapSquare {
                 if (ecsId === 0) {
                     ecsId =
                         npcEcs.findBySpawn(
-                            this.mapX,
-                            this.mapY,
-                            tileX,
-                            tileY,
+                            placement.mapX,
+                            placement.mapY,
+                            placement.tileX,
+                            placement.tileY,
                             npc.level | 0,
                             npcType.id | 0,
                         ) ?? 0;
                 }
                 if (ecsId > 0) {
                     reusedIds.add(ecsId);
-                    runMapSquareAction(this.mapX, this.mapY, "npcEcs.setMapSquare", () => {
-                        // Ensure the reused ECS entity is attached to this map square.
-                        (npcEcs as any).setMapSquare?.(ecsId, this.mapX, this.mapY);
-                    });
+                    if (!placement.usesOverlayWorldView) {
+                        runMapSquareAction(this.mapX, this.mapY, "npcEcs.setMapSquare", () => {
+                            // Ensure the reused ECS entity is attached to this map square.
+                            (npcEcs as any).setMapSquare?.(ecsId, this.mapX, this.mapY);
+                        });
+                    }
+                    if (npcWorldViewId >= 0) {
+                        npcEcs.setWorldViewId(ecsId, npcWorldViewId);
+                    }
                     if (serverIdRaw !== undefined && serverIdRaw > 0) {
                         runMapSquareAction(
                             this.mapX,
@@ -1297,21 +1459,22 @@ export class WebGLMapSquare {
                     }
                 } else {
                     try {
-                        const startX = (tileX * 128 + npcType.size * 64) | 0;
-                        const startY = (tileY * 128 + npcType.size * 64) | 0;
                         ecsId = npcEcs.createNpc(
-                            this.mapX,
-                            this.mapY,
+                            placement.mapX,
+                            placement.mapY,
                             npcType.id | 0,
                             npcType.size | 0,
-                            startX,
-                            startY,
+                            placement.startX,
+                            placement.startY,
                             npc.level | 0,
                             0,
-                            npc.tileX | 0,
-                            npc.tileY | 0,
+                            placement.tileX,
+                            placement.tileY,
                             (npcType.rotationSpeed | 0) as number,
                         );
+                        if (npcWorldViewId >= 0) {
+                            npcEcs.setWorldViewId(ecsId, npcWorldViewId);
+                        }
                         if (serverIdRaw !== undefined && serverIdRaw > 0) {
                             npcEcs.setServerMapping(ecsId, serverIdRaw | 0);
                         }
@@ -1487,7 +1650,10 @@ export class WebGLMapSquare {
             mapData.doorModelTextureDataInteractLodAlpha,
         );
 
-        const mapPos = vec2.fromValues(mapData.mapX, mapData.mapY);
+        const mapPos = vec2.fromValues(
+            mapData.renderPosX ?? mapData.mapX,
+            mapData.renderPosY ?? mapData.mapY,
+        );
 
         const buildDrawCall = (
             program: Program,
@@ -1500,9 +1666,12 @@ export class WebGLMapSquare {
                 .uniform("u_timeLoaded", loadTime)
                 .uniform("u_mapPos", mapPos)
                 .uniform("u_roofPlaneLimit", 3.0)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
+                .uniform("u_worldEntityOpacity", 1.0)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
+                .uniform("u_sceneBorderSize", this.borderSize)
                 .drawRanges(...drawRanges);
             if (modelInfoTexture) {
                 drawCall.texture("u_modelInfoTexture", modelInfoTexture);
@@ -1719,7 +1888,7 @@ export class WebGLMapSquare {
             mapData.modelTextureDataInteractLodAlpha,
         );
 
-        const mapPos = vec2.fromValues(this.mapX, this.mapY);
+        const mapPos = vec2.fromValues(this.renderPosX, this.renderPosY);
         const buildDrawCall = (
             program: Program,
             modelInfoTex: Texture | undefined,
@@ -1733,9 +1902,12 @@ export class WebGLMapSquare {
                 .uniform("u_timeLoaded", loadTime)
                 .uniform("u_mapPos", mapPos)
                 .uniform("u_roofPlaneLimit", 3.0)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
+                .uniform("u_worldEntityOpacity", 1.0)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
+                .uniform("u_sceneBorderSize", this.borderSize)
                 .drawRanges(...drawRanges);
             if (modelInfoTex) {
                 drawCall.texture("u_modelInfoTexture", modelInfoTex);
@@ -1888,7 +2060,7 @@ export class WebGLMapSquare {
             })
             .indexBuffer(indexBuffer);
 
-        const mapPos = vec2.fromValues(this.mapX, this.mapY);
+        const mapPos = vec2.fromValues(this.renderPosX, this.renderPosY);
         // Use -1 to skip the fog fade-in animation for ground items
         // (u_currentTime - u_timeLoaded will always be > 1, so loadAlpha = 1 immediately)
         const loadTime = -1.0;
@@ -1904,9 +2076,12 @@ export class WebGLMapSquare {
                 .uniform("u_timeLoaded", loadTime)
                 .uniform("u_mapPos", mapPos)
                 .uniform("u_roofPlaneLimit", 3.0)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
+                .uniform("u_worldEntityOpacity", 1.0)
                 .texture("u_textures", textureArray)
                 .texture("u_textureMaterials", textureMaterials)
                 .texture("u_heightMap", this.heightMapTexture)
+                .uniform("u_sceneBorderSize", this.borderSize)
                 .drawRanges(...drawRanges);
             if (modelInfoTexture) {
                 drawCall.texture("u_modelInfoTexture", modelInfoTexture);
@@ -1986,7 +2161,6 @@ export class WebGLMapSquare {
         this.groundItemDrawRangePlanes = data.planes;
     }
 
-    // Return loc ids present at the origin of the given interior tile (0..63 local) for a specific level.
     // Returns a reusable buffer - caller must consume results before next call.
     getLocIdsAtLocal(level: number, localX: number, localY: number): number[] {
         const out = this.locIdsAtLocalBuffer;
@@ -1994,10 +2168,11 @@ export class WebGLMapSquare {
         try {
             if (!this.tileLocOffsetsByLevel || !this.tileLocIdsByLevel) return out;
             if (level < 0 || level >= this.tileLocOffsetsByLevel.length) return out;
-            if (localX < 0 || localY < 0 || localX >= 64 || localY >= 64) return out;
+            const span = this.getLocalTileSpan();
+            if (localX < 0 || localY < 0 || localX >= span || localY >= span) return out;
             const offsets = this.tileLocOffsetsByLevel[level];
             const ids = this.tileLocIdsByLevel[level];
-            const idx = (localY | 0) * 64 + (localX | 0);
+            const idx = (localY | 0) * span + (localX | 0);
             const start = offsets[idx] | 0;
             const end = offsets[idx + 1] | 0;
             if (end <= start) return out;
@@ -2029,11 +2204,12 @@ export class WebGLMapSquare {
                 return out;
             }
             if (level < 0 || level >= this.tileLocOffsetsByLevel.length) return out;
-            if (localX < 0 || localY < 0 || localX >= 64 || localY >= 64) return out;
+            const span = this.getLocalTileSpan();
+            if (localX < 0 || localY < 0 || localX >= span || localY >= span) return out;
             const offsets = this.tileLocOffsetsByLevel[level];
             const ids = this.tileLocIdsByLevel[level];
             const typeRots = this.tileLocTypeRotByLevel[level];
-            const idx = (localY | 0) * 64 + (localX | 0);
+            const idx = (localY | 0) * span + (localX | 0);
             const start = offsets[idx] | 0;
             const end = offsets[idx + 1] | 0;
             if (end <= start) return out;

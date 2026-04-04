@@ -1,5 +1,6 @@
 import { vec3 } from "gl-matrix";
 
+import { WorldViewManager } from "./worldview/WorldViewManager";
 import {
     type BankServerUpdate,
     getClientCycle,
@@ -45,7 +46,12 @@ import {
     subscribeTick,
     subscribeWelcome,
     subscribeWidgetEvents,
+    subscribeRebuildRegion,
+    subscribeRebuildNormal,
+    subscribeRebuildWorldEntity,
+    subscribeWorldEntityInfo,
 } from "../network/ServerConnection";
+import type { WorldEntityInfoPayload } from "../network/ServerConnection";
 import type {
     CollectionLogServerPayload,
     HitsplatServerPayload,
@@ -439,6 +445,8 @@ export class OsrsClient {
     seqTypeLoader!: SeqTypeLoader;
     seqFrameLoader!: SeqFrameLoader;
     skeletalSeqLoader?: SkeletalSeqLoader;
+    worldEntityTypeLoader?: import("../rs/config/worldentitytype/WorldEntityTypeLoader").WorldEntityTypeLoader;
+    readonly worldViewManager: WorldViewManager = new WorldViewManager();
     spotAnimTypeLoader!: SpotAnimTypeLoader;
 
     locTypeLoader!: LocTypeLoader;
@@ -780,6 +788,8 @@ export class OsrsClient {
     // Movement is always server-authoritative (OSRS-like)
     // Server-assigned ID of the player we control
     controlledPlayerServerId: number = -1;
+    /** Per-tick active world entity IDs — maintained by WORLDENTITY_INFO packets. */
+    private activeWorldEntityIds: number[] = [];
     private npcInstanceMap: Map<string, NpcInstance> = new Map();
     private npcInstanceMapsPendingReload: Set<number> = new Set();
     private npcInstanceFlushScheduled: boolean = false;
@@ -2089,6 +2099,11 @@ export class OsrsClient {
                     console.warn("[OsrsClient] appearance update failed", err);
                 }
             },
+            onWorldViewAssignment: (ecsIndex, worldViewId) => {
+                if (worldViewId >= 0) {
+                    this.worldViewManager.addPlayerToWorldView(worldViewId, ecsIndex);
+                }
+            },
         });
         this.npcMovementSync = new NpcMovementSync(this.npcEcs);
         this.widgetSessionManager = new WidgetSessionManager();
@@ -2967,7 +2982,7 @@ export class OsrsClient {
                     if (!enabled) return;
                     const sid = this.controlledPlayerServerId | 0;
                     const state = this.playerMovementSync.getState(sid);
-                    const pending = state?.getAllPendingSteps?.() ?? [];
+                    const pending: any[] = [];
                     const last = state?.getLastSteps?.() ?? [];
                     console.log("[path-debug] serverPath", this.serverPathWaypoints);
                     console.log(
@@ -3130,6 +3145,92 @@ export class OsrsClient {
                     // This allows the LOADING_GAME -> LOGGED_IN transition
                     this.loadingTracker.markComplete(LoadingRequirement.HANDSHAKE_COMPLETE);
                 } catch {}
+            });
+
+            subscribeRebuildRegion((payload) => {
+                try {
+                    console.log(
+                        `[OsrsClient] REBUILD_REGION received: regionX=${payload.regionX} regionY=${payload.regionY} regions=${payload.mapRegions.length}`,
+                    );
+                    ClientState.inInstance = true;
+                    ClientState.instanceTemplateChunks = payload.templateChunks;
+                    if (this.renderer && "loadInstanceScene" in this.renderer) {
+                        (this.renderer as any).loadInstanceScene(
+                            payload.templateChunks,
+                            payload.regionX,
+                            payload.regionY,
+                        );
+                    }
+                } catch (err) {
+                    console.warn("[OsrsClient] rebuild_region error", err);
+                }
+            });
+
+            subscribeRebuildNormal((payload) => {
+                try {
+                    console.log(
+                        `[OsrsClient] REBUILD_NORMAL received: regionX=${payload.regionX} regionY=${payload.regionY} regions=${payload.mapRegions.length}`,
+                    );
+                    ClientState.inInstance = false;
+                    ClientState.instanceTemplateChunks = null;
+                    if (this.renderer && "clearInstance" in this.renderer) {
+                        (this.renderer as any).clearInstance();
+                    }
+                } catch (err) {
+                    console.warn("[OsrsClient] rebuild_normal error", err);
+                }
+            });
+
+            subscribeRebuildWorldEntity((payload) => {
+                try {
+                    console.log(
+                        `[OsrsClient] REBUILD_WORLDENTITY received: entity=${payload.entityIndex} config=${payload.configId} size=${payload.sizeX}x${payload.sizeZ} regionX=${payload.regionX} regionY=${payload.regionY} regions=${payload.mapRegions.length}`,
+                    );
+                    // World entity scene anchor: entityCoord + sizeChunks * 4 (tile precision).
+                    // entityCoord=3050, sizeChunks=8, fineBase=8*64=512fine=4tiles → anchor=3054.
+                    const entityWorldX = 3054;
+                    const entityWorldY = 3193;
+
+                    // Collect extra locs from addedLocs that fall in source region
+                    const extraLocs: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }> = [];
+
+                    if (this.renderer && "loadWorldEntityScene" in this.renderer) {
+                        const weNpcs = (payload as any).extraNpcs;
+                        const basePlane = (payload as any).basePlane ?? 0;
+                        (this.renderer as any).loadWorldEntityScene(
+                            payload.entityIndex,
+                            payload.templateChunks,
+                            payload.regionX,
+                            payload.regionY,
+                            entityWorldX,
+                            entityWorldY,
+                            payload.sizeX,
+                            payload.sizeZ,
+                            extraLocs,
+                            payload.configId,
+                            weNpcs,
+                            basePlane,
+                        );
+                        // Schedule a single deferred rebuild to pick up LOC_ADD_CHANGE
+                        // packets that arrive after the initial scene build
+                        (this.renderer as any).scheduleWorldEntityLocRebuild(payload.entityIndex);
+                    }
+
+                    // Set local player's worldViewId to this entity
+                    if (this.controlledPlayerServerId >= 0) {
+                        const localEcsIdx = this.playerEcs.getIndexForServerId(this.controlledPlayerServerId);
+                        if (localEcsIdx !== undefined) {
+                            this.playerEcs.setWorldViewId(localEcsIdx, payload.entityIndex);
+                            this.worldViewManager.addPlayerToWorldView(payload.entityIndex, localEcsIdx);
+                        }
+                    }
+                } catch (err) {
+                    console.warn("[OsrsClient] rebuild_worldentity error", err);
+                }
+            });
+
+            subscribeWorldEntityInfo((payload) => {
+                this.handleWorldEntityInfo(payload);
             });
 
             this.unsubscribePlayerSync = subscribePlayerSync((frame) => {
@@ -9639,6 +9740,7 @@ export class OsrsClient {
             this.seqTypeLoader = this.loaderFactory.getSeqTypeLoader();
             this.seqFrameLoader = this.loaderFactory.getSeqFrameLoader();
             this.skeletalSeqLoader = this.loaderFactory.getSkeletalSeqLoader?.();
+            this.worldEntityTypeLoader = this.loaderFactory.getWorldEntityTypeLoader?.();
             this.spotAnimTypeLoader = this.loaderFactory.getSpotAnimTypeLoader();
             this.locTypeLoader = this.loaderFactory.getLocTypeLoader();
             this.objTypeLoader = this.loaderFactory.getObjTypeLoader();
@@ -10133,6 +10235,43 @@ export class OsrsClient {
         }
     }
 
+    onLocAddChange(
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): void {
+        try {
+            console.log(
+                `[OsrsClient] Loc add: ${locId} at (${tile.x}, ${tile.y}, ${level}) shape=${shape} rot=${rotation}`,
+            );
+            if (this.renderer && typeof (this.renderer as any).onLocAddChange === "function") {
+                (this.renderer as any).onLocAddChange(locId, tile, level, shape, rotation);
+            }
+        } catch (err) {
+            console.warn("onLocAddChange error", err);
+        }
+    }
+
+    onLocDel(
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ): void {
+        try {
+            console.log(
+                `[OsrsClient] Loc del at (${tile.x}, ${tile.y}, ${level}) shape=${shape} rot=${rotation}`,
+            );
+            if (this.renderer && typeof (this.renderer as any).onLocDel === "function") {
+                (this.renderer as any).onLocDel(tile, level, shape, rotation);
+            }
+        } catch (err) {
+            console.warn("onLocDel error", err);
+        }
+    }
+
     private applyDisplayDefaults(): void {
         this.renderDistance = clampRenderDistance(this.renderDistance);
         try {
@@ -10245,6 +10384,20 @@ export class OsrsClient {
         }
     }
 
+    private getNpcInstanceRenderMapId(
+        instance: Pick<NpcInstance, "worldViewId" | "x" | "y">,
+    ): number {
+        const worldViewId = instance.worldViewId;
+        if (typeof worldViewId === "number" && worldViewId >= 0) {
+            const overlayMapX = 200 + (worldViewId | 0);
+            const overlayMapY = 200 + (worldViewId | 0);
+            return getMapSquareId(overlayMapX, overlayMapY);
+        }
+        const mapX = getMapIndexFromTile(instance.x | 0);
+        const mapY = getMapIndexFromTile(instance.y | 0);
+        return getMapSquareId(mapX, mapY);
+    }
+
     private spawnNpcBinary(
         spawn: import("./sync/NpcUpdateDecoder").NpcSpawn,
         loopCycle: number,
@@ -10317,6 +10470,10 @@ export class OsrsClient {
             );
             this.npcEcs.setLevel(existingEcs, spawn.level | 0);
             this.npcEcs.setOccTile(existingEcs, localTileX, localTileY, spawn.level | 0);
+            if ((spawn as any).worldViewId !== undefined && (spawn as any).worldViewId >= 0) {
+                this.npcEcs.setWorldViewId(existingEcs, (spawn as any).worldViewId);
+                this.worldViewManager.addNpcToWorldView((spawn as any).worldViewId, existingEcs);
+            }
 
             // Keep the instance map entry up to date for geometry streaming.
             this.upsertNpcInstanceFromBinary(
@@ -10325,6 +10482,7 @@ export class OsrsClient {
                 worldTileX,
                 worldTileY,
                 spawn.level | 0,
+                (spawn as any).worldViewId,
             );
             return;
         }
@@ -10356,6 +10514,10 @@ export class OsrsClient {
             rotSpeed,
         );
         this.npcEcs.setServerMapping(ecsId, serverId);
+        if ((spawn as any).worldViewId !== undefined && (spawn as any).worldViewId >= 0) {
+            this.npcEcs.setWorldViewId(ecsId, (spawn as any).worldViewId);
+            this.worldViewManager.addNpcToWorldView((spawn as any).worldViewId, ecsId);
+        }
         this.npcEcs.setTargetRot(ecsId, spawn.rot | 0);
         this.npcEcs.setRotation(ecsId, spawn.rot | 0);
         this.npcEcs.setOccTile(ecsId, localTileX, localTileY, spawn.level | 0);
@@ -10389,6 +10551,7 @@ export class OsrsClient {
             worldTileX,
             worldTileY,
             spawn.level | 0,
+            (spawn as any).worldViewId,
         );
     }
 
@@ -10447,6 +10610,7 @@ export class OsrsClient {
                             st.tileX | 0,
                             st.tileY | 0,
                             st.plane | 0,
+                            this.npcEcs.getWorldViewId(ecsId) | 0,
                         );
                     }
                 }
@@ -10555,35 +10719,41 @@ export class OsrsClient {
         worldTileX: number,
         worldTileY: number,
         level: number,
+        worldViewId?: number,
     ): void {
         const sid = serverId | 0;
         const key = `sid:${sid}`;
-        const mapX = getMapIndexFromTile(worldTileX | 0);
-        const mapY = getMapIndexFromTile(worldTileY | 0);
-        const mapId = getMapSquareId(mapX, mapY);
-
         const prev = this.npcInstanceMap.get(key);
+        const nextWorldViewId =
+            typeof worldViewId === "number"
+                ? worldViewId >= 0
+                    ? worldViewId | 0
+                    : undefined
+                : prev?.worldViewId;
+        const nextInstance: NpcInstance = {
+            serverId: sid,
+            typeId: typeId | 0,
+            x: worldTileX | 0,
+            y: worldTileY | 0,
+            level: level | 0,
+            ...(nextWorldViewId !== undefined ? { worldViewId: nextWorldViewId } : {}),
+        };
+        const mapId = this.getNpcInstanceRenderMapId(nextInstance);
+
         if (prev) {
-            const prevMapX = getMapIndexFromTile(prev.x | 0);
-            const prevMapY = getMapIndexFromTile(prev.y | 0);
-            const prevMapId = getMapSquareId(prevMapX, prevMapY);
+            const prevMapId = this.getNpcInstanceRenderMapId(prev);
             if (prevMapId !== mapId) {
                 this.npcInstanceMapsPendingReload.add(prevMapId);
                 this.npcInstanceMapsPendingReload.add(mapId);
             }
-            prev.typeId = typeId | 0;
-            prev.x = worldTileX | 0;
-            prev.y = worldTileY | 0;
-            prev.level = level | 0;
+            prev.typeId = nextInstance.typeId;
+            prev.x = nextInstance.x;
+            prev.y = nextInstance.y;
+            prev.level = nextInstance.level;
             prev.serverId = sid;
+            prev.worldViewId = nextInstance.worldViewId;
         } else {
-            this.npcInstanceMap.set(key, {
-                serverId: sid,
-                typeId: typeId | 0,
-                x: worldTileX | 0,
-                y: worldTileY | 0,
-                level: level | 0,
-            });
+            this.npcInstanceMap.set(key, nextInstance);
             this.npcInstanceMapsPendingReload.add(mapId);
         }
         this.scheduleNpcInstanceFlush();
@@ -10605,9 +10775,7 @@ export class OsrsClient {
         }
         this.npcInstanceMap.delete(instanceKey);
         if (existingInstance) {
-            const mapX = getMapIndexFromTile(existingInstance.x | 0);
-            const mapY = getMapIndexFromTile(existingInstance.y | 0);
-            const mapId = getMapSquareId(mapX, mapY);
+            const mapId = this.getNpcInstanceRenderMapId(existingInstance);
             this.npcInstanceMapsPendingReload.add(mapId);
             this.scheduleNpcInstanceFlush();
         }
@@ -10718,7 +10886,8 @@ export class OsrsClient {
             const mapY = mapId & 0xff;
 
             // Skip maps that are not in the current streaming grid.
-            if (!mapManager.isMapInCurrentGrid(mapX, mapY)) {
+            const isWorldEntityOverlay = mapManager.worldEntityMapIds.has(mapId);
+            if (!isWorldEntityOverlay && !mapManager.isMapInCurrentGrid(mapX, mapY)) {
                 remaining.add(mapId);
                 continue;
             }
@@ -11109,6 +11278,112 @@ export class OsrsClient {
     }
 
     /**
+     * Process a WORLDENTITY_INFO packet — per-tick world entity lifecycle update.
+     *
+     * Matches OSRS WorldEntityUpdateParser:
+     *  1. Truncation: entities beyond oldCount in the previous active list are despawned.
+     *  2. Per-entity update: 0=despawn, 1=no change, 2=queuePosition, 3=setPosition.
+     *  3. Mask updates (animation, action mask) applied per entity.
+     *  4. New spawns appended (scene data already loaded via REBUILD_WORLDENTITY).
+     */
+    private handleWorldEntityInfo(payload: WorldEntityInfoPayload): void {
+        const prev = this.activeWorldEntityIds;
+        const { oldCount, oldUpdates, newSpawns } = payload;
+
+        // Phase 1: Truncation — despawn entities beyond oldCount
+        for (let i = oldCount; i < prev.length; i++) {
+            this.despawnWorldEntity(prev[i]);
+        }
+
+        // Phase 2: Process updates for surviving old entities
+        const next: number[] = [];
+        for (let i = 0; i < oldCount; i++) {
+            const entityId = prev[i];
+            const upd = oldUpdates[i];
+            if (upd.updateType === 0) {
+                this.despawnWorldEntity(entityId);
+                continue;
+            }
+
+            next.push(entityId);
+
+            const entity = this.worldViewManager.getWorldEntity(entityId);
+            if (entity && upd.updateType >= 2 && upd.positionDelta) {
+                const target = entity.pendingPathStepCount === 0
+                    ? entity.position
+                    : entity.pathSteps[0].position;
+                const newPos = {
+                    x: target.x + upd.positionDelta.x,
+                    y: target.y + upd.positionDelta.y,
+                    z: target.z + upd.positionDelta.z,
+                    orientation: (target.orientation + upd.positionDelta.orientation) & 2047,
+                };
+                if (upd.updateType === 2) {
+                    entity.queuePosition(newPos);
+                } else {
+                    entity.setPosition(newPos);
+                }
+            }
+
+            if (entity && upd.mask) {
+                this.applyWorldEntityMask(entityId, entity, upd.mask);
+            }
+        }
+
+        // Phase 3: Register new spawns (scene data already loaded via REBUILD_WORLDENTITY)
+        for (const spawn of newSpawns) {
+            next.push(spawn.entityIndex);
+
+            const entity = this.worldViewManager.getWorldEntity(spawn.entityIndex);
+            if (entity) {
+                entity.drawMode = spawn.drawMode;
+                if (spawn.position) {
+                    entity.queuePosition(spawn.position);
+                }
+                if (spawn.mask) {
+                    this.applyWorldEntityMask(spawn.entityIndex, entity, spawn.mask);
+                }
+            }
+        }
+
+        this.activeWorldEntityIds = next;
+    }
+
+    private applyWorldEntityMask(
+        entityIndex: number,
+        entity: import("./worldview/WorldEntity").WorldEntity,
+        mask: import("../network/ServerConnection").WorldEntityMaskPayload,
+    ): void {
+        if (mask.actionMask !== undefined) {
+            entity.actionMask = mask.actionMask;
+        }
+        if (mask.animationId !== undefined) {
+            const animId = mask.animationId === 0xffff ? -1 : mask.animationId;
+            entity.sequenceAnimationId = animId;
+            entity.sequenceFrame = mask.sequenceFrame ?? 0;
+
+            const animator = (this.renderer as any)?.worldEntityAnimator;
+            if (animator && typeof animator.setSequenceAnimation === "function") {
+                animator.setSequenceAnimation(entityIndex, animId, entity.configId, getClientCycle());
+            }
+        }
+    }
+
+    private despawnWorldEntity(entityIndex: number): void {
+        console.log(`[OsrsClient] Despawning world entity ${entityIndex}`);
+        if (this.renderer && "clearWorldEntity" in this.renderer) {
+            (this.renderer as any).clearWorldEntity(entityIndex);
+        }
+        if (this.controlledPlayerServerId >= 0) {
+            const localEcsIdx = this.playerEcs.getIndexForServerId(this.controlledPlayerServerId);
+            if (localEcsIdx !== undefined) {
+                this.playerEcs.setWorldViewId(localEcsIdx, -1);
+                this.worldViewManager.removePlayerFromWorldView(entityIndex, localEcsIdx);
+            }
+        }
+    }
+
+    /**
      * Reset all world/game state - used on disconnect/logout to prevent memory leaks.
      * Clears all players, NPCs, widgets, ground items, and other game entities.
      * @param fullReset If true, also clears chat history, vars, and transmit cycles (for full logout to login screen)
@@ -11159,6 +11434,13 @@ export class OsrsClient {
         }
 
         // Clear map data
+        this.activeWorldEntityIds = [];
+        try {
+            (this.renderer as any)?.clearAllWorldEntities?.();
+        } catch (err) {
+            console.warn("[OsrsClient] Renderer clearAllWorldEntities error:", err);
+        }
+
         try {
             this.renderer?.mapManager?.clearMaps?.();
         } catch (err) {

@@ -17,20 +17,9 @@ import {
 } from "../../../src/rs/skill/skills";
 import {
     VARBIT_HAM_TRAPDOOR,
-    VARBIT_LEAGUE_AREA_LAST_VIEWED,
-    VARBIT_LEAGUE_AREA_SELECTION_0,
-    VARBIT_LEAGUE_AREA_SELECTION_1,
-    VARBIT_LEAGUE_AREA_SELECTION_2,
-    VARBIT_LEAGUE_AREA_SELECTION_3,
-    VARBIT_LEAGUE_AREA_SELECTION_4,
-    VARBIT_LEAGUE_AREA_SELECTION_5,
-    VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED,
-    VARBIT_LEAGUE_TUTORIAL_COMPLETED,
-    VARBIT_LEAGUE_TYPE,
     VARBIT_XPDROPS_ENABLED,
     VARP_AREA_SOUNDS_VOLUME,
     VARP_COMBAT_TARGET_PLAYER_INDEX,
-    VARP_LEAGUE_GENERAL,
     VARP_MASTER_VOLUME,
     VARP_MUSIC_VOLUME,
     VARP_SOUND_EFFECTS_VOLUME,
@@ -70,7 +59,7 @@ import {
     GroundItemInteractionState,
     PlayerInteractionState,
 } from "./interactions/types";
-import { syncLeagueGeneralVarp } from "./leagues/leagueGeneral";
+import type { GamemodeDefinition } from "./gamemodes/GamemodeDefinition";
 import { LockState, LockStateChecks } from "./model/LockState";
 import { QueueTaskSet, TaskGenerator } from "./model/queue";
 import {
@@ -83,7 +72,6 @@ import {
     TimerMap,
 } from "./model/timer";
 import { NpcState } from "./npc";
-import { hasInfiniteRunEnergy as hasInfiniteRunEnergyRule } from "./rules/playerWorldRules";
 import type { ScriptRuntime } from "./scripts/ScriptRuntime";
 import { RING_OF_FORGING_ITEM_ID, RING_OF_FORGING_MAX_CHARGES } from "./skills/smithingBonuses";
 import { normalizePlayerAccountName } from "./state/PlayerSessionKeys";
@@ -374,7 +362,7 @@ function computeCombatLevel(skills: PlayerSkillState[]): number {
 export interface PlayerPersistentVars {
     varps?: Record<number, number>;
     varbits?: Record<number, number>;
-    leagueTaskProgress?: Record<number, number>;
+    gamemodeData?: Record<string, unknown>;
     /** Server-only onboarding progression (project-specific). */
     accountStage?: number;
     accountCreationTimeMs?: number;
@@ -429,14 +417,19 @@ export interface PlayerPersistentVars {
 }
 
 export class PlayerState extends Actor {
+    static gamemodeRef: GamemodeDefinition | undefined;
+
     [key: symbol]: unknown;
 
-    __leagueRelicPendingSelection?: unknown;
-    __leagueMasteryPendingSelection?: unknown;
+    readonly gamemodeState: Map<string, unknown> = new Map();
 
     override readonly isPlayer = true;
     widgets: PlayerWidgetManager;
     visibleNpcIds: Set<number> = new Set();
+    /** NPC IDs spawned for this player's current instance (sailing, etc.). */
+    instanceNpcIds: Set<number> = new Set();
+    /** WorldView this player belongs to (-1 = overworld, >=0 = entity index). */
+    worldViewId: number = -1;
     /** Item definition resolver for stackability lookups (RSMod parity) */
     private itemDefResolver?: ItemDefResolver;
     /** Per-player NPC healthbar baseline (npcId -> defId -> last scaled value). */
@@ -558,8 +551,6 @@ export class PlayerState extends Actor {
     private nextSkillBoostDecayTick: number = 0;
     private varpValues: Map<number, number> = new Map();
     private varbitValues: Map<number, number> = new Map();
-    private leagueTaskProgress: Map<number, number> = new Map();
-
     // Music region tracking for area-based music
     private lastMusicRegionId: number = -1;
     private lastPlayedMusicTrackId: number = -1;
@@ -746,7 +737,7 @@ export class PlayerState extends Actor {
         if (!LockStateChecks.canMove(this._lockState)) return false;
         if (this.timers.has(FROZEN_TIMER)) return false;
         if (this.timers.has(STUN_TIMER)) return false;
-        if (!this.hasCompletedLeagueTutorial()) return false;
+        if (!this.canInteractWithWorld()) return false;
         return true;
     }
 
@@ -921,35 +912,8 @@ export class PlayerState extends Actor {
         // Default to post-design for existing saves; new accounts can override to 0.
         this.accountStage = 1;
 
-        // League defaults (project behavior).
-        // These are persisted varbits and should be initialized on new accounts rather than
-        // relying on UI-time fallbacks in widget scripts.
-        if (this.getVarbitValue(VARBIT_LEAGUE_TYPE) === 0) {
-            this.setVarbitValue(VARBIT_LEAGUE_TYPE, 5); // Raging Echoes
-        }
-        // OSRS: league_type and league_tutorial_completed are packed into league_general (varp 2606).
-        // Keep a sane default so CS2 scripts depending on the packed varp can resolve immediately.
-        if (this.getVarpValue(VARP_LEAGUE_GENERAL) === 0) {
-            syncLeagueGeneralVarp(this);
-        }
-        // OSRS parity: participants start with Misthalin; Karamja is unlocked during the Leagues tutorial.
-        const a0 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_0);
-        const a1 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_1);
-        const a2 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_2);
-        const a3 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_3);
-        const a4 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_4);
-        const a5 = this.getVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_5);
-        if ((a0 | a1 | a2 | a3 | a4 | a5) === 0) {
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_0, 1);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_1, 0);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_2, 0);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_3, 0);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_4, 0);
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_SELECTION_5, 0);
-        }
-        if (this.getVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED) === 0) {
-            this.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
-        }
+        // Delegate gamemode-specific player initialization
+        PlayerState.gamemodeRef?.initializePlayer(this);
         // OSRS parity: XP drops are enabled by default until the player explicitly hides them.
         if (!this.varbitValues.has(VARBIT_XPDROPS_ENABLED)) {
             this.setVarbitValue(VARBIT_XPDROPS_ENABLED, DEFAULT_XPDROPS_ENABLED);
@@ -1145,10 +1109,8 @@ export class PlayerState extends Actor {
         return this.aggressionState?.aggressionExpired ?? false;
     }
 
-    private hasCompletedLeagueTutorial(): boolean {
-        const tutorialStep = this.getVarbitValue?.(10037) ?? 0;
-        const leagueType = this.getVarbitValue?.(10038) ?? 0;
-        return tutorialStep >= (leagueType === 3 ? 14 : 12);
+    private canInteractWithWorld(): boolean {
+        return PlayerState.gamemodeRef?.canInteract(this) ?? true;
     }
 
     /**
@@ -1163,12 +1125,8 @@ export class PlayerState extends Actor {
         this.aggressionState = null;
     }
 
-    /**
-     * Check if player can interact with NPCs, objects, ground items, etc.
-     * Blocked during the league tutorial until completion.
-     */
     public canInteract(): boolean {
-        return this.hasCompletedLeagueTutorial();
+        return this.canInteractWithWorld();
     }
 
     public override setPath(steps: Tile[], run: boolean): void {
@@ -1376,7 +1334,7 @@ export class PlayerState extends Actor {
     }
 
     hasInfiniteRunEnergy(): boolean {
-        return hasInfiniteRunEnergyRule(this);
+        return PlayerState.gamemodeRef?.hasInfiniteRunEnergy(this) ?? false;
     }
 
     wantsToRun(): boolean {
@@ -1644,25 +1602,6 @@ export class PlayerState extends Actor {
         if (!Number.isFinite(id)) return;
         const normalized = Math.floor(Number.isFinite(value) ? value : 0);
         this.varpValues.set(id, normalized);
-    }
-
-    getLeagueTaskProgress(taskId: number): number {
-        return this.leagueTaskProgress.get(taskId | 0) ?? 0;
-    }
-
-    setLeagueTaskProgress(taskId: number, value: number): void {
-        const normalizedTaskId = taskId | 0;
-        if (normalizedTaskId < 0) return;
-        const normalizedValue = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
-        if (normalizedValue > 0) {
-            this.leagueTaskProgress.set(normalizedTaskId, normalizedValue);
-        } else {
-            this.leagueTaskProgress.delete(normalizedTaskId);
-        }
-    }
-
-    clearLeagueTaskProgress(taskId: number): void {
-        this.leagueTaskProgress.delete(taskId | 0);
     }
 
     // Music region tracking
@@ -2625,7 +2564,6 @@ export class PlayerState extends Actor {
         const snapshot: PlayerPersistentVars = {};
         const varps: Record<number, number> = {};
         const varbits: Record<number, number> = {};
-        const leagueTaskProgress: Record<number, number> = {};
         for (const [id, value] of this.varpValues.entries()) {
             if (NON_PERSISTENT_VARPS.has(id)) {
                 continue;
@@ -2642,15 +2580,11 @@ export class PlayerState extends Actor {
                 varbits[id] = value;
             }
         }
-        for (const [taskId, value] of this.leagueTaskProgress.entries()) {
-            if (value > 0) {
-                leagueTaskProgress[taskId] = value;
-            }
-        }
         if (Object.keys(varps).length > 0) snapshot.varps = varps;
         if (Object.keys(varbits).length > 0) snapshot.varbits = varbits;
-        if (Object.keys(leagueTaskProgress).length > 0) {
-            snapshot.leagueTaskProgress = leagueTaskProgress;
+        const gamemodeData = PlayerState.gamemodeRef?.serializePlayerState(this);
+        if (gamemodeData && Object.keys(gamemodeData).length > 0) {
+            snapshot.gamemodeData = gamemodeData;
         }
         // Persist character design (gender/body kits/colors). Equipment is stored separately.
         snapshot.accountStage = Number.isFinite(this.accountStage) ? this.accountStage : 1;
@@ -2745,7 +2679,7 @@ export class PlayerState extends Actor {
     applyPersistentVars(state?: PlayerPersistentVars): void {
         this.varpValues.clear();
         this.varbitValues.clear();
-        this.leagueTaskProgress.clear();
+        this.gamemodeState.clear();
         if (!state) {
             this.setVarbitValue(VARBIT_XPDROPS_ENABLED, DEFAULT_XPDROPS_ENABLED);
             this.ensureBankInitialized();
@@ -2791,13 +2725,11 @@ export class PlayerState extends Actor {
                 }
             }
         }
-        if (state.leagueTaskProgress) {
-            for (const [key, value] of Object.entries(state.leagueTaskProgress)) {
-                const taskId = parseInt(key, 10);
-                if (!Number.isNaN(taskId)) {
-                    this.setLeagueTaskProgress(taskId, value);
-                }
-            }
+        if (state.gamemodeData && Object.keys(state.gamemodeData).length > 0) {
+            PlayerState.gamemodeRef?.deserializePlayerState(
+                this,
+                state.gamemodeData as Record<string, unknown>,
+            );
         }
         if (
             !state.varbits ||
@@ -4061,6 +3993,7 @@ export class PlayerManager implements PlayerRepository {
                 from: { x: p.tileX, y: p.tileY, plane: p.level },
                 to: segmentTo,
                 size: 1,
+                worldViewId: p.worldViewId,
             },
             { maxSteps: 128 },
         );

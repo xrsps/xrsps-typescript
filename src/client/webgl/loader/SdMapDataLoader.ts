@@ -11,9 +11,10 @@ import { NpcType } from "../../../rs/config/npctype/NpcType";
 import { ObjModelLoader } from "../../../rs/config/objtype/ObjModelLoader";
 import { SeqTypeLoader } from "../../../rs/config/seqtype/SeqTypeLoader";
 import { VarManager } from "../../../rs/config/vartype/VarManager";
-import { getMapIndexFromTile } from "../../../rs/map/MapFileIndex";
+import { getMapIndexFromTile, getMapSquareId } from "../../../rs/map/MapFileIndex";
 import { Model } from "../../../rs/model/Model";
 import { Scene } from "../../../rs/scene/Scene";
+import { LocLoadType } from "../../../rs/scene/SceneBuilder";
 import { getIdFromTag } from "../../../rs/scene/entity/EntityTag";
 import { LocEntity } from "../../../rs/scene/entity/LocEntity";
 import { TextureLoader } from "../../../rs/texture/TextureLoader";
@@ -785,6 +786,8 @@ function buildNpcGeometry(
     textureLoader: TextureLoader,
     textureIdIndexMap: Map<number, number>,
     npcInstances: NpcInstance[],
+    baseTileX: number,
+    baseTileY: number,
 ) {
     const npcSceneBuf = new SceneBuffer(textureLoader, textureIdIndexMap, 20000);
     const npcRenderBundles = createNpcRenderBundles(
@@ -793,7 +796,7 @@ function buildNpcGeometry(
         npcSceneBuf,
         npcInstances,
     );
-    const npcs = createNpcDatas(npcRenderBundles);
+    const npcs = createNpcDatas(npcRenderBundles, baseTileX, baseTileY);
     return { npcSceneBuf, npcs };
 }
 
@@ -822,6 +825,10 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             locOverrides,
             locSpawns,
             extraObjSpawns,
+            instance: instanceInput,
+            extraLocs: extraLocsInput,
+            extraNpcs: extraNpcsInput,
+            overrideRenderPos,
         }: SdMapLoaderInput,
     ): Promise<RenderDataResult<SdMapData | undefined>> {
         console.time(`load map ${mapX},${mapY}`);
@@ -847,8 +854,41 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
 
         const borderSize = 6;
 
-        const baseX = mapX * Scene.MAP_SQUARE_SIZE - borderSize;
-        const baseY = mapY * Scene.MAP_SQUARE_SIZE - borderSize;
+        const isInstance = !!instanceInput;
+        const CHUNK_SIZE = 8;
+        const INSTANCE_SIZE = 13 * CHUNK_SIZE; // 104
+
+        // Instance scenes use the full 13x13 chunk grid (104 tiles) with no border.
+        // Normal scenes use MAP_SQUARE_SIZE + 2*border (76 tiles).
+        const usedBorderSize = isInstance ? 0 : borderSize;
+        const mapSize = isInstance ? INSTANCE_SIZE : Scene.MAP_SQUARE_SIZE + borderSize * 2;
+
+        let baseX: number;
+        let baseY: number;
+        let renderPosX: number | undefined;
+        let renderPosY: number | undefined;
+        if (isInstance) {
+            // Scene is in instance-local coordinates.
+            // sceneX=0 corresponds to instance world origin.
+            const instanceBaseX = (instanceInput!.regionX - 6) * CHUNK_SIZE;
+            const instanceBaseY = (instanceInput!.regionY - 6) * CHUNK_SIZE;
+            baseX = instanceBaseX;
+            baseY = instanceBaseY;
+            if (overrideRenderPos) {
+                // World entity overlay: scene built at source coords,
+                // rendered at entity's world position.
+                renderPosX = overrideRenderPos.x / Scene.MAP_SQUARE_SIZE;
+                renderPosY = overrideRenderPos.y / Scene.MAP_SQUARE_SIZE;
+            } else {
+                // Normal instance: renderPos matches scene base.
+                // Shader: worldX = vertexLocalX + renderPosX * 64
+                renderPosX = instanceBaseX / Scene.MAP_SQUARE_SIZE;
+                renderPosY = instanceBaseY / Scene.MAP_SQUARE_SIZE;
+            }
+        } else {
+            baseX = mapX * Scene.MAP_SQUARE_SIZE - borderSize;
+            baseY = mapY * Scene.MAP_SQUARE_SIZE - borderSize;
+        }
 
         // Apply loc overrides to scene builder (after baseX/baseY are calculated)
         if (locOverrides && locOverrides.size > 0) {
@@ -925,17 +965,60 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             state.sceneBuilder.clearLocSpawns();
         }
 
-        const mapSize = Scene.MAP_SQUARE_SIZE + borderSize * 2;
-
         console.time(`build scene ${mapX},${mapY}`);
-        const scene = state.sceneBuilder.buildScene(baseX, baseY, mapSize, mapSize, smoothTerrain);
+        let scene: Scene;
+        if (instanceInput) {
+            scene = state.sceneBuilder.buildInstanceScene(
+                instanceInput.templateChunks,
+                baseX,
+                baseY,
+                INSTANCE_SIZE,
+                INSTANCE_SIZE,
+                smoothTerrain,
+                LocLoadType.MODELS,
+            );
+        } else {
+            scene = state.sceneBuilder.buildScene(
+                baseX,
+                baseY,
+                mapSize,
+                mapSize,
+                smoothTerrain,
+            );
+        }
+        // Inject extra locs (from LOC_ADD_CHANGE) into the built scene
+        if (extraLocsInput && extraLocsInput.length > 0) {
+            for (const loc of extraLocsInput) {
+                const sceneX = loc.x - baseX;
+                const sceneY = loc.y - baseY;
+                if (
+                    sceneX > 0 &&
+                    sceneY > 0 &&
+                    sceneX < scene.sizeX - 1 &&
+                    sceneY < scene.sizeY - 1
+                ) {
+                    state.sceneBuilder.addLoc(
+                        scene,
+                        loc.level,
+                        sceneX,
+                        sceneY,
+                        loc.id,
+                        loc.shape,
+                        loc.rotation,
+                        scene.collisionMaps[loc.level],
+                        LocLoadType.MODELS,
+                    );
+                }
+            }
+        }
         console.timeEnd(`build scene ${mapX},${mapY}`);
 
         const sceneBuf = new SceneBuffer(textureLoader, textureIdIndexMap, 100000);
         const doorSceneBuf = new SceneBuffer(textureLoader, textureIdIndexMap, 20000);
-        sceneBuf.addTerrain(scene, borderSize, maxLevel);
+        const coreSize = isInstance ? INSTANCE_SIZE : Scene.MAP_SQUARE_SIZE;
+        sceneBuf.addTerrain(scene, usedBorderSize, maxLevel, coreSize, usedBorderSize);
 
-        const sceneLocs = getSceneLocs(locTypeLoader, scene, borderSize, maxLevel);
+        const sceneLocs = getSceneLocs(locTypeLoader, scene, usedBorderSize, maxLevel, coreSize, usedBorderSize);
         const sceneModels: SceneModel[] = [];
         const doorSceneModels: SceneModel[] = [];
         for (const locModel of sceneLocs.locs) {
@@ -961,13 +1044,13 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
 
         if (loadObjs) {
             const objSpawns = getMapObjSpawns(state.objSpawns, maxLevel, mapX, mapY);
-            createObjSceneModels(objModelLoader, sceneModels, scene, borderSize, objSpawns);
+            createObjSceneModels(objModelLoader, sceneModels, scene, usedBorderSize, objSpawns);
             if (extraObjSpawns && extraObjSpawns.length > 0) {
                 createObjSceneModels(
                     objModelLoader,
                     sceneModels,
                     scene,
-                    borderSize,
+                    usedBorderSize,
                     extraObjSpawns,
                 );
             }
@@ -991,12 +1074,29 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         let npcInstances: NpcInstance[] = [];
         if (loadNpcs) {
             const maxPlane = Math.max(0, maxLevel | 0);
+            const currentMapId = getMapSquareId(mapX, mapY);
             npcInstances = state.npcInstances.filter((instance) => {
                 if ((instance.level | 0) > maxPlane) return false;
+                const worldViewId = instance.worldViewId;
+                if (typeof worldViewId === "number" && worldViewId >= 0) {
+                    const overlayMapX = 200 + (worldViewId | 0);
+                    const overlayMapY = 200 + (worldViewId | 0);
+                    return getMapSquareId(overlayMapX, overlayMapY) === currentMapId;
+                }
                 const npcMapX = getMapIndexFromTile(instance.x);
                 const npcMapY = getMapIndexFromTile(instance.y);
                 return npcMapX === mapX && npcMapY === mapY;
             });
+        }
+        if (extraNpcsInput) {
+            for (const npc of extraNpcsInput) {
+                npcInstances.push({
+                    typeId: npc.id,
+                    x: npc.x,
+                    y: npc.y,
+                    level: npc.level,
+                });
+            }
         }
         const { npcSceneBuf, npcs } = buildNpcGeometry(
             npcModelLoader,
@@ -1004,15 +1104,21 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             textureLoader,
             textureIdIndexMap,
             npcInstances,
+            renderPosX != null
+                ? Math.floor(renderPosX * Scene.MAP_SQUARE_SIZE)
+                : mapX * Scene.MAP_SQUARE_SIZE,
+            renderPosY != null
+                ? Math.floor(renderPosY * Scene.MAP_SQUARE_SIZE)
+                : mapY * Scene.MAP_SQUARE_SIZE,
         );
 
         // Build per-level CSR mappings of loc IDs per interior tile (64x64 region) at tile origin.
         // We only include object IDs for origins (e.g., loc.startX/startY matches the tile) and direct
         // wall/wallDecoration/floorDecoration anchored at that tile.
-        const TILE_SIZE = Scene.MAP_SQUARE_SIZE; // 64
-        const interiorMin = borderSize;
-        const interiorMaxX = borderSize + TILE_SIZE - 1;
-        const interiorMaxY = borderSize + TILE_SIZE - 1;
+        const TILE_SIZE = isInstance ? INSTANCE_SIZE : Scene.MAP_SQUARE_SIZE;
+        const interiorMin = usedBorderSize;
+        const interiorMaxX = usedBorderSize + TILE_SIZE - 1;
+        const interiorMaxY = usedBorderSize + TILE_SIZE - 1;
 
         const tileLocOffsetsByLevel: Uint32Array[] = new Array(Scene.MAX_LEVELS);
         const tileLocIdsByLevel: Int32Array[] = new Array(Scene.MAX_LEVELS);
@@ -1332,7 +1438,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 state.mapImageRenderer,
                 scene,
                 0,
-                borderSize,
+                usedBorderSize,
                 false,
             );
         } else {
@@ -1373,7 +1479,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         const minimapIcons = extractMinimapIcons(
             scene,
             state.locTypeLoader,
-            borderSize,
+            usedBorderSize,
             mapFunctionToSpriteId,
         );
 
@@ -1494,7 +1600,10 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
 
                 smoothTerrain,
 
-                borderSize,
+                borderSize: usedBorderSize,
+                heightMapSize: mapSize,
+                renderPosX,
+                renderPosY,
                 tileRenderFlags: scene.tileRenderFlags,
                 collisionDatas: scene.collisionMaps,
 
@@ -1631,6 +1740,8 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             textureLoader,
             textureIdIndexMap,
             npcInstances,
+            mapX * Scene.MAP_SQUARE_SIZE,
+            mapY * Scene.MAP_SQUARE_SIZE,
         );
 
         const vertices = npcSceneBuf.vertexBuf.byteArray();

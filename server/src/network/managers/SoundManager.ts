@@ -19,7 +19,6 @@ import type { PlayerState } from "../../game/player";
 const DEFAULT_HIT_SOUND = 1979;
 const DEFAULT_MISS_SOUND = MISS_SOUND;
 // Unarmed (no weapon equipped): style-specific hit sounds.
-// Source: references/cs2-data/synth-names.json
 const UNARMED_KICK_SOUND = 2565; // unarmed_kick
 const UNARMED_PUNCH_SOUND = 2566; // unarmed_punch
 const DEFAULT_MAGIC_SPLASH_SOUND = 227;

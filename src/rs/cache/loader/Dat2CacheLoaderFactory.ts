@@ -69,6 +69,10 @@ import { IndexModelLoader, ModelLoader } from "../../model/ModelLoader";
 import { IndexSeqBaseLoader, SeqBaseLoader } from "../../model/seq/SeqBaseLoader";
 import { Dat2SeqFrameLoader, SeqFrameLoader } from "../../model/seq/SeqFrameLoader";
 import { IndexSkeletalSeqLoader, SkeletalSeqLoader } from "../../model/skeletal/SkeletalSeqLoader";
+import {
+    ArchiveWorldEntityTypeLoader,
+    WorldEntityTypeLoader,
+} from "../../config/worldentitytype/WorldEntityTypeLoader";
 import { IndexedSprite } from "../../sprite/IndexedSprite";
 import { SpriteLoader } from "../../sprite/SpriteLoader";
 import { OldProceduralTextureLoader } from "../../texture/OldProceduralTextureLoader";
@@ -288,6 +292,16 @@ export class Dat2CacheLoaderFactory implements CacheLoaderFactory {
         }
         const index = this.cacheSystem.getIndex(IndexType.DAT2.animations);
         return new IndexSkeletalSeqLoader(index, this.getSeqBaseLoader());
+    }
+
+    getWorldEntityTypeLoader(): WorldEntityTypeLoader | undefined {
+        try {
+            const configIndex = this.cacheSystem.getIndex(IndexType.DAT2.configs);
+            const archive = configIndex.getArchive(ConfigType.OSRS.worldEntity);
+            return new ArchiveWorldEntityTypeLoader(this.cacheInfo, archive);
+        } catch {
+            return undefined;
+        }
     }
 
     getMapFileLoader(): MapFileLoader {

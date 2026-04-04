@@ -2,19 +2,15 @@ import {
     VARBIT_SKILL_GUIDE_SKILL,
     VARBIT_SKILL_GUIDE_SUBSECTION,
 } from "../../../../../src/shared/vars";
-import { getMainmodalUid } from "../../../widgets/viewport";
+import { BaseComponentUids } from "../../../widgets/viewport/ViewportEnumService";
 import { type ScriptModule } from "../types";
 
 /**
- * Skill guide widget handlers - opens skill guide interface when skill is clicked
+ * Skill guide widget handlers - opens skill guide overlay when skill tab is clicked.
  *
- * Based on RSMod's skill_guides.plugin.kts and OSRS CS2 scripts:
- * - Interface 320 is the skills tab
- * - Interface 214 is the skill guide display
- * - Varbit 4371 (SKILL_GUIDE_SKILL) controls which skill guide to show
- * - Varbit 4372 (SKILL_GUIDE_SUBSECTION) controls the sub-section within the guide
- *
- * Uses onButton registration since binary IF_BUTTON packets don't send option strings.
+ * Interface 320 = skills tab, Interface 214 = skill guide overlay.
+ * Mounted on toplevel_osrs_stretch:floater (161:18) as type=overlay.
+ * Script 9340 populates titles/categories/detail list.
  */
 
 // Widget/Interface IDs
@@ -68,38 +64,35 @@ export const skillGuideWidgetModule: ScriptModule = {
             registry.onButton(SKILLS_TAB_GROUP_ID, childId, (event) => {
                 const player = event.player;
 
-                // Update player's varbit state
                 player.setVarbitValue(VARBIT_SKILL_GUIDE_SUBSECTION, 0);
                 player.setVarbitValue(VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
 
-                // Send varbits to client
                 services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SUBSECTION, 0);
                 services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
 
-                // Open the skill guide interface (214) in the mainmodal container
-                const mainmodalUid = getMainmodalUid(player.displayMode);
+                const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
 
-                services.logger?.info?.(
-                    `[skill-guide] Opening ${skillName} guide: targetUid=${mainmodalUid} (0x${mainmodalUid.toString(
-                        16,
-                    )}), ` +
-                        `groupId=${SKILL_GUIDE_GROUP_ID}, varbits={${VARBIT_SKILL_GUIDE_SKILL}:${skillVarbitValue}, ${VARBIT_SKILL_GUIDE_SUBSECTION}:0}`,
-                );
-
-                services.openSubInterface?.(player, mainmodalUid, SKILL_GUIDE_GROUP_ID, 0, {
+                services.openSubInterface?.(player, floaterUid, SKILL_GUIDE_GROUP_ID, 1, {
                     varbits: {
                         [VARBIT_SKILL_GUIDE_SUBSECTION]: 0,
                         [VARBIT_SKILL_GUIDE_SKILL]: skillVarbitValue,
                     },
-                    // OSRS parity: opening 214 alone only mounts the shell. The client then runs
-                    // script9340(skill, subsection, startLevel, endLevel) to populate titles,
-                    // categories, and the detail list for the current skill.
                     postScripts: [
                         {
                             scriptId: SCRIPT_SKILL_GUIDE_BUILD,
                             args: [skillVarbitValue, 0, 0, 0],
                         },
                     ],
+                });
+
+                // Clear events on skill_guide:icons (214:32)
+                const SKILL_GUIDE_ICONS_UID = (SKILL_GUIDE_GROUP_ID << 16) | 32;
+                services.queueWidgetEvent?.(player.id, {
+                    action: "set_flags_range",
+                    uid: SKILL_GUIDE_ICONS_UID,
+                    fromSlot: -1,
+                    toSlot: -1,
+                    flags: 0,
                 });
             });
         }

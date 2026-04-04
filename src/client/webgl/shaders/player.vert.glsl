@@ -30,6 +30,7 @@ uniform int u_npcDataOffset;
 uniform highp usampler2D u_npcDataTexture;
 uniform mediump isampler2DArray u_heightMap;
 uniform float u_modelYOffset;
+uniform mat4 u_worldEntityTransform;
 
 layout(location = 0) in uvec3 a_vertex;
 
@@ -134,7 +135,7 @@ void main() {
         (1.0 - isLoading) * v_fogAmount;
 
     // Transform to view space
-    vec4 viewPos = u_viewMatrix * localPos;
+    vec4 viewPos = u_worldEntityTransform * (u_viewMatrix * localPos);
 
     // Apply a small view-space depth offset for non-zero priorities.
     // Higher priority = slightly closer to the camera.

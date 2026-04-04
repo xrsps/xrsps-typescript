@@ -113,6 +113,9 @@ export class PlayerEcs {
     private telemetrySampleSource: "clientTick" | "rendererFrame" | "serverTick" = "clientTick";
     private telemetryClockProvider?: () => { tick: number; phase: number };
 
+    // WorldView membership (-1 = overworld, >=0 = entity index)
+    private worldViewId!: Int16Array;
+
     // Tile dwell tracking for telemetry
     private dwellTileX!: Int16Array;
     private dwellTileY!: Int16Array;
@@ -315,6 +318,9 @@ export class PlayerEcs {
         this.animPhaseBias[index] = 0.0;
         this.animDistTraveled[index] = 0.0;
 
+        // Initialize WorldView membership
+        this.worldViewId[index] = -1;
+
         // Initialize metadata
         this.removeNameMapping(index);
         this.names[index] = undefined;
@@ -479,6 +485,7 @@ export class PlayerEcs {
         this.animCrawlRightSeq = grow(this.animCrawlRightSeq, Int32Array);
         this.animTurnLeftSeq = grow(this.animTurnLeftSeq, Int32Array);
         this.animTurnRightSeq = grow(this.animTurnRightSeq, Int32Array);
+        this.worldViewId = grow(this.worldViewId, Int16Array);
         this.dwellTileX = grow(this.dwellTileX, Int16Array);
         this.dwellTileY = grow(this.dwellTileY, Int16Array);
         this.dwellTicks = grow(this.dwellTicks, Uint32Array);
@@ -616,6 +623,13 @@ export class PlayerEcs {
     getPrevY(i: number): number {
         return this.prevY[i] | 0;
     }
+    getWorldViewId(i: number): number {
+        return this.worldViewId[i] | 0;
+    }
+    setWorldViewId(i: number, viewId: number): void {
+        this.worldViewId[i] = viewId | 0;
+    }
+
     getLevel(i: number): number {
         return this.level[i] | 0;
     }
@@ -1619,6 +1633,33 @@ export class PlayerEcs {
         if (this.srvNextY) this.srvNextY[i] = currY;
         if (this.targetX) this.targetX[i] = currX;
         if (this.targetY) this.targetY[i] = currY;
+    }
+
+    /**
+     * Drop only the queued (future) steps without aborting the active segment.
+     */
+    clearQueuedSteps(i: number): void {
+        if (!this.serverInterpEnabled) return;
+        if (!this.srvQueueLen || i < 0 || i >= this.capacity) return;
+        this.srvQueueLen[i] = 0;
+        this.srvQueueHead[i] = 0;
+        this.srvQueueTail[i] = 0;
+    }
+
+    /**
+     * Check whether the active interpolation segment's target tile matches
+     * a given subtile coordinate.  Used to decide between smooth append
+     * (target matches → queue new steps) vs snap (target wrong → full clear).
+     */
+    activeSegmentTargetMatches(i: number, subX: number, subY: number): boolean {
+        if (!this.serverInterpEnabled) return true;
+        if (i < 0 || i >= this.capacity) return true;
+        const t = (this.srvT?.[i] as number) ?? 1.0;
+        if (t >= 1.0) return true; // no active segment — anything matches
+        const nx = this.srvNextX?.[i] | 0;
+        const ny = this.srvNextY?.[i] | 0;
+        // Compare tile-level (within 64 subtile units tolerance for size offsets)
+        return Math.abs(nx - (subX | 0)) < 64 && Math.abs(ny - (subY | 0)) < 64;
     }
 
     private _queuePush(i: number, x: number, y: number, factor: number, rotation?: number): void {

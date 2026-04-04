@@ -62,6 +62,10 @@ export class ScriptRuntime {
         };
     }
 
+    getServices(): ScriptServices {
+        return this.services;
+    }
+
     loadModule(module: ScriptModule): void {
         if (!this.hotReloadEnabled && this.loadedModuleIds.has(module.id)) {
             this.logger.debug(`[script] module already loaded: ${module.id}`);

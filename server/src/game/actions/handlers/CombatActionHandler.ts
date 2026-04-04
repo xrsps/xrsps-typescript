@@ -408,7 +408,7 @@ export interface CombatActionServices {
         hitData: unknown,
         effects: ActionEffect[],
     ): void;
-    /** Resolve active skill XP multiplier for the player (e.g. league modifiers). */
+    /** Resolve active skill XP multiplier for the player (e.g. gamemode modifiers). */
     getSkillXpMultiplier?: (player: PlayerState) => number;
 
     // --- Special Attacks ---
@@ -524,8 +524,7 @@ export interface CombatActionServices {
     /** Get NPC name by type ID. */
     getNpcName(typeId: number): string | undefined;
 
-    // --- League Tasks ---
-    /** Notify task manager of NPC kill (auto-completes matching tasks). */
+    // --- Gamemode Events ---
     onNpcKill(playerId: number, npcId: number): void;
 }
 
@@ -2289,7 +2288,7 @@ export class CombatActionHandler {
 
         this.services.cleanupNpc(npc);
 
-        // League task: Notify task manager of NPC kill (auto-completes matching tasks)
+        // Gamemode event: notify of NPC kill
         const killerId = eligibility?.primaryLooter?.id ?? player.id;
         this.services.onNpcKill(killerId, npc.typeId);
 

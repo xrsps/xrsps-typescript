@@ -5,7 +5,7 @@ import type { WidgetAction } from "../../widgets/WidgetManager";
 import { type DoorStateManager } from "../../world/DoorStateManager";
 import { type ActionEnqueueResult, type ActionKind, type ActionRequest } from "../actions";
 import type { OwnedItemLocation } from "../items/playerItemOwnership";
-import { type NpcState } from "../npc";
+import { type NpcSpawnConfig, type NpcState } from "../npc";
 import { type PlayerState } from "../player";
 import type { FishingSpotDefinition } from "../skills/fishing";
 import type { MiningRockDefinition } from "../skills/mining";
@@ -494,6 +494,7 @@ export interface ScriptServices {
             preScripts?: Array<{ scriptId: number; args: (number | string)[] }>;
             postScripts?: Array<{ scriptId: number; args: (number | string)[] }>;
             hiddenUids?: number[];
+            modal?: boolean;
         },
     ) => void;
     /**
@@ -524,6 +525,70 @@ export interface ScriptServices {
         y: number,
         level: number,
         forceRebuild?: boolean,
+    ) => void;
+    /**
+     * Teleport a player into a dynamic instance (REBUILD_REGION).
+     * Sends the instance template chunks + XTEA keys before the teleport.
+     * @param player The player to teleport
+     * @param x Target tile X coordinate
+     * @param y Target tile Y coordinate
+     * @param level Target level/plane (0-3)
+     * @param templateChunks 4×13×13 packed template chunk grid (-1 = empty)
+     */
+    /**
+     * Spawn a loc at a world tile (LOC_ADD_CHANGE).
+     * Sends the loc to all nearby players. Does not persist across server restarts.
+     */
+    spawnLoc?: (
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ) => void;
+    /**
+     * Spawn a loc for a specific player only (LOC_ADD_CHANGE).
+     */
+    spawnLocForPlayer?: (
+        player: PlayerState,
+        locId: number,
+        tile: { x: number; y: number },
+        level: number,
+        shape: number,
+        rotation: number,
+    ) => void;
+    teleportToInstance?: (
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        templateChunks: number[][][],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ) => void;
+    teleportToWorldEntity?: (
+        player: PlayerState,
+        x: number,
+        y: number,
+        level: number,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: import("../../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ) => void;
+    sendWorldEntity?: (
+        player: PlayerState,
+        entityIndex: number,
+        configId: number,
+        sizeX: number,
+        sizeZ: number,
+        templateChunks: number[][][],
+        buildAreas: import("../../../../src/shared/worldentity/WorldEntityTypes").WorldEntityBuildArea[],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+        extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
+        drawMode?: number,
     ) => void;
     /**
      * Schedule a teleport through the server action scheduler.
@@ -592,7 +657,7 @@ export interface ScriptServices {
     queueWidgetEvent?: (playerId: number, event: WidgetAction) => void;
     /**
      * Queue a custom notification payload to be sent to the client.
-     * Used for server-driven toast notifications (league tasks, etc.).
+     * Used for server-driven toast notifications (gamemode tasks, etc.).
      */
     queueNotification?: (playerId: number, payload: any) => void;
     /**
@@ -638,7 +703,7 @@ export interface ScriptServices {
     /** Access InterfaceService for server-managed modal interfaces (shops, banks, etc.). */
     getInterfaceService?: () => InterfaceService | undefined;
     /**
-     * Open the remaining tab interfaces when the league tutorial completes.
+     * Open the remaining tab interfaces when the gamemode tutorial completes.
      * During the tutorial, only the Quest tab is shown. When the tutorial finishes,
      * this method opens all the other tabs (Combat, Skills, Inventory, etc.).
      * @param player The player to open tabs for
@@ -661,4 +726,14 @@ export interface ScriptServices {
         player: PlayerState,
     ) => { ok: true; npcId: number } | { ok: false; reason: string };
     despawnFollowerForPlayer?: (playerId: number, clearPersistentState?: boolean) => boolean;
+    spawnNpc?: (config: NpcSpawnConfig) => NpcState | undefined;
+    removeNpc?: (npcId: number) => boolean;
+    initSailingInstance?: (player: PlayerState) => void;
+    disposeSailingInstance?: (player: PlayerState) => void;
+    removeWorldEntity?: (playerId: number, entityIndex: number) => void;
+    queueWorldEntityPosition?: (playerId: number, entityIndex: number, position: { x: number; y: number; z: number; orientation: number }) => void;
+    setWorldEntityPosition?: (playerId: number, entityIndex: number, position: { x: number; y: number; z: number; orientation: number }) => void;
+    queueWorldEntityMask?: (playerId: number, entityIndex: number, mask: { animationId?: number; sequenceFrame?: number; actionMask?: number }) => void;
+    buildSailingDockedCollision?: () => void;
+    gamemodeServices?: Record<string, unknown>;
 }

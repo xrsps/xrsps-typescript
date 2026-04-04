@@ -685,7 +685,7 @@ export class PlayerRenderer {
 
             // Prepare shared state
             const transparent = pass === "alpha";
-            const mapPos = vec2.fromValues(map.mapX, map.mapY);
+            const mapPos = vec2.fromValues(map.renderPosX, map.renderPosY);
             const frameRecords = new Map<
                 number,
                 {
@@ -746,8 +746,10 @@ export class PlayerRenderer {
                     .texture("u_textureMaterials", rAny.textureMaterials)
                     .uniform("u_mapPos", mapPos)
                     .uniform("u_npcDataOffset", baseOffsetPlayer | 0)
+                    .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                     .texture("u_npcDataTexture", actorDataTexture as Texture)
                     .texture("u_heightMap", map.heightMapTexture)
+                    .uniform("u_sceneBorderSize", map.borderSize)
                     .uniform("u_modelYOffset", -(group.yOff | 0));
 
                 for (let i = 0; i < group.slots.length; i++) {
@@ -1600,8 +1602,9 @@ export class PlayerRenderer {
         // Write offset for the ring slot we will sample during this frame's draw
         map.playerDataTextureOffsets[sampleIdx] = baseOffset;
 
-        const mapBaseX = map.mapX * 64;
-        const mapBaseY = map.mapY * 64;
+        const mapBaseTileX = map.getRenderBaseTileX();
+        const mapBaseTileY = map.getRenderBaseTileY();
+        const mapTileSpan = map.getLocalTileSpan();
 
         // Append only players selected for this map for this frame (matches draw path exactly).
         const renderPlayers = this.getRenderPlayersForMap(map);
@@ -1623,11 +1626,11 @@ export class PlayerRenderer {
                 }
             }
 
-            const localTileX = tileX - mapBaseX;
-            const localTileY = tileY - mapBaseY;
+            const localTileX = tileX - mapBaseTileX;
+            const localTileY = tileY - mapBaseTileY;
 
-            const tx = clamp(localTileX, 0, 63);
-            const ty = clamp(localTileY, 0, 63);
+            const tx = clamp(localTileX, 0, Math.max(0, mapTileSpan - 1));
+            const ty = clamp(localTileY, 0, Math.max(0, mapTileSpan - 1));
             const renderPlane = resolveHeightSamplePlaneForLocal(
                 map,
                 playerEcs.getLevel(i) | 0,
@@ -1636,8 +1639,8 @@ export class PlayerRenderer {
             );
 
             // OSRS parity: actor positions advance on client cycles; do not render-time interpolate.
-            const localX = (px - mapBaseX * 128) | 0;
-            const localY = (py - mapBaseY * 128) | 0;
+            const localX = (px - mapBaseTileX * 128) | 0;
+            const localY = (py - mapBaseTileY * 128) | 0;
             // Apply yaw bias so model forward aligns with OSRS orientation
             const rot =
                 (playerEcs.getRotation(i) + ((r as any).playerRotationBiasUnits ?? 0)) & 2047;
@@ -1866,11 +1869,15 @@ export class PlayerRenderer {
 
         // Batched rendering: process each batch group through the active draw backend.
         const draw = r.configureDrawCall(this.drawCall as any as DrawCall);
-        draw.uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
+        const playerEcs = r.osrsClient?.playerEcs;
+        const playerDeckH = r.getWorldEntityDeckHeight(0, 0);
+        draw.uniform("u_mapPos", vec2.fromValues(map.renderPosX, map.renderPosY))
             .uniform("u_npcDataOffset", baseOffsetPlayer)
             .uniform("u_modelYOffset", r.playerYOffset)
+            .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
             .texture("u_npcDataTexture", actorDataTexture)
-            .texture("u_heightMap", map.heightMapTexture);
+            .texture("u_heightMap", map.heightMapTexture)
+            .uniform("u_sceneBorderSize", map.borderSize);
 
         r.app.disable(PicoGL.CULL_FACE);
 
@@ -1897,10 +1904,26 @@ export class PlayerRenderer {
                     "opaqueOnly",
                 );
                 this.framePlayerAlphaCounts.set(inst.pid | 0, counts.countAlpha | 0);
+
+                // Per-player WorldView: apply deck height + bobbing transform
+                // inst.pid is the ECS index directly (from playerIndices)
+                const wvId = playerEcs?.getWorldViewId?.(inst.pid) ?? -1;
+                if (wvId >= 0) {
+                    const weTransform = r.worldEntityAnimator?.getTransform(wvId) ?? WebGLMapSquare.IDENTITY_MAT4;
+                    draw.uniform("u_modelYOffset", r.playerYOffset + playerDeckH)
+                        .uniform("u_worldEntityTransform", weTransform);
+                }
+
                 // Use drawIdOverride since gl_DrawID will be 0 for single-range draws
                 draw.uniform("u_drawIdOverride", inst.slot | 0);
                 (draw as any).drawRanges([0, counts.countOpaque | 0, 1]);
                 draw.draw();
+
+                // Restore overworld uniforms after WE player draw
+                if (wvId >= 0) {
+                    draw.uniform("u_modelYOffset", r.playerYOffset)
+                        .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4);
+                }
             }
             draw.uniform("u_drawIdOverride", -1); // Reset
         }
@@ -2076,11 +2099,15 @@ export class PlayerRenderer {
 
             // Render batched alpha groups through the active draw backend.
             const draw = r.configureDrawCall(this.drawCallAlpha as any as DrawCall);
-            draw.uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
+            const playerEcsAlpha = r.osrsClient?.playerEcs;
+            const alphaDeckH = r.getWorldEntityDeckHeight(0, 0);
+            draw.uniform("u_mapPos", vec2.fromValues(map.renderPosX, map.renderPosY))
                 .uniform("u_npcDataOffset", baseOffset)
                 .uniform("u_modelYOffset", r.playerYOffset)
+                .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
                 .texture("u_npcDataTexture", playerDataTexture)
-                .texture("u_heightMap", map.heightMapTexture);
+                .texture("u_heightMap", map.heightMapTexture)
+                .uniform("u_sceneBorderSize", map.borderSize);
 
             r.app.disable(PicoGL.CULL_FACE);
 
@@ -2110,10 +2137,24 @@ export class PlayerRenderer {
 
                     if ((counts.countAlpha | 0) <= 0) continue;
 
+                    // Per-player WorldView: apply deck height + bobbing transform
+                    const wvIdAlpha = playerEcsAlpha?.getWorldViewId?.(inst.pid) ?? -1;
+                    if (wvIdAlpha >= 0) {
+                        const weTransform = r.worldEntityAnimator?.getTransform(wvIdAlpha) ?? WebGLMapSquare.IDENTITY_MAT4;
+                        draw.uniform("u_modelYOffset", r.playerYOffset + alphaDeckH)
+                            .uniform("u_worldEntityTransform", weTransform);
+                    }
+
                     // Use drawIdOverride since gl_DrawID will be 0 for single-range draws
                     draw.uniform("u_drawIdOverride", inst.slot | 0);
                     (draw as any).drawRanges([0, counts.countAlpha | 0, 1]);
                     draw.draw();
+
+                    // Restore overworld uniforms after WE player draw
+                    if (wvIdAlpha >= 0) {
+                        draw.uniform("u_modelYOffset", r.playerYOffset)
+                            .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4);
+                    }
                 }
                 draw.uniform("u_drawIdOverride", -1); // Reset
             }
@@ -2178,6 +2219,9 @@ export class PlayerRenderer {
 
         const out: number[] = [];
         const pe = this.renderer.osrsClient.playerEcs;
+        const overlayView = this.renderer.osrsClient.worldViewManager.getWorldViewByOverlayMapId(
+            map.id,
+        );
         const count = pe.size?.() ?? (pe as any).size?.() ?? 0;
         const renderSelf = this.renderer.osrsClient.renderSelf !== false;
 
@@ -2190,11 +2234,25 @@ export class PlayerRenderer {
             const py = pe.getY(pid) | 0;
             const tileX = (px >> 7) | 0;
             const tileY = (py >> 7) | 0;
-            if (
-                getMapIndexFromTile(tileX) !== map.mapX ||
-                getMapIndexFromTile(tileY) !== map.mapY
-            ) {
-                continue;
+            const worldViewId = pe.getWorldViewId(pid) | 0;
+
+            if (overlayView) {
+                if ((worldViewId | 0) !== (overlayView.id | 0)) {
+                    continue;
+                }
+                if (!overlayView.containsTile(tileX, tileY)) {
+                    continue;
+                }
+            } else {
+                if (worldViewId >= 0) {
+                    continue;
+                }
+                if (
+                    getMapIndexFromTile(tileX) !== map.mapX ||
+                    getMapIndexFromTile(tileY) !== map.mapY
+                ) {
+                    continue;
+                }
             }
             if (!this.renderer.shouldRenderPlayerIndex(pid)) {
                 continue;

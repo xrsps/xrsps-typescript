@@ -206,16 +206,18 @@ export function getSceneLocs(
     scene: Scene,
     borderSize: number,
     maxLevel: number,
+    coreSize: number = Scene.MAP_SQUARE_SIZE,
+    worldTileOffset: number = borderSize,
 ): SceneLocs {
     const locs: SceneModel[] = [];
     const locEntities: SceneLocEntity[] = [];
 
     const startX = borderSize;
     const startY = borderSize;
-    const endX = borderSize + Scene.MAP_SQUARE_SIZE;
-    const endY = borderSize + Scene.MAP_SQUARE_SIZE;
+    const endX = borderSize + coreSize;
+    const endY = borderSize + coreSize;
 
-    const sceneOffset = borderSize * -128;
+    const sceneOffset = worldTileOffset * -128;
 
     const addTileLocs = (tile: SceneTile, tileLevel: number, tileX: number, tileY: number) => {
         const originalLevel = tile.originalLevel ?? tileLevel;

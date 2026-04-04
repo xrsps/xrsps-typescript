@@ -32,7 +32,7 @@ export const SIDE_JOURNAL_QUEST_LIST_CHILD_ID = 10;
 export const SIDE_JOURNAL_TASK_LIST_CHILD_ID = 18;
 export const SIDE_JOURNAL_ADVENTURE_PATH_LIST_CHILD_ID = 26;
 // Side journal league tab widgets (used for league tutorial flashing behaviour).
-// These IDs come from cache component mappings (see references/cs2-data/component-script-overrides.json).
+// These IDs come from cache component mappings.
 export const SIDE_JOURNAL_LEAGUE_LIST_CHILD_ID = 34; // side_journal:league_list
 export const SIDE_JOURNAL_LEAGUE_TAB_ICON_CHILD_ID = 42; // side_journal:tab_icon_5
 export const SIDE_JOURNAL_LEAGUE_LIST_UID = packWidgetUid(

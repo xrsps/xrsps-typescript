@@ -152,7 +152,7 @@ export function resolveDropEntry(def: NpcDropEntryDefinition): NpcDropEntry | un
         altProbability: parseProbability(def.altRarity),
         condition: resolveDropCondition(def.condition),
         altCondition: resolveDropCondition(def.altCondition),
-        leagueBoostEligible: def.leagueBoostEligible === true,
+        dropBoostEligible: def.dropBoostEligible === true,
     };
 }
 

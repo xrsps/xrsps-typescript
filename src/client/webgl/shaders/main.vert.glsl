@@ -23,6 +23,7 @@ uniform int u_drawIdOffset;
 uniform vec2 u_mapPos;
 uniform float u_timeLoaded;
 uniform float u_roofPlaneLimit;
+uniform mat4 u_worldEntityTransform;
 
 
 uniform highp usampler2D u_modelInfoTexture;
@@ -130,8 +131,9 @@ void main() {
     v_fogAmount = isLoading * max(1.0 - loadAlpha, v_fogAmount) +
         (1.0 - isLoading) * v_fogAmount;
 
-    // View-space position
-    vec4 viewPos = u_viewMatrix * vec4(localPos, 1.0);
+    // World entity bobbing: applied in view/camera space, matching OSRS where
+    // Scene_cameraPitchSine is multiplied after the camera transform in drawInternal.
+    vec4 viewPos = u_worldEntityTransform * (u_viewMatrix * vec4(localPos, 1.0));
 
     // Small, view-space epsilons (tune gently if needed)
     const float PLANE_LAYER_EPSILON     = 0.001;   // plane/level separation

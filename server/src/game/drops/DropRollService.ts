@@ -1,6 +1,5 @@
 import type { PendingNpcDrop } from "../npcManager";
 import { NpcDropRegistry } from "./NpcDropRegistry";
-import { getLeagueVReplacementItemId } from "./leagueDrops";
 import type {
     DropConditionDefinition,
     DropContext,
@@ -19,7 +18,7 @@ function rollQuantity(entry: NpcDropEntry): number {
     return min + Math.floor(Math.random() * (max - min + 1));
 }
 
-function applyLeagueMultiplier(probability: number, multiplier: number, eligible: boolean): number {
+function applyDropRateMultiplier(probability: number, multiplier: number, eligible: boolean): number {
     if (!eligible || multiplier <= 1) return probability;
     return Math.max(0, Math.min(1, probability * multiplier));
 }
@@ -57,10 +56,10 @@ function resolveEntryProbability(
         matchesCondition(entry.altCondition, context, recipient)
             ? entry.altProbability
             : entry.probability ?? 0;
-    return applyLeagueMultiplier(
+    return applyDropRateMultiplier(
         probability,
-        recipient.leagueDropRateMultiplier,
-        entry.leagueBoostEligible,
+        recipient.dropRateMultiplier,
+        entry.dropBoostEligible,
     );
 }
 
@@ -122,13 +121,17 @@ function toPendingDrop(
     itemId: number,
     quantity: number,
 ): PendingNpcDrop {
+    const resolvedItemId = context.transformItemId
+        ? context.transformItemId(context.npcTypeId, itemId, recipient)
+        : itemId;
     return {
-        itemId: getLeagueVReplacementItemId(context.npcTypeId, itemId, recipient.isLeagueVWorld),
+        itemId: resolvedItemId,
         quantity: quantity,
         tile: { ...context.tile },
         ownerId: recipient.ownerId,
         isMonsterDrop: true,
         isWilderness: context.isWilderness,
+        worldViewId: context.worldViewId,
     };
 }
 
@@ -142,7 +145,7 @@ export class DropRollService {
         const recipients =
             context.recipients.length > 0
                 ? context.recipients
-                : [{ isLeagueVWorld: false, leagueDropRateMultiplier: 1 }];
+                : [{ dropRateMultiplier: 1 }];
         for (const recipient of recipients) {
             this.rollForRecipient(table, context, recipient, out);
         }

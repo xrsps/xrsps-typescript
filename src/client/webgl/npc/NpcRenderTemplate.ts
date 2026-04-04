@@ -7,6 +7,7 @@ export type NpcInstance = {
     x: number;
     y: number;
     level: number;
+    worldViewId?: number;
     name?: string;
 };
 
