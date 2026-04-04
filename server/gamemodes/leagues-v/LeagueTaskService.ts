@@ -34,10 +34,34 @@ export type LeagueTaskPlayer = {
     setVarpValue: (id: number, value: number) => void;
     getVarbitValue: (id: number) => number;
     setVarbitValue: (id: number, value: number) => void;
-    getLeagueTaskProgress: (taskId: number) => number;
-    setLeagueTaskProgress: (taskId: number, value: number) => void;
-    clearLeagueTaskProgress: (taskId: number) => void;
+    gamemodeState: Map<string, unknown>;
 };
+
+export function getTaskProgress(player: LeagueTaskPlayer, taskId: number): number {
+    const map = player.gamemodeState.get("taskProgress") as Map<number, number> | undefined;
+    return map?.get(taskId | 0) ?? 0;
+}
+
+export function setTaskProgress(player: LeagueTaskPlayer, taskId: number, value: number): void {
+    const key = taskId | 0;
+    if (key < 0) return;
+    const normalized = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+    let map = player.gamemodeState.get("taskProgress") as Map<number, number> | undefined;
+    if (!map) {
+        map = new Map();
+        player.gamemodeState.set("taskProgress", map);
+    }
+    if (normalized > 0) {
+        map.set(key, normalized);
+    } else {
+        map.delete(key);
+    }
+}
+
+export function clearTaskProgress(player: LeagueTaskPlayer, taskId: number): void {
+    const map = player.gamemodeState.get("taskProgress") as Map<number, number> | undefined;
+    map?.delete(taskId | 0);
+}
 
 function getLeagueTaskBitfield(taskId: number): { varpId: number; mask: number } {
     const tid = taskId;

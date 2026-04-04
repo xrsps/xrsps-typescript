@@ -239,10 +239,6 @@ function mergeStates(
         if (source.gamemodeData) {
             gamemodeData = { ...(gamemodeData ?? {}), ...source.gamemodeData };
         }
-        // Backwards compat: legacy leagueTaskProgress → gamemodeData
-        if (source.leagueTaskProgress && !gamemodeData?.leagueTaskProgress) {
-            gamemodeData = { ...(gamemodeData ?? {}), leagueTaskProgress: source.leagueTaskProgress };
-        }
     }
     const result: PlayerPersistentVars = {};
     if (Object.keys(varps).length > 0) result.varps = varps;

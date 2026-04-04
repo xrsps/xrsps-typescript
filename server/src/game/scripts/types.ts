@@ -657,7 +657,7 @@ export interface ScriptServices {
     queueWidgetEvent?: (playerId: number, event: WidgetAction) => void;
     /**
      * Queue a custom notification payload to be sent to the client.
-     * Used for server-driven toast notifications (league tasks, etc.).
+     * Used for server-driven toast notifications (gamemode tasks, etc.).
      */
     queueNotification?: (playerId: number, payload: any) => void;
     /**
@@ -703,7 +703,7 @@ export interface ScriptServices {
     /** Access InterfaceService for server-managed modal interfaces (shops, banks, etc.). */
     getInterfaceService?: () => InterfaceService | undefined;
     /**
-     * Open the remaining tab interfaces when the league tutorial completes.
+     * Open the remaining tab interfaces when the gamemode tutorial completes.
      * During the tutorial, only the Quest tab is shown. When the tutorial finishes,
      * this method opens all the other tabs (Combat, Skills, Inventory, etc.).
      * @param player The player to open tabs for

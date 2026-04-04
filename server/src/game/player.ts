@@ -362,7 +362,6 @@ function computeCombatLevel(skills: PlayerSkillState[]): number {
 export interface PlayerPersistentVars {
     varps?: Record<number, number>;
     varbits?: Record<number, number>;
-    leagueTaskProgress?: Record<number, number>;
     gamemodeData?: Record<string, unknown>;
     /** Server-only onboarding progression (project-specific). */
     accountStage?: number;
@@ -913,7 +912,7 @@ export class PlayerState extends Actor {
         // Default to post-design for existing saves; new accounts can override to 0.
         this.accountStage = 1;
 
-        // Delegate gamemode-specific player initialization (league defaults, etc.)
+        // Delegate gamemode-specific player initialization
         PlayerState.gamemodeRef?.initializePlayer(this);
         // OSRS parity: XP drops are enabled by default until the player explicitly hides them.
         if (!this.varbitValues.has(VARBIT_XPDROPS_ENABLED)) {
@@ -1603,32 +1602,6 @@ export class PlayerState extends Actor {
         if (!Number.isFinite(id)) return;
         const normalized = Math.floor(Number.isFinite(value) ? value : 0);
         this.varpValues.set(id, normalized);
-    }
-
-    getLeagueTaskProgress(taskId: number): number {
-        const map = this.gamemodeState.get("leagueTaskProgress") as Map<number, number> | undefined;
-        return map?.get(taskId | 0) ?? 0;
-    }
-
-    setLeagueTaskProgress(taskId: number, value: number): void {
-        const normalizedTaskId = taskId | 0;
-        if (normalizedTaskId < 0) return;
-        const normalizedValue = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
-        let map = this.gamemodeState.get("leagueTaskProgress") as Map<number, number> | undefined;
-        if (!map) {
-            map = new Map();
-            this.gamemodeState.set("leagueTaskProgress", map);
-        }
-        if (normalizedValue > 0) {
-            map.set(normalizedTaskId, normalizedValue);
-        } else {
-            map.delete(normalizedTaskId);
-        }
-    }
-
-    clearLeagueTaskProgress(taskId: number): void {
-        const map = this.gamemodeState.get("leagueTaskProgress") as Map<number, number> | undefined;
-        map?.delete(taskId | 0);
     }
 
     // Music region tracking
@@ -2752,13 +2725,11 @@ export class PlayerState extends Actor {
                 }
             }
         }
-        // Restore gamemode-specific state (supports both new gamemodeData and legacy leagueTaskProgress)
-        const gamemodeData = (state.gamemodeData as Record<string, unknown>) ?? {};
-        if (state.leagueTaskProgress && !gamemodeData.leagueTaskProgress) {
-            gamemodeData.leagueTaskProgress = state.leagueTaskProgress;
-        }
-        if (Object.keys(gamemodeData).length > 0) {
-            PlayerState.gamemodeRef?.deserializePlayerState(this, gamemodeData);
+        if (state.gamemodeData && Object.keys(state.gamemodeData).length > 0) {
+            PlayerState.gamemodeRef?.deserializePlayerState(
+                this,
+                state.gamemodeData as Record<string, unknown>,
+            );
         }
         if (
             !state.varbits ||

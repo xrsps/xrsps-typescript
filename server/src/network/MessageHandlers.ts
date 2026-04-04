@@ -276,9 +276,7 @@ export interface MessageHandlerServices {
     getWeaponSpecialCostPercent: (weaponId: number) => number | undefined;
     queueCombatState: (player: PlayerState) => void;
     ensureEquipArray: (player: PlayerState) => number[];
-    completeLeagueTask: (player: PlayerState, taskId: number) => any;
-    getSideJournalLeaguesContentGroupId: (leagueType: number) => number;
-    syncLeagueGeneralVarp: (player: PlayerState) => void;
+    gamemodeServices: Record<string, unknown>;
 
     // Chat
     queueChatMessage: (msg: {
@@ -320,13 +318,9 @@ export interface MessageHandlerServices {
         VARP_ATTACK_STYLE: number;
         VARP_AUTO_RETALIATE: number;
         VARP_MAP_FLAGS_CACHED: number;
-        VARP_LEAGUE_GENERAL: number;
     };
     getVarbitConstants: () => {
         VARBIT_SIDE_JOURNAL_TAB: number;
-        VARBIT_LEAGUE_TYPE: number;
-        VARBIT_LEAGUE_TUTORIAL_COMPLETED: number;
-        VARBIT_FLASHSIDE: number;
     };
     getSideJournalConstants: () => {
         SIDE_JOURNAL_CONTENT_GROUP_BY_TAB: number[];
@@ -949,7 +943,7 @@ export function registerMessageHandlers(
     });
 
     // NOTE: widget and varp_transmit handlers remain in wsServer.ts due to
-    // complex leagues tutorial logic that requires many wsServer dependencies
+    // complex tutorial logic that requires many wsServer dependencies
 
     // =========================================================================
     // DEBUG HANDLER

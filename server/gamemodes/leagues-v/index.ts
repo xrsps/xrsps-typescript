@@ -25,7 +25,7 @@ import type { ScriptManifestEntry } from "../../src/game/scripts/manifest";
 import type { ScriptModule } from "../../src/game/scripts/types";
 import { getLeagueVDropRateMultiplier, getLeagueVReplacementItemId, isLeagueVWorldPlayer } from "./leagueDrops";
 import { LeagueTaskManager } from "./LeagueTaskManager";
-import { LeagueTaskService } from "./LeagueTaskService";
+import { LeagueTaskService, setTaskProgress } from "./LeagueTaskService";
 import { syncLeagueGeneralVarp } from "./leagueGeneral";
 import { getLeaguePackedVarpsForPlayer } from "./leaguePackedVarps";
 import { getLeagueSkillXpMultiplier } from "./leagueXp";
@@ -129,22 +129,22 @@ export class LeaguesVGamemode implements GamemodeDefinition {
     }
 
     serializePlayerState(player: PlayerState): Record<string, unknown> | undefined {
-        const map = player.gamemodeState.get("leagueTaskProgress") as Map<number, number> | undefined;
+        const map = player.gamemodeState.get("taskProgress") as Map<number, number> | undefined;
         if (!map || map.size === 0) return undefined;
-        const leagueTaskProgress: Record<number, number> = {};
+        const progress: Record<number, number> = {};
         for (const [taskId, value] of map.entries()) {
-            if (value > 0) leagueTaskProgress[taskId] = value;
+            if (value > 0) progress[taskId] = value;
         }
-        return Object.keys(leagueTaskProgress).length > 0 ? { leagueTaskProgress } : undefined;
+        return Object.keys(progress).length > 0 ? { progress } : undefined;
     }
 
     deserializePlayerState(player: PlayerState, data: Record<string, unknown>): void {
-        const raw = data.leagueTaskProgress as Record<string, number> | undefined;
+        const raw = (data.progress ?? data.leagueTaskProgress) as Record<string, number> | undefined;
         if (!raw) return;
         for (const [key, value] of Object.entries(raw)) {
             const taskId = parseInt(key, 10);
             if (!Number.isNaN(taskId)) {
-                player.setLeagueTaskProgress(taskId, value);
+                setTaskProgress(player, taskId, value);
             }
         }
     }

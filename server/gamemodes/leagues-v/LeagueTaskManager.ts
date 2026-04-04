@@ -13,7 +13,7 @@ import {
 } from "../../../src/shared/vars";
 import { logger } from "../../src/utils/logger";
 import { LeagueTaskIndex, type ParsedChallenge, type ParsedTask } from "./LeagueTaskIndex";
-import { type LeagueTaskPlayer, LeagueTaskService } from "./LeagueTaskService";
+import { type LeagueTaskPlayer, LeagueTaskService, clearTaskProgress, getTaskProgress, setTaskProgress } from "./LeagueTaskService";
 import { syncLeaguePackedVarps } from "./leaguePackedVarps";
 
 export interface TaskManagerServices {
@@ -222,7 +222,7 @@ export class LeagueTaskManager {
         increment: number = 1,
     ): void {
         if (LeagueTaskService.isTaskComplete(player, task.taskId)) {
-            player.clearLeagueTaskProgress(task.taskId);
+            clearTaskProgress(player,task.taskId);
             return;
         }
 
@@ -237,7 +237,7 @@ export class LeagueTaskManager {
             if (nextProgress < requiredCount) {
                 return;
             }
-            player.clearLeagueTaskProgress(task.taskId);
+            clearTaskProgress(player,task.taskId);
         }
 
         // Check if this is a custom task - they use different varp tracking
@@ -328,12 +328,12 @@ export class LeagueTaskManager {
     ): number {
         const delta = normalizeProgressIncrement(increment);
         if (delta <= 0) {
-            return player.getLeagueTaskProgress(taskId);
+            return getTaskProgress(player,taskId);
         }
-        const previous = player.getLeagueTaskProgress(taskId);
+        const previous = getTaskProgress(player,taskId);
         const next = Math.min(requiredCount, previous + delta);
         if (next !== previous) {
-            player.setLeagueTaskProgress(taskId, next);
+            setTaskProgress(player,taskId, next);
         }
         return next;
     }
