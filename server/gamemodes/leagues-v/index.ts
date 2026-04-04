@@ -1,6 +1,6 @@
 import path from "path";
 
-import { LEAGUE_TASK_COMPLETION_VARPS } from "../../../src/shared/leagues/leagueTaskVarps";
+import { LEAGUE_TASK_COMPLETION_VARPS } from "./data/leagueTaskVarps";
 import {
     MAP_FLAGS_LEAGUE_WORLD,
     VARBIT_FLASHSIDE,

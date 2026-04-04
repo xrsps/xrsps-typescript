@@ -1,5 +1,6 @@
 import { deflateSync } from "zlib";
 
+import { CustomItemRegistry } from "../../../src/custom/items/CustomItemRegistry";
 import { ServerPacketId } from "../../../src/shared/packets/ServerPacketId";
 import { LEAGUE_TASKS } from "./data/leagueTasks.data";
 import {
@@ -21,6 +22,15 @@ export class LeagueContentProvider {
     private cachedPacket: Uint8Array | null = null;
 
     build(): void {
+        // Register custom items on the server side
+        require("./data/custom-items/customItems");
+
+        // Serialize custom items from the registry
+        const customItems: unknown[] = [];
+        for (const registered of CustomItemRegistry.getAll()) {
+            customItems.push(registered.definition);
+        }
+
         const payload: GamemodeDataPayload = {
             gamemodeId: "leagues-v",
             datasets: [
@@ -30,6 +40,7 @@ export class LeagueContentProvider {
                 { key: "leagueMasteryChallenges", rows: LEAGUE_MASTERY_CHALLENGES },
                 { key: "customTasks", rows: getAllCustomTasks() },
                 { key: "customChallenges", rows: getAllCustomChallenges() },
+                { key: "customItems", rows: customItems },
             ],
         };
 

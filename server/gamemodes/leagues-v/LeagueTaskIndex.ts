@@ -14,7 +14,7 @@ import {
     getAllCustomTasks,
 } from "./data/custom";
 import { LEAGUE_TASKS } from "./data/leagueTasks.data";
-import type { LeagueTaskRow } from "../../../src/shared/leagues/leagueTypes";
+import type { LeagueTaskRow } from "../../../src/shared/gamemode/GamemodeDataTypes";
 import {
     type TriggerParserLoaders,
     buildNameLookups,

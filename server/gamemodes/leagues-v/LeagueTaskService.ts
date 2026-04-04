@@ -1,4 +1,4 @@
-import { LEAGUE_TASK_COMPLETION_VARPS } from "../../../src/shared/leagues/leagueTaskVarps";
+import { LEAGUE_TASK_COMPLETION_VARPS } from "./data/leagueTaskVarps";
 import { getLeagueTaskByTaskId } from "./data/leagueTaskLookup";
 import {
     VARBIT_LEAGUE_TOTAL_TASKS_COMPLETED,

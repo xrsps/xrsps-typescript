@@ -1,4 +1,4 @@
-import type { LeagueTaskRow } from "../../../../src/shared/leagues/leagueTypes";
+import type { LeagueTaskRow } from "../../../../src/shared/gamemode/GamemodeDataTypes";
 import { LEAGUE_TASKS } from "./leagueTasks.data";
 
 const tasksByTaskId = new Map<number, LeagueTaskRow>();

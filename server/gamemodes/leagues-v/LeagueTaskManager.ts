@@ -6,7 +6,7 @@
  * 2. Call event handlers from game systems: manager.onNpcKill(npcId, player)
  * 3. Tasks are automatically completed if player hasn't completed them yet
  */
-import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../src/shared/leagues/leagueTypes";
+import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../src/shared/gamemode/GamemodeDataTypes";
 import {
     VARBIT_LEAGUE_MASTERY_POINTS_EARNED,
     VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND,

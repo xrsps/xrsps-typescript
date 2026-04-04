@@ -1,8 +1,6 @@
 import path from "path";
 
 import { getCacheLoaderFactory } from "../../src/rs/cache/loader/CacheLoaderFactory";
-// Register custom items (shared between client/server)
-import "../../src/shared/custom-items";
 import { config } from "./config";
 import { initSpellWidgetMapping } from "./data/spells";
 import { createGamemode } from "./game/gamemodes/GamemodeRegistry";

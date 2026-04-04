@@ -2,7 +2,7 @@ import type {
     LeagueMasteryChallengeRow,
     LeagueMasteryNodeRow,
     LeagueRelicRow,
-} from "../../../../src/shared/leagues/leagueTypes";
+} from "../../../../src/shared/gamemode/GamemodeDataTypes";
 
 // Generated snapshot of cache league data.
 // Source of truth: caches/ (r235)

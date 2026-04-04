@@ -1,4 +1,4 @@
-import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../src/shared/leagues/leagueTypes";
+import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../src/shared/gamemode/GamemodeDataTypes";
 import {
     VARBIT_LEAGUE_MAGIC_MASTERY,
     VARBIT_LEAGUE_MASTERY_POINTS_EARNED,

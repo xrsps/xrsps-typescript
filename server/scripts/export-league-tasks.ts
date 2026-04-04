@@ -10,7 +10,7 @@ function formatLeagueTasksTs(defs: LeagueTaskDefinitions): string {
     const rows = defs.toJsonRows();
     const lines = rows.map((row) => `  ${JSON.stringify(row)}`);
     return (
-        `import type { LeagueTaskRow } from "../../../../src/shared/leagues/leagueTypes";\n\n` +
+        `import type { LeagueTaskRow } from "../../../../src/shared/gamemode/GamemodeDataTypes";\n\n` +
         `// Generated snapshot of cache league tasks (1 line per task).\n` +
         `// Source of truth: caches/ (r235)\n` +
         `export const LEAGUE_TASKS: LeagueTaskRow[] = [\n${lines.join(",\n")}\n];\n`

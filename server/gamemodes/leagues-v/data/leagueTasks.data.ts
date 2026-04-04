@@ -1,4 +1,4 @@
-import type { LeagueTaskRow } from "../../../../src/shared/leagues/leagueTypes";
+import type { LeagueTaskRow } from "../../../../src/shared/gamemode/GamemodeDataTypes";
 
 // Generated snapshot of cache league tasks (1 line per task).
 // Source of truth: caches/ (r235)

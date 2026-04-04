@@ -5,8 +5,8 @@
  * OSRS HSL: (hue << 10) | (sat << 7) | light
  *   Hue: 0=red, 10=orange, 21=green, 32=gray, 43=blue, 51=purple
  */
-import { CustomItemBuilder } from "../../custom/items/CustomItemBuilder";
-import { CustomItemRegistry } from "../../custom/items/CustomItemRegistry";
+import { CustomItemBuilder } from "../../../../../src/custom/items/CustomItemBuilder";
+import { CustomItemRegistry } from "../../../../../src/custom/items/CustomItemRegistry";
 
 const register = (
     id: number,

@@ -1,4 +1,4 @@
-import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../../src/shared/leagues/leagueTypes";
+import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../../src/shared/gamemode/GamemodeDataTypes";
 import {
     ACCOUNT_SUMMARY_COLLECTION_LOG_CHILD_INDEX,
     ACCOUNT_SUMMARY_ENTRY_LIST_UID,

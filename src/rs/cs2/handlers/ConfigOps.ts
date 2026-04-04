@@ -12,7 +12,7 @@ import {
     getCustomStructParam,
     getRelicOrMasteryStructParam,
     getLeagueTaskStructParam,
-} from "../../../shared/leagues/GamemodeContentStore";
+} from "../../../shared/gamemode/GamemodeContentStore";
 import { Opcodes } from "../Opcodes";
 import type { HandlerMap } from "./HandlerTypes";
 

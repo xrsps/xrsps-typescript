@@ -2131,7 +2131,7 @@ function processServerMessage(msg: any): void {
         }
     } else if (msg.type === "gamemode_data") {
         try {
-            const { loadFromPayload } = require("../shared/leagues/GamemodeContentStore");
+            const { loadFromPayload } = require("../shared/gamemode/GamemodeContentStore");
             loadFromPayload(msg.payload);
             console.log(`[ws] gamemode_data loaded: ${msg.payload?.gamemodeId ?? "unknown"}`);
         } catch (err) {

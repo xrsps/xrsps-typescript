@@ -44,7 +44,7 @@ function formatLeagueMasteriesTs(
     const challengeLines = challenges.map((c) => `  ${JSON.stringify(c)}`);
 
     return (
-        `import type { LeagueRelicRow, LeagueMasteryNodeRow, LeagueMasteryChallengeRow } from "../../../../src/shared/leagues/leagueTypes";\n\n` +
+        `import type { LeagueRelicRow, LeagueMasteryNodeRow, LeagueMasteryChallengeRow } from "../../../../src/shared/gamemode/GamemodeDataTypes";\n\n` +
         `// Generated snapshot of cache league data.\n` +
         `// Source of truth: caches/ (r235)\n\n` +
         `// League 5 Relics (structs 1116-1135, param_879=name, param_880=desc)\n` +
