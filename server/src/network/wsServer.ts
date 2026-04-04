@@ -261,11 +261,6 @@ import { CustomItemRegistry } from "../../../src/custom/items/CustomItemRegistry
 import type { GamemodeBridge, GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
 import { getGamemodeDataDir } from "../game/gamemodes/GamemodeRegistry";
 import { LockState } from "../game/model/LockState";
-import {
-    isPlayerOnDockedSailingBoat,
-    restoreDockedSailingState,
-    restoreSailingInstanceUi,
-} from "../../../extrascripts/vanilla-skills/sailing";
 import { ACTIVE_COMBAT_TIMER, STUN_TIMER } from "../game/model/timer/Timers";
 import { createLootPickupNotification } from "../game/notifications/LootPickupNotification";
 import { NpcState, type NpcUpdateDelta } from "../game/npc";
@@ -7190,6 +7185,10 @@ export class WSServer {
             getInterfaceService: () => this.interfaceService,
             getCurrentTick: () => this.options.ticker.currentTick(),
             registerTickCallback: (callback) => this.gamemodeTickCallbacks.push(callback),
+            isInSailingInstanceRegion: (player) =>
+                this.sailingInstanceManager?.isInSailingInstanceRegion(player) ?? false,
+            initSailingInstance: (player) =>
+                this.sailingInstanceManager?.initInstance(player),
             logger: logger,
         };
     }
@@ -12771,20 +12770,8 @@ export class WSServer {
                             }
                         } catch {}
 
-                        // Sailing restore: rebuild whichever sailing scene the persisted player
-                        // state says they were aboard before disconnecting.
-                        if (isPlayerOnDockedSailingBoat(p)) {
-                            restoreDockedSailingState(p, this.scriptRuntime.getServices());
-                            logger.info(
-                                `[handshake] Restored docked sailing boat for player ${p.id}`,
-                            );
-                        } else if (this.sailingInstanceManager?.isInSailingInstanceRegion(p)) {
-                            this.sailingInstanceManager.initInstance(p);
-                            restoreSailingInstanceUi(p, this.scriptRuntime.getServices());
-                            logger.info(
-                                `[handshake] Restored sailing instance for player ${p.id}`,
-                            );
-                        }
+                        // Let the gamemode restore any feature-specific state (sailing, etc.)
+                        this.gamemode.onPlayerRestore?.(p);
 
                         const startTileX = p.tileX;
                         const startTileY = p.tileY;

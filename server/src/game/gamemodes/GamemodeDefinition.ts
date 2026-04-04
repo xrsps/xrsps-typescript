@@ -90,6 +90,8 @@ export interface GamemodeServerServices {
     getInterfaceService(): InterfaceService | undefined;
     getCurrentTick(): number;
     registerTickCallback(callback: (tick: number) => void): void;
+    isInSailingInstanceRegion?(player: PlayerState): boolean;
+    initSailingInstance?(player: PlayerState): void;
     logger: {
         debug(message: string, ...args: unknown[]): void;
         info(message: string, ...args: unknown[]): void;
@@ -142,6 +144,8 @@ export interface GamemodeDefinition {
     getSpawnLocation(player: PlayerState): { x: number; y: number; level: number };
     onPlayerHandshake(player: PlayerState, bridge: HandshakeBridge): void;
     onPlayerLogin(player: PlayerState, bridge: GamemodeBridge): void;
+    /** Called after player state is restored during reconnect handshake. */
+    onPlayerRestore?(player: PlayerState): void;
     onPostDesignComplete?(player: PlayerState): void;
     resolveAccountStage?(player: PlayerState): void;
 

@@ -9,6 +9,7 @@ import { SHOP_INTERFACE_ID } from "../../src/widgets/InterfaceService";
 import { BankingManager } from "./banking";
 import { registerBankInterfaceHooks } from "./banking";
 import { registerEquipmentStatsInterfaceHooks } from "./equipment/EquipmentStatsInterfaceHooks";
+import { isPlayerOnDockedSailingBoat, restoreDockedSailingState, restoreSailingInstanceUi } from "../../extrascripts/vanilla-skills/sailing";
 import { ShopManager, type ShopStockEntry, type ShopOpenData } from "./shops";
 import { registerShopInterfaceHooks } from "./shops";
 
@@ -21,6 +22,7 @@ export class VanillaGamemode implements GamemodeDefinition {
     private bankingManager: BankingManager | undefined;
     private shopManager: ShopManager | undefined;
     private serverServices: GamemodeServerServices | undefined;
+    private scriptServices: ScriptServices | undefined;
 
     getSkillXpMultiplier(_player: PlayerState): number {
         return 1;
@@ -68,6 +70,19 @@ export class VanillaGamemode implements GamemodeDefinition {
 
     onPlayerLogin(_player: PlayerState, _bridge: GamemodeBridge): void {}
 
+    onPlayerRestore(player: PlayerState): void {
+        const ss = this.serverServices;
+        const services = this.scriptServices;
+        if (!ss || !services) return;
+
+        if (isPlayerOnDockedSailingBoat(player)) {
+            restoreDockedSailingState(player, services);
+        } else if (ss.isInSailingInstanceRegion?.(player)) {
+            ss.initSailingInstance?.(player);
+            restoreSailingInstanceUi(player, services);
+        }
+    }
+
     getDisplayName(_player: PlayerState, baseName: string, _isAdmin: boolean): string {
         return baseName;
     }
@@ -83,6 +98,8 @@ export class VanillaGamemode implements GamemodeDefinition {
     }
 
     contributeScriptServices(services: ScriptServices): void {
+        this.scriptServices = services;
+
         // Banking services
         const bm = this.bankingManager;
         if (bm) {
