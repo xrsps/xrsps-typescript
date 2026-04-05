@@ -46,7 +46,6 @@ export {
     type InventoryActionServices,
     type EquipResult,
     type UnequipResult,
-    type CookingRecipe,
     type ObjTypeInfo,
 } from "./InventoryActionHandler";
 

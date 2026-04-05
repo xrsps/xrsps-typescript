@@ -10,7 +10,7 @@ import {
     getFishingToolDefinition,
     pickFishingCatch,
     selectFishingTool,
-} from "../../../src/game/skills/fishing";
+} from "./fishingData";
 import { type IScriptRegistry, type NpcInteractionEvent, type ScriptActionHandlerContext, type ScriptServices } from "../../../src/game/scripts/types";
 
 const FISHING_ACTIONS = [

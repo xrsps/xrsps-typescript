@@ -268,41 +268,7 @@ import type {
     ScriptDialogRequest,
     ScriptInventoryAddResult,
 } from "../game/scripts/types";
-import {
-    FiremakingTracker,
-    TINDERBOX_ITEM_IDS,
-} from "../game/skills/firemaking";
-import {
-    buildFishingSpotMap,
-    getFishingSpotById,
-} from "../game/skills/fishing";
-import type {
-    FishingSpotDefinition,
-    FishingToolDefinition,
-} from "../game/skills/fishing";
-import { FlaxPatchTracker } from "../game/skills/flaxPatchTracker";
-import {
-    MiningNodeTracker,
-    buildMiningLocMap,
-    buildMiningTileKey,
-    getMiningRockById,
-} from "../game/skills/mining";
-import type {
-    MiningLocMapping,
-    MiningRockDefinition,
-    PickaxeDefinition,
-} from "../game/skills/mining";
-import {
-    WoodcuttingNodeTracker,
-    buildWoodcuttingLocMap,
-    buildWoodcuttingTileKey,
-    getWoodcuttingTreeById,
-} from "../game/skills/woodcutting";
-import type {
-    HatchetDefinition,
-    Vec2,
-    WoodcuttingTreeDefinition,
-} from "../game/skills/woodcutting";
+import type { Vec2 } from "../game/systems/ResourceNodeTracker";
 import { SpellCastContext, SpellCaster } from "../game/spells/SpellCaster";
 import { PlayerPersistence } from "../game/state/PlayerPersistence";
 import { buildPlayerSaveKey, normalizePlayerAccountName } from "../game/state/PlayerSessionKeys";
@@ -1061,28 +1027,12 @@ export class WSServer {
     private interfaceService?: InterfaceService;
     private sailingInstanceManager?: SailingInstanceManager;
     private worldEntityInfoEncoder = new WorldEntityInfoEncoder();
-    private woodcuttingLocMap: Map<number, string> = new Map();
-    private miningLocMap: Map<number, MiningLocMapping> = new Map();
-    private fishingSpotMap: Map<number, string> = new Map();
     private gatheringSystem!: GatheringSystemManager;
     private equipmentHandler!: EquipmentHandler;
     private tickOrchestrator!: TickPhaseOrchestrator;
     private broadcastScheduler = new BroadcastScheduler();
     private messageRouter!: MessageRouter;
 
-    // Backward-compatible getters for gathering trackers
-    private get woodcuttingTracker() {
-        return this.gatheringSystem?.woodcuttingTracker;
-    }
-    private get miningTracker() {
-        return this.gatheringSystem?.miningTracker;
-    }
-    private get firemakingTracker() {
-        return this.gatheringSystem?.firemakingTracker;
-    }
-    private get flaxTracker() {
-        return this.gatheringSystem?.flaxTracker;
-    }
 
     private gamemodeTickCallbacks: Array<(tick: number) => void> = [];
     private gamemodeSnapshotEncoders = new Map<string, {
@@ -1381,33 +1331,7 @@ export class WSServer {
                 logger.info("[doors] collision overlays connected to pathfinding");
             }
 
-            try {
-                const woodcutting = buildWoodcuttingLocMap(locTypeLoader);
-                this.woodcuttingLocMap = woodcutting.map;
-                logger.info(
-                    `[woodcutting] mapped ${this.woodcuttingLocMap.size} loc id(s) to tree types`,
-                );
-            } catch (err) {
-                logger.warn("[woodcutting] failed to build loc map", err);
-            }
-            try {
-                const mining = buildMiningLocMap(locTypeLoader);
-                this.miningLocMap = mining.map;
-                logger.info(`[mining] mapped ${this.miningLocMap.size} loc id(s) to rock types`);
-            } catch (err) {
-                logger.warn("[mining] failed to build loc map", err);
-            }
-        }
-        if (npcTypeLoader) {
-            try {
-                const fishing = buildFishingSpotMap(npcTypeLoader);
-                this.fishingSpotMap = fishing.map;
-                logger.info(
-                    `[fishing] mapped ${this.fishingSpotMap.size} npc type(s) to fishing spots`,
-                );
-            } catch (err) {
-                logger.warn("[fishing] failed to build npc fishing map", err);
-            }
+            // Loc/npc map building is now handled by extrascripts during register()
         }
         this.npcManager = opts.npcManager;
         if (this.npcManager) {
@@ -6482,7 +6406,6 @@ export class WSServer {
             // --- Object Types ---
             getObjType: (itemId) => this.getObjType(itemId),
             isConsumable: (obj, option) => this.isConsumable(obj as any, option),
-            isRangeLoc: (locId) => this.isRangeLoc(locId),
 
             // --- Pathfinding ---
             createRectAdjacentStrategy: (x, y, sizeX, sizeY) =>
@@ -6513,26 +6436,6 @@ export class WSServer {
             buildSkillFailure: (player, message, reason) =>
                 this.buildSkillFailure(player, message, reason),
             playLocSound: (request) => this.playLocSound(request),
-
-            // --- Cooking (late-bound by production extrascript) ---
-            getCookingRecipeByRawItemId: undefined,
-            getFireNode: (tile, level) => this.firemakingTracker.getFireNode(tile, level),
-            isSmithingLoc: (locId) => {
-                const normalizedLocId = locId;
-                for (let opNum = 1; opNum <= 5; opNum++) {
-                    const action = this.resolveLocActionByOpNum(normalizedLocId, opNum);
-                    if (action === "smith") {
-                        return true;
-                    }
-                }
-                return false;
-            },
-            getSmithingBarTypeByItem: (itemId) => {
-                return this.scriptRuntime.getServices().production?.getBarTypeByItemId?.(itemId);
-            },
-            setSmithingBarType: (player, barType) => {
-                player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType);
-            },
 
             // --- Script Runtime ---
             queueLocInteraction: (request) => this.scriptRuntime.queueLocInteraction(request),
@@ -6965,6 +6868,8 @@ export class WSServer {
                 spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
                     this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
                 getObjType: (id) => this.getObjType(id),
+                getLocTypeLoader: () => locTypeLoader,
+                getNpcTypeLoader: () => this.npcTypeLoader,
                 getLocDefinition: (id) => {
                     try {
                         return locTypeLoader?.load?.(id);
@@ -7121,9 +7026,9 @@ export class WSServer {
                     })(),
                 findOwnedItemLocation: (player, itemId) =>
                     this.findOwnedItemLocation(player, itemId),
-                getWoodcuttingTree: (locId) => this.getWoodcuttingTreeDefinition(locId),
-                getMiningRock: (locId) => this.getMiningRockDefinition(locId),
-                getFishingSpot: (npcTypeId) => this.getFishingSpotDefinition(npcTypeId),
+                getWoodcuttingTree: undefined,
+                getMiningRock: undefined,
+                getFishingSpot: undefined,
                 applyPrayers: (player, prayers) => {
                     // Capture previous prayers before applying changes
                     const previousPrayers = new Set(player.getActivePrayers());
@@ -7401,11 +7306,9 @@ export class WSServer {
                 },
                 gathering: this.gatheringSystem,
                 isFiremakingTileBlocked: (tile, level) => this.isFiremakingTileBlocked(tile, level),
-                lightFire: (params) =>
-                    this.firemakingTracker.light({ ...params, burnTicks: params.burnTicks }),
-                playerHasTinderbox: (player) => this.playerHasTinderbox(player),
-                consumeFiremakingLog: (player, logId, slotIndex) =>
-                    this.consumeFiremakingLog(player, logId, slotIndex),
+                lightFire: undefined,
+                playerHasTinderbox: undefined,
+                consumeFiremakingLog: undefined,
                 walkPlayerAwayFromFire: (player, fireTile) => {
                     const westTile = { x: fireTile.x - 1, y: fireTile.y };
                     const canStep = this.options.pathService?.canNpcStep(
@@ -9324,33 +9227,6 @@ export class WSServer {
         return true;
     }
 
-    private consumeFiremakingLog(
-        player: PlayerState,
-        logItemId: number,
-        preferredSlot?: number,
-    ): number | undefined {
-        const inv = this.getInventory(player);
-        if (
-            preferredSlot !== undefined &&
-            preferredSlot >= 0 &&
-            preferredSlot < inv.length &&
-            inv[preferredSlot] &&
-            inv[preferredSlot]!.itemId === logItemId &&
-            inv[preferredSlot]!.quantity > 0
-        ) {
-            if (this.consumeItem(player, preferredSlot)) {
-                player.markInventoryDirty();
-                return preferredSlot;
-            }
-        }
-        const fallback = this.findInventorySlotWithItem(player, logItemId);
-        if (fallback !== undefined && this.consumeItem(player, fallback)) {
-            player.markInventoryDirty();
-            return fallback;
-        }
-        return undefined;
-    }
-
     private findInventorySlotWithItem(player: PlayerState, itemId: number): number | undefined {
         if (!(itemId > 0)) return undefined;
         const inv = this.getInventory(player);
@@ -9394,16 +9270,6 @@ export class WSServer {
         }
         return total;
     }
-
-    private playerHasTinderbox(player: PlayerState): boolean {
-        for (const id of TINDERBOX_ITEM_IDS) {
-            if (this.playerHasItem(player, id)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
 
     private restoreInventoryItems(
         player: PlayerState,
@@ -10082,58 +9948,7 @@ export class WSServer {
     }
 
 
-    private isRangeLoc(locId: number): boolean {
-        if (!(locId > 0) || !this.locTypeLoader) return false;
-        try {
-            const def = this.locTypeLoader.load(locId);
-            if (!def) return false;
-            const name = def.name.toLowerCase();
-            const supportItems = def.supportItems ?? 0;
-            if (name.includes("fire")) return false;
-            if (
-                name.includes("range") ||
-                name.includes("stove") ||
-                name.includes("cook") ||
-                name.includes("kitchen")
-            ) {
-                return true;
-            }
-            return supportItems > 0;
-        } catch {
-            return false;
-        }
-    }
 
-    private getWoodcuttingTreeDefinition(locId: number) {
-        if (!(locId > 0)) return undefined;
-        const treeId = this.woodcuttingLocMap.get(locId);
-        if (!treeId) return undefined;
-        return getWoodcuttingTreeById(treeId);
-    }
-
-    private getMiningRockDefinition(locId: number): MiningRockDefinition | undefined {
-        if (!(locId > 0)) return undefined;
-        const mapping = this.miningLocMap.get(locId);
-        if (!mapping) return undefined;
-        const rock = getMiningRockById(mapping.rockId);
-        if (!rock) return undefined;
-        const depletedLocId = mapping.depletedLocId;
-        if (
-            typeof depletedLocId === "number" &&
-            depletedLocId > 0 &&
-            rock.depletedLocId !== depletedLocId
-        ) {
-            return { ...rock, depletedLocId };
-        }
-        return rock;
-    }
-
-    private getFishingSpotDefinition(npcTypeId: number): FishingSpotDefinition | undefined {
-        if (!(npcTypeId > 0)) return undefined;
-        const spotId = this.fishingSpotMap.get(npcTypeId);
-        if (!spotId) return undefined;
-        return getFishingSpotById(spotId);
-    }
 
     private handleInventoryUseMessage(
         ws: WebSocket,

@@ -7,9 +7,6 @@ import type { ActionRequest } from "../actions";
 import type { OwnedItemLocation } from "../items/playerItemOwnership";
 import type { NpcSpawnConfig, NpcState } from "../npc";
 import type { PlayerState } from "../player";
-import type { FishingSpotDefinition } from "../skills/fishing";
-import type { MiningRockDefinition } from "../skills/mining";
-import type { WoodcuttingTreeDefinition } from "../skills/woodcutting";
 import type { GatheringSystemManager } from "../systems/GatheringSystemManager";
 import type {
     ScriptActionRequestFn,
@@ -34,6 +31,8 @@ export interface DataLoaderServices {
     getDbRepository?: () => any;
     getObjType?: (id: number) => any;
     getLocDefinition?: (locId: number) => any;
+    getLocTypeLoader?: () => any;
+    getNpcTypeLoader?: () => any;
 }
 
 // ============================================================================
@@ -310,9 +309,9 @@ export interface ShoppingServices {
 
 export interface GatheringServices {
     gathering?: GatheringSystemManager;
-    getWoodcuttingTree?: (locId: number) => WoodcuttingTreeDefinition | undefined;
-    getMiningRock?: (locId: number) => MiningRockDefinition | undefined;
-    getFishingSpot?: (npcTypeId: number) => FishingSpotDefinition | undefined;
+    getWoodcuttingTree?: (locId: number) => any;
+    getMiningRock?: (locId: number) => any;
+    getFishingSpot?: (npcTypeId: number) => any;
     isAdjacentToLoc?: (player: PlayerState, locId: number, tile: { x: number; y: number }, level: number) => boolean;
     isAdjacentToNpc?: (player: PlayerState, npc: NpcState) => boolean;
     faceGatheringTarget?: (player: PlayerState, tile: { x: number; y: number }) => void;
@@ -326,6 +325,9 @@ export interface GatheringServices {
     playerHasTinderbox?: (player: PlayerState) => boolean;
     consumeFiremakingLog?: (player: PlayerState, logId: number, slotIndex?: number) => number | undefined;
     walkPlayerAwayFromFire?: (player: PlayerState, fireTile: { x: number; y: number }) => void;
+}
+
+export interface CookingServices {
     getCookingRecipeByRawItemId?: (itemId: number) => { cookedItemId: number; xp: number } | undefined;
 }
 

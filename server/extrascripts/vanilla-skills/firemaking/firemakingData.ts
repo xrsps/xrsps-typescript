@@ -1,4 +1,4 @@
-import { type Vec2 } from "./woodcutting";
+export type Vec2 = { x: number; y: number };
 
 export interface FiremakingLogDefinition {
     logId: number;
@@ -54,69 +54,9 @@ export function computeFireLightingDelayTicks(level: number): number {
     return Math.max(2, 4 - deduction);
 }
 
-export const buildFireTileKey = (tile: Vec2, level: number): string =>
-    `${level}:${tile.x}:${tile.y}`;
-
-type FireNode = {
-    key: string;
-    tile: Vec2;
-    level: number;
+export interface FireNodeData {
     fireObjectId: number;
     previousLocId: number;
     logItemId: number;
-    expiresTick: number;
     ownerId?: number;
-};
-
-export class FiremakingTracker {
-    private readonly fires = new Map<string, FireNode>();
-
-    getFireNode(tile: Vec2, level: number): FireNode | undefined {
-        return this.fires.get(buildFireTileKey(tile, level));
-    }
-
-    isTileLit(tile: Vec2, level: number): boolean {
-        return this.getFireNode(tile, level) !== undefined;
-    }
-
-    light(params: {
-        tile: Vec2;
-        level: number;
-        logItemId: number;
-        currentTick: number;
-        burnTicks?: { min: number; max: number };
-        fireObjectId?: number;
-        previousLocId?: number;
-        ownerId?: number;
-    }): FireNode {
-        const key = buildFireTileKey(params.tile, params.level);
-        const fireObjectId = params.fireObjectId ?? DEFAULT_FIRE_OBJECT_ID;
-        const duration = params.burnTicks ?? DEFAULT_BURN_TICKS;
-        const min = Math.max(1, Math.floor(duration.min));
-        const max = Math.max(min, Math.floor(duration.max));
-        const span = max - min + 1;
-        const expiresTick =
-            params.currentTick + min + (span > 0 ? Math.floor(Math.random() * span) : 0);
-        const node: FireNode = {
-            key,
-            tile: { x: params.tile.x, y: params.tile.y },
-            level: params.level,
-            fireObjectId,
-            previousLocId: params.previousLocId ?? 0,
-            logItemId: params.logItemId,
-            expiresTick,
-            ownerId: params.ownerId,
-        };
-        this.fires.set(key, node);
-        return node;
-    }
-
-    processExpirations(currentTick: number, cb: (node: FireNode) => void): void {
-        for (const [key, node] of [...this.fires.entries()]) {
-            if (currentTick < node.expiresTick) continue;
-            this.fires.delete(key);
-            cb(node);
-        }
-    }
-
 }

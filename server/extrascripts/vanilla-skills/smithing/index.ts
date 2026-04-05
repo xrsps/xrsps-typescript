@@ -1,6 +1,7 @@
-import type { IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
+import { ANY_LOC_ID, type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
 import { executeSmeltAction, registerSmeltingInteractions } from "./smelting";
 import { executeSmithAction, registerSmithingInteractions } from "./smithing";
+import { SMITHING_RECIPES } from "./smithingData";
 import { SmithingUI } from "./smithingUI";
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
@@ -40,4 +41,21 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
 
     registerSmithingInteractions(registry, services);
     registerSmeltingInteractions(registry, services);
+
+    const barItemIds = new Set(SMITHING_RECIPES.map((r) => r.barItemId));
+    const SMITHING_BAR_TYPE_VARBIT_ID = 3216;
+    for (const barItemId of barItemIds) {
+        registry.registerItemOnLoc(barItemId, ANY_LOC_ID, (event) => {
+            const locId = event.target.locId;
+            const locDef = services.getLocDefinition?.(locId);
+            if (!locDef) return;
+            const actions = locDef.ops ?? [];
+            if (!actions.some((a: string) => a?.toLowerCase() === "smith")) return;
+            const barType = smithingUI.getBarTypeByItemId(event.source.itemId);
+            if (!(barType !== undefined && barType > 0)) return;
+            const player = event.player;
+            player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType);
+            services.production?.openSmithingInterface?.(player);
+        });
+    }
 }

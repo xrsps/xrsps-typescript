@@ -71,15 +71,6 @@ export interface UnequipResult {
     reason?: string;
 }
 
-/** Cooking recipe. */
-export interface CookingRecipe {
-    id: string;
-    rawItemId: number;
-    cookedItemId: number;
-    burntItemId?: number;
-    xp: number;
-    delayTicks?: number;
-}
 
 function resolveRunWithModifier(baseRun: boolean, rawModifierFlags: number | undefined): boolean {
     const flags = rawModifierFlags ?? 0;
@@ -171,7 +162,6 @@ export interface InventoryActionServices {
     // --- Object Types ---
     getObjType(itemId: number): ObjTypeInfo | undefined;
     isConsumable(obj: ObjTypeInfo | undefined, option: string): boolean;
-    isRangeLoc(locId: number): boolean;
 
     // --- Pathfinding ---
     createRectAdjacentStrategy(x: number, y: number, sizeX: number, sizeY: number): RouteStrategy;
@@ -198,12 +188,6 @@ export interface InventoryActionServices {
     buildSkillFailure(player: PlayerState, message: string, reason: string): ActionExecutionResult;
     playLocSound(request: { soundId: number; tile: Vec2; level: number }): void;
 
-    // --- Cooking ---
-    getCookingRecipeByRawItemId?(itemId: number): CookingRecipe | undefined;
-    getFireNode(tile: Vec2, level: number): unknown | undefined;
-    isSmithingLoc(locId: number): boolean;
-    getSmithingBarTypeByItem(itemId: number): number | undefined;
-    setSmithingBarType(player: PlayerState, barType: number): void;
 
     // --- Script Runtime ---
     queueLocInteraction(request: {
@@ -391,22 +375,6 @@ export class InventoryActionHandler {
                     );
                 } catch {}
                 return { ok: true, groups: ["movement"] };
-            }
-
-            const handledCooking = this.tryHandleItemOnFireCooking(
-                player,
-                slot,
-                itemId,
-                target,
-                tick,
-            );
-            if (handledCooking) {
-                return handledCooking;
-            }
-
-            const handledSmithing = this.tryHandleItemOnSmithingAnvil(player, itemId, target, tick);
-            if (handledSmithing) {
-                return handledSmithing;
             }
 
             const handledItemOnLoc = this.tryHandleScriptedItemOnLoc(
@@ -679,96 +647,6 @@ export class InventoryActionHandler {
     // ========================================================================
     // Private Helper Methods
     // ========================================================================
-
-    private tryHandleItemOnFireCooking(
-        player: PlayerState,
-        slot: number,
-        itemId: number,
-        target: InventoryUseOnTarget | undefined,
-        tick: number,
-    ): ActionExecutionResult | undefined {
-        if (!target || target.kind !== "loc") return undefined;
-        const tile = target.tile;
-        if (!tile) return undefined;
-        const level = target.plane ?? player.level;
-        const fire = this.services.getFireNode(tile, level);
-        if (!fire) return undefined;
-        const recipe = this.services.getCookingRecipeByRawItemId?.(itemId);
-        if (!recipe) return undefined;
-        const available = this.services.countInventoryItem(player, recipe.rawItemId);
-        if (available <= 0) {
-            return this.services.buildSkillFailure(
-                player,
-                "You need raw food to cook.",
-                "missing_item",
-            );
-        }
-        const delay = recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 4;
-        const result = this.services.scheduleAction(
-            player.id,
-            {
-                kind: "skill.cook",
-                data: {
-                    recipeId: recipe.id,
-                    count: 1,
-                    slot,
-                    tile,
-                    level,
-                    quantity: 1,
-                    started: false,
-                },
-                delayTicks: delay,
-                cooldownTicks: delay,
-                groups: ["skill.cook"],
-            },
-            tick,
-        );
-        if (!result.ok) {
-            this.services.queueChatMessage({
-                messageType: "game",
-                text: "You're too busy to do that right now.",
-                targetPlayerIds: [player.id],
-            });
-            return { ok: true, groups: ["skill.cook"] };
-        }
-        this.services.queueChatMessage({
-            messageType: "game",
-            text: "You start cooking.",
-            targetPlayerIds: [player.id],
-        });
-        return { ok: true, groups: ["skill.cook"] };
-    }
-
-    private tryHandleItemOnSmithingAnvil(
-        player: PlayerState,
-        itemId: number,
-        target: InventoryUseOnTarget | undefined,
-        tick: number,
-    ): ActionExecutionResult | undefined {
-        if (!target || target.kind !== "loc") return undefined;
-
-        const locId = target.id;
-        if (locId === undefined) return undefined;
-        if (!this.services.isSmithingLoc(locId)) return undefined;
-
-        const barType = this.services.getSmithingBarTypeByItem(itemId);
-        if (!(barType !== undefined && barType > 0)) return undefined;
-
-        const tile: Vec2 = target.tile ?? { x: player.tileX, y: player.tileY };
-        const level = target.plane ?? player.level;
-
-        this.services.setSmithingBarType(player, barType);
-        const handled = this.services.queueLocInteraction({
-            tick,
-            player,
-            locId,
-            tile,
-            level,
-            action: "smith",
-        });
-        if (!handled) return undefined;
-        return { ok: true, groups: ["skill.smith"] };
-    }
 
     private tryHandleScriptedItemOnLoc(
         player: PlayerState,

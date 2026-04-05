@@ -6,7 +6,7 @@ import {
     buildMiningTileKey,
     getMiningRockById,
     selectPickaxeByLevel,
-} from "../../../src/game/skills/mining";
+} from "./miningData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 const MINING_ACTIONS = ["mine", "mine rocks"];

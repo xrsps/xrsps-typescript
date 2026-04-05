@@ -299,9 +299,9 @@ export interface ScriptRegistrationResult {
     unregister(): void;
 }
 
-export { type DataLoaderServices, type SystemServices, type MessagingServices, type VariableServices, type InventoryServices, type EquipmentServices, type AnimationServices, type AppearanceServices, type DialogServices, type MovementServices, type LocationServices, type CombatServices, type NpcServices, type SkillServices, type CollectionLogServices, type FollowerServices, type BankingServices, type ShoppingServices, type GatheringServices, type ProductionServices, type SailingServices } from "./serviceInterfaces";
+export { type DataLoaderServices, type SystemServices, type MessagingServices, type VariableServices, type InventoryServices, type EquipmentServices, type AnimationServices, type AppearanceServices, type DialogServices, type MovementServices, type LocationServices, type CombatServices, type NpcServices, type SkillServices, type CollectionLogServices, type FollowerServices, type BankingServices, type ShoppingServices, type GatheringServices, type CookingServices, type ProductionServices, type SailingServices } from "./serviceInterfaces";
 
-import type { DataLoaderServices, SystemServices, MessagingServices, VariableServices, InventoryServices, EquipmentServices, AnimationServices, AppearanceServices, DialogServices, MovementServices, LocationServices, CombatServices, NpcServices, SkillServices, CollectionLogServices, FollowerServices, BankingServices, ShoppingServices, GatheringServices, ProductionServices, SailingServices } from "./serviceInterfaces";
+import type { DataLoaderServices, SystemServices, MessagingServices, VariableServices, InventoryServices, EquipmentServices, AnimationServices, AppearanceServices, DialogServices, MovementServices, LocationServices, CombatServices, NpcServices, SkillServices, CollectionLogServices, FollowerServices, BankingServices, ShoppingServices, GatheringServices, CookingServices, ProductionServices, SailingServices } from "./serviceInterfaces";
 
 export interface ScriptServices extends
     DataLoaderServices,
@@ -323,5 +323,6 @@ export interface ScriptServices extends
     BankingServices,
     ShoppingServices,
     GatheringServices,
+    CookingServices,
     ProductionServices,
     SailingServices {}

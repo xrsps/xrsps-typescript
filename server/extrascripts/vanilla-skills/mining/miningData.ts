@@ -1,4 +1,9 @@
-import type { LocTypeLoader, Vec2 } from "./woodcutting";
+export type Vec2 = { x: number; y: number };
+
+export interface LocTypeLoader {
+    getCount?: () => number;
+    load?: (id: number) => any;
+}
 
 export interface PickaxeDefinition {
     itemId: number;
@@ -304,65 +309,6 @@ export function buildMiningLocMap(loader?: LocTypeLoader): MiningLocMap {
         });
     }
     return { map };
-}
-
-export type MiningNodeDescriptor = {
-    key: string;
-    locId: number;
-    depletedLocId?: number;
-    tile: Vec2;
-    level: number;
-    rockId: string;
-    respawnTicks: { min: number; max: number };
-};
-
-type MiningNodeState = MiningNodeDescriptor & { respawnTick: number };
-
-export class MiningNodeTracker {
-    private nodes = new Map<string, MiningNodeState>();
-
-    getNode(key: string): MiningNodeState | undefined {
-        return this.nodes.get(key);
-    }
-
-    isDepleted(key: string): boolean {
-        return this.nodes.has(key);
-    }
-
-    markDepleted(descriptor: MiningNodeDescriptor, currentTick: number): void {
-        if (this.nodes.has(descriptor.key)) {
-            return;
-        }
-        const duration = this.randomInRange(
-            descriptor.respawnTicks.min,
-            descriptor.respawnTicks.max,
-        );
-        this.nodes.set(descriptor.key, {
-            ...descriptor,
-            respawnTick: currentTick + duration,
-        });
-    }
-
-    processRespawns(
-        currentTick: number,
-        emitLocChange: (oldId: number, newId: number, tile: Vec2, level: number) => void,
-    ): void {
-        for (const [key, state] of this.nodes.entries()) {
-            if (currentTick < state.respawnTick) continue;
-            if (state.depletedLocId && state.locId > 0) {
-                emitLocChange(state.depletedLocId, state.locId, state.tile, state.level);
-            }
-            this.nodes.delete(key);
-        }
-    }
-
-    private randomInRange(min: number, max: number): number {
-        const clampedMin = Math.max(1, Math.floor(min));
-        const clampedMax = Math.max(clampedMin, Math.floor(max));
-        if (clampedMax === clampedMin) return clampedMin;
-        const span = clampedMax - clampedMin + 1;
-        return clampedMin + Math.floor(Math.random() * span);
-    }
 }
 
 export function selectPickaxeByLevel(

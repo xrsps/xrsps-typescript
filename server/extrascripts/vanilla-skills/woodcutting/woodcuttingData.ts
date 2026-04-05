@@ -272,63 +272,6 @@ export function buildWoodcuttingLocMap(loader?: LocTypeLoader): WoodcuttingLocMa
     return { map };
 }
 
-export type WoodcuttingNodeDescriptor = {
-    key: string;
-    locId: number;
-    stumpId: number;
-    tile: Vec2;
-    level: number;
-    treeId: string;
-    respawnTicks: { min: number; max: number };
-};
-
-type NodeState = WoodcuttingNodeDescriptor & { respawnTick: number };
-
-export class WoodcuttingNodeTracker {
-    private nodes = new Map<string, NodeState>();
-
-    getNode(key: string): NodeState | undefined {
-        return this.nodes.get(key);
-    }
-
-    isDepleted(key: string): boolean {
-        return this.nodes.has(key);
-    }
-
-    markDepleted(descriptor: WoodcuttingNodeDescriptor, currentTick: number): void {
-        if (this.nodes.has(descriptor.key)) {
-            return;
-        }
-        const duration = this.randomInRange(
-            descriptor.respawnTicks.min,
-            descriptor.respawnTicks.max,
-        );
-        this.nodes.set(descriptor.key, {
-            ...descriptor,
-            respawnTick: currentTick + duration,
-        });
-    }
-
-    processRespawns(
-        currentTick: number,
-        emitLocChange: (oldId: number, newId: number, tile: Vec2, level: number) => void,
-    ): void {
-        for (const [key, state] of this.nodes.entries()) {
-            if (currentTick < state.respawnTick) continue;
-            emitLocChange(state.stumpId, state.locId, state.tile, state.level);
-            this.nodes.delete(key);
-        }
-    }
-
-    private randomInRange(min: number, max: number): number {
-        const clampedMin = Math.max(1, Math.floor(min));
-        const clampedMax = Math.max(clampedMin, Math.floor(max));
-        if (clampedMax === clampedMin) return clampedMin;
-        const span = clampedMax - clampedMin + 1;
-        return clampedMin + Math.floor(Math.random() * span);
-    }
-}
-
 export function selectHatchetByLevel(
     available: number[],
     level: number,

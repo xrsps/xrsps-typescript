@@ -6,7 +6,7 @@ import {
     buildWoodcuttingTileKey,
     getWoodcuttingTreeById,
     selectHatchetByLevel,
-} from "../../../src/game/skills/woodcutting";
+} from "./woodcuttingData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 const WOODCUT_ACTIONS = ["chop down", "chop-down"];

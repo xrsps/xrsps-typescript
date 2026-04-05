@@ -7,7 +7,7 @@ import {
     TINDERBOX_ITEM_IDS,
     computeFireLightingDelayTicks,
     getFiremakingLogDefinition,
-} from "../../../src/game/skills/firemaking";
+} from "./firemakingData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 const FIRE_LIT_SYNTH_SOUND = 2596;

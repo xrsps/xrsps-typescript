@@ -7,9 +7,10 @@ import {
     type CookingRecipe,
     DEFAULT_COOKING_BURN_BONUS,
     getCookingRecipeById,
+    getCookingRecipeByRawItemId,
     rollCookingOutcome,
 } from "./cookingData";
-import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
+import { ANY_LOC_ID, type IScriptRegistry, type ScriptActionHandlerContext, type ScriptServices } from "../../../src/game/scripts/types";
 import {
     type SkillDialogChoice,
     MAX_BATCH,
@@ -135,4 +136,38 @@ export function registerCookingInteractions(registry: IScriptRegistry, services:
             tryCookingRecipe(event.player, fallback.recipe, event.tick, { desiredCount: fallback.batch, heatSource });
         }
     });
+
+    const rawItemIds = new Set(COOKING_RECIPES.map((r) => r.rawItemId));
+    for (const rawItemId of rawItemIds) {
+        registry.registerItemOnLoc(rawItemId, ANY_LOC_ID, (event) => {
+            const tile = event.target.tile;
+            const level = event.target.level;
+            const fire = services.gathering?.getFireNode(tile, level);
+            if (!fire) return;
+            const recipe = getCookingRecipeByRawItemId(event.source.itemId);
+            if (!recipe) return;
+            const player = event.player;
+            const delay = recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 4;
+            const result = services.requestAction(
+                player,
+                {
+                    kind: "skill.cook",
+                    data: {
+                        recipeId: recipe.id,
+                        count: 1,
+                        heatSource: "fire" as CookingHeatSource,
+                    },
+                    delayTicks: delay,
+                    cooldownTicks: delay,
+                    groups: ["skill.cook"],
+                },
+                event.tick,
+            );
+            if (!result.ok) {
+                services.sendGameMessage(player, "You're too busy to do that right now.");
+                return;
+            }
+            services.sendGameMessage(player, "You start cooking.");
+        });
+    }
 }
