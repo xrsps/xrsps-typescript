@@ -50,8 +50,7 @@ export class MiscBroadcaster implements BroadcastDomain {
     flushPostWidgetEvents(frame: TickFrame, ctx: BroadcastContext): void {
         this.flushNotifications(frame, ctx);
         this.flushClientScripts(frame, ctx);
-        this.flushSmithingMessages(frame, ctx);
-        this.flushTradeMessages(frame, ctx);
+        this.flushKeyedMessages(frame, ctx);
         this.flushGamemodeSnapshots(frame, ctx);
         this.flushRunEnergy(frame, ctx);
         this.flushSpellResults(frame, ctx);
@@ -87,27 +86,17 @@ export class MiscBroadcaster implements BroadcastDomain {
         }
     }
 
-    private flushSmithingMessages(frame: TickFrame, ctx: BroadcastContext): void {
-        if (!frame.smithingMessages || frame.smithingMessages.length === 0) return;
-        for (const evt of frame.smithingMessages) {
-            const sock = ctx.getSocketByPlayerId(evt.playerId);
-            ctx.sendWithGuard(
-                sock,
-                encodeMessage({ type: "smithing", payload: evt.payload }),
-                "smithing_event",
-            );
-        }
-    }
-
-    private flushTradeMessages(frame: TickFrame, ctx: BroadcastContext): void {
-        if (!frame.tradeMessages || frame.tradeMessages.length === 0) return;
-        for (const evt of frame.tradeMessages) {
-            const sock = ctx.getSocketByPlayerId(evt.playerId);
-            ctx.sendWithGuard(
-                sock,
-                encodeMessage({ type: "trade", payload: evt.payload }),
-                "trade_event",
-            );
+    private flushKeyedMessages(frame: TickFrame, ctx: BroadcastContext): void {
+        if (!frame.keyedMessages || frame.keyedMessages.size === 0) return;
+        for (const [key, messages] of frame.keyedMessages.entries()) {
+            for (const evt of messages) {
+                const sock = ctx.getSocketByPlayerId(evt.playerId);
+                ctx.sendWithGuard(
+                    sock,
+                    encodeMessage({ type: key, payload: evt.payload }),
+                    `${key}_event`,
+                );
+            }
         }
     }
 

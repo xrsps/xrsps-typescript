@@ -45,7 +45,7 @@ export interface InventoryEntry {
 }
 
 /** Action schedule request. */
-export type InventoryScheduledActionKind = "inventory.use_on" | "skill.cook" | "skill.sinew";
+export type InventoryScheduledActionKind = string;
 
 export type ActionScheduleRequest<
     K extends InventoryScheduledActionKind = InventoryScheduledActionKind,

@@ -457,40 +457,40 @@ export class BroadcastScheduler {
         this.pendingWidgetEvents = events.concat(this.pendingWidgetEvents);
     }
 
-    // ----- Smithing Messages -----
+    // ----- Keyed Message Queues (smithing, trade, etc.) -----
 
-    private pendingSmithingMessages: Array<{ playerId: number; payload: any }> = [];
+    private keyedMessages = new Map<string, Array<{ playerId: number; payload: any }>>();
 
-    queueSmithingMessage(playerId: number, payload: any): void {
-        this.pendingSmithingMessages.push({ playerId, payload });
+    queueKeyedMessage(key: string, playerId: number, payload: any): void {
+        let queue = this.keyedMessages.get(key);
+        if (!queue) {
+            queue = [];
+            this.keyedMessages.set(key, queue);
+        }
+        queue.push({ playerId, payload });
     }
 
-    drainSmithingMessages(): Array<{ playerId: number; payload: any }> {
-        const messages = this.pendingSmithingMessages;
-        this.pendingSmithingMessages = [];
+    drainKeyedMessages(key: string): Array<{ playerId: number; payload: any }> {
+        const messages = this.keyedMessages.get(key) ?? [];
+        this.keyedMessages.delete(key);
         return messages;
     }
 
-    restoreSmithingMessages(messages: Array<{ playerId: number; payload: any }>): void {
-        this.pendingSmithingMessages = messages.concat(this.pendingSmithingMessages);
+    restoreKeyedMessages(key: string, messages: Array<{ playerId: number; payload: any }>): void {
+        const existing = this.keyedMessages.get(key) ?? [];
+        this.keyedMessages.set(key, messages.concat(existing));
     }
 
-    // ----- Trade Messages -----
-
-    private pendingTradeMessages: Array<{ playerId: number; payload: any }> = [];
-
-    queueTradeMessage(playerId: number, payload: any): void {
-        this.pendingTradeMessages.push({ playerId, payload });
+    drainAllKeyedMessages(): Map<string, Array<{ playerId: number; payload: any }>> {
+        const all = this.keyedMessages;
+        this.keyedMessages = new Map();
+        return all;
     }
 
-    drainTradeMessages(): Array<{ playerId: number; payload: any }> {
-        const messages = this.pendingTradeMessages;
-        this.pendingTradeMessages = [];
-        return messages;
-    }
-
-    restoreTradeMessages(messages: Array<{ playerId: number; payload: any }>): void {
-        this.pendingTradeMessages = messages.concat(this.pendingTradeMessages);
+    restoreAllKeyedMessages(all: Map<string, Array<{ playerId: number; payload: any }>>): void {
+        for (const [key, messages] of all.entries()) {
+            this.restoreKeyedMessages(key, messages);
+        }
     }
 
     // ----- Loc Changes -----

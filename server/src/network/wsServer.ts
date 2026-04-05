@@ -780,8 +780,7 @@ interface TickFrame {
     npcViews: Map<number, NpcViewSnapshot>;
     widgetEvents: WidgetEvent[];
     notifications: Array<{ playerId: number; payload: any }>;
-    smithingMessages: Array<{ playerId: number; payload: SmithingServerPayload }>;
-    tradeMessages: Array<{ playerId: number; payload: TradeServerPayload }>;
+    keyedMessages: Map<string, Array<{ playerId: number; payload: any }>>;
     locChanges: LocChangePayload[];
     chatMessages: ChatMessageSnapshot[];
     inventorySnapshots: Array<{
@@ -2083,11 +2082,8 @@ export class WSServer {
         if (frame.notifications.length > 0) {
             this.broadcastScheduler.restoreNotifications(frame.notifications);
         }
-        if (frame.smithingMessages.length > 0) {
-            this.broadcastScheduler.restoreSmithingMessages(frame.smithingMessages);
-        }
-        if (frame.tradeMessages.length > 0) {
-            this.broadcastScheduler.restoreTradeMessages(frame.tradeMessages);
+        if (frame.keyedMessages.size > 0) {
+            this.broadcastScheduler.restoreAllKeyedMessages(frame.keyedMessages);
         }
         if (frame.locChanges.length > 0) {
             this.broadcastScheduler.restoreLocChanges(frame.locChanges);
@@ -2385,8 +2381,7 @@ export class WSServer {
         // Drain all queues from BroadcastScheduler
         const widgetEvents = this.broadcastScheduler.drainWidgetEvents();
         const notifications = this.broadcastScheduler.drainNotifications();
-        const smithingMessages = this.broadcastScheduler.drainSmithingMessages();
-        const tradeMessages = this.broadcastScheduler.drainTradeMessages();
+        const keyedMessages = this.broadcastScheduler.drainAllKeyedMessages();
         const locChanges = this.broadcastScheduler.drainLocChanges();
         const chatMessages = this.broadcastScheduler.drainChatMessages();
         const inventorySnapshots = this.broadcastScheduler.drainInventorySnapshots();
@@ -2424,8 +2419,7 @@ export class WSServer {
             npcViews: new Map<number, NpcViewSnapshot>(),
             widgetEvents,
             notifications,
-            smithingMessages,
-            tradeMessages,
+            keyedMessages,
             locChanges,
             chatMessages,
             inventorySnapshots,
@@ -3835,11 +3829,11 @@ export class WSServer {
 
 
     private queueSmithingInterfaceMessage(playerId: number, payload: SmithingServerPayload): void {
-        this.broadcastScheduler.queueSmithingMessage(playerId, payload);
+        this.broadcastScheduler.queueKeyedMessage("smithing", playerId, payload);
     }
 
     private queueTradeMessage(playerId: number, payload: TradeServerPayload): void {
-        this.broadcastScheduler.queueTradeMessage(playerId, payload);
+        this.broadcastScheduler.queueKeyedMessage("trade", playerId, payload);
     }
 
     /**
