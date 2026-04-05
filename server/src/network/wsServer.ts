@@ -61,6 +61,7 @@ import {
     getSideJournalLeaguesContentGroupId,
 } from "../../../src/shared/ui/sideJournal";
 import {
+    FEATURE_FLAG_LEAGUES,
     MAP_FLAGS_LEAGUE_WORLD,
     MUSIC_UNLOCK_VARPS,
     VARBIT_ACCOUNT_TYPE,
@@ -131,6 +132,7 @@ import {
     VARP_SPECIAL_ATTACK,
     VARP_UNDERGROUND_PASS,
     VARP_WATCHTOWER,
+    VARP_FEATURE_FLAGS_CACHED,
     XPDROPS_TRANSMIT_VARPS,
 } from "../../../src/shared/vars";
 import {
@@ -12902,6 +12904,24 @@ export class WSServer {
                                     payload: {
                                         varpId: VARP_MAP_FLAGS_CACHED,
                                         value: MAP_FLAGS_LEAGUE_WORLD,
+                                    },
+                                }),
+                                "varp",
+                            ),
+                        );
+
+                        // Set feature_flags_cached (varp 4920) with bit 1 (leagues) so
+                        // CS2 proc feature_flag(1) returns true.  Required by
+                        // league_combat_mastery_active, league_combat_mastery_passive_active, etc.
+                        p.setVarpValue(VARP_FEATURE_FLAGS_CACHED, FEATURE_FLAG_LEAGUES);
+                        this.withDirectSendBypass("varp", () =>
+                            this.sendWithGuard(
+                                ws,
+                                encodeMessage({
+                                    type: "varp",
+                                    payload: {
+                                        varpId: VARP_FEATURE_FLAGS_CACHED,
+                                        value: FEATURE_FLAG_LEAGUES,
                                     },
                                 }),
                                 "varp",

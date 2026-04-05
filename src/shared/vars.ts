@@ -293,6 +293,15 @@ export const VARP_MAP_FLAGS_CACHED = 3717;
 /** League world flag value for map_flags_cached (bit 30 set, bit 29 clear) */
 export const MAP_FLAGS_LEAGUE_WORLD = 1 << 30;
 
+/**
+ * Feature flags cached varp (4920) — testbit() checked by CS2 proc feature_flag.
+ * Bit 0 = unknown feature, bit 1 = leagues, bit 3 = bingo/orbs
+ */
+export const VARP_FEATURE_FLAGS_CACHED = 4920;
+
+/** Feature flag bit 1: leagues (required for league_combat_mastery_active, etc.) */
+export const FEATURE_FLAG_LEAGUES = 1 << 1;
+
 // ========== TRANSMIT VARPS ==========
 // Varps that should sync from client to server when changed
 
