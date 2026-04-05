@@ -1,4 +1,6 @@
 import {
+    ANY_ITEM_ID,
+    ANY_LOC_ID,
     type ClientMessageHandler,
     type CommandHandler,
     type EquipmentActionHandler,
@@ -404,7 +406,13 @@ export class ScriptRegistry implements IScriptRegistry {
         option?: string,
     ): ItemOnLocHandler | undefined {
         const key = makeItemKey(sourceItemId, locId, option);
-        return this.itemOnLocHandlers.get(key);
+        const direct = this.itemOnLocHandlers.get(key);
+        if (direct) return direct;
+        const itemWildcard = makeItemKey(ANY_ITEM_ID, locId, option);
+        const byItemWild = this.itemOnLocHandlers.get(itemWildcard);
+        if (byItemWild) return byItemWild;
+        const locWildcard = makeItemKey(sourceItemId, ANY_LOC_ID, option);
+        return this.itemOnLocHandlers.get(locWildcard);
     }
 
     findEquipmentAction(itemId: number, option?: string): EquipmentActionHandler | undefined {

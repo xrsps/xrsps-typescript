@@ -171,8 +171,6 @@ export interface InventoryActionServices {
     // --- Object Types ---
     getObjType(itemId: number): ObjTypeInfo | undefined;
     isConsumable(obj: ObjTypeInfo | undefined, option: string): boolean;
-    isSinewSourceItem(itemId: number): boolean;
-    isSpinningWheelLocId(locId: number): boolean;
     isRangeLoc(locId: number): boolean;
 
     // --- Pathfinding ---
@@ -250,7 +248,6 @@ export interface InventoryActionServices {
 
 const INVENTORY_SLOT_COUNT = 28;
 const EQUIP_SLOT_COUNT = 14;
-const SINEW_DELAY_TICKS = 3;
 
 function isEquipInventoryFullReason(reason: string | undefined): boolean {
     return (
@@ -396,11 +393,6 @@ export class InventoryActionHandler {
                 return { ok: true, groups: ["movement"] };
             }
 
-            const handledSpinning = this.tryHandleItemOnSpinningWheel(player, target, tick);
-            if (handledSpinning) {
-                return handledSpinning;
-            }
-
             const handledCooking = this.tryHandleItemOnFireCooking(
                 player,
                 slot,
@@ -415,11 +407,6 @@ export class InventoryActionHandler {
             const handledSmithing = this.tryHandleItemOnSmithingAnvil(player, itemId, target, tick);
             if (handledSmithing) {
                 return handledSmithing;
-            }
-
-            const handledSinew = this.tryHandleSinewCreation(player, slot, itemId, target, tick);
-            if (handledSinew) {
-                return handledSinew;
             }
 
             const handledItemOnLoc = this.tryHandleScriptedItemOnLoc(
@@ -693,30 +680,6 @@ export class InventoryActionHandler {
     // Private Helper Methods
     // ========================================================================
 
-    private tryHandleItemOnSpinningWheel(
-        player: PlayerState,
-        target: InventoryUseOnTarget | undefined,
-        tick: number,
-    ): ActionExecutionResult | undefined {
-        if (!target || target.kind !== "loc") return undefined;
-        const locId = target.id;
-        if (locId === undefined || !this.services.isSpinningWheelLocId(locId)) return undefined;
-        const tile: Vec2 = target.tile ?? { x: player.tileX, y: player.tileY };
-        const level = target.plane ?? player.level;
-        const handled = this.services.queueLocInteraction({
-            tick,
-            player,
-            locId,
-            tile,
-            level,
-            action: "spin",
-        });
-        if (handled) {
-            return { ok: true, groups: ["skill.spin"] };
-        }
-        return undefined;
-    }
-
     private tryHandleItemOnFireCooking(
         player: PlayerState,
         slot: number,
@@ -805,52 +768,6 @@ export class InventoryActionHandler {
         });
         if (!handled) return undefined;
         return { ok: true, groups: ["skill.smith"] };
-    }
-
-    private tryHandleSinewCreation(
-        player: PlayerState,
-        slot: number,
-        itemId: number,
-        target: InventoryUseOnTarget | undefined,
-        tick: number,
-    ): ActionExecutionResult | undefined {
-        if (!this.services.isSinewSourceItem(itemId) || !target || target.kind !== "loc")
-            return undefined;
-        const locId = target.id;
-        if (locId === undefined || !this.services.isRangeLoc(locId)) return undefined;
-        const level = target.plane ?? player.level;
-        const tile: Vec2 = target.tile ?? { x: player.tileX, y: player.tileY };
-        const result = this.services.scheduleAction(
-            player.id,
-            {
-                kind: "skill.sinew",
-                data: {
-                    slot,
-                    itemId,
-                    locId,
-                    tile,
-                    level,
-                },
-                delayTicks: SINEW_DELAY_TICKS,
-                cooldownTicks: SINEW_DELAY_TICKS,
-                groups: ["skill.sinew"],
-            },
-            tick,
-        );
-        if (!result.ok) {
-            this.services.queueChatMessage({
-                messageType: "game",
-                text: "You're too busy to do that right now.",
-                targetPlayerIds: [player.id],
-            });
-            return { ok: true, groups: ["skill.sinew"] };
-        }
-        this.services.queueChatMessage({
-            messageType: "game",
-            text: "You start drying the meat into sinew.",
-            targetPlayerIds: [player.id],
-        });
-        return { ok: true, groups: ["skill.sinew"] };
     }
 
     private tryHandleScriptedItemOnLoc(

@@ -10,7 +10,7 @@ import {
     getFletchingProductsForLog,
     getFletchingRecipeById,
     getStringingRecipeByUnstrungId,
-} from "../../../src/game/skills/fletching";
+} from "./fletchingData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptInventoryEntry, ScriptServices } from "../../../src/game/scripts/types";
 
 const MAX_BATCH = 27;

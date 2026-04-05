@@ -280,9 +280,6 @@ import type {
     FishingSpotDefinition,
     FishingToolDefinition,
 } from "../game/skills/fishing";
-import {
-    FLAX_RESPAWN_TICKS,
-} from "../game/skills/flax";
 import { FlaxPatchTracker } from "../game/skills/flaxPatchTracker";
 import {
     MiningNodeTracker,
@@ -295,10 +292,6 @@ import type {
     MiningRockDefinition,
     PickaxeDefinition,
 } from "../game/skills/mining";
-import {
-    isSinewSourceItem,
-    isSpinningWheelLocId,
-} from "../game/skills/spinning";
 import {
     WoodcuttingNodeTracker,
     buildWoodcuttingLocMap,
@@ -6489,8 +6482,6 @@ export class WSServer {
             // --- Object Types ---
             getObjType: (itemId) => this.getObjType(itemId),
             isConsumable: (obj, option) => this.isConsumable(obj as any, option),
-            isSinewSourceItem: (itemId) => isSinewSourceItem(itemId),
-            isSpinningWheelLocId: (locId) => isSpinningWheelLocId(locId),
             isRangeLoc: (locId) => this.isRangeLoc(locId),
 
             // --- Pathfinding ---
@@ -10090,17 +10081,6 @@ export class WSServer {
         };
     }
 
-    private handleFlaxPatchDepletion(locId: number, tile: Vec2, level: number, tick: number): void {
-        if (!(locId > 0)) return;
-        const respawnTick = tick + FLAX_RESPAWN_TICKS;
-        this.flaxTracker.markDepleted({
-            locId: locId,
-            tile,
-            level: level,
-            respawnTick,
-        });
-        this.emitLocChange(locId, 0, tile, level);
-    }
 
     private isRangeLoc(locId: number): boolean {
         if (!(locId > 0) || !this.locTypeLoader) return false;

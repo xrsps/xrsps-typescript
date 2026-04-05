@@ -4,6 +4,7 @@ import type { PlayerState } from "../../../src/game/player";
 import {
     SPINNING_RECIPES,
     SPINNING_WHEEL_LOC_IDS,
+    SINEW_SOURCE_ITEM_IDS,
     type SpinningRecipe,
     getSpinningRecipeById,
     isSinewSourceItem,
@@ -11,8 +12,10 @@ import {
     SINEW_ANIMATION_ID,
     SINEW_DELAY_TICKS,
     SINEW_CRAFT_XP,
-} from "../../../src/game/skills/spinning";
+} from "./spinningData";
 import {
+    ANY_ITEM_ID,
+    ANY_LOC_ID,
     type LocInteractionEvent,
     type ScriptActionHandlerContext,
     type ScriptInventoryEntry,
@@ -340,5 +343,44 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
 
     for (const locId of SPINNING_WHEEL_LOC_IDS) {
         registry.registerLocInteraction(locId, handler, SPIN_ACTION);
+        registry.registerItemOnLoc(ANY_ITEM_ID, locId, (event) => {
+            handleSpinRequest({ player: event.player, tick: event.tick });
+        });
+    }
+
+    for (const sourceItemId of SINEW_SOURCE_ITEM_IDS) {
+        registry.registerItemOnLoc(sourceItemId, ANY_LOC_ID, (event) => {
+            const locId = event.target.locId;
+            const locDef = services.getLocDefinition?.(locId);
+            if (!locDef) return;
+            const name = locDef.name?.toLowerCase() ?? "";
+            if (!name.includes("range") && !name.includes("stove") && !name.includes("cook") && !name.includes("kitchen")) return;
+            if (name.includes("fire")) return;
+            const player = event.player;
+            const tile = event.target.tile;
+            const level = event.target.level;
+            const result = services.requestAction(
+                player,
+                {
+                    kind: "skill.sinew",
+                    data: {
+                        slot: event.source.slot,
+                        itemId: event.source.itemId,
+                        locId,
+                        tile,
+                        level,
+                    },
+                    delayTicks: SINEW_DELAY_TICKS,
+                    cooldownTicks: SINEW_DELAY_TICKS,
+                    groups: ["skill.sinew"],
+                },
+                event.tick,
+            );
+            if (!result.ok) {
+                services.sendGameMessage(player, "You're too busy to do that right now.");
+                return;
+            }
+            services.sendGameMessage(player, "You start drying the meat into sinew.");
+        });
     }
 }

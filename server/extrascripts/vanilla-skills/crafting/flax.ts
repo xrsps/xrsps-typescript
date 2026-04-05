@@ -4,7 +4,7 @@ import {
     FLAX_LOC_IDS,
     FLAX_PICK_DELAY_TICKS,
     isFlaxLocId,
-} from "../../../src/game/skills/flax";
+} from "./flaxData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 const FLAX_ACTIONS = ["pick", "pick-flax"];

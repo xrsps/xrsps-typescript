@@ -2,6 +2,9 @@ import { type ActionEffect, type ActionEnqueueResult, type ActionExecutionResult
 import { type NpcSpawnConfig, type NpcState } from "../npc";
 import { type PlayerState } from "../player";
 
+export const ANY_ITEM_ID = -1;
+export const ANY_LOC_ID = -1;
+
 export interface ScriptExecutionContext {
     tick: number;
     services: ScriptServices;
