@@ -2,7 +2,7 @@ import type { WebSocket } from "ws";
 
 import { encodeMessage } from "../../network/messages";
 import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { BroadcastScheduler } from "../../network/broadcast/BroadcastScheduler";
+import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
 
 export interface VariableServiceDeps {

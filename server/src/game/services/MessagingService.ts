@@ -1,28 +1,10 @@
-import type { BroadcastScheduler } from "../../network/broadcast/BroadcastScheduler";
+import type { BroadcastScheduler, ChatMessageSnapshot, ForcedChatBroadcast } from "../systems/BroadcastScheduler";
 import type { DataLoaderService } from "./DataLoaderService";
 import { createLootPickupNotification } from "../notifications/LootPickupNotification";
 import type { PlayerState } from "../player";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
 
-export interface ChatMessageSnapshot {
-    messageType: string;
-    playerId?: number;
-    from?: string;
-    prefix?: string;
-    text: string;
-    playerType?: number;
-    colorId?: number;
-    effectId?: number;
-    pattern?: number[];
-    autoChat?: boolean;
-    targetPlayerIds?: number[];
-}
-
-export interface ForcedChatBroadcast {
-    playerId?: number;
-    npcId?: number;
-    text: string;
-}
+export type { ChatMessageSnapshot, ForcedChatBroadcast };
 
 export interface MessagingServiceDeps {
     getActiveFrame: () => TickFrame | undefined;

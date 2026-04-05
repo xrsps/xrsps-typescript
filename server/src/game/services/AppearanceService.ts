@@ -6,32 +6,16 @@ import {
 import type { IdkType } from "../../../../src/rs/config/idktype/IdkType";
 import type { WeaponDataEntry } from "../../../data/weapons";
 import { weaponDataEntries } from "../../../data/weapons";
-import type { BroadcastScheduler } from "../../network/broadcast/BroadcastScheduler";
+import type { BroadcastScheduler, PlayerAnimSet } from "../systems/BroadcastScheduler";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
-import type { PlayerState } from "../player";
+import type { PlayerState, PlayerAppearance as PlayerAppearanceState } from "../player";
 import type { DataLoaderService } from "./DataLoaderService";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
 import { logger } from "../../utils/logger";
 
 const EQUIP_SLOT_COUNT = 14;
 
-export interface PlayerAnimSet {
-    idle?: number;
-    walk?: number;
-    run?: number;
-    turnLeft?: number;
-    turnRight?: number;
-    [key: string]: number | undefined;
-}
-
-export interface PlayerAppearanceState {
-    gender: number;
-    colors: number[] | undefined;
-    kits: number[] | undefined;
-    equip: number[];
-    equipQty: number[];
-    headIcons: { prayer: number };
-}
+export type { PlayerAppearanceState, PlayerAnimSet };
 
 const PLAYER_ANIM_KEYS = ["idle", "walk", "run", "turnLeft", "turnRight"] as const;
 

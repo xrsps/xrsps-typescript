@@ -9,7 +9,7 @@ import {
 } from "../combat/CombatXp";
 import { encodeMessage } from "../../network/messages";
 import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { BroadcastScheduler } from "../../network/broadcast/BroadcastScheduler";
+import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import type { PlayerState, SkillSyncUpdate } from "../player";
 import type { ActionEffect } from "../actions";

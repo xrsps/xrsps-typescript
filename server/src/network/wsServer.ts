@@ -17,6 +17,7 @@ import { CollectionLogService } from "../game/services/CollectionLogService";
 import { SoundService } from "../game/services/SoundService";
 import { MovementService } from "../game/services/MovementService";
 import { PlayerCombatService } from "../game/services/PlayerCombatService";
+import { buildScriptServices } from "../game/services/ScriptServiceAdapter";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 
@@ -262,7 +263,6 @@ import type { GamemodeBridge, GamemodeDefinition, GamemodeUiController } from ".
 import { getGamemodeDataDir } from "../game/gamemodes/GamemodeRegistry";
 import { LockState } from "../game/model/LockState";
 import { ACTIVE_COMBAT_TIMER, STUN_TIMER } from "../game/model/timer/Timers";
-import { createLootPickupNotification } from "../game/notifications/LootPickupNotification";
 import { NpcState, type NpcUpdateDelta } from "../game/npc";
 import { NpcManager, type NpcStatusEvent, type PendingNpcDrop } from "../game/npcManager";
 import {
@@ -437,18 +437,8 @@ const NPC_SIM_RADIUS_TILES = NPC_STREAM_EXIT_RADIUS_TILES + 12;
 const DEBUG_NPC_STREAM =
     (process?.env?.DEBUG_NPC_STREAM ?? "").toString().toLowerCase() === "1" ||
     (process?.env?.DEBUG_NPC_STREAM ?? "").toString().toLowerCase() === "true";
-const ADMIN_CROWN_ICON = 1; // Jagex moderator crown icon id.
-const ADMIN_USERNAMES_ENV = (
-    process?.env?.ADMIN_USERNAMES ??
-    process?.env?.ADMIN_PLAYERS ??
-    process?.env?.ADMIN_NAMES ??
-    "lol,bot"
-).toString();
-const ADMIN_USERNAMES = new Set(
-    ADMIN_USERNAMES_ENV.split(",")
-        .map((value) => value.trim().toLowerCase())
-        .filter((value) => value.length > 0),
-);
+// ADMIN_CROWN_ICON and ADMIN_USERNAMES moved to AuthenticationService
+import { ADMIN_CROWN_ICON } from "./AuthenticationService";
 // DAT2 ObjType param for weapon attack speed (ticks per attack).
 // Verified via cache anchors: whip=4, godsword=6, dragon dagger=4.
 const WEAPON_SPEED_PARAM = 14;
@@ -926,7 +916,8 @@ const LEVELUP_JINGLE_BY_SKILL: Partial<Record<number, number>> = {
 
 type LevelUpPopup =
     | { kind: "skill"; skillId: number; newLevel: number; levelIncrement: number }
-    | { kind: "combat"; newLevel: number; levelIncrement: number };
+    | { kind: "combat"; newLevel: number; levelIncrement: number }
+    | { kind: "hunter"; newLevel: number; levelIncrement: number };
 
 function pickSpecialAttackVisualOverride(
     weaponItemId: number,
@@ -1011,7 +1002,6 @@ export class WSServer {
     private specialAttackCostUnitsByWeapon?: Map<number, number>;
     private specialAttackDescriptionByWeapon?: Map<number, string>;
     private specialAttackDefaultDescription?: string;
-    private readonly defaultBodyKitCache = new Map<number, number[]>();
     private actionScheduler: ActionScheduler;
     private defaultPlayerAnim: PlayerAnimSet = {
         idle: 808,
@@ -1024,7 +1014,7 @@ export class WSServer {
     private defaultPlayerAnimFemale?: PlayerAnimSet;
     private weaponAnimOverrides = new Map<number, Record<string, number>>();
     private weaponData = new Map<number, WeaponDataEntry>();
-    private weaponWarningsLogged = new Set<number>(); // Track weapons we've already warned about
+    // weaponWarningsLogged moved to PlayerCombatService
     private doorManager?: DoorStateManager;
     private readonly statusEffects = new StatusEffectSystem();
     private readonly prayerSystem = new PrayerSystem();
@@ -1047,33 +1037,33 @@ export class WSServer {
     private messageRouter!: MessageRouter;
 
     // Extracted services (Phase 1)
-    private readonly gameContext: GameContext;
-    private readonly dataLoaderService: DataLoaderService;
-    private readonly authService: AuthenticationService;
-    private readonly networkLayer: PlayerNetworkLayer;
+    private readonly gameContext!: GameContext;
+    private readonly dataLoaderService!: DataLoaderService;
+    private readonly authService!: AuthenticationService;
+    private readonly networkLayer!: PlayerNetworkLayer;
 
     // Extracted services (Phase 2)
-    private readonly variableService: VariableService;
-    private readonly messagingService: MessagingService;
-    private readonly skillService: SkillService;
+    private readonly variableService!: VariableService;
+    private readonly messagingService!: MessagingService;
+    private readonly skillService!: SkillService;
 
     // Extracted services (Phase 3)
-    private readonly inventoryService: InventoryService;
-    private readonly equipmentService: EquipmentService;
-    private readonly appearanceService: AppearanceService;
+    private readonly inventoryService!: InventoryService;
+    private readonly equipmentService!: EquipmentService;
+    private readonly appearanceService!: AppearanceService;
 
     // Extracted services (Phase 4)
-    private readonly combatDataService: CombatDataService;
+    private readonly combatDataService!: CombatDataService;
 
     // Extracted services (Phase 5)
-    private readonly locationService: LocationService;
-    private readonly interfaceManager: ExtractedInterfaceManager;
+    private readonly locationService!: LocationService;
+    private readonly interfaceManager!: ExtractedInterfaceManager;
 
     // Extracted services (Phase 6)
-    private readonly collectionLogService: CollectionLogService;
-    private readonly soundService: SoundService;
-    private readonly movementService: MovementService;
-    private readonly playerCombatService: PlayerCombatService;
+    private readonly collectionLogService!: CollectionLogService;
+    private readonly soundService!: SoundService;
+    private readonly movementService!: MovementService;
+    private readonly playerCombatService!: PlayerCombatService;
 
 
     private gamemodeTickCallbacks: Array<(tick: number) => void> = [];
@@ -1409,7 +1399,51 @@ export class WSServer {
             registry: this.scriptRegistry,
             scheduler: this.scriptScheduler,
             logger,
-            services: this.buildScriptServiceObject(locTypeLoader, combatEffectApplicator),
+            services: buildScriptServices({
+                dataLoaders: this.dataLoaderService,
+                variableService: this.variableService,
+                messagingService: this.messagingService,
+                skillService: this.skillService,
+                inventoryService: this.inventoryService,
+                equipmentService: this.equipmentService,
+                appearanceService: this.appearanceService,
+                locationService: this.locationService,
+                movementService: this.movementService,
+                collectionLogService: this.collectionLogService,
+                soundService: this.soundService,
+                actionScheduler: this.actionScheduler,
+                getCurrentTick: () => this.options.ticker.currentTick(),
+                getPathService: () => this.options.pathService,
+                doorManager: this.doorManager,
+                npcManager: this.npcManager,
+                interfaceService: this.interfaceService,
+                widgetDialogHandler: undefined as any, // Set after creation
+                prayerSystem: this.prayerSystem,
+                gatheringSystem: undefined as any, // Set after creation
+                cs2ModalManager: undefined as any, // Set after creation
+                followerManager: undefined as any, // Set after creation
+                followerCombatManager: undefined as any, // Set after creation
+                sailingInstanceManager: this.sailingInstanceManager,
+                worldEntityInfoEncoder: this.worldEntityInfoEncoder,
+                playerPersistence: this.playerPersistence,
+                musicCatalogService: undefined, // Set after creation
+                inventoryActionHandler: undefined as any, // Set after creation
+                effectDispatcher: undefined as any, // Set after creation
+                combatEffectApplicator: combatEffectApplicator,
+                getPlayers: () => this.players,
+                enqueueSpotAnimation: (anim) => this.enqueueSpotAnimation(anim),
+                enqueueForcedMovement: (data) => this.enqueueForcedMovement(data),
+                enqueueSoundBroadcast: (soundId, x, y, level) => this.enqueueSoundBroadcast(soundId, x, y, level),
+                queueCombatSnapshot: (...args: any[]) => (this as any).queueCombatSnapshot(...args),
+                queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
+                queueSmithingInterfaceMessage: (pid, p) => this.queueSmithingInterfaceMessage(pid, p),
+                queueExternalNpcTeleportSync: (npc) => this.queueExternalNpcTeleportSync(npc),
+                teleportToWorldEntity: (...args: any[]) => (this as any).teleportToWorldEntity(...args),
+                sendWorldEntity: (...args: any[]) => (this as any).sendWorldEntity(...args),
+                completeLogout: (sock, player, reason) => this.completeLogout(sock, player, reason),
+                closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
+                activeFrame: () => this.activeFrame,
+            }),
         });
         logger.info(
             "[scripts] loaded",
@@ -1665,7 +1699,7 @@ export class WSServer {
             broadcastScheduler: this.broadcastScheduler,
             networkLayer: this.networkLayer,
             gamemode: this.gamemode,
-            enqueueLevelUpPopup: (player, popup) => this.enqueueLevelUpPopup(player, popup),
+            enqueueLevelUpPopup: (player, popup) => this.enqueueLevelUpPopup(player, popup as any),
         });
         logger.info("[services] Phase 2 services initialized (Variable, Messaging, Skill)");
 
@@ -1726,7 +1760,7 @@ export class WSServer {
             broadcastScheduler: this.broadcastScheduler,
             actionScheduler: this.actionScheduler,
             queueChatMessage: (msg) => this.queueChatMessage(msg),
-            showLevelUpPopup: (player, popup) => this.showLevelUpPopup(player, popup),
+            showLevelUpPopup: (player, popup) => this.showLevelUpPopup(player, popup as any),
             closeChatboxModalOverlay: (pid) => this.closeChatboxModalOverlay(pid),
             getPlayerById: (id) => this.players?.getById(id),
         });
@@ -2665,108 +2699,6 @@ export class WSServer {
 
     private flushPendingWalkCommands(currentTick: number, stage: "pre" | "movement" = "pre"): void {
         this.movementService.flushPendingWalkCommands(currentTick, stage);
-    }
-
-    private routeOrRejectWalkCommand(
-        sock: WebSocket,
-        command: PendingWalkCommand,
-        currentTick: number,
-        context: "pre" | "movement" | "immediate",
-    ): boolean {
-        if (!this.players) return false;
-        const player = this.players.get(sock);
-        const isDebug = player && DEBUG_PLAYER_IDS.has(player.id);
-
-        // Check if player can move before doing anything
-        if (player && !player.canMove()) {
-            return false;
-        }
-
-        // OSRS parity: Moving dismisses all interruptible interfaces (modals, dialogs, level-ups).
-        if (player) {
-            this.closeInterruptibleInterfaces(player);
-        }
-
-        // RSMod parity: Walking resets all interactions (combat, NPC talk, follow, etc.)
-        // This is equivalent to RSMod's ClickMapHandler calling client.resetInteractions()
-        if (player) {
-            player.interruptQueues();
-            player.resetInteractions();
-        }
-        // Also clear the interaction system's internal state map
-        this.players.clearAllInteractions(sock);
-
-        const res = this.players.routePlayer(sock, command.to, command.run, currentTick);
-        if (!res?.ok) {
-            const wait = currentTick - command.enqueuedTick;
-            const delayInfo = Number.isFinite(wait) ? ` (delay=${wait}t)` : "";
-            if (isDebug) {
-                logger.info(
-                    `[movement] walk rejected (${context}): ${
-                        res?.message || "no path"
-                    }${delayInfo}`,
-                );
-            }
-            if (res?.message === "movement_locked") {
-                this.queueChatMessage({
-                    messageType: "game",
-                    text: "A magical force stops you from moving.",
-                    targetPlayerIds: [this.players?.get(sock)?.id ?? 0].filter((id) => id > 0),
-                });
-            }
-        } else {
-            const wait = currentTick - command.enqueuedTick;
-            if (isDebug) {
-                if (wait > 0) {
-                    logger.info(`[movement] walk accepted (${context}) delay=${wait}t`);
-                } else if (context === "immediate") {
-                    logger.info("[movement] walk accepted (immediate)");
-                }
-            }
-            if (player && res.destinationCorrection) {
-                const corrected = res.destinationCorrection;
-                this.withDirectSendBypass("destination_correction", () =>
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "destination",
-                            payload: {
-                                worldX: corrected.x,
-                                worldY: corrected.y,
-                            },
-                        }),
-                        "destination_correction",
-                    ),
-                );
-            }
-            // Debug: send the server-computed path segment to the client so it can be compared
-            // against the client-side movement queue in the browser console.
-            if (isDebug && player) {
-                try {
-                    const dest = player.getWalkDestination();
-                    const steps = player.getPathQueue() as { x: number; y: number }[];
-                    const message = dest
-                        ? `walk segment dest=(${dest.x},${dest.y}) run=${!!dest.run}`
-                        : "walk segment";
-                    this.queueDirectSend(
-                        sock,
-                        encodeMessage({
-                            type: "path",
-                            payload: {
-                                id: -1000 - player.id,
-                                ok: true,
-                                waypoints: Array.isArray(steps)
-                                    ? steps.map((t) => ({ x: t.x, y: t.y }))
-                                    : [],
-                                message,
-                            },
-                        }),
-                        "walk_path_debug",
-                    );
-                } catch {}
-            }
-        }
-        return true;
     }
 
     private runMovementPhase(frame: TickFrame): void {
@@ -4251,9 +4183,6 @@ export class WSServer {
 
     private tryReleaseTeleportDelayLock(player: PlayerState, expected: LockState): void {
         this.movementService.tryReleaseTeleportDelayLock(player, expected);
-        return;
-        }
-        player.lock = LockState.NONE;
     }
 
     /**
@@ -4573,9 +4502,6 @@ export class WSServer {
         );
     }
 
-    private buildRunEnergyPayload(player: PlayerState | undefined): any | undefined {
-        return this.movementService.buildRunEnergyPayload(player);
-    }
 
     private queueRunEnergySnapshot(player: PlayerState | undefined): void {
         this.movementService.queueRunEnergySnapshot(player);
@@ -4585,13 +4511,7 @@ export class WSServer {
         this.movementService.sendRunEnergyState(sock, player);
     }
 
-    private normalizeAccountType(value: number): number {
-        return this.authService.normalizeAccountType(value);
-    }
 
-    private normalizePlayerNameForAuth(name: string | undefined): string {
-        return this.authService.normalizePlayerNameForAuth(name);
-    }
 
     private isAdminPlayer(player: PlayerState | undefined): boolean {
         return this.authService.isAdminPlayer(player);
@@ -5545,7 +5465,11 @@ export class WSServer {
             getPlayerAttackReach: (player) => this.getPlayerAttackReach(player),
             pickNpcFaceTile: (player, npc) => this.pickNpcFaceTile(player, npc),
             pickCombatSound: (player, isHit) => this.pickCombatSound(player, isHit),
-            getRangedImpactSound: (player) => this.getRangedImpactSound(player),
+            getRangedImpactSound: (player) => {
+                const equip = this.ensureEquipArray(player);
+                const weaponId = equip[EquipmentSlot.WEAPON];
+                return getRangedImpactSound(weaponId);
+            },
             deriveAttackTypeFromStyle: (style, player) =>
                 this.deriveAttackTypeFromStyle(style, player),
             pickBlockSequence: (player) =>
@@ -5655,7 +5579,7 @@ export class WSServer {
 
             // --- XP Awards ---
             awardCombatXp: (player, damage, hitData, effects) =>
-                this.awardCombatXp(player, damage, hitData, effects),
+                this.skillService.awardCombatXp(player, damage, hitData, effects),
             getSkillXpMultiplier: (player) => this.gamemode.getSkillXpMultiplier(player),
 
             // --- Special Attacks ---
@@ -6240,7 +6164,7 @@ export class WSServer {
             sendLootNotification: (player, itemId, quantity) =>
                 this.sendLootNotification(player, itemId, quantity),
             trackCollectionLogItem: (player, itemId) =>
-                this.doTrackCollectionLogItem(player, itemId),
+                this.collectionLogService.trackCollectionLogItem(player, itemId),
             queueChatMessage: (request) => this.queueChatMessage(request),
             sendWithGuard: (sock, message, context) => this.sendWithGuard(sock, message, context),
             encodeMessage: (msg) => encodeMessage(msg as any),
@@ -6383,570 +6307,6 @@ export class WSServer {
      * Build the ScriptServices object for the ScriptRuntime.
      * Extracted from the constructor to reduce constructor size and make
      * the services wiring independently modifiable.
-     */
-    private buildScriptServiceObject(
-        locTypeLoader: any,
-        combatEffectApplicator: any,
-    ): import("../game/scripts/types").ScriptServices {
-        const snapshotInventoryFn = (player: PlayerState): void => {
-            try {
-                const sock = this.players?.getSocketByPlayerId(player.id);
-                if (sock) this.sendInventorySnapshot(sock, player);
-            } catch {}
-        };
-        return {
-                getDbRepository: () => this.dbRepository,
-                // Use functions to defer loading - cache loaders are initialized later
-                getEnumTypeLoader: () => this.enumTypeLoader,
-                getStructTypeLoader: () => this.structTypeLoader,
-                getIdkTypeLoader: () => this.idkTypeLoader,
-                doorManager: this.doorManager,
-                emitLocChange: (oldId, newId, tile, level, opts) =>
-                    this.emitLocChange(oldId, newId, tile, level, opts),
-                sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
-                    this.sendLocChangeToPlayer(player, oldId, newId, tile, level),
-                spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
-                    this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
-                getObjType: (id) => this.getObjType(id),
-                getLocTypeLoader: () => locTypeLoader,
-                getNpcTypeLoader: () => this.npcTypeLoader,
-                getLocDefinition: (id) => {
-                    try {
-                        return locTypeLoader?.load?.(id);
-                    } catch {
-                        return undefined;
-                    }
-                },
-                consumeItem: (player, slotIndex) => this.consumeItem(player, slotIndex),
-                getInventoryItems: (player) =>
-                    this.getInventory(player).map((entry, idx) => ({
-                        slot: idx,
-                        itemId: entry ? entry.itemId : -1,
-                        quantity: entry ? entry.quantity : 0,
-                    })),
-                addSkillXp: (player, skillId, xp) => {
-                    try {
-                        this.awardSkillXp(player, skillId as SkillId, Number.isFinite(xp) ? xp : 0);
-                    } catch {}
-                },
-                playPlayerSeq: (player, seqId, delay = 0) => {
-                    try {
-                        player.queueOneShotSeq(seqId, delay);
-                    } catch {}
-                },
-                playPlayerSeqImmediate: (player, seqId) => {
-                    try {
-                        // OSRS parity: sequences are delivered via player update blocks.
-                        player.queueOneShotSeq(seqId, 0);
-                    } catch {}
-                },
-                getEquippedItem: (player, slot) => {
-                    try {
-                        const equip = this.ensureEquipArray(player);
-                        return equip[slot] ?? -1;
-                    } catch {
-                        return -1;
-                    }
-                },
-                unequipItem: (player, slot) => {
-                    try {
-                        const slotIndex = Math.max(0, Math.min(EQUIP_SLOT_COUNT - 1, slot));
-                        const equip = this.ensureEquipArray(player);
-                        const itemId = equip[slotIndex];
-                        if (!(itemId > 0)) return false;
-
-                        const result = this.inventoryActionHandler.executeInventoryUnequipAction(
-                            player,
-                            {
-                                slot: slotIndex,
-                                playSound: true,
-                            },
-                        );
-                        if (result.ok && result.effects) {
-                            this.effectDispatcher.dispatchActionEffects(result.effects);
-                        }
-                        return result.ok;
-                    } catch {
-                        return false;
-                    }
-                },
-                broadcastPlayerSpot: (player, spotId, height = 0, delay = 0, slotArg?: number) => {
-                    try {
-                        // OSRS parity: encode actor spot anim via the player update block.
-                        // Stage into the tick-frame so it is emitted alongside other state.
-                        const tick = this.options.ticker.currentTick();
-                        const slot =
-                            slotArg !== undefined && Number.isFinite(slotArg)
-                                ? slotArg & 0xff
-                                : undefined;
-                        this.enqueueSpotAnimation({
-                            tick,
-                            playerId: player.id,
-                            spotId: spotId,
-                            height: height,
-                            delay: delay,
-                            slot,
-                        });
-                    } catch {}
-                },
-                playLocGraphic: (opts) => this.playLocGraphic(opts),
-                playLocSound: (opts) => this.playLocSound(opts),
-                playAreaSound: (opts) => this.playAreaSound(opts),
-                playSong: (player, trackId, trackName) =>
-                    this.soundManager.playSongForPlayer(player, trackId, trackName),
-                skipMusicTrack: (player) => this.soundManager.skipTrackForPlayer(player),
-                getMusicTrackId: (trackName) => this.getMusicTrackIdByName(trackName),
-                getMusicTrackBySlot: (slot) =>
-                    this.musicCatalogService?.getBaseListTrackBySlot(slot),
-                sendGameMessage: (player: PlayerState, text: string) => this.sendGameMessageToPlayer(player, text),
-                getCurrentTick: () => this.options.ticker.currentTick(),
-                getPathService: () => this.options.pathService,
-                snapshotInventory: snapshotInventoryFn,
-                snapshotInventoryImmediate: snapshotInventoryFn,
-                setInventorySlot: (player, slotIndex, itemId, qty) =>
-                    this.setInventorySlot(player, slotIndex, itemId, qty),
-                addItemToInventory: (player, itemId, qty) =>
-                    this.addItemToInventory(player, itemId, qty),
-                spawnNpc: (config) => this.npcManager?.spawnTransientNpc(config),
-                removeNpc: (npcId) => this.npcManager?.removeNpc(npcId) ?? false,
-                openDialog: (player, request) =>
-                    this.widgetDialogHandler.openDialog(player, request as any),
-                openDialogOptions: (player, options) =>
-                    this.widgetDialogHandler.openDialogOptions(player, options as any),
-                closeDialog: (player, dialogId) =>
-                    this.widgetDialogHandler.closeDialog(player, dialogId),
-                closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
-                queueForcedMovement: (player, params) => {
-                    const currentTick = this.options.ticker.currentTick();
-                    const deliveryTick = this.activeFrame ? this.activeFrame.tick : currentTick + 1;
-                    const requestedStartTick = params.startTick ?? deliveryTick;
-                    const requestedEndTick = params.endTick;
-                    const durationTicks = Math.max(0, requestedEndTick - requestedStartTick);
-                    // Dialog/widget callbacks can fire several ticks after the original interaction.
-                    // Exact-move timing must be rebased to the frame that will actually deliver it,
-                    // while preserving the requested duration.
-                    const normalizedStartTick = Math.max(deliveryTick, requestedStartTick);
-                    const normalizedEndTick = normalizedStartTick + durationTicks;
-                    const startTile = params.startTile;
-                    const endTile = params.endTile;
-                    const startX = (startTile.x << 7) + 64;
-                    const startY = (startTile.y << 7) + 64;
-                    const endX = (endTile.x << 7) + 64;
-                    const endY = (endTile.y << 7) + 64;
-                    this.enqueueForcedMovement({
-                        targetId: player.id,
-                        startDeltaX: startTile.x - player.tileX,
-                        startDeltaY: startTile.y - player.tileY,
-                        endDeltaX: endTile.x - player.tileX,
-                        endDeltaY: endTile.y - player.tileY,
-                        startCycle: normalizedStartTick,
-                        endCycle: normalizedEndTick,
-                        direction: params.direction ?? faceAngleRs(startX, startY, endX, endY),
-                    });
-                },
-                requestAction: (player, request, currentTick) =>
-                    (() => {
-                        try {
-                            const groups = Array.isArray(request?.groups) ? request.groups : [];
-                            // Starting a new woodcutting action should replace any in-progress chop loop.
-                            if (groups.includes("skill.woodcut")) {
-                                this.actionScheduler.clearActionsInGroup(
-                                    player.id,
-                                    "skill.woodcut",
-                                );
-                            }
-                        } catch {}
-                        return this.actionScheduler.requestAction(
-                            player.id,
-                            request,
-                            Number.isFinite(currentTick)
-                                ? (currentTick as number)
-                                : this.options.ticker.currentTick(),
-                        );
-                    })(),
-                findOwnedItemLocation: (player, itemId) =>
-                    this.findOwnedItemLocation(player, itemId),
-                getWoodcuttingTree: undefined,
-                getMiningRock: undefined,
-                getFishingSpot: undefined,
-                applyPrayers: (player, prayers) => {
-                    // Capture previous prayers before applying changes
-                    const previousPrayers = new Set(player.getActivePrayers());
-                    const result = this.prayerSystem.applySelection(player, prayers);
-                    if (result.errors.length) {
-                        for (const err of result.errors) {
-                            this.queueChatMessage({
-                                messageType: "game",
-                                text: err.message,
-                                targetPlayerIds: [player.id],
-                            });
-                        }
-                    }
-                    if (result.changed || result.errors.length) {
-                        this.queueCombatSnapshot(
-                            player.id,
-                            player.combatWeaponCategory,
-                            player.combatWeaponItemId,
-                            !!player.autoRetaliate,
-                            player.combatStyleSlot,
-                            result.activePrayers,
-                            player.combatSpellId > 0 ? player.combatSpellId : undefined,
-                        );
-                        // Queue appearance update to sync headIcons for overhead prayer display
-                        this.queueAppearanceSnapshot(player);
-                    }
-                    // Play prayer sounds for activation/deactivation
-                    if (result.changed) {
-                        const currentPrayers = new Set(result.activePrayers);
-                        // Find newly activated prayers and play their sounds
-                        for (const prayer of currentPrayers) {
-                            if (!previousPrayers.has(prayer)) {
-                                const soundId = PRAYER_ACTIVATE_SOUNDS.get(prayer);
-                                if (soundId != null) {
-                                    this.sendSound(player, soundId);
-                                }
-                            }
-                        }
-                        // If any prayers were deactivated, play deactivation sound once
-                        for (const prayer of previousPrayers) {
-                            if (!currentPrayers.has(prayer)) {
-                                this.sendSound(player, PRAYER_DEACTIVATE_SOUND);
-                                break; // Only play once even if multiple deactivated
-                            }
-                        }
-                    }
-                    return result;
-                },
-                setCombatSpell: (player, spellId) => {
-                    player.setCombatSpell(spellId ?? null);
-                    this.queueCombatSnapshot(
-                        player.id,
-                        player.combatWeaponCategory,
-                        player.combatWeaponItemId,
-                        !!player.autoRetaliate,
-                        player.combatStyleSlot,
-                        Array.from(player.activePrayers ?? []),
-                        player.combatSpellId > 0 ? player.combatSpellId : undefined,
-                    );
-                },
-                queueCombatState: (player) =>
-                    this.queueCombatSnapshot(
-                        player.id,
-                        player.combatWeaponCategory,
-                        player.combatWeaponItemId,
-                        !!player.autoRetaliate,
-                        player.combatStyleSlot,
-                        Array.from(player.activePrayers ?? []),
-                        player.combatSpellId > 0 ? player.combatSpellId : undefined,
-                    ),
-                openSubInterface: (player, targetUid, groupId, type = 0, opts) => {
-                    const t = type;
-                    const varps =
-                        opts?.varps && Object.keys(opts.varps).length > 0 ? opts.varps : undefined;
-                    const varbits =
-                        opts?.varbits && Object.keys(opts.varbits).length > 0
-                            ? opts.varbits
-                            : undefined;
-                    const preScripts =
-                        Array.isArray(opts?.preScripts) && opts.preScripts.length > 0
-                            ? opts.preScripts
-                            : undefined;
-                    const postScripts =
-                        Array.isArray(opts?.postScripts) && opts.postScripts.length > 0
-                            ? opts.postScripts
-                            : undefined;
-                    const explicitHiddenUids =
-                        Array.isArray((opts as any)?.hiddenUids) &&
-                        (opts as any).hiddenUids.length > 0
-                            ? ((opts as any).hiddenUids as number[]).map((uid) => uid)
-                            : undefined;
-                    const hiddenUids = explicitHiddenUids;
-
-                    // Track sub-interfaces via PlayerWidgetManager so they can be closed
-                    // on IF_CLOSE / walk / damage / etc.
-                    // Type 0 (modal) and type 1 (overlay on floater) are both closeable.
-                    // IMPORTANT: avoid double-sending packets (PlayerWidgetManager.open will dispatch open_sub).
-                    if (t === 0 || t === 1) {
-                        player.widgets.open(groupId, {
-                            targetUid: targetUid,
-                            type: t,
-                            modal: opts?.modal !== false,
-                            varps,
-                            varbits,
-                            hiddenUids,
-                            preScripts,
-                            postScripts,
-                        });
-                        return;
-                    }
-
-                    // Other types (e.g. 3 = tab replacement) are sent directly.
-                    const action: any = {
-                        action: "open_sub",
-                        targetUid: targetUid,
-                        groupId: groupId,
-                        type: t,
-                    };
-                    if (varps) action.varps = varps;
-                    if (varbits) action.varbits = varbits;
-                    if (hiddenUids) action.hiddenUids = hiddenUids;
-                    if (preScripts) action.preScripts = preScripts;
-                    if (postScripts) action.postScripts = postScripts;
-                    this.queueWidgetEvent(player.id, action);
-                },
-                closeSubInterface: (player, targetUid, groupId) => {
-                    const closedEntries =
-                        groupId !== undefined
-                            ? player.widgets.close(groupId)
-                            : player.widgets.closeByTargetUid(targetUid);
-                    if (closedEntries.length === 0) {
-                        this.queueWidgetEvent(player.id, {
-                            action: "close_sub",
-                            targetUid: targetUid,
-                        });
-                    }
-                    if (this.interfaceService && closedEntries.length > 0) {
-                        this.interfaceService.triggerCloseHooksForEntries(player, closedEntries);
-                    }
-                },
-                closeModal: (player) => {
-                    // Close via InterfaceService to properly trigger hooks and update tracking
-                    this.interfaceService?.closeModal(player);
-                },
-                teleportPlayer: (player, x, y, level, forceRebuild = false) =>
-                    this.teleportPlayer(player, x, y, level, forceRebuild),
-                teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
-                    this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
-                requestTeleportAction: (player, request) =>
-                    this.requestTeleportAction(player, request),
-                sendVarp: (player, varpId, value) => {
-                    // Queue during tick execution to avoid "direct-send" errors.
-                    this.queueVarp(player.id, varpId, value);
-                },
-                sendVarbit: (player, varbitId, value) => {
-                    // Queue during tick execution to avoid "direct-send" errors.
-                    this.queueVarbit(player.id, varbitId, value);
-                },
-                sendCollectionLogSnapshot: (player) => {
-                    this.sendCollectionLogSnapshot(player);
-                },
-                openCollectionLog: (player) => {
-                    this.doOpenCollectionLog(player);
-                },
-                openCollectionOverview: (player) => {
-                    this.doOpenCollectionOverview(player);
-                },
-                populateCollectionLogCategories: (player, tabIndex) => {
-                    this.doPopulateCollectionLogCategories(player, tabIndex);
-                },
-                queueVarp: (playerId, varpId, value) => {
-                    this.queueVarp(playerId, varpId, value);
-                },
-                queueVarbit: (playerId, varbitId, value) => {
-                    this.queueVarbit(playerId, varbitId, value);
-                },
-                queueWidgetEvent: (playerId, event) => {
-                    this.queueWidgetEvent(playerId, event);
-                },
-                queueNotification: (playerId, payload) => {
-                    this.queueNotification(playerId, payload);
-                },
-                queueClientScript: (playerId, scriptId, ...args) => {
-                    this.queueClientScript(playerId, scriptId, ...args);
-                },
-                getInterfaceService: () => this.interfaceService,
-                sendSound: (player, soundId, opts) => {
-                    this.sendSound(player, soundId, opts);
-                },
-                refreshAppearanceKits: (player) => {
-                    this.refreshAppearanceKits(player);
-                },
-                queueAppearanceSnapshot: (player) => {
-                    this.queueAppearanceSnapshot(player);
-                },
-                savePlayerSnapshot: (player) => {
-                    try {
-                        const key = player.__saveKey;
-                        if (key && key.length > 0) {
-                            this.playerPersistence.saveSnapshot(key, player);
-                        }
-                    } catch {}
-                },
-                logoutPlayer: (player, reason) => {
-                    try {
-                        const sock = this.players?.getSocketByPlayerId?.(player.id);
-                        if (sock) this.completeLogout(sock, player, reason);
-                    } catch {}
-                },
-                openRemainingTabs: (player) => {
-                    // Open the remaining tab interfaces when the gamemode tutorial completes
-                    // During tutorial, only Quest tab was shown. Now open all other tabs.
-                    const { getRemainingTabInterfaces } = require("../widgets/WidgetManager");
-                    const displayMode = player.displayMode ?? 1; // Default to RESIZABLE_NORMAL
-                    const remainingInterfaces = getRemainingTabInterfaces(displayMode);
-
-                    for (const intf of remainingInterfaces) {
-                        player.widgets?.open(intf.groupId, {
-                            targetUid: intf.targetUid,
-                            type: intf.type,
-                            modal: false,
-                            postScripts: intf.postScripts,
-                        });
-                    }
-                },
-                // --- Action handler services ---
-                getNpc: (id) => this.npcManager?.getById(id) ?? undefined,
-                getSkill: (player, skillId) => {
-                    const skill = player.getSkill(skillId);
-                    return { baseLevel: skill.baseLevel, boost: skill.boost, xp: skill.xp };
-                },
-                isPlayerStunned: (player) => player.timers.has(STUN_TIMER),
-                isPlayerInCombat: (player) => player.isBeingAttacked(),
-                hasInventorySlot: (player) => player.getFreeSlotCount() > 0,
-                applyPlayerHitsplat: (player, style, damage, tick) =>
-                    combatEffectApplicator.applyPlayerHitsplat(player, style, damage, tick),
-                stunPlayer: (player, ticks) => {
-                    player.timers.set(STUN_TIMER, ticks);
-                },
-                queueNpcForcedChat: (npc, text) => {
-                    npc.pendingSay = text;
-                },
-                queueNpcSeq: (npc, seqId) => {
-                    npc.queueOneShotSeq(seqId);
-                },
-                faceNpcToPlayer: (npc, player) => {
-                    npc.faceTile(player.tileX, player.tileY);
-                },
-                clearPlayerFaceTarget: (player) => {
-                    try { player.clearInteraction(); } catch {}
-                },
-                scheduleAction: (playerId, request, tick) =>
-                    this.actionScheduler.requestAction(playerId, request, tick),
-                getEquipArray: (player) => this.ensureEquipArray(player),
-                // --- Gathering / production skill services ---
-                isAdjacentToLoc: (player, locId, tile, level) =>
-                    this.isAdjacentToLoc(player, locId, tile, level),
-                isAdjacentToNpc: (player, npc) => this.isAdjacentToNpc(player, npc),
-                faceGatheringTarget: (player, tile) => this.faceGatheringTarget(player, tile),
-                collectCarriedItemIds: (player) => this.collectCarriedItemIds(player),
-                findInventorySlotWithItem: (player, itemId) =>
-                    this.findInventorySlotWithItem(player, itemId),
-                canStoreItem: (player, itemId) => this.canStoreItem(player, itemId),
-                playerHasItem: (player, itemId) => this.playerHasItem(player, itemId),
-                enqueueSoundBroadcast: (soundId, x, y, level) =>
-                    this.enqueueSoundBroadcast(soundId, x, y, level),
-                stopPlayerAnimation: (player) => {
-                    try { player.stopAnimation(); } catch {}
-                },
-                stopGatheringInteraction: (player) => {
-                    try { player.clearInteraction(); } catch {}
-                    try { player.stopAnimation(); } catch {}
-                    try { player.clearPath(); } catch {}
-                    try { player.clearWalkDestination(); } catch {}
-                },
-                gathering: this.gatheringSystem,
-                isFiremakingTileBlocked: undefined,
-                lightFire: undefined,
-                playerHasTinderbox: undefined,
-                consumeFiremakingLog: undefined,
-                walkPlayerAwayFromFire: undefined,
-                getCookingRecipeByRawItemId: undefined,
-                production: {
-                    takeInventoryItems: (player, inputs) =>
-                        this.takeInventoryItems(player, inputs),
-                    restoreInventoryRemovals: (player, removed) =>
-                        this.restoreInventoryRemovals(player, removed),
-                    restoreInventoryItems: (player, itemId, removed) =>
-                        this.restoreInventoryItems(player, itemId, removed),
-                    queueSmithingMessage: (playerId, payload) =>
-                        this.queueSmithingInterfaceMessage(playerId, payload),
-                    openSmithingModal: (player, groupId, varbits) =>
-                        this.interfaceService?.openModal(player, groupId, undefined, varbits ? { varbits } : undefined),
-                    closeSmithingModal: (player) =>
-                        this.interfaceService?.closeModal(player),
-                    isSmithingModalOpen: (player, groupId) =>
-                        this.interfaceService?.isModalOpen(player, groupId) ?? false,
-                    openSmithingBarModal: (player) =>
-                        this.cs2ModalManager.openSmithingBarModal(player),
-                    getBarTypeByItemId: (_itemId) => undefined,
-                },
-                followers: {
-                    summonFollowerFromItem: (player, itemId, npcTypeId) => {
-                        const result = this.followerManager?.summonFollowerFromItem(
-                            player,
-                            itemId,
-                            npcTypeId,
-                        ) ?? {
-                            ok: false as const,
-                            reason: "spawn_failed",
-                        };
-                        if (result.ok) {
-                            this.followerCombatManager?.resetPlayer(player.id);
-                        }
-                        return result;
-                    },
-                    pickupFollower: (player, npcId) => {
-                        const result = this.followerManager?.pickupFollower(player, npcId) ?? {
-                            ok: false as const,
-                            reason: "missing",
-                        };
-                        if (result.ok) {
-                            this.followerCombatManager?.resetPlayer(player.id);
-                        }
-                        return result;
-                    },
-                    metamorphFollower: (player, npcId) => {
-                        const result = this.followerManager?.metamorphFollower(player, npcId) ?? {
-                            ok: false as const,
-                            reason: "missing",
-                        };
-                        if (result.ok) {
-                            this.followerCombatManager?.resetPlayer(player.id);
-                        }
-                        return result;
-                    },
-                    callFollower: (player) => {
-                        const result = this.followerManager?.callFollower(player) ?? {
-                            ok: false as const,
-                            reason: "missing",
-                        };
-                        if (result.ok) {
-                            this.followerCombatManager?.resetPlayer(player.id);
-                            const npc = this.npcManager?.getById(result.npcId);
-                            if (npc) {
-                                this.queueExternalNpcTeleportSync(npc);
-                            }
-                        }
-                        return result;
-                    },
-                    despawnFollowerForPlayer: (playerId, clearPersistentState) => {
-                        this.followerCombatManager?.resetPlayer(playerId);
-                        return (
-                            this.followerManager?.despawnFollowerForPlayer(
-                                playerId,
-                                clearPersistentState,
-                            ) ?? false
-                        );
-                    },
-                },
-                sailing: {
-                    initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
-                    disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
-                    teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
-                        this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
-                    sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
-                        this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
-                    removeWorldEntity: (playerId, entityIndex) => this.worldEntityInfoEncoder.removeEntity(playerId, entityIndex),
-                    queueWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.queuePosition(playerId, entityIndex, position),
-                    setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
-                    queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
-                    buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
-                },
-        };
-    }
-
-    /**
-     * Create the TickPhaseOrchestrator with all required services.
      */
     private createTickOrchestrator(): TickPhaseOrchestrator {
         const services: TickPhaseOrchestratorServices = {
@@ -7130,7 +6490,7 @@ export class WSServer {
             sendVarp: (player, varpId, value) => this.queueVarp(player.id, varpId, value),
             sendVarbit: (player, varbitId, value) => this.queueVarbit(player.id, varbitId, value),
             trackCollectionLogItem: (player, itemId) =>
-                this.doTrackCollectionLogItem(player, itemId),
+                this.collectionLogService.trackCollectionLogItem(player, itemId),
             sendRunEnergyState: (ws, player) => this.sendRunEnergyState(ws, player),
             getWeaponSpecialCostPercent: (weaponId) => this.getWeaponSpecialCostPercent(weaponId),
             queueCombatState: (player) => this.queueCombatState(player),
@@ -7232,9 +6592,6 @@ export class WSServer {
         return this.appearanceService.getOrCreateAppearance(player);
     }
 
-    private getIdkBodyPartId(kit: IdkType): number {
-        return this.appearanceService.getIdkBodyPartId(kit);
-    }
 
     private createDefaultAppearance(): PlayerAppearanceState {
         return this.appearanceService.createDefaultAppearance();
@@ -7256,9 +6613,6 @@ export class WSServer {
         return remoteAddress && remoteAddress.length > 0 ? remoteAddress : undefined;
     }
 
-    private getPlayerAgilityLevel(player: PlayerState): number {
-        return this.movementService.getPlayerAgilityLevel(player);
-    }
 
     private equipmentStatsUid(childId: number): number {
         return ((EQUIPMENT_STATS_GROUP_ID & 0xffff) << 16) | (childId & 0xffff);
@@ -7418,13 +6772,7 @@ export class WSServer {
         );
     }
 
-    private computePlayerWeightKg(player: PlayerState): number {
-        return this.movementService.computePlayerWeightKg(player);
-    }
 
-    private computeRunEnergyDrainUnits(weightKg: number, agilityLevel: number): number {
-        return this.movementService.computeRunEnergyDrainUnits(weightKg, agilityLevel);
-    }
 
     private computeRunEnergyRegenUnits(
         agilityLevel: number,
@@ -7433,9 +6781,6 @@ export class WSServer {
         return this.movementService.computeRunEnergyRegenUnits(agilityLevel, opts);
     }
 
-    private countGracefulPieces(player: PlayerState): number {
-        return this.movementService.countGracefulPieces(player);
-    }
 
     private updateRunEnergy(
         player: PlayerState,
@@ -7674,16 +7019,11 @@ export class WSServer {
         return this.appearanceService.loadAnimSetFromBas(loader);
     }
 
-    private animSetFromBas(bas: BasType | undefined): PlayerAnimSet | undefined {
-        return this.appearanceService.loadAnimSetFromBas(() => bas);
-    }
 
     private guessBasIdForAppearance(
         appearance: { gender?: number } | undefined,
     ): number | undefined {
         return this.appearanceService.guessBasIdForAppearance(appearance);
-        if (gender === 1) return 1;
-        return 0;
     }
 
     private resolveAnimForAppearance(appearance: { gender?: number } | undefined): PlayerAnimSet {
@@ -7701,9 +7041,6 @@ export class WSServer {
         return ensureCorePlayerAnimSet(genderFallback, this.defaultPlayerAnim);
     }
 
-    private assignPlayerAnimFromAppearance(p: PlayerState): PlayerAnimSet | undefined {
-        return this.appearanceService.assignPlayerAnimFromAppearance(p);
-    }
 
     private loadWeaponData(): void {
         this.appearanceService.loadWeaponData();
@@ -7719,9 +7056,6 @@ export class WSServer {
         return this.combatDataService.getWeaponSpecialCostPercent(weaponItemId);
     }
 
-    private getWeaponSpecialDescription(weaponItemId: number): string | undefined {
-        return this.combatDataService.getWeaponSpecialDescription(weaponItemId);
-    }
 
     private applyWeaponAnimOverrides(
         p: PlayerState,
@@ -8099,9 +7433,6 @@ export class WSServer {
         }
     }
 
-    private collectCarriedItemIds(player: PlayerState): number[] {
-        return this.inventoryService.collectCarriedItemIds(player);
-    }
 
     private sendInventorySnapshot(ws: WebSocket, p: PlayerState): void {
         this.inventoryService.sendInventorySnapshot(ws, p);
@@ -8111,29 +7442,11 @@ export class WSServer {
      * Send the collection log inventory (620) snapshot to a player.
      * Converts the player's collectionObtained map to slot format.
      */
-    private sendCollectionLogSnapshot(player: PlayerState): void {
-        this.collectionLogService.sendCollectionLogSnapshot(player);
-    }
 
-    private getCollectionLogServices(): CollectionLogServices {
-        return this.collectionLogService.getCollectionLogServices();
-    }
 
-    private doOpenCollectionLog(player: PlayerState): void {
-        this.collectionLogService.openCollectionLog(player);
-    }
 
-    private doOpenCollectionOverview(player: PlayerState): void {
-        this.collectionLogService.openCollectionOverview(player);
-    }
 
-    private doPopulateCollectionLogCategories(player: PlayerState, tabIndex: number): void {
-        this.collectionLogService.populateCollectionLogCategories(player, tabIndex);
-    }
 
-    private doTrackCollectionLogItem(player: PlayerState, itemId: number): void {
-        this.collectionLogService.trackCollectionLogItem(player, itemId);
-    }
 
     /**
      * Queue a varp update to be sent to the client.
@@ -8189,13 +7502,7 @@ export class WSServer {
         return this.inventoryService.consumeItem(p, slotIndex);
     }
 
-    private findInventorySlotWithItem(player: PlayerState, itemId: number): number | undefined {
-        return this.inventoryService.findInventorySlotWithItem(player, itemId);
-    }
 
-    private playerHasItem(player: PlayerState, itemId: number): boolean {
-        return this.inventoryService.playerHasItem(player, itemId);
-    }
 
     private findOwnedItemLocation(
         player: PlayerState,
@@ -8206,14 +7513,6 @@ export class WSServer {
 
     private countInventoryItem(player: PlayerState, itemId: number): number {
         return this.inventoryService.countInventoryItem(player, itemId);
-    }
-
-    private restoreInventoryItems(
-        player: PlayerState,
-        itemId: number,
-        removed: Map<number, number>,
-    ): void {
-        this.inventoryService.restoreInventoryItems(player, itemId, removed);
     }
 
     private awardSkillXp(player: PlayerState, skillId: SkillId, xp: number): void {
@@ -10686,28 +9985,6 @@ export class WSServer {
         });
     }
 
-    private takeInventoryItems(
-        player: PlayerState,
-        requirements: Array<{ itemId: number; quantity: number }>,
-    ): { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> } {
-        return this.inventoryService.takeInventoryItems(player, requirements);
-    }
-
-    private restoreInventoryRemovals(
-        player: PlayerState,
-        removed: Map<number, { itemId: number; quantity: number }>,
-    ): void {
-        this.inventoryService.restoreInventoryRemovals(player, removed);
-    }
-
-    private hasInventorySlot(player: PlayerState): boolean {
-        return this.inventoryService.hasInventorySlot(player);
-    }
-
-    private canStoreItem(player: PlayerState, itemId: number): boolean {
-        return this.inventoryService.canStoreItem(player, itemId);
-    }
-
     private isAdjacentToTile(player: PlayerState, tile: { x: number; y: number }, radius = 1): boolean {
         return this.locationService.isAdjacentToTile(player, tile, radius);
     }
@@ -10806,14 +10083,8 @@ export class WSServer {
         };
     }
 
-    private faceGatheringTarget(player: PlayerState, tile: { x: number; y: number }): void {
-        this.locationService.faceGatheringTarget(player, tile);
-    }
 
 
-    private isAdjacentToNpc(player: PlayerState, npc: NpcState): boolean {
-        return this.locationService.isAdjacentToNpc(player, npc);
-    }
 
     private broadcastToNearby(
         x: number,
@@ -10983,17 +10254,11 @@ export class WSServer {
         return this.combatDataService.getNpcParamValue(npc, key);
     }
 
-    private resolveNpcCombatProfile(npc: NpcState): NpcCombatProfile {
-        return this.combatDataService.resolveNpcCombatProfile(npc);
-    }
 
     private loadNpcCombatDefs(): void {
         this.combatDataService.loadNpcCombatDefs();
     }
 
-    private loadNpcCombatStats(): void {
-        this.combatDataService.loadNpcCombatStats();
-    }
 
     private getNpcCombatSequences(typeId: number): {
         block?: number;
@@ -11003,9 +10268,6 @@ export class WSServer {
         return this.combatDataService.getNpcCombatSequences(typeId);
     }
 
-    private getNpcSoundFromTable88(typeId: number, soundType: NpcSoundType): number | undefined {
-        return this.combatDataService.getNpcSoundFromTable88(typeId, soundType);
-    }
 
     private getNpcDeathSoundId(typeId: number): number | undefined {
         return this.combatDataService.getNpcDeathSoundId({ typeId } as any);
@@ -11427,7 +10689,7 @@ export class WSServer {
                     const widgetGroup = (widgetId >> 16) & 0xffff;
 
                     // Check for level up popup first
-                    const q = this.levelUpPopupQueue.get(player.id);
+                    const q = (this.interfaceManager as any).levelUpPopupQueue?.get(player.id);
                     if (q && q.length > 0 && widgetGroup === LEVELUP_INTERFACE_ID) {
                         const expectedWidgetId =
                             (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT;

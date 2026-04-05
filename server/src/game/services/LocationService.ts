@@ -3,7 +3,7 @@ import type { WebSocket } from "ws";
 import { faceAngleRs } from "../../../../src/rs/utils/rotation";
 import { encodeMessage } from "../../network/messages";
 import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { BroadcastScheduler } from "../../network/broadcast/BroadcastScheduler";
+import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import type { DoorStateManager } from "../../world/DoorStateManager";
 import type { NpcState } from "../npc";
 import type { PlayerState } from "../player";

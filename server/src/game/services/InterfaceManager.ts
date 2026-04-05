@@ -1,5 +1,5 @@
 import { MAX_REAL_LEVEL, getSkillName } from "../../../../src/rs/skill/skills";
-import type { BroadcastScheduler } from "../../network/broadcast/BroadcastScheduler";
+import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import type { ActionScheduler } from "../actions";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import type { PlayerState } from "../player";

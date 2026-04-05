@@ -3,7 +3,7 @@ import type { WebSocket } from "ws";
 import { SkillId } from "../../../../src/rs/skill/skills";
 import { encodeMessage } from "../../network/messages";
 import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { BroadcastScheduler } from "../../network/broadcast/BroadcastScheduler";
+import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import { getItemDefinition } from "../../data/items";
 import { RUN_ENERGY_MAX } from "../actor";
 import type { ActionScheduler } from "../actions";
@@ -319,7 +319,7 @@ export class MovementService {
         if (!player) return undefined;
         player.syncInfiniteRunEnergy();
         const currentTick = this.deps.getCurrentTick();
-        const staminaEffectTicks = player.getStaminaEffectTicks?.(currentTick) ?? 0;
+        const staminaEffectTicks = player.getStaminaEffectRemainingTicks?.(currentTick) ?? 0;
         const staminaMultiplier = player.getRunEnergyDrainMultiplier?.(currentTick) ?? 1;
         const staminaActive = staminaEffectTicks > 0;
         const weight = this.computePlayerWeightKg(player);

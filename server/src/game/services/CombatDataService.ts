@@ -158,7 +158,11 @@ export class CombatDataService {
     getNpcSoundFromTable88(typeId: number, soundType: NpcSoundType): number | undefined {
         if (!this.deps.npcSoundLookup) return undefined;
         try {
-            return this.deps.npcSoundLookup.getSound(typeId, soundType);
+            const npcTypeLoader = this.deps.dataLoaders.getNpcTypeLoader();
+            if (!npcTypeLoader) return undefined;
+            const npcType = npcTypeLoader.load(typeId);
+            if (!npcType) return undefined;
+            return this.deps.npcSoundLookup.getSoundForNpc(npcType, soundType);
         } catch {
             return undefined;
         }
