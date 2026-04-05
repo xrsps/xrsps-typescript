@@ -337,8 +337,6 @@ export interface ProductionServiceFacade {
     takeInventoryItems: (player: PlayerState, inputs: Array<{ itemId: number; quantity: number }>) => { ok: boolean; removed: Map<number, { itemId: number; quantity: number }> };
     restoreInventoryRemovals: (player: PlayerState, removed: Map<number, { itemId: number; quantity: number }>) => void;
     restoreInventoryItems: (player: PlayerState, itemId: number, removed: Map<number, number>) => void;
-    getRingOfForgingCharges: (player: PlayerState) => number | undefined;
-    consumeRingOfForgingCharge: (player: PlayerState) => void;
     queueSmithingMessage?: (playerId: number, payload: any) => void;
     openSmithingModal?: (player: PlayerState, groupId: number, varbits?: Record<number, number>) => void;
     closeSmithingModal?: (player: PlayerState) => void;

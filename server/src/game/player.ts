@@ -73,7 +73,6 @@ import {
 } from "./model/timer";
 import { NpcState } from "./npc";
 import type { ScriptRuntime } from "./scripts/ScriptRuntime";
-import { RING_OF_FORGING_ITEM_ID, RING_OF_FORGING_MAX_CHARGES } from "./skills/smithingBonuses";
 import { PlayerCombatState } from "./state/PlayerCombatState";
 import { PlayerInventoryState } from "./state/PlayerInventoryState";
 import { PlayerPrayerState } from "./state/PlayerPrayerState";
@@ -376,7 +375,7 @@ export interface PlayerPersistentVars {
     specialEnergy?: number;
     specialActivated?: boolean;
     quickPrayers?: PrayerName[];
-    ringOfForgingCharges?: number;
+    equipmentCharges?: Array<{ itemId: number; charges: number }>;
     /**
      * Degradation system charges per equipment slot.
      * Key: equipment slot, Value: { itemId: number, charges: number }
@@ -492,7 +491,7 @@ export class PlayerState extends Actor {
     private runEnergyDirty: boolean = true;
     private staminaEffectExpiryTick: number = 0;
     private staminaDrainMultiplier: number = 1;
-    private ringOfForgingCharges: number = 0;
+    private equipmentChargeMap = new Map<number, number>();
     get degradationCharges(): ChargeTracker { return this.combat.degradationCharges; }
     set degradationCharges(v: ChargeTracker) { this.combat.degradationCharges = v; }
     get degradationLastItemId(): Map<number, number> { return this.combat.degradationLastItemId; }
@@ -1922,28 +1921,23 @@ export class PlayerState extends Actor {
         this.items.smithingCustomQuantity = Math.max(0, Math.min(2147483647, amount));
     }
 
-    getRingOfForgingCharges(): number {
-        return Math.max(0, this.ringOfForgingCharges);
+    getEquipmentCharges(itemId: number): number {
+        return Math.max(0, this.equipmentChargeMap.get(itemId) ?? 0);
     }
 
-    setRingOfForgingCharges(amount: number): void {
-        if (!Number.isFinite(amount)) {
-            this.ringOfForgingCharges = 0;
-            return;
+    setEquipmentCharges(itemId: number, charges: number): void {
+        if (!Number.isFinite(charges) || charges <= 0) {
+            this.equipmentChargeMap.delete(itemId);
+        } else {
+            this.equipmentChargeMap.set(itemId, charges);
         }
-        this.ringOfForgingCharges = Math.max(0, Math.min(RING_OF_FORGING_MAX_CHARGES, amount));
     }
 
-    hasRingOfForgingEquipped(): boolean {
+    hasEquippedItem(slot: EquipmentSlot, itemId: number): boolean {
         const equip = this.ensureAppearanceEquip();
-        return equip[EquipmentSlot.RING] === RING_OF_FORGING_ITEM_ID;
+        return equip[slot] === itemId;
     }
 
-    ensureRingOfForgingChargesInitialized(): void {
-        if (this.ringOfForgingCharges <= 0) {
-            this.ringOfForgingCharges = RING_OF_FORGING_MAX_CHARGES;
-        }
-    }
 
     // ========================================================================
     // Collection Log Methods
@@ -2548,8 +2542,12 @@ export class PlayerState extends Actor {
         if (this.prayer.quickPrayers.size > 0) {
             snapshot.quickPrayers = Array.from(this.prayer.quickPrayers);
         }
-        if (this.ringOfForgingCharges > 0) {
-            snapshot.ringOfForgingCharges = this.getRingOfForgingCharges();
+        if (this.equipmentChargeMap.size > 0) {
+            const entries: Array<{ itemId: number; charges: number }> = [];
+            for (const [itemId, charges] of this.equipmentChargeMap.entries()) {
+                if (charges > 0) entries.push({ itemId, charges });
+            }
+            if (entries.length > 0) snapshot.equipmentCharges = entries;
         }
         // Degradation charges (crystal bow, etc.)
         if (this.degradationCharges.size > 0) {
@@ -2729,13 +2727,13 @@ export class PlayerState extends Actor {
         } else {
             this.setQuickPrayers([]);
         }
-        if (state.ringOfForgingCharges !== undefined) {
-            this.setRingOfForgingCharges(state.ringOfForgingCharges);
-        } else {
-            this.setRingOfForgingCharges(0);
-        }
-        if (this.hasRingOfForgingEquipped() && this.getRingOfForgingCharges() <= 0) {
-            this.ensureRingOfForgingChargesInitialized();
+        this.equipmentChargeMap.clear();
+        if (Array.isArray(state.equipmentCharges)) {
+            for (const entry of state.equipmentCharges) {
+                if (entry?.itemId > 0 && entry?.charges > 0) {
+                    this.equipmentChargeMap.set(entry.itemId, entry.charges);
+                }
+            }
         }
         // Load degradation charges (crystal bow, etc.)
         this.degradationCharges.clear();

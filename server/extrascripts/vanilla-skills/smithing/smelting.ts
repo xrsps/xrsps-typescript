@@ -9,6 +9,8 @@ import {
     getSmeltingRecipeById,
 } from "./smithingData";
 import {
+    consumeRingOfForgingCharge,
+    getRingOfForgingCharges,
     getSmeltingXpWithBonuses,
     shouldGuaranteeIronSmelt,
 } from "./smithingBonuses";
@@ -23,7 +25,7 @@ import {
     clampBatchCount,
     enqueueSkillAction,
     getInventory,
-} from "./shared";
+} from "../production/shared";
 
 const FURNACE_ANIMATION = 899;
 
@@ -79,7 +81,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
     const effects: ActionEffect[] = [];
 
     const equip = services.getEquipArray?.(player) ?? [];
-    const ringCharges = recipe.successType === "iron" ? services.production?.getRingOfForgingCharges(player) : undefined;
+    const ringCharges = recipe.successType === "iron" ? getRingOfForgingCharges(player) : undefined;
     const success = rollSmeltingSuccess(skill?.baseLevel ?? 1, recipe, equip, ringCharges);
 
     if (success) {
@@ -103,7 +105,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
             buildMessageEffect(player, `You retrieve a ${barName.toLowerCase()}.`),
         );
         if (recipe.successType === "iron") {
-            services.production?.consumeRingOfForgingCharge(player);
+            consumeRingOfForgingCharge(player, services);
         }
     } else {
         effects.push(buildMessageEffect(player, "The iron ore is too impure and you fail to produce a bar."));

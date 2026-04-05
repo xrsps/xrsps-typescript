@@ -20,7 +20,7 @@ import {
     enqueueSkillAction,
     getInventory,
     hasItem,
-} from "./shared";
+} from "../production/shared";
 
 interface SkillSmithActionData {
     recipeId: string;

@@ -1,2 +1,0 @@
-export const RING_OF_FORGING_ITEM_ID = 2568;
-export const RING_OF_FORGING_MAX_CHARGES = 140;

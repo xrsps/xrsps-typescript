@@ -318,10 +318,6 @@ import {
     rollCookingOutcome,
 } from "../game/skills/skillSurfaces";
 import {
-    RING_OF_FORGING_ITEM_ID,
-    RING_OF_FORGING_MAX_CHARGES,
-} from "../game/skills/smithingBonuses";
-import {
     isSinewSourceItem,
     isSpinningWheelLocId,
 } from "../game/skills/spinning";
@@ -470,8 +466,6 @@ import { decodeClientPacket } from "./packet/ClientBinaryDecoder";
 import { REPORT_GAME_TIME_GROUP_ID, ReportGameTimeTracker } from "./reportGameTime";
 
 const DEFAULT_AUTOSAVE_SECONDS = 120; // Tuned via docs/autosave-sizing.md (Nov 2025)
-const RING_OF_FORGING_WARNING_THRESHOLD = 20;
-const RING_OF_FORGING_FINAL_WARNING_THRESHOLD = 1;
 
 const EQUIP_SLOT_COUNT = 14;
 const NPC_STREAM_RADIUS_TILES = 15;
@@ -7570,10 +7564,6 @@ export class WSServer {
                         this.restoreInventoryRemovals(player, removed),
                     restoreInventoryItems: (player, itemId, removed) =>
                         this.restoreInventoryItems(player, itemId, removed),
-                    getRingOfForgingCharges: (player) =>
-                        player.getRingOfForgingCharges(),
-                    consumeRingOfForgingCharge: (player) =>
-                        this.consumeRingOfForgingCharge(player, []),
                     queueSmithingMessage: (playerId, payload) =>
                         this.queueSmithingInterfaceMessage(playerId, payload),
                     openSmithingModal: (player, groupId, varbits) =>
@@ -8532,51 +8522,6 @@ export class WSServer {
         return ensureEquipQtyArrayOn(appearance, EQUIP_SLOT_COUNT);
     }
 
-    private removeRingOfForging(player: PlayerState, effects?: ActionEffect[]): void {
-        const equip = this.ensureEquipArray(player);
-        const equipQty = this.ensureEquipQtyArray(player);
-        if (equip[EquipmentSlot.RING] !== RING_OF_FORGING_ITEM_ID) return;
-        equip[EquipmentSlot.RING] = -1;
-        equipQty[EquipmentSlot.RING] = 0;
-        player.setRingOfForgingCharges(0);
-        this.refreshAppearanceKits(player);
-        if (effects) {
-            effects.push({ type: "appearanceUpdate", playerId: player.id });
-            effects.push(this.buildSkillMessageEffect(player, "Your Ring of Forging has melted."));
-        } else {
-            this.queueAppearanceSnapshot(player);
-            this.queueChatMessage({
-                messageType: "game",
-                text: "Your Ring of Forging has melted.",
-                targetPlayerIds: [player.id],
-            });
-        }
-    }
-
-    private consumeRingOfForgingCharge(player: PlayerState, effects: ActionEffect[]): void {
-        if (!player.hasRingOfForgingEquipped()) return;
-        let charges = player.getRingOfForgingCharges();
-        if (!(charges > 0)) return;
-        charges -= 1;
-        player.setRingOfForgingCharges(charges);
-        if (charges === 0) {
-            this.removeRingOfForging(player, effects);
-            return;
-        }
-        const plural = charges === 1 ? "piece" : "pieces";
-        if (
-            charges === RING_OF_FORGING_WARNING_THRESHOLD ||
-            charges === RING_OF_FORGING_FINAL_WARNING_THRESHOLD
-        ) {
-            effects.push(
-                this.buildSkillMessageEffect(
-                    player,
-                    `You can only smelt ${charges} more ${plural} of iron ore before your Ring of Forging melts.`,
-                ),
-            );
-        }
-    }
-
     private getPlayerSaveKey(name: string | undefined, id: number): string {
         return buildPlayerSaveKey(name, id);
     }
@@ -9503,13 +9448,6 @@ export class WSServer {
         }
 
         const result = this.equipmentHandler.equipItem(p, slotIndex, itemId, equipSlot, opts);
-
-        // Handle ring of forging initialization (wsServer-specific logic)
-        if (result.ok && equipSlot === EquipmentSlot.RING && itemId === RING_OF_FORGING_ITEM_ID) {
-            if (p.getRingOfForgingCharges() <= 0) {
-                p.ensureRingOfForgingChargesInitialized();
-            }
-        }
 
         return result;
     }
