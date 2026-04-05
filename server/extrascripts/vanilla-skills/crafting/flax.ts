@@ -5,7 +5,7 @@ import {
     FLAX_PICK_DELAY_TICKS,
     isFlaxLocId,
 } from "../../../src/game/skills/flax";
-import type { ScriptActionHandlerContext, ScriptModule } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 const FLAX_ACTIONS = ["pick", "pick-flax"];
 const FLAX_GROUP = "skill.flax";
@@ -73,47 +73,44 @@ function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     };
 }
 
-export const flaxModule: ScriptModule = {
-    id: "vanilla-skills.crafting.flax",
-    register(registry, services) {
-        registry.registerActionHandler("skill.flax", executeFlaxAction);
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registry.registerActionHandler("skill.flax", executeFlaxAction);
 
-        const requestAction = services.requestAction;
-        const registerLoc = (locId: number, action: string) => {
-            registry.registerLocInteraction(
-                locId,
-                (event) => {
-                    if (!isFlaxLocId(event.locId)) return;
-                    const result = requestAction(
-                        event.player,
-                        {
-                            kind: "skill.flax",
-                            data: {
-                                locId: event.locId,
-                                tile: { x: event.tile.x, y: event.tile.y },
-                                level: event.level,
-                            },
-                            delayTicks: 0,
-                            cooldownTicks: FLAX_PICK_DELAY_TICKS,
-                            groups: [FLAX_GROUP],
+    const requestAction = services.requestAction;
+    const registerLoc = (locId: number, action: string) => {
+        registry.registerLocInteraction(
+            locId,
+            (event) => {
+                if (!isFlaxLocId(event.locId)) return;
+                const result = requestAction(
+                    event.player,
+                    {
+                        kind: "skill.flax",
+                        data: {
+                            locId: event.locId,
+                            tile: { x: event.tile.x, y: event.tile.y },
+                            level: event.level,
                         },
-                        event.tick,
+                        delayTicks: 0,
+                        cooldownTicks: FLAX_PICK_DELAY_TICKS,
+                        groups: [FLAX_GROUP],
+                    },
+                    event.tick,
+                );
+                if (!result.ok) {
+                    services.sendGameMessage(
+                        event.player,
+                        "You're too busy to pick flax right now.",
                     );
-                    if (!result.ok) {
-                        services.sendGameMessage(
-                            event.player,
-                            "You're too busy to pick flax right now.",
-                        );
-                    }
-                },
-                action,
-            );
-        };
+                }
+            },
+            action,
+        );
+    };
 
-        for (const locId of FLAX_LOC_IDS) {
-            for (const action of FLAX_ACTIONS) {
-                registerLoc(locId, action);
-            }
+    for (const locId of FLAX_LOC_IDS) {
+        for (const action of FLAX_ACTIONS) {
+            registerLoc(locId, action);
         }
-    },
-};
+    }
+}

@@ -16,7 +16,8 @@ import {
     type LocInteractionEvent,
     type ScriptActionHandlerContext,
     type ScriptInventoryEntry,
-    type ScriptModule,
+    type IScriptRegistry,
+    type ScriptServices,
 } from "../../../src/game/scripts/types";
 
 const MAX_BATCH = 28;
@@ -72,7 +73,7 @@ const formatProductLabel = (
 };
 
 const enqueueSpinAction = (
-    services: Parameters<ScriptModule["register"]>[1],
+    services: ScriptServices,
     player: PlayerState,
     recipe: SpinningRecipe,
     desiredCount: number,
@@ -224,123 +225,120 @@ function executeSinewAction(ctx: ScriptActionHandlerContext): ActionExecutionRes
     };
 }
 
-export const spinningModule: ScriptModule = {
-    id: "vanilla-skills.crafting.spinning",
-    register(registry, services) {
-        registry.registerActionHandler("skill.spin", executeSpinAction);
-        registry.registerActionHandler("skill.sinew", executeSinewAction);
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registry.registerActionHandler("skill.spin", executeSpinAction);
+    registry.registerActionHandler("skill.sinew", executeSinewAction);
 
-        const getInventoryItems = services.getInventoryItems;
-        const openDialogOptions = services.openDialogOptions;
-        const closeDialog = services.closeDialog;
+    const getInventoryItems = services.getInventoryItems;
+    const openDialogOptions = services.openDialogOptions;
+    const closeDialog = services.closeDialog;
 
-        const handleSpinRequest = ({ player, tick }: { player: PlayerState; tick?: number }) => {
-            const inventory = getInventoryItems(player);
-            const level = services.getSkill?.(player, SkillId.Crafting)?.baseLevel ?? 1;
+    const handleSpinRequest = ({ player, tick }: { player: PlayerState; tick?: number }) => {
+        const inventory = getInventoryItems(player);
+        const level = services.getSkill?.(player, SkillId.Crafting)?.baseLevel ?? 1;
 
-            const choices: CraftableChoice[] = SPINNING_RECIPES.map((recipe) => {
-                const batch = computeBatchCount(inventory as InventoryEntry[], recipe);
-                const levelMet = level >= recipe.level;
-                return {
-                    recipe,
-                    batch,
-                    levelMet,
-                    label: formatProductLabel(recipe, { levelMet, batch }),
-                };
-            }).filter((choice) => choice.batch > 0);
-
-            if (choices.length === 0) {
-                services.sendGameMessage(
-                    player,
-                    "You need something like wool, flax, sinew, or roots to spin.",
-                );
-                return;
-            }
-
-            const craftableChoices = choices.filter(
-                (choice) => choice.levelMet && choice.batch > 0,
-            );
-            if (craftableChoices.length === 0) {
-                const lowestReq = choices.reduce((prev, curr) =>
-                    curr.recipe.level < prev.recipe.level ? curr : prev,
-                );
-                services.sendGameMessage(
-                    player,
-                    `You need Crafting level ${lowestReq.recipe.level} to spin ${lowestReq.recipe.name}.`,
-                );
-                return;
-            }
-
-            const attemptEnqueue = (target: CraftableChoice) => {
-                const batches = buildBatchOptions(target.batch);
-                if (batches.length === 0) {
-                    services.sendGameMessage(player, "You decide not to spin anything.");
-                    return;
-                }
-                const dialogId = `spin_batch_${target.recipe.id}`;
-                if (openDialogOptions) {
-                    openDialogOptions(player, {
-                        id: dialogId,
-                        modal: true,
-                        title: `How many ${target.recipe.name}?`,
-                        options: batches.map((option) => option.label),
-                        onSelect: (index) => {
-                            const selected = batches[index];
-                            if (!selected) {
-                                services.sendGameMessage(player, "You decide not to spin anything.");
-                                return;
-                            }
-                            closeDialog?.(player, dialogId);
-                            const ok = enqueueSpinAction(services, player, target.recipe, selected.count, tick);
-                            if (!ok) {
-                                services.sendGameMessage(player, "You're too busy to spin anything right now.");
-                            }
-                        },
-                    });
-                    return;
-                }
-                const fallbackCount = batches[batches.length - 1]?.count ?? 1;
-                const ok = enqueueSpinAction(services, player, target.recipe, fallbackCount, tick);
-                if (!ok) {
-                    services.sendGameMessage(player, "You're too busy to spin anything right now.");
-                }
+        const choices: CraftableChoice[] = SPINNING_RECIPES.map((recipe) => {
+            const batch = computeBatchCount(inventory as InventoryEntry[], recipe);
+            const levelMet = level >= recipe.level;
+            return {
+                recipe,
+                batch,
+                levelMet,
+                label: formatProductLabel(recipe, { levelMet, batch }),
             };
+        }).filter((choice) => choice.batch > 0);
 
-            const showProductDialog = (): void => {
-                const dialogId = `spin_products_${player.id}`;
-                openDialogOptions?.(player, {
+        if (choices.length === 0) {
+            services.sendGameMessage(
+                player,
+                "You need something like wool, flax, sinew, or roots to spin.",
+            );
+            return;
+        }
+
+        const craftableChoices = choices.filter(
+            (choice) => choice.levelMet && choice.batch > 0,
+        );
+        if (craftableChoices.length === 0) {
+            const lowestReq = choices.reduce((prev, curr) =>
+                curr.recipe.level < prev.recipe.level ? curr : prev,
+            );
+            services.sendGameMessage(
+                player,
+                `You need Crafting level ${lowestReq.recipe.level} to spin ${lowestReq.recipe.name}.`,
+            );
+            return;
+        }
+
+        const attemptEnqueue = (target: CraftableChoice) => {
+            const batches = buildBatchOptions(target.batch);
+            if (batches.length === 0) {
+                services.sendGameMessage(player, "You decide not to spin anything.");
+                return;
+            }
+            const dialogId = `spin_batch_${target.recipe.id}`;
+            if (openDialogOptions) {
+                openDialogOptions(player, {
                     id: dialogId,
                     modal: true,
-                    title: "What would you like to spin?",
-                    options: choices.map((choice) => choice.label),
+                    title: `How many ${target.recipe.name}?`,
+                    options: batches.map((option) => option.label),
                     onSelect: (index) => {
-                        const selected = choices[index];
+                        const selected = batches[index];
                         if (!selected) {
-                            services.sendGameMessage(player, "You step away from the spinning wheel.");
-                            return;
-                        }
-                        if (!selected.levelMet) {
-                            services.sendGameMessage(player, `You need Crafting level ${selected.recipe.level} to spin ${selected.recipe.name}.`);
+                            services.sendGameMessage(player, "You decide not to spin anything.");
                             return;
                         }
                         closeDialog?.(player, dialogId);
-                        attemptEnqueue(selected);
+                        const ok = enqueueSpinAction(services, player, target.recipe, selected.count, tick);
+                        if (!ok) {
+                            services.sendGameMessage(player, "You're too busy to spin anything right now.");
+                        }
                     },
                 });
-            };
-
-            if (!openDialogOptions || craftableChoices.length === 1) {
-                attemptEnqueue(craftableChoices[0]!);
                 return;
             }
-            showProductDialog();
+            const fallbackCount = batches[batches.length - 1]?.count ?? 1;
+            const ok = enqueueSpinAction(services, player, target.recipe, fallbackCount, tick);
+            if (!ok) {
+                services.sendGameMessage(player, "You're too busy to spin anything right now.");
+            }
         };
 
-        const handler = (event: LocInteractionEvent) =>
-            handleSpinRequest({ player: event.player, tick: event.tick });
+        const showProductDialog = (): void => {
+            const dialogId = `spin_products_${player.id}`;
+            openDialogOptions?.(player, {
+                id: dialogId,
+                modal: true,
+                title: "What would you like to spin?",
+                options: choices.map((choice) => choice.label),
+                onSelect: (index) => {
+                    const selected = choices[index];
+                    if (!selected) {
+                        services.sendGameMessage(player, "You step away from the spinning wheel.");
+                        return;
+                    }
+                    if (!selected.levelMet) {
+                        services.sendGameMessage(player, `You need Crafting level ${selected.recipe.level} to spin ${selected.recipe.name}.`);
+                        return;
+                    }
+                    closeDialog?.(player, dialogId);
+                    attemptEnqueue(selected);
+                },
+            });
+        };
 
-        for (const locId of SPINNING_WHEEL_LOC_IDS) {
-            registry.registerLocInteraction(locId, handler, SPIN_ACTION);
+        if (!openDialogOptions || craftableChoices.length === 1) {
+            attemptEnqueue(craftableChoices[0]!);
+            return;
         }
-    },
-};
+        showProductDialog();
+    };
+
+    const handler = (event: LocInteractionEvent) =>
+        handleSpinRequest({ player: event.player, tick: event.tick });
+
+    for (const locId of SPINNING_WHEEL_LOC_IDS) {
+        registry.registerLocInteraction(locId, handler, SPIN_ACTION);
+    }
+}

@@ -1,17 +1,40 @@
-import path from "path";
-
 import type { BankingProviderServices } from "./banking/BankingProvider";
 import type { PlayerState } from "../../src/game/player";
-import type { ScriptManifestEntry } from "../../src/game/scripts/manifest";
-import type { ScriptModule, ScriptServices } from "../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
 import type { GamemodeBridge, GamemodeDefinition, GamemodeInitContext, GamemodeServerServices, HandshakeBridge } from "../../src/game/gamemodes/GamemodeDefinition";
 import { SHOP_INTERFACE_ID } from "../../src/widgets/InterfaceService";
-import { BankingManager } from "./banking";
+import { BankingManager, registerBankingHandlers } from "./banking";
 import { registerBankInterfaceHooks } from "./banking";
+import { registerEquipmentHandlers } from "./equipment/equipment";
+import { registerEquipmentWidgetHandlers } from "./equipment/equipmentWidgets";
 import { registerEquipmentStatsInterfaceHooks } from "./equipment/EquipmentStatsInterfaceHooks";
 import { isPlayerOnDockedSailingBoat, restoreDockedSailingState, restoreSailingInstanceUi } from "../../extrascripts/vanilla-skills/sailing";
 import { ShopManager, type ShopStockEntry, type ShopOpenData } from "./shops";
 import { registerShopInterfaceHooks } from "./shops";
+import { registerShopInteractionHandlers } from "./shops/shopInteractions";
+import { registerShopWidgetHandlers } from "./shops/shopWidgets";
+import { registerZaffHandlers } from "./shops/zaff";
+import { registerClimbingHandlers } from "./scripts/content/climbing";
+import { registerDoorHandlers } from "./scripts/content/doors";
+import { registerDefaultTalkHandlers } from "./scripts/content/defaultTalk";
+import { registerPohPoolHandlers } from "./scripts/content/pohPools";
+import { registerWildernessAccessHandlers } from "./scripts/content/wildernessAccess";
+import { registerAlKharidBorderHandlers } from "./scripts/content/alKharidBorder";
+import { registerRomeoHandlers } from "./scripts/content/romeo";
+import { registerDemoInteractionHandlers } from "./scripts/content/demoInteractions";
+import { registerFollowerItemHandlers } from "./scripts/items/followers";
+import { registerPacksHandlers } from "./scripts/items/packs";
+import { registerCombatWidgetHandlers } from "./widgets/combatWidgets";
+import { registerMinimapWidgetHandlers } from "./widgets/minimapWidgets";
+import { registerPrayerWidgetHandlers } from "./widgets/prayerWidgets";
+import { registerMusicWidgetHandlers } from "./widgets/musicWidgets";
+import { registerEmoteWidgetHandlers } from "./widgets/emoteWidgets";
+import { registerSpellbookWidgetHandlers } from "./widgets/spellbookWidgets";
+import { registerSkillGuideWidgetHandlers } from "./widgets/skillGuideWidgets";
+import { registerSettingsWidgetHandlers } from "./widgets/settingsWidgets";
+import { registerQuestJournalWidgetHandlers } from "./widgets/questJournalWidgets";
+import { registerAccountSummaryWidgetHandlers } from "./widgets/accountSummaryWidgets";
+import { registerCollectionLogWidgetHandlers } from "./widgets/collectionLogWidgets";
 
 const DEFAULT_SPAWN = { x: 3222, y: 3218, level: 0 };
 
@@ -149,57 +172,41 @@ export class VanillaGamemode implements GamemodeDefinition {
         }
     }
 
-    getScriptManifest(): ScriptManifestEntry[] {
-        const loadModuleFrom = (dir: string, relativePath: string, exportName: string): (() => ScriptModule) => {
-            const resolved = path.resolve(dir, relativePath);
-            return () => {
-                const mod = require(resolved);
-                return mod[exportName] as ScriptModule;
-            };
-        };
+    registerHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+        // Banking, equipment, shops
+        registerBankingHandlers(registry, services);
+        registerEquipmentHandlers(registry, services);
+        registerEquipmentWidgetHandlers(registry, services);
+        registerShopInteractionHandlers(registry, services);
+        registerShopWidgetHandlers(registry, services);
+        registerZaffHandlers(registry, services);
 
-        const BANKING_DIR = path.resolve(__dirname, "banking");
-        const EQUIPMENT_DIR = path.resolve(__dirname, "equipment");
-        const SHOPS_DIR = path.resolve(__dirname, "shops");
+        // Content
+        registerClimbingHandlers(registry, services);
+        registerDoorHandlers(registry, services);
+        registerDefaultTalkHandlers(registry, services);
+        registerPohPoolHandlers(registry, services);
+        registerWildernessAccessHandlers(registry, services);
+        registerAlKharidBorderHandlers(registry, services);
+        registerRomeoHandlers(registry, services);
+        registerDemoInteractionHandlers(registry, services);
 
-        return [
-            {
-                id: "vanilla.banking",
-                load: loadModuleFrom(BANKING_DIR, "index", "bankingModule"),
-                watch: [
-                    path.resolve(BANKING_DIR, "index.ts"),
-                    path.resolve(BANKING_DIR, "bankWidgets.ts"),
-                    path.resolve(BANKING_DIR, "BankInterfaceHooks.ts"),
-                    path.resolve(BANKING_DIR, "BankingManager.ts"),
-                    path.resolve(BANKING_DIR, "bankConstants.ts"),
-                ],
-            },
-            {
-                id: "vanilla.equipment",
-                load: loadModuleFrom(EQUIPMENT_DIR, "equipment", "equipmentActionsModule"),
-                watch: [path.resolve(EQUIPMENT_DIR, "equipment.ts")],
-            },
-            {
-                id: "vanilla.equipment-widgets",
-                load: loadModuleFrom(EQUIPMENT_DIR, "equipmentWidgets", "equipmentWidgetModule"),
-                watch: [path.resolve(EQUIPMENT_DIR, "equipmentWidgets.ts")],
-            },
-            {
-                id: "vanilla.shops",
-                load: loadModuleFrom(SHOPS_DIR, "shopInteractions", "shopInteractionsModule"),
-                watch: [path.resolve(SHOPS_DIR, "shopInteractions.ts")],
-            },
-            {
-                id: "vanilla.shop-widgets",
-                load: loadModuleFrom(SHOPS_DIR, "shopWidgets", "shopWidgetActionsModule"),
-                watch: [path.resolve(SHOPS_DIR, "shopWidgets.ts")],
-            },
-            {
-                id: "vanilla.zaff",
-                load: loadModuleFrom(SHOPS_DIR, "zaff", "zaffModule"),
-                watch: [path.resolve(SHOPS_DIR, "zaff.ts")],
-            },
-        ];
+        // Items
+        registerFollowerItemHandlers(registry, services);
+        registerPacksHandlers(registry, services);
+
+        // Widgets
+        registerCombatWidgetHandlers(registry, services);
+        registerMinimapWidgetHandlers(registry, services);
+        registerPrayerWidgetHandlers(registry, services);
+        registerMusicWidgetHandlers(registry, services);
+        registerEmoteWidgetHandlers(registry, services);
+        registerSpellbookWidgetHandlers(registry, services);
+        registerSkillGuideWidgetHandlers(registry, services);
+        registerSettingsWidgetHandlers(registry, services);
+        registerQuestJournalWidgetHandlers(registry, services);
+        registerAccountSummaryWidgetHandlers(registry, services);
+        registerCollectionLogWidgetHandlers(registry, services);
     }
 
     initialize(context: GamemodeInitContext): void {

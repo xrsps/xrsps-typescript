@@ -1,37 +1,28 @@
-import type { ScriptModule } from "../../src/game/scripts/types";
-import { consumablesModule } from "./consumables/index";
-import { craftingSkillModule } from "./crafting/index";
-import { firemakingModule } from "./firemaking/index";
-import { fishingModule } from "./fishing/index";
-import { fletchingModule } from "./fletching/index";
-import { herbloreModule } from "./herblore/index";
-import { miningModule } from "./mining/index";
-import { prayerSkillModule } from "./prayer/index";
-import { productionModule } from "./production/index";
-import { thievingModule } from "./thieving/index";
-import { woodcuttingModule } from "./woodcutting/index";
-import { sailingModule } from "./sailing/index";
+import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
+import { register as registerConsumables } from "./consumables/index";
+import { register as registerCrafting } from "./crafting/index";
+import { register as registerFiremaking } from "./firemaking/index";
+import { register as registerFishing } from "./fishing/index";
+import { register as registerFletching } from "./fletching/index";
+import { register as registerHerblore } from "./herblore/index";
+import { register as registerMining } from "./mining/index";
+import { register as registerPrayer } from "./prayer/index";
+import { register as registerProduction } from "./production/index";
+import { register as registerThieving } from "./thieving/index";
+import { register as registerWoodcutting } from "./woodcutting/index";
+import { register as registerSailing } from "./sailing/index";
 
-const skillModules: ScriptModule[] = [
-    thievingModule,
-    herbloreModule,
-    prayerSkillModule,
-    fletchingModule,
-    craftingSkillModule,
-    firemakingModule,
-    woodcuttingModule,
-    miningModule,
-    fishingModule,
-    productionModule,
-    consumablesModule,
-    sailingModule,
-];
-
-export const module: ScriptModule = {
-    id: "vanilla-skills",
-    register(registry, services) {
-        for (const skill of skillModules) {
-            skill.register(registry, services);
-        }
-    },
-};
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registerThieving(registry, services);
+    registerHerblore(registry, services);
+    registerPrayer(registry, services);
+    registerFletching(registry, services);
+    registerCrafting(registry, services);
+    registerFiremaking(registry, services);
+    registerWoodcutting(registry, services);
+    registerMining(registry, services);
+    registerFishing(registry, services);
+    registerProduction(registry, services);
+    registerConsumables(registry, services);
+    registerSailing(registry, services);
+}

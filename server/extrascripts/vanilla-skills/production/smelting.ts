@@ -12,7 +12,7 @@ import {
     getSmeltingXpWithBonuses,
     shouldGuaranteeIronSmelt,
 } from "../../../src/game/skills/smithingBonuses";
-import type { ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 import {
     type SkillDialogChoice,
     MAX_BATCH,
@@ -124,7 +124,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
     return { ok: true, cooldownTicks: delay, groups: ["skill.smelt"], effects };
 }
 
-export function registerSmeltingInteractions(registry: Parameters<ScriptModule["register"]>[0], services: Parameters<ScriptModule["register"]>[1]) {
+export function registerSmeltingInteractions(registry: IScriptRegistry, services: ScriptServices) {
     const requestAction = services.requestAction;
     const openDialogOptions = services.openDialogOptions;
     const closeDialog = services.closeDialog;

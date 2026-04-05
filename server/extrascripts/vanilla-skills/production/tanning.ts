@@ -6,7 +6,7 @@ import {
     type TanningRecipe,
     getTanningRecipeById,
 } from "../../../src/game/skills/skillSurfaces";
-import type { ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 import {
     type SkillDialogChoice,
     MAX_BATCH,
@@ -74,7 +74,7 @@ export function executeTanAction(ctx: ScriptActionHandlerContext): ActionExecuti
     return { ok: true, cooldownTicks: recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 2, groups: ["skill.tan"], effects };
 }
 
-export function registerTanningInteractions(registry: Parameters<ScriptModule["register"]>[0], services: Parameters<ScriptModule["register"]>[1]) {
+export function registerTanningInteractions(registry: IScriptRegistry, services: ScriptServices) {
     const requestAction = services.requestAction;
     const openDialogOptions = services.openDialogOptions;
     const closeDialog = services.closeDialog;

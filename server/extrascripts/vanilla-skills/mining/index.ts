@@ -7,7 +7,7 @@ import {
     getMiningRockById,
     selectPickaxeByLevel,
 } from "../../../src/game/skills/mining";
-import type { ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 const MINING_ACTIONS = ["mine", "mine rocks"];
 const ECHO_PICKAXE_ITEM_IDS = [25112, 25063, 25369, 25376];
@@ -239,43 +239,40 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     return { ok: true, cooldownTicks: swingTicks, groups: ["skill.mine"], effects };
 }
 
-export const miningModule: ScriptModule = {
-    id: "vanilla-skills.mining",
-    register(registry, services) {
-        registry.registerActionHandler("skill.mine", executeMineAction);
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registry.registerActionHandler("skill.mine", executeMineAction);
 
-        if (!services.getMiningRock) {
-            console.log("[script:mining] rock lookup unavailable; module disabled");
-            return;
-        }
-        for (const action of MINING_ACTIONS) {
-            registry.registerLocAction(action, (event) => {
-                const rock = services.getMiningRock?.(event.locId);
-                if (!rock) return;
-                const delay = 0;
-                const result = services.requestAction(
-                    event.player,
-                    {
-                        kind: "skill.mine",
-                        data: {
-                            rockId: rock.id,
-                            rockLocId: event.locId,
-                            depletedLocId: rock.depletedLocId,
-                            tile: { x: event.tile.x, y: event.tile.y },
-                            level: event.level,
-                            started: false,
-                            echoMinedCount: 0,
-                        },
-                        delayTicks: delay,
-                        cooldownTicks: delay,
-                        groups: ["skill.mine"],
+    if (!services.getMiningRock) {
+        console.log("[script:mining] rock lookup unavailable; module disabled");
+        return;
+    }
+    for (const action of MINING_ACTIONS) {
+        registry.registerLocAction(action, (event) => {
+            const rock = services.getMiningRock?.(event.locId);
+            if (!rock) return;
+            const delay = 0;
+            const result = services.requestAction(
+                event.player,
+                {
+                    kind: "skill.mine",
+                    data: {
+                        rockId: rock.id,
+                        rockLocId: event.locId,
+                        depletedLocId: rock.depletedLocId,
+                        tile: { x: event.tile.x, y: event.tile.y },
+                        level: event.level,
+                        started: false,
+                        echoMinedCount: 0,
                     },
-                    event.tick,
-                );
-                if (!result.ok) {
-                    services.sendGameMessage(event.player, "You're too busy to do that right now.");
-                }
-            });
-        }
-    },
-};
+                    delayTicks: delay,
+                    cooldownTicks: delay,
+                    groups: ["skill.mine"],
+                },
+                event.tick,
+            );
+            if (!result.ok) {
+                services.sendGameMessage(event.player, "You're too busy to do that right now.");
+            }
+        });
+    }
+}

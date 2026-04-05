@@ -1,28 +1,28 @@
-import { EquipmentSlot } from "../../../../../src/rs/config/player/Equipment";
-import { SkillId } from "../../../../../src/rs/skill/skills";
-import { VARP_LAST_HOME_TELEPORT } from "../../../../../src/shared/vars";
-import { RUNE_IDS } from "../../../data/runes";
-import { getSpellWidgetId } from "../../../data/spellWidgetLoader";
+import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
+import { SkillId } from "../../../../src/rs/skill/skills";
+import { VARP_LAST_HOME_TELEPORT } from "../../../../src/shared/vars";
+import { RUNE_IDS } from "../../../src/data/runes";
+import { getSpellWidgetId } from "../../../src/data/spellWidgetLoader";
 import {
     canWeaponAutocastSpell,
     getAutocastCompatibilityMessage,
     getAutocastIndexFromSpellId,
     getSpellDataByWidget,
     isSpellAutocastable,
-} from "../../../data/spells";
-import { type TeleportSpellData, getTeleportByWidgetId } from "../../../data/teleportDestinations";
-import { getMainmodalUid } from "../../../widgets/viewport";
-import type { SkillBoltEnchantActionData as BoltEnchantActionData } from "../../actions/skillActionPayloads";
-import { applyAutocastState } from "../../combat/AutocastState";
-import { WaitCondition } from "../../model/queue/QueueTask";
-import { HOME_TELEPORT_TIMER } from "../../model/timer/Timers";
-import { type PlayerState } from "../../player";
+} from "../../../src/data/spells";
+import { type TeleportSpellData, getTeleportByWidgetId } from "../../../src/data/teleportDestinations";
+import { getMainmodalUid } from "../../../src/widgets/viewport";
+import type { SkillBoltEnchantActionData as BoltEnchantActionData } from "../../../src/game/actions/skillActionPayloads";
+import { applyAutocastState } from "../../../src/game/combat/AutocastState";
+import { WaitCondition } from "../../../src/game/model/queue/QueueTask";
+import { HOME_TELEPORT_TIMER } from "../../../src/game/model/timer/Timers";
+import { type PlayerState } from "../../../src/game/player";
 import {
     type InventoryItem,
     type RuneValidationResult,
     RuneValidator,
-} from "../../spells/RuneValidator";
-import { type ScriptModule, type ScriptServices, type WidgetActionEvent } from "../types";
+} from "../../../src/game/spells/RuneValidator";
+import { type IScriptRegistry, type ScriptServices, type WidgetActionEvent } from "../../../src/game/scripts/types";
 
 const SPELLBOOK_GROUP_ID = 218;
 const BOLT_ENCHANT_CHATBOX_GROUP_ID = 270;
@@ -412,52 +412,49 @@ const BOLT_ENCHANT_RECIPES: BoltEnchantRecipe[] = [
  * - Op2 = Autocast (normal)
  * - Op3 = Defensive Autocast
  */
-export const spellbookWidgetModule: ScriptModule = {
-    id: "content.spellbook-widgets",
-    register(registry, services) {
-        // Register a general handler for the spellbook interface
-        // This catches all spell button clicks regardless of which spell
-        registry.registerWidgetAction({
-            handler: (event) => {
-                const groupId = event.groupId;
+export function registerSpellbookWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    // Register a general handler for the spellbook interface
+    // This catches all spell button clicks regardless of which spell
+    registry.registerWidgetAction({
+        handler: (event) => {
+            const groupId = event.groupId;
 
-                if (groupId === BOLT_ENCHANT_CHATBOX_GROUP_ID) {
-                    handleBoltEnchantQuantityWidgetAction(event, services);
+            if (groupId === BOLT_ENCHANT_CHATBOX_GROUP_ID) {
+                handleBoltEnchantQuantityWidgetAction(event, services);
+                return;
+            }
+            if (groupId !== SPELLBOOK_GROUP_ID) return;
+
+            const childId = event.childId;
+            const opId = event.opId ?? 1;
+
+            // Op2 = Autocast, Op3 = Defensive Autocast
+            if (opId === 2 || opId === 3) {
+                handleAutocast(event.player, childId, opId === 3, services);
+                return;
+            }
+
+            // Op1 = Cast spell (teleports, etc.)
+            if (opId === 1) {
+                if (childId === getMinigameTeleportChildId()) {
+                    openMinigameTeleportInterface(event.player, services);
                     return;
                 }
-                if (groupId !== SPELLBOOK_GROUP_ID) return;
 
-                const childId = event.childId;
-                const opId = event.opId ?? 1;
-
-                // Op2 = Autocast, Op3 = Defensive Autocast
-                if (opId === 2 || opId === 3) {
-                    handleAutocast(event.player, childId, opId === 3, services);
+                if (childId === getCrossbowBoltEnchantmentsChildId()) {
+                    handleCrossbowBoltEnchantments(event.player, services);
                     return;
                 }
 
-                // Op1 = Cast spell (teleports, etc.)
-                if (opId === 1) {
-                    if (childId === getMinigameTeleportChildId()) {
-                        openMinigameTeleportInterface(event.player, services);
-                        return;
-                    }
-
-                    if (childId === getCrossbowBoltEnchantmentsChildId()) {
-                        handleCrossbowBoltEnchantments(event.player, services);
-                        return;
-                    }
-
-                    const teleportSpell = getTeleportByWidgetId(childId);
-                    if (teleportSpell) {
-                        executeTeleport(event.player, teleportSpell, services);
-                        return;
-                    }
+                const teleportSpell = getTeleportByWidgetId(childId);
+                if (teleportSpell) {
+                    executeTeleport(event.player, teleportSpell, services);
+                    return;
                 }
-            },
-        });
-    },
-};
+            }
+        },
+    });
+}
 
 /**
  * Handle autocast from spellbook

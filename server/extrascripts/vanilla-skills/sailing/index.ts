@@ -1,5 +1,5 @@
-import type { ScriptModule } from "../../../src/game/scripts/types";
-import { pandemoniumQuestModule } from "./pandemonium";
+import type { IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
+import { register as registerPandemonium } from "./pandemonium";
 
 export {
     isPlayerOnDockedSailingBoat,
@@ -8,9 +8,6 @@ export {
     resetSailingState,
 } from "./pandemonium";
 
-export const sailingModule: ScriptModule = {
-    id: "vanilla-skills.sailing",
-    register(registry, services) {
-        pandemoniumQuestModule.register(registry, services);
-    },
-};
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registerPandemonium(registry, services);
+}

@@ -7,7 +7,7 @@ import {
     getWoodcuttingTreeById,
     selectHatchetByLevel,
 } from "../../../src/game/skills/woodcutting";
-import type { ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 const WOODCUT_ACTIONS = ["chop down", "chop-down"];
 const WOODCUTTING_DEPLETE_SOUND = 2734;
@@ -251,43 +251,40 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
     return { ok: true, cooldownTicks: 1, groups: ["skill.woodcut"], effects };
 }
 
-export const woodcuttingModule: ScriptModule = {
-    id: "vanilla-skills.woodcutting",
-    register(registry, services) {
-        registry.registerActionHandler("skill.woodcut", executeWoodcutAction);
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registry.registerActionHandler("skill.woodcut", executeWoodcutAction);
 
-        if (!services.getWoodcuttingTree) {
-            console.log("[script:woodcutting] tree lookup unavailable; module disabled");
-            return;
-        }
-        for (const action of WOODCUT_ACTIONS) {
-            registry.registerLocAction(action, (event) => {
-                const tree = services.getWoodcuttingTree?.(event.locId);
-                if (!tree) return;
-                const delay = 0;
-                const result = services.requestAction(
-                    event.player,
-                    {
-                        kind: "skill.woodcut",
-                        data: {
-                            treeId: tree.id,
-                            treeLocId: event.locId,
-                            stumpId: tree.stumpId,
-                            tile: { x: event.tile.x, y: event.tile.y },
-                            level: event.level,
-                            started: false,
-                            ticksInSwing: 0,
-                        },
-                        delayTicks: delay,
-                        cooldownTicks: delay,
-                        groups: ["skill.woodcut"],
+    if (!services.getWoodcuttingTree) {
+        console.log("[script:woodcutting] tree lookup unavailable; module disabled");
+        return;
+    }
+    for (const action of WOODCUT_ACTIONS) {
+        registry.registerLocAction(action, (event) => {
+            const tree = services.getWoodcuttingTree?.(event.locId);
+            if (!tree) return;
+            const delay = 0;
+            const result = services.requestAction(
+                event.player,
+                {
+                    kind: "skill.woodcut",
+                    data: {
+                        treeId: tree.id,
+                        treeLocId: event.locId,
+                        stumpId: tree.stumpId,
+                        tile: { x: event.tile.x, y: event.tile.y },
+                        level: event.level,
+                        started: false,
+                        ticksInSwing: 0,
                     },
-                    event.tick,
-                );
-                if (!result.ok) {
-                    services.sendGameMessage(event.player, "You're too busy to do that right now.");
-                }
-            });
-        }
-    },
-};
+                    delayTicks: delay,
+                    cooldownTicks: delay,
+                    groups: ["skill.woodcut"],
+                },
+                event.tick,
+            );
+            if (!result.ok) {
+                services.sendGameMessage(event.player, "You're too busy to do that right now.");
+            }
+        });
+    }
+}

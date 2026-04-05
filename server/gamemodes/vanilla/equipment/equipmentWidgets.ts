@@ -1,5 +1,5 @@
 import { getMainmodalUid, getSidemodalUid } from "../../../src/widgets/viewport";
-import type { ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
 
 /**
  * Equipment widget handlers for equipment interfaces.
@@ -160,63 +160,60 @@ function openEquipmentStats(player: any, services: ScriptServices): void {
     services.logger?.info?.(`[equipment-widgets] Opened equipment stats for player=${playerId}`);
 }
 
-export const equipmentWidgetModule: ScriptModule = {
-    id: "content.equipment-widgets",
-    register(registry, services) {
-        // ============ VIEW EQUIPMENT STATS BUTTON (387:1) ============
-        // Opens the equipment stats interface (84) with equipment inventory sidemodal (85)
-        registry.onButton(EQUIPMENT_TAB_GROUP_ID, VIEW_EQUIPMENT_STATS_COMPONENT, (event) => {
-            openEquipmentStats(event.player, services);
-        });
+export function registerEquipmentWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    // ============ VIEW EQUIPMENT STATS BUTTON (387:1) ============
+    // Opens the equipment stats interface (84) with equipment inventory sidemodal (85)
+    registry.onButton(EQUIPMENT_TAB_GROUP_ID, VIEW_EQUIPMENT_STATS_COMPONENT, (event) => {
+        openEquipmentStats(event.player, services);
+    });
 
-        registry.onButton(EQUIPMENT_TAB_GROUP_ID, CALL_FOLLOWER_COMPONENT, (event) => {
-            const player = event.player;
-            if (!player) {
-                return;
-            }
+    registry.onButton(EQUIPMENT_TAB_GROUP_ID, CALL_FOLLOWER_COMPONENT, (event) => {
+        const player = event.player;
+        if (!player) {
+            return;
+        }
 
-            const result = services.callFollower?.(player);
-            if (!result?.ok) {
-                services.sendGameMessage(
-                    player,
-                    result?.reason === "missing"
-                        ? "You do not have a follower."
-                        : "Nothing interesting happens.",
+        const result = services.callFollower?.(player);
+        if (!result?.ok) {
+            services.sendGameMessage(
+                player,
+                result?.reason === "missing"
+                    ? "You do not have a follower."
+                    : "Nothing interesting happens.",
+            );
+        }
+    });
+
+    const registerRemoveButtons = (
+        interfaceId: number,
+        slots: ReadonlyArray<{ component: number; slot: number }>,
+    ) => {
+        for (const { component, slot } of slots) {
+            registry.onButton(interfaceId, component, (event) => {
+                const player = event.player;
+                if (!player) return;
+
+                services.logger?.info?.(
+                    `[equipment-widgets] Remove clicked: interface=${interfaceId} component=${component} slot=${slot} player=${player.id}`,
                 );
-            }
-        });
 
-        const registerRemoveButtons = (
-            interfaceId: number,
-            slots: ReadonlyArray<{ component: number; slot: number }>,
-        ) => {
-            for (const { component, slot } of slots) {
-                registry.onButton(interfaceId, component, (event) => {
-                    const player = event.player;
-                    if (!player) return;
-
+                const success = services.unequipItem?.(player, slot);
+                if (success) {
                     services.logger?.info?.(
-                        `[equipment-widgets] Remove clicked: interface=${interfaceId} component=${component} slot=${slot} player=${player.id}`,
+                        `[equipment-widgets] Unequipped slot=${slot} for player=${player.id}`,
                     );
+                } else {
+                    services.logger?.info?.(
+                        `[equipment-widgets] Failed to unequip slot=${slot} for player=${player.id}`,
+                    );
+                }
+            });
+        }
+    };
 
-                    const success = services.unequipItem?.(player, slot);
-                    if (success) {
-                        services.logger?.info?.(
-                            `[equipment-widgets] Unequipped slot=${slot} for player=${player.id}`,
-                        );
-                    } else {
-                        services.logger?.info?.(
-                            `[equipment-widgets] Failed to unequip slot=${slot} for player=${player.id}`,
-                        );
-                    }
-                });
-            }
-        };
+    // ============ EQUIPMENT SLOT REMOVE BUTTONS (387:15-25) ============
+    registerRemoveButtons(EQUIPMENT_TAB_GROUP_ID, EQUIPMENT_SLOTS);
 
-        // ============ EQUIPMENT SLOT REMOVE BUTTONS (387:15-25) ============
-        registerRemoveButtons(EQUIPMENT_TAB_GROUP_ID, EQUIPMENT_SLOTS);
-
-        // ============ EQUIPMENT STATS REMOVE BUTTONS (84:10-20) ============
-        registerRemoveButtons(EQUIPMENT_STATS_INTERFACE_ID, EQUIPMENT_STATS_SLOTS);
-    },
-};
+    // ============ EQUIPMENT STATS REMOVE BUTTONS (84:10-20) ============
+    registerRemoveButtons(EQUIPMENT_STATS_INTERFACE_ID, EQUIPMENT_STATS_SLOTS);
+}

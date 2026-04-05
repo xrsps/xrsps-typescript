@@ -11,7 +11,7 @@ import {
     pickFishingCatch,
     selectFishingTool,
 } from "../../../src/game/skills/fishing";
-import { type NpcInteractionEvent, type ScriptActionHandlerContext, type ScriptModule, type ScriptServices } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type NpcInteractionEvent, type ScriptActionHandlerContext, type ScriptServices } from "../../../src/game/scripts/types";
 
 const FISHING_ACTIONS = [
     "small net",
@@ -289,28 +289,25 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     return { ok: true, cooldownTicks: swingTicks, groups: ["skill.fish"], effects };
 }
 
-export const fishingModule: ScriptModule = {
-    id: "vanilla-skills.fishing",
-    register(registry, services) {
-        registry.registerActionHandler("skill.fish", executeFishAction);
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registry.registerActionHandler("skill.fish", executeFishAction);
 
-        if (!services.getFishingSpot) {
-            console.log("[script:fishing] fishing spot lookup unavailable");
-            return;
-        }
-        for (const action of FISHING_ACTIONS) {
-            registry.registerNpcAction(action, (event) => {
-                handleFishingAction(event.option ?? action, event, services);
-            });
-        }
+    if (!services.getFishingSpot) {
+        console.log("[script:fishing] fishing spot lookup unavailable");
+        return;
+    }
+    for (const action of FISHING_ACTIONS) {
+        registry.registerNpcAction(action, (event) => {
+            handleFishingAction(event.option ?? action, event, services);
+        });
+    }
 
-        for (const npcId of KYLIE_MINNOW_IDS) {
-            registry.registerNpcInteraction(npcId, (event) => {
-                handleMinnowExchange(event, services);
-            });
-        }
-    },
-};
+    for (const npcId of KYLIE_MINNOW_IDS) {
+        registry.registerNpcInteraction(npcId, (event) => {
+            handleMinnowExchange(event, services);
+        });
+    }
+}
 
 function handleFishingAction(option: string, event: NpcInteractionEvent, services: ScriptServices) {
     const spot = services.getFishingSpot?.(event.npc.typeId);

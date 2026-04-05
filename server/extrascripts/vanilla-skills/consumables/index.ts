@@ -1,6 +1,6 @@
 import { SKILL_IDS, SkillId } from "../../../../src/rs/skill/skills";
 import type { PlayerState } from "../../../src/game/player";
-import type { ScriptModule } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
 import { type ConsumableProfile, scheduleConsumableAction } from "../../../src/game/scripts/utils/consumables";
 
 // ============================================================================
@@ -685,7 +685,7 @@ const ALL_COMBAT_POTION_DEFS: CombatPotionDef[] = [
 // ============================================================================
 
 const formatItemName = (
-    services: Parameters<ScriptModule["register"]>[1],
+    services: ScriptServices,
     itemId: number,
     fallback?: string,
 ): string => {
@@ -755,35 +755,93 @@ const applyStatBoost = (player: PlayerState, skillId: SkillId, formula: BoostFor
 // Combined consumables module
 // ============================================================================
 
-export const consumablesModule: ScriptModule = {
-    id: "vanilla-skills.consumables",
-    register(registry, services) {
-        const setInventorySlot = services.setInventorySlot;
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    const setInventorySlot = services.setInventorySlot;
 
-        for (const def of FOOD_DEFS) {
-            const option = def.option ?? "eat";
-            registry.registerItemAction(
-                def.itemId,
-                ({ player, source, tick }) => {
-                    const slot = source.slot;
-                    const ok = scheduleConsumableAction({
-                        player,
-                        slotIndex: slot,
-                        itemId: def.itemId,
-                        option,
-                        tick,
-                        services,
-                        profile: def.profile ?? "food",
-                        loggerTag: "food",
-                        onExecute: () => {
-                            const healAmount = resolveHeal(def, player);
-                            if (healAmount > 0) {
-                                player.applyHitpointsHeal(healAmount);
+    for (const def of FOOD_DEFS) {
+        const option = def.option ?? "eat";
+        registry.registerItemAction(
+            def.itemId,
+            ({ player, source, tick }) => {
+                const slot = source.slot;
+                const ok = scheduleConsumableAction({
+                    player,
+                    slotIndex: slot,
+                    itemId: def.itemId,
+                    option,
+                    tick,
+                    services,
+                    profile: def.profile ?? "food",
+                    loggerTag: "food",
+                    onExecute: () => {
+                        const healAmount = resolveHeal(def, player);
+                        if (healAmount > 0) {
+                            player.applyHitpointsHeal(healAmount);
+                        }
+                        if (def.nextItemId !== undefined) {
+                            setInventorySlot(player, slot, def.nextItemId, 1);
+                        }
+                        services.playPlayerSeq?.(player, EAT_SEQ);
+                        services.playAreaSound?.({
+                            soundId: EAT_SOUND,
+                            tile: { x: player.tileX, y: player.tileY },
+                            level: player.level,
+                            radius: 1,
+                            volume: 255,
+                        });
+                        const itemName = formatItemName(services, def.itemId, def.label);
+                        services.sendGameMessage(player, `You eat the ${itemName}.`);
+                        if (healAmount > 0) {
+                            services.sendGameMessage(player, "It heals some health.");
+                        }
+                        if (def.messages) {
+                            for (const msg of def.messages) {
+                                services.sendGameMessage(player, msg);
                             }
-                            if (def.nextItemId !== undefined) {
-                                setInventorySlot(player, slot, def.nextItemId, 1);
-                            }
-                            services.playPlayerSeq?.(player, EAT_SEQ);
+                        }
+                    },
+                });
+                if (!ok) {
+                    console.log(`[script:food] consume rejected item=${def.itemId}`);
+                }
+            },
+            option,
+        );
+    }
+
+    for (const def of RUN_ENERGY_CONSUMABLE_DEFS) {
+        const option = def.option ?? "drink";
+        registry.registerItemAction(
+            def.itemId,
+            ({ player, source, tick }) => {
+                const slot = source.slot;
+                const ok = scheduleConsumableAction({
+                    player,
+                    slotIndex: slot,
+                    itemId: def.itemId,
+                    option,
+                    tick,
+                    services,
+                    profile: option === "eat" ? "food" : "potion",
+                    loggerTag: "energy-consumables",
+                    onExecute: ({ tick: actionTick }) => {
+                        if (def.nextItemId !== undefined) {
+                            setInventorySlot(player, slot, def.nextItemId, 1);
+                        }
+                        player.adjustRunEnergyPercent(def.boostPercent);
+                        if (def.healAmount && def.healAmount > 0) {
+                            player.applyHitpointsHeal(def.healAmount);
+                        }
+                        if (option !== "eat") {
+                            services.playPlayerSeq?.(player, DRINK_SEQ);
+                            services.playAreaSound?.({
+                                soundId: DRINK_SOUND,
+                                tile: { x: player.tileX, y: player.tileY },
+                                level: player.level,
+                                radius: 1,
+                                volume: 255,
+                            });
+                        } else {
                             services.playAreaSound?.({
                                 soundId: EAT_SOUND,
                                 tile: { x: player.tileX, y: player.tileY },
@@ -791,256 +849,195 @@ export const consumablesModule: ScriptModule = {
                                 radius: 1,
                                 volume: 255,
                             });
-                            const itemName = formatItemName(services, def.itemId, def.label);
-                            services.sendGameMessage(player, `You eat the ${itemName}.`);
-                            if (healAmount > 0) {
-                                services.sendGameMessage(player, "It heals some health.");
-                            }
-                            if (def.messages) {
-                                for (const msg of def.messages) {
-                                    services.sendGameMessage(player, msg);
-                                }
-                            }
-                        },
-                    });
-                    if (!ok) {
-                        console.log(`[script:food] consume rejected item=${def.itemId}`);
-                    }
-                },
-                option,
-            );
-        }
-
-        for (const def of RUN_ENERGY_CONSUMABLE_DEFS) {
-            const option = def.option ?? "drink";
-            registry.registerItemAction(
-                def.itemId,
-                ({ player, source, tick }) => {
-                    const slot = source.slot;
-                    const ok = scheduleConsumableAction({
-                        player,
-                        slotIndex: slot,
-                        itemId: def.itemId,
-                        option,
-                        tick,
-                        services,
-                        profile: option === "eat" ? "food" : "potion",
-                        loggerTag: "energy-consumables",
-                        onExecute: ({ tick: actionTick }) => {
-                            if (def.nextItemId !== undefined) {
-                                setInventorySlot(player, slot, def.nextItemId, 1);
-                            }
-                            player.adjustRunEnergyPercent(def.boostPercent);
-                            if (def.healAmount && def.healAmount > 0) {
-                                player.applyHitpointsHeal(def.healAmount);
-                            }
-                            if (option !== "eat") {
-                                services.playPlayerSeq?.(player, DRINK_SEQ);
-                                services.playAreaSound?.({
-                                    soundId: DRINK_SOUND,
-                                    tile: { x: player.tileX, y: player.tileY },
-                                    level: player.level,
-                                    radius: 1,
-                                    volume: 255,
-                                });
-                            } else {
-                                services.playAreaSound?.({
-                                    soundId: EAT_SOUND,
-                                    tile: { x: player.tileX, y: player.tileY },
-                                    level: player.level,
-                                    radius: 1,
-                                    volume: 255,
-                                });
-                            }
-                            if (def.curePoison) player.curePoison();
-                            if (def.cureDisease) player.cureDisease();
-                            if (def.cureVenom) player.cureVenom();
-                            if (def.skillBoosts) {
-                                for (const boost of def.skillBoosts) {
-                                    if (boost.relativeToBase !== undefined) {
-                                        const baseLevel = player.getSkill(boost.skillId).baseLevel;
-                                        player.setSkillBoost(
-                                            boost.skillId,
-                                            baseLevel + boost.relativeToBase,
-                                        );
-                                    } else if (boost.targetLevel !== undefined) {
-                                        player.setSkillBoost(boost.skillId, boost.targetLevel);
-                                    } else if (boost.delta !== undefined) {
-                                        player.adjustSkillBoost(boost.skillId, boost.delta);
-                                    }
-                                }
-                            }
-                            if (def.staminaMultiplier !== undefined) {
-                                const durationTicks =
-                                    def.staminaDurationTicks ??
-                                    secondsToTicks(def.staminaDurationSeconds);
-                                if (durationTicks > 0) {
-                                    player.applyStaminaEffect(
-                                        actionTick,
-                                        durationTicks,
-                                        def.staminaMultiplier,
+                        }
+                        if (def.curePoison) player.curePoison();
+                        if (def.cureDisease) player.cureDisease();
+                        if (def.cureVenom) player.cureVenom();
+                        if (def.skillBoosts) {
+                            for (const boost of def.skillBoosts) {
+                                if (boost.relativeToBase !== undefined) {
+                                    const baseLevel = player.getSkill(boost.skillId).baseLevel;
+                                    player.setSkillBoost(
+                                        boost.skillId,
+                                        baseLevel + boost.relativeToBase,
                                     );
+                                } else if (boost.targetLevel !== undefined) {
+                                    player.setSkillBoost(boost.skillId, boost.targetLevel);
+                                } else if (boost.delta !== undefined) {
+                                    player.adjustSkillBoost(boost.skillId, boost.delta);
                                 }
                             }
-                            const messages: string[] = [];
-                            const consumeMessage =
-                                def.consumeMessage ??
-                                formatDrinkMessage(def.label ?? "energy").replace(/\s+/, " ");
-                            if (consumeMessage) messages.push(consumeMessage);
-                            if (def.dosesAfter !== undefined) {
-                                messages.push(formatDoseMessage(def.dosesAfter));
+                        }
+                        if (def.staminaMultiplier !== undefined) {
+                            const durationTicks =
+                                def.staminaDurationTicks ??
+                                secondsToTicks(def.staminaDurationSeconds);
+                            if (durationTicks > 0) {
+                                player.applyStaminaEffect(
+                                    actionTick,
+                                    durationTicks,
+                                    def.staminaMultiplier,
+                                );
                             }
-                            if (def.extraMessages) {
-                                messages.push(...def.extraMessages);
-                            }
-                            for (const text of messages) services.sendGameMessage(player, text);
-                        },
-                    });
-                    if (!ok) {
-                        console.log(`[script:energy] consume rejected item=${def.itemId}`);
-                    }
-                },
-                option,
-            );
-        }
+                        }
+                        const messages: string[] = [];
+                        const consumeMessage =
+                            def.consumeMessage ??
+                            formatDrinkMessage(def.label ?? "energy").replace(/\s+/, " ");
+                        if (consumeMessage) messages.push(consumeMessage);
+                        if (def.dosesAfter !== undefined) {
+                            messages.push(formatDoseMessage(def.dosesAfter));
+                        }
+                        if (def.extraMessages) {
+                            messages.push(...def.extraMessages);
+                        }
+                        for (const text of messages) services.sendGameMessage(player, text);
+                    },
+                });
+                if (!ok) {
+                    console.log(`[script:energy] consume rejected item=${def.itemId}`);
+                }
+            },
+            option,
+        );
+    }
 
-        for (const def of STAMINA_POTIONS) {
-            registry.registerItemAction(
-                def.itemId,
-                ({ player, source, tick }) => {
-                    const slot = source.slot;
-                    const ok = scheduleConsumableAction({
-                        player,
-                        slotIndex: slot,
-                        itemId: def.itemId,
-                        option: "drink",
-                        tick,
-                        services,
-                        profile: "potion",
-                        loggerTag: "stamina",
-                        onExecute: ({ tick: actionTick }) => {
-                            setInventorySlot(player, slot, def.nextItemId, 1);
-                            player.adjustRunEnergyPercent(STAMINA_RUN_ENERGY_BOOST);
-                            player.applyStaminaEffect(
-                                actionTick,
-                                STAMINA_DURATION_TICKS,
-                                STAMINA_EFFECT_MULTIPLIER,
-                            );
-                            services.playPlayerSeq?.(player, DRINK_SEQ);
-                            services.playAreaSound?.({
-                                soundId: DRINK_SOUND,
-                                tile: { x: player.tileX, y: player.tileY },
-                                level: player.level,
-                                radius: 1,
-                                volume: 255,
-                            });
-                            services.sendGameMessage(
-                                player,
-                                "You drink some of your stamina potion.",
-                            );
-                            services.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
-                        },
-                    });
-                    if (!ok) {
-                        console.log(`[script:stamina] consume rejected item=${def.itemId}`);
-                    }
-                },
-                "drink",
-            );
-        }
+    for (const def of STAMINA_POTIONS) {
+        registry.registerItemAction(
+            def.itemId,
+            ({ player, source, tick }) => {
+                const slot = source.slot;
+                const ok = scheduleConsumableAction({
+                    player,
+                    slotIndex: slot,
+                    itemId: def.itemId,
+                    option: "drink",
+                    tick,
+                    services,
+                    profile: "potion",
+                    loggerTag: "stamina",
+                    onExecute: ({ tick: actionTick }) => {
+                        setInventorySlot(player, slot, def.nextItemId, 1);
+                        player.adjustRunEnergyPercent(STAMINA_RUN_ENERGY_BOOST);
+                        player.applyStaminaEffect(
+                            actionTick,
+                            STAMINA_DURATION_TICKS,
+                            STAMINA_EFFECT_MULTIPLIER,
+                        );
+                        services.playPlayerSeq?.(player, DRINK_SEQ);
+                        services.playAreaSound?.({
+                            soundId: DRINK_SOUND,
+                            tile: { x: player.tileX, y: player.tileY },
+                            level: player.level,
+                            radius: 1,
+                            volume: 255,
+                        });
+                        services.sendGameMessage(
+                            player,
+                            "You drink some of your stamina potion.",
+                        );
+                        services.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
+                    },
+                });
+                if (!ok) {
+                    console.log(`[script:stamina] consume rejected item=${def.itemId}`);
+                }
+            },
+            "drink",
+        );
+    }
 
-        for (const def of PRAYER_CONSUMABLE_DEFS) {
-            const option = def.option ?? "drink";
-            registry.registerItemAction(
-                def.itemId,
-                ({ player, source, tick }) => {
-                    const slot = source.slot;
-                    const ok = scheduleConsumableAction({
-                        player,
-                        slotIndex: slot,
-                        itemId: def.itemId,
-                        option,
-                        tick,
-                        services,
-                        profile: "potion",
-                        loggerTag: "prayer-restores",
-                        onExecute: () => {
-                            setInventorySlot(player, slot, def.nextItemId, 1);
-                            services.playPlayerSeq?.(player, DRINK_SEQ);
-                            services.playAreaSound?.({
-                                soundId: DRINK_SOUND,
-                                tile: { x: player.tileX, y: player.tileY },
-                                level: player.level,
-                                radius: 1,
-                                volume: 255,
-                            });
-                            applyPrayerRestore(player, def.prayerRestore);
-                            applyStatRestores(player, def.statRestore);
-                            if (def.healAmount) {
-                                player.applyHitpointsHeal(def.healAmount);
+    for (const def of PRAYER_CONSUMABLE_DEFS) {
+        const option = def.option ?? "drink";
+        registry.registerItemAction(
+            def.itemId,
+            ({ player, source, tick }) => {
+                const slot = source.slot;
+                const ok = scheduleConsumableAction({
+                    player,
+                    slotIndex: slot,
+                    itemId: def.itemId,
+                    option,
+                    tick,
+                    services,
+                    profile: "potion",
+                    loggerTag: "prayer-restores",
+                    onExecute: () => {
+                        setInventorySlot(player, slot, def.nextItemId, 1);
+                        services.playPlayerSeq?.(player, DRINK_SEQ);
+                        services.playAreaSound?.({
+                            soundId: DRINK_SOUND,
+                            tile: { x: player.tileX, y: player.tileY },
+                            level: player.level,
+                            radius: 1,
+                            volume: 255,
+                        });
+                        applyPrayerRestore(player, def.prayerRestore);
+                        applyStatRestores(player, def.statRestore);
+                        if (def.healAmount) {
+                            player.applyHitpointsHeal(def.healAmount);
+                        }
+                        if (def.curePoison) player.curePoison();
+                        if (def.cureDisease) player.cureDisease();
+                        if (def.cureVenom) player.cureVenom();
+                        const consumeText =
+                            def.consumeMessage ?? `You drink some of your ${def.label}.`;
+                        services.sendGameMessage(player, consumeText);
+                        services.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
+                        if (def.extraMessages) {
+                            for (const msg of def.extraMessages) {
+                                services.sendGameMessage(player, msg);
                             }
-                            if (def.curePoison) player.curePoison();
-                            if (def.cureDisease) player.cureDisease();
-                            if (def.cureVenom) player.cureVenom();
-                            const consumeText =
-                                def.consumeMessage ?? `You drink some of your ${def.label}.`;
-                            services.sendGameMessage(player, consumeText);
-                            services.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
-                            if (def.extraMessages) {
-                                for (const msg of def.extraMessages) {
-                                    services.sendGameMessage(player, msg);
-                                }
-                            }
-                        },
-                    });
-                    if (!ok) {
-                        console.log(`[script:prayer-restores] consume rejected item=${def.itemId}`);
-                    }
-                },
-                option,
-            );
-        }
+                        }
+                    },
+                });
+                if (!ok) {
+                    console.log(`[script:prayer-restores] consume rejected item=${def.itemId}`);
+                }
+            },
+            option,
+        );
+    }
 
-        for (const def of ALL_COMBAT_POTION_DEFS) {
-            registry.registerItemAction(
-                def.itemId,
-                ({ player, source, tick }) => {
-                    const slot = source.slot;
-                    const ok = scheduleConsumableAction({
-                        player,
-                        slotIndex: slot,
-                        itemId: def.itemId,
-                        option: "drink",
-                        tick,
-                        services,
-                        profile: "potion",
-                        loggerTag: "combat-potions",
-                        onExecute: () => {
-                            setInventorySlot(player, slot, def.nextItemId, 1);
-                            services.playPlayerSeq?.(player, DRINK_SEQ);
-                            services.playAreaSound?.({
-                                soundId: DRINK_SOUND,
-                                tile: { x: player.tileX, y: player.tileY },
-                                level: player.level,
-                                radius: 1,
-                                volume: 255,
-                            });
-                            for (const boost of def.boosts) {
-                                applyStatBoost(player, boost.skillId, boost.formula);
-                            }
-                            services.sendGameMessage(
-                                player,
-                                `You drink some of your ${def.label}.`,
-                            );
-                            services.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
-                        },
-                    });
-                    if (!ok) {
-                        console.log(`[script:combat-potions] consume rejected item=${def.itemId}`);
-                    }
-                },
-                "drink",
-            );
-        }
-    },
-};
+    for (const def of ALL_COMBAT_POTION_DEFS) {
+        registry.registerItemAction(
+            def.itemId,
+            ({ player, source, tick }) => {
+                const slot = source.slot;
+                const ok = scheduleConsumableAction({
+                    player,
+                    slotIndex: slot,
+                    itemId: def.itemId,
+                    option: "drink",
+                    tick,
+                    services,
+                    profile: "potion",
+                    loggerTag: "combat-potions",
+                    onExecute: () => {
+                        setInventorySlot(player, slot, def.nextItemId, 1);
+                        services.playPlayerSeq?.(player, DRINK_SEQ);
+                        services.playAreaSound?.({
+                            soundId: DRINK_SOUND,
+                            tile: { x: player.tileX, y: player.tileY },
+                            level: player.level,
+                            radius: 1,
+                            volume: 255,
+                        });
+                        for (const boost of def.boosts) {
+                            applyStatBoost(player, boost.skillId, boost.formula);
+                        }
+                        services.sendGameMessage(
+                            player,
+                            `You drink some of your ${def.label}.`,
+                        );
+                        services.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
+                    },
+                });
+                if (!ok) {
+                    console.log(`[script:combat-potions] consume rejected item=${def.itemId}`);
+                }
+            },
+            "drink",
+        );
+    }
+}

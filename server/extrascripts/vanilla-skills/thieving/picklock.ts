@@ -1,6 +1,6 @@
 import type { ActionEffect, ActionExecutionResult } from "../../../src/game/actions/types";
 import type { PlayerState } from "../../../src/game/player";
-import type { LocInteractionEvent, ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, LocInteractionEvent, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 // ---------------------------------------------------------------------------
 // Picklock System
@@ -154,72 +154,69 @@ function executePicklockAction(ctx: ScriptActionHandlerContext): ActionExecution
 // Module
 // ---------------------------------------------------------------------------
 
-export const picklockModule: ScriptModule = {
-    id: "vanilla-skills.thieving.picklock",
-    register(registry, _services) {
-        // Register picklock action handler
-        registry.registerActionHandler("skill.picklock", executePicklockAction);
+export function register(registry: IScriptRegistry, _services: ScriptServices): void {
+    // Register picklock action handler
+    registry.registerActionHandler("skill.picklock", executePicklockAction);
 
-        // Register loc interactions for each picklock definition
-        for (const def of PICKLOCK_LOCS) {
-            const picklockHandler = (event: LocInteractionEvent) => {
-                const { player, tile, level, services } = event;
+    // Register loc interactions for each picklock definition
+    for (const def of PICKLOCK_LOCS) {
+        const picklockHandler = (event: LocInteractionEvent) => {
+            const { player, tile, level, services } = event;
 
-                const actionData: PicklockActionData = {
-                    locId: def.locId,
-                    closedTransformId: def.closedTransformId,
-                    openTransformId: def.openTransformId,
-                    varbitId: def.varbitId,
-                    openValue: def.openValue,
-                    thievingLevel: def.thievingLevel,
-                    xp: def.xp,
-                    tile: { x: tile.x, y: tile.y },
-                    level,
-                    started: false,
-                };
-
-                services.requestAction(
-                    player,
-                    {
-                        kind: "skill.picklock",
-                        data: actionData,
-                        delayTicks: 0,
-                        cooldownTicks: 0,
-                        groups: ["skill.picklock"],
-                    },
-                    event.tick,
-                );
+            const actionData: PicklockActionData = {
+                locId: def.locId,
+                closedTransformId: def.closedTransformId,
+                openTransformId: def.openTransformId,
+                varbitId: def.varbitId,
+                openValue: def.openValue,
+                thievingLevel: def.thievingLevel,
+                xp: def.xp,
+                tile: { x: tile.x, y: tile.y },
+                level,
+                started: false,
             };
 
-            const openLockedHandler = (event: LocInteractionEvent) => {
-                event.services.sendGameMessage(event.player, "The trapdoor is locked.");
-            };
+            services.requestAction(
+                player,
+                {
+                    kind: "skill.picklock",
+                    data: actionData,
+                    delayTicks: 0,
+                    cooldownTicks: 0,
+                    groups: ["skill.picklock"],
+                },
+                event.tick,
+            );
+        };
 
-            for (const id of [def.locId, def.closedTransformId]) {
-                registry.registerLocInteraction(id, picklockHandler, "pick-lock");
-                registry.registerLocInteraction(id, openLockedHandler, "open");
-            }
+        const openLockedHandler = (event: LocInteractionEvent) => {
+            event.services.sendGameMessage(event.player, "The trapdoor is locked.");
+        };
 
-            registry.registerLocInteraction(def.openTransformId, (event) => {
-                const { player, tile, level, services } = event;
-                player.setVarbitValue(def.varbitId, 0);
-                services.sendVarbit?.(player, def.varbitId, 0);
-                services.sendLocChangeToPlayer?.(player, def.locId, def.locId, tile, level);
-            }, "close");
-
-            registry.registerLocInteraction(def.locId, (event) => {
-                const { player, services } = event;
-
-                services.sendGameMessage(player, "You climb down through the trapdoor...");
-
-                player.setVarbitValue(def.varbitId, 0);
-                services.sendVarbit?.(player, def.varbitId, 0);
-
-                services.teleportPlayer?.(player, 3149, 9652, 0);
-                services.sendSound?.(player, TRAPDOOR_CLIMB_SOUND);
-
-                services.sendGameMessage(player, "... and enter a dimly lit cavern area.");
-            }, "climb-down");
+        for (const id of [def.locId, def.closedTransformId]) {
+            registry.registerLocInteraction(id, picklockHandler, "pick-lock");
+            registry.registerLocInteraction(id, openLockedHandler, "open");
         }
-    },
-};
+
+        registry.registerLocInteraction(def.openTransformId, (event) => {
+            const { player, tile, level, services } = event;
+            player.setVarbitValue(def.varbitId, 0);
+            services.sendVarbit?.(player, def.varbitId, 0);
+            services.sendLocChangeToPlayer?.(player, def.locId, def.locId, tile, level);
+        }, "close");
+
+        registry.registerLocInteraction(def.locId, (event) => {
+            const { player, services } = event;
+
+            services.sendGameMessage(player, "You climb down through the trapdoor...");
+
+            player.setVarbitValue(def.varbitId, 0);
+            services.sendVarbit?.(player, def.varbitId, 0);
+
+            services.teleportPlayer?.(player, 3149, 9652, 0);
+            services.sendSound?.(player, TRAPDOOR_CLIMB_SOUND);
+
+            services.sendGameMessage(player, "... and enter a dimly lit cavern area.");
+        }, "climb-down");
+    }
+}

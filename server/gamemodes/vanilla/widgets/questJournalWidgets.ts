@@ -1,7 +1,7 @@
-import { ScriptVarTypeId } from "../../../../../src/rs/config/db/ScriptVarType";
-import { BaseComponentUids } from "../../../widgets/viewport/ViewportEnumService";
-import type { PlayerState } from "../../player";
-import type { ScriptModule, ScriptServices } from "../types";
+import { ScriptVarTypeId } from "../../../../src/rs/config/db/ScriptVarType";
+import { BaseComponentUids } from "../../../src/widgets/viewport/ViewportEnumService";
+import type { PlayerState } from "../../../src/game/player";
+import { type IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
 
 // ============================================================================
 // Constants
@@ -229,97 +229,94 @@ const QUEST_COMPLETION_DATA = new Map<string, QuestCompletionInfo>([
 // Module
 // ============================================================================
 
-export const questJournalWidgetsModule: ScriptModule = {
-    id: "content.quest-journal-widgets",
-    register(registry, services) {
-        // Lazy-loaded quest map: the DbRepository is not available at module registration
-        // time (scripts bootstrap before cache DB is initialized). Build on first click.
-        let questMap: Map<number, QuestEntry> | undefined;
+export function registerQuestJournalWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    // Lazy-loaded quest map: the DbRepository is not available at module registration
+    // time (scripts bootstrap before cache DB is initialized). Build on first click.
+    let questMap: Map<number, QuestEntry> | undefined;
 
-        const getQuestMap = (): Map<number, QuestEntry> => {
-            if (!questMap) {
-                questMap = buildQuestMap(services);
+    const getQuestMap = (): Map<number, QuestEntry> => {
+        if (!questMap) {
+            questMap = buildQuestMap(services);
+        }
+        return questMap;
+    };
+
+    // Handle quest list clicks (399:7)
+    // Dynamic children use the quest ID as their child index.
+    // The slot value in the widget action corresponds to this quest ID.
+    registry.onButton(QUEST_LIST_GROUP_ID, QUEST_LIST_COMPONENT, (event) => {
+        const { player, slot, opId } = event;
+
+        if (opId !== OP_READ_JOURNAL) return;
+
+        const questId = slot;
+        if (questId === undefined || questId <= 0) return;
+
+        const quest = getQuestMap().get(questId);
+        if (!quest) {
+            services.logger?.info?.(
+                `[quest-journal] No quest found for slot=${questId}`,
+            );
+            return;
+        }
+
+        openQuestJournal(player, quest, services);
+    });
+
+    // Handle quest journal Close button (119:8)
+    registry.onButton(QUEST_JOURNAL_GROUP_ID, QJ_CLOSE_CHILD, (event) => {
+        const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
+        services.closeSubInterface?.(event.player, floaterUid, QUEST_JOURNAL_GROUP_ID);
+    });
+
+    // Handle quest journal Switch View button (119:9)
+    // Toggles between journal text and quest overview
+    registry.onButton(QUEST_JOURNAL_GROUP_ID, QJ_SWITCH_VIEW_CHILD, (event) => {
+        const { player } = event;
+        const dbrowId = player.getVarpValue(VARP_LATEST_QUEST_JOURNAL);
+        if (dbrowId <= 0) return;
+
+        // Look up quest name from the map for the overview title
+        const map = getQuestMap();
+        let questName = "Quest";
+        for (const entry of map.values()) {
+            if (entry.dbrowId === dbrowId) {
+                questName = entry.displayName;
+                break;
             }
-            return questMap;
-        };
+        }
 
-        // Handle quest list clicks (399:7)
-        // Dynamic children use the quest ID as their child index.
-        // The slot value in the widget action corresponds to this quest ID.
-        registry.onButton(QUEST_LIST_GROUP_ID, QUEST_LIST_COMPONENT, (event) => {
-            const { player, slot, opId } = event;
+        // Re-open journal with overview text
+        const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
+        services.openSubInterface?.(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
 
-            if (opId !== OP_READ_JOURNAL) return;
-
-            const questId = slot;
-            if (questId === undefined || questId <= 0) return;
-
-            const quest = getQuestMap().get(questId);
-            if (!quest) {
-                services.logger?.info?.(
-                    `[quest-journal] No quest found for slot=${questId}`,
-                );
-                return;
-            }
-
-            openQuestJournal(player, quest, services);
+        services.queueWidgetEvent?.(player.id, {
+            action: "run_script",
+            scriptId: SCRIPT_QUEST_JOURNAL_RESET,
+            args: [],
         });
 
-        // Handle quest journal Close button (119:8)
-        registry.onButton(QUEST_JOURNAL_GROUP_ID, QJ_CLOSE_CHILD, (event) => {
-            const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
-            services.closeSubInterface?.(event.player, floaterUid, QUEST_JOURNAL_GROUP_ID);
+        const titleUid = (QUEST_JOURNAL_GROUP_ID << 16) | QJ_TITLE_CHILD;
+        services.queueWidgetEvent?.(player.id, {
+            action: "set_text",
+            uid: titleUid,
+            text: `<col=7f0000>${questName}</col>`,
         });
 
-        // Handle quest journal Switch View button (119:9)
-        // Toggles between journal text and quest overview
-        registry.onButton(QUEST_JOURNAL_GROUP_ID, QJ_SWITCH_VIEW_CHILD, (event) => {
-            const { player } = event;
-            const dbrowId = player.getVarpValue(VARP_LATEST_QUEST_JOURNAL);
-            if (dbrowId <= 0) return;
-
-            // Look up quest name from the map for the overview title
-            const map = getQuestMap();
-            let questName = "Quest";
-            for (const entry of map.values()) {
-                if (entry.dbrowId === dbrowId) {
-                    questName = entry.displayName;
-                    break;
-                }
-            }
-
-            // Re-open journal with overview text
-            const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
-            services.openSubInterface?.(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
-
-            services.queueWidgetEvent?.(player.id, {
-                action: "run_script",
-                scriptId: SCRIPT_QUEST_JOURNAL_RESET,
-                args: [],
-            });
-
-            const titleUid = (QUEST_JOURNAL_GROUP_ID << 16) | QJ_TITLE_CHILD;
-            services.queueWidgetEvent?.(player.id, {
-                action: "set_text",
-                uid: titleUid,
-                text: `<col=7f0000>${questName}</col>`,
-            });
-
-            const lineUid = (QUEST_JOURNAL_GROUP_ID << 16) | QJ_FIRST_LINE_CHILD;
-            services.queueWidgetEvent?.(player.id, {
-                action: "set_text",
-                uid: lineUid,
-                text: "Quest overview not yet available.",
-            });
-
-            services.queueWidgetEvent?.(player.id, {
-                action: "run_script",
-                scriptId: SCRIPT_QUEST_JOURNAL_SCROLL,
-                args: [0, 1],
-            });
+        const lineUid = (QUEST_JOURNAL_GROUP_ID << 16) | QJ_FIRST_LINE_CHILD;
+        services.queueWidgetEvent?.(player.id, {
+            action: "set_text",
+            uid: lineUid,
+            text: "Quest overview not yet available.",
         });
-    },
-};
+
+        services.queueWidgetEvent?.(player.id, {
+            action: "run_script",
+            scriptId: SCRIPT_QUEST_JOURNAL_SCROLL,
+            args: [0, 1],
+        });
+    });
+}
 
 // ============================================================================
 // Quest journal opening

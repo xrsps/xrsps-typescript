@@ -11,44 +11,75 @@ Gamemodes live in `server/gamemodes/{id}/` and export a `createGamemode()` funct
 - Tutorial flow
 - Player initialization and serialization
 - Per-tick hooks and interaction restrictions
-- Which scripts to load
+- Handler registration (banking, shops, equipment, UI widgets, content interactions)
 - Custom items and content
 
 ## Current gamemodes
 
 | Gamemode | Description |
 |----------|-------------|
-| `vanilla` | Baseline OSRS with no modifications |
-| `leagues-v` | Raging Echoes — area unlocks, relics, masteries, and tasks |
+| `vanilla` | Baseline OSRS — banking, shops, equipment, all UI widgets, core content |
+| `leagues-v` | Raging Echoes — extends vanilla with area unlocks, relics, masteries, and tasks |
 
 ## Structure
 
-A typical gamemode looks like:
-
 ```
+server/gamemodes/vanilla/
+├── index.ts                    # VanillaGamemode class
+├── banking/                    # BankingManager + handler registration
+├── equipment/                  # Equipment actions + widget handlers
+├── shops/                      # ShopManager + widget handlers
+├── scripts/
+│   ├── content/                # Climbing, doors, al-kharid border, etc.
+│   └── items/                  # Followers, packs
+└── widgets/                    # Combat, prayer, spellbook, minimap, etc.
+
 server/gamemodes/leagues-v/
-├── index.ts                    # createGamemode() entry point
-├── scripts/                    # Gamemode-specific scripts
-│   ├── leagueTutor.ts
-│   ├── leagueWidgets.ts
-│   └── leagueTutorialWidgets.ts
-├── data/                       # Gamemode-specific data
-│   ├── leagueMasteries.data.ts
-│   └── leagueTasks.data.ts
+├── index.ts                    # LeaguesVGamemode (extends VanillaGamemode)
+├── scripts/                    # League tutor, league widgets, tutorial widgets
+├── data/                       # Mastery/task definitions
 └── ...
 ```
 
-The `index.ts` extends a base (usually `VanillaGamemode`) and overrides the hooks it needs:
+## Handler Registration
+
+Gamemodes register interaction handlers directly via `registerHandlers()`:
 
 ```typescript
-export function createGamemode(): GamemodeDefinition {
-    return {
-        getSkillXpMultiplier(player) { ... },
-        getDropRateMultiplier() { ... },
-        initializePlayer(player) { ... },
-        getSpawnLocation(player) { ... },
-        getScriptManifest() { ... },
+export class VanillaGamemode implements GamemodeDefinition {
+    registerHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+        registerBankingHandlers(registry, services);
+        registerEquipmentHandlers(registry, services);
+        registerClimbingHandlers(registry, services);
         // ...
-    };
+    }
+}
+```
+
+Gamemodes that extend another call `super.registerHandlers()` to inherit the parent's handlers:
+
+```typescript
+export class LeaguesVGamemode extends VanillaGamemode {
+    override registerHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+        super.registerHandlers(registry, services);
+        registerLeagueTutorHandlers(registry, services);
+        registerLeagueWidgetHandlers(registry, services);
+    }
+}
+```
+
+## Service Providers
+
+Gamemodes can create stateful managers and expose them to handlers via `contributeScriptServices()`:
+
+```typescript
+initialize(context: GamemodeInitContext): void {
+    this.bankingManager = new BankingManager(context.serverServices);
+    this.shopManager = new ShopManager({ ... });
+}
+
+contributeScriptServices(services: ScriptServices): void {
+    services.openBank = (player, opts) => this.bankingManager.openBank(player, opts);
+    services.openShop = (player, opts) => this.openShopInterface(player, opts);
 }
 ```

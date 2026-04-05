@@ -4,10 +4,8 @@ import path from "path";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import { loadExtrascriptEntries } from "./ExtrascriptLoader";
 import { ScriptRuntime } from "./ScriptRuntime";
-import type { ScriptManifestEntry } from "./manifest";
 
-const MANIFEST_PATH = path.resolve(__dirname, "manifest");
-const MODULES_DIR = path.resolve(__dirname, "modules");
+const EXTRASCRIPTS_DIR = path.resolve(__dirname, "../../../../server/extrascripts");
 
 const debounce = (fn: () => void, delayMs: number): (() => void) => {
     let timeout: NodeJS.Timeout | undefined;
@@ -20,14 +18,6 @@ const debounce = (fn: () => void, delayMs: number): (() => void) => {
     };
 };
 
-function loadManifestEntries(): ScriptManifestEntry[] {
-    delete require.cache[require.resolve(MANIFEST_PATH)];
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const manifestModule = require(MANIFEST_PATH);
-    const entries: ScriptManifestEntry[] = manifestModule.SCRIPT_MANIFEST ?? [];
-    return entries.filter((entry) => (entry.enableWhen ? entry.enableWhen(process.env) : true));
-}
-
 function invalidateRequireCache(filePath: string): void {
     try {
         delete require.cache[require.resolve(filePath)];
@@ -36,22 +26,29 @@ function invalidateRequireCache(filePath: string): void {
 
 export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefinition): void {
     const loadAll = () => {
-        const coreEntries = loadManifestEntries();
-        const gamemodeEntries = gamemode?.getScriptManifest() ?? [];
         const extrascriptEntries = loadExtrascriptEntries();
-        const entries = [...coreEntries, ...gamemodeEntries, ...extrascriptEntries];
         runtime.reset();
-        for (const entry of entries) {
+
+        if (gamemode?.registerHandlers) {
+            try {
+                runtime.registerHandlers(`gamemode.${gamemode.id}`, (registry, services) =>
+                    gamemode.registerHandlers(registry, services),
+                );
+            } catch (err) {
+                console.error(`[script] failed gamemode registerHandlers for ${gamemode.id}`, err);
+            }
+        }
+
+        for (const entry of extrascriptEntries) {
             if (entry.watch) {
                 for (const watchTarget of entry.watch) {
                     invalidateRequireCache(watchTarget);
                 }
             }
             try {
-                runtime.loadModule(entry.load());
+                runtime.registerHandlers(entry.id, entry.register);
             } catch (err) {
-                // eslint-disable-next-line no-console
-                console.error(`[script] failed to load module ${entry.id}`, err);
+                console.error(`[script] failed to load extrascript ${entry.id}`, err);
             }
         }
     };
@@ -60,21 +57,15 @@ export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefi
 
     if (process.env.SCRIPT_HOT_RELOAD === "1") {
         const reload = debounce(() => {
-            invalidateRequireCache(MANIFEST_PATH);
             loadAll();
         }, 100);
 
         try {
-            fs.watch(MODULES_DIR, { persistent: false }, reload);
+            if (fs.existsSync(EXTRASCRIPTS_DIR)) {
+                fs.watch(EXTRASCRIPTS_DIR, { persistent: false, recursive: true }, reload);
+            }
         } catch (err) {
-            console.warn?.("[script] failed to watch modules directory", err);
+            console.log("[script] failed to watch extrascripts directory", err);
         }
-
-        try {
-            fs.watch(`${MANIFEST_PATH}.ts`, { persistent: false }, reload);
-        } catch {}
-        try {
-            fs.watch(`${MANIFEST_PATH}.js`, { persistent: false }, reload);
-        } catch {}
     }
 }

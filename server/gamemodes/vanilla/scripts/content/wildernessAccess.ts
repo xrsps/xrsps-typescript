@@ -1,4 +1,4 @@
-import { type LocInteractionEvent, type ScriptModule } from "../types";
+import { type IScriptRegistry, type ScriptServices, type LocInteractionEvent } from "../../../../src/game/scripts/types";
 
 // Wilderness ditch loc ID (shared for all ditch segments — cross in both directions)
 const WILDERNESS_DITCH_LOC_ID = 23271;
@@ -69,13 +69,10 @@ function handleDitchCross(event: LocInteractionEvent): void {
     services.sendSound?.(player, DITCH_CROSS_SOUND_ID, { delayMs: DITCH_CROSS_SOUND_DELAY_MS });
 }
 
-export const wildernessAccessModule: ScriptModule = {
-    id: "content.wilderness-access",
-    register(registry) {
-        registry.registerLocScript({
-            locId: WILDERNESS_DITCH_LOC_ID,
-            action: "cross",
-            handler: handleDitchCross,
-        });
-    },
-};
+export function registerWildernessAccessHandlers(registry: IScriptRegistry, _services: ScriptServices): void {
+    registry.registerLocScript({
+        locId: WILDERNESS_DITCH_LOC_ID,
+        action: "cross",
+        handler: handleDitchCross,
+    });
+}

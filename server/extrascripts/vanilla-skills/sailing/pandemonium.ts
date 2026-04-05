@@ -17,9 +17,9 @@ import {
 } from "../../../src/game/sailing/SailingInstance";
 import type { PlayerState } from "../../../src/game/player";
 import type {
+    IScriptRegistry,
     NpcInteractionEvent,
     ScriptDialogRequest,
-    ScriptModule,
     ScriptServices,
 } from "../../../src/game/scripts/types";
 
@@ -121,183 +121,180 @@ const ANIM_CHATSAD1 = 610;
 // Module
 // ============================================================================
 
-export const pandemoniumQuestModule: ScriptModule = {
-    id: "quest.pandemonium",
-    register(registry, services) {
-        const activeConvos = new Set<number>();
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    const activeConvos = new Set<number>();
 
-        function getSailingIntro(player: PlayerState): number {
-            return player.getVarbitValue(VARBIT_SAILING_INTRO);
-        }
+    function getSailingIntro(player: PlayerState): number {
+        return player.getVarbitValue(VARBIT_SAILING_INTRO);
+    }
 
-        function playShoreConversation(event: NpcInteractionEvent) {
-            const { player } = event;
-            const pid = player.id;
-            const state = getSailingIntro(player);
+    function playShoreConversation(event: NpcInteractionEvent) {
+        const { player } = event;
+        const pid = player.id;
+        const state = getSailingIntro(player);
 
-            if (activeConvos.has(pid)) return;
-            activeConvos.add(pid);
+        if (activeConvos.has(pid)) return;
+        activeConvos.add(pid);
 
-            const playerName = player.name ?? "You";
-            const onClose = () => activeConvos.delete(pid);
-            const convoId = `pandemonium_${pid}`;
+        const playerName = player.name ?? "You";
+        const onClose = () => activeConvos.delete(pid);
+        const convoId = `pandemonium_${pid}`;
 
-            const openAnneDialog = createNpcDialogFn(
-                player,
-                services,
-                onClose,
-                ANNE_SHORE_NPC_ID,
-                "Anne",
-            );
-            const openWillDialog = createNpcDialogFn(
-                player,
-                services,
-                onClose,
-                WILL_SHORE_NPC_ID,
-                "Will",
-            );
-            const openPlayerDialog = createPlayerDialogFn(
-                player,
-                services,
-                onClose,
-                playerName,
-            );
+        const openAnneDialog = createNpcDialogFn(
+            player,
+            services,
+            onClose,
+            ANNE_SHORE_NPC_ID,
+            "Anne",
+        );
+        const openWillDialog = createNpcDialogFn(
+            player,
+            services,
+            onClose,
+            WILL_SHORE_NPC_ID,
+            "Will",
+        );
+        const openPlayerDialog = createPlayerDialogFn(
+            player,
+            services,
+            onClose,
+            playerName,
+        );
 
-            if (state === 0) {
-                playIntroDialogue(
-                    convoId,
-                    player,
-                    playerName,
-                    openAnneDialog,
-                    openWillDialog,
-                    openPlayerDialog,
-                    onClose,
-                    services,
-                );
-            } else if (state === 2 || state === 4) {
-                playReadyDialogue(
-                    convoId,
-                    player,
-                    playerName,
-                    openAnneDialog,
-                    openWillDialog,
-                    openPlayerDialog,
-                    onClose,
-                    services,
-                );
-            } else {
-                activeConvos.delete(pid);
-            }
-        }
-
-        function playShipConversation(event: NpcInteractionEvent) {
-            const { player, npc } = event;
-            const pid = player.id;
-
-            if (activeConvos.has(pid)) return;
-            activeConvos.add(pid);
-
-            const playerName = player.name ?? "You";
-            const onClose = () => activeConvos.delete(pid);
-            const convoId = `pandemonium_ship_${pid}`;
-            const dockedVariant =
-                npc.typeId === WILL_DOCKED_NPC_ID || npc.typeId === ANNE_DOCKED_NPC_ID;
-            const openAnneDialog = createNpcDialogFn(
-                player,
-                services,
-                onClose,
-                dockedVariant ? ANNE_DOCKED_NPC_ID : ANNE_BOAT_NPC_ID,
-                "Anne",
-            );
-            const openWillDialog = createNpcDialogFn(
-                player,
-                services,
-                onClose,
-                dockedVariant ? WILL_DOCKED_NPC_ID : WILL_BOAT_NPC_ID,
-                "Will",
-            );
-
-            playShipboardDialogue(
+        if (state === 0) {
+            playIntroDialogue(
                 convoId,
+                player,
                 playerName,
                 openAnneDialog,
                 openWillDialog,
-                npc.typeId === ANNE_DOCKED_NPC_ID || npc.typeId === ANNE_BOAT_NPC_ID
-                    ? "anne"
-                    : "will",
-                dockedVariant ? "docked" : "at_sea",
+                openPlayerDialog,
+                onClose,
+                services,
             );
+        } else if (state === 2 || state === 4) {
+            playReadyDialogue(
+                convoId,
+                player,
+                playerName,
+                openAnneDialog,
+                openWillDialog,
+                openPlayerDialog,
+                onClose,
+                services,
+            );
+        } else {
+            activeConvos.delete(pid);
         }
+    }
 
+    function playShipConversation(event: NpcInteractionEvent) {
+        const { player, npc } = event;
+        const pid = player.id;
+
+        if (activeConvos.has(pid)) return;
+        activeConvos.add(pid);
+
+        const playerName = player.name ?? "You";
+        const onClose = () => activeConvos.delete(pid);
+        const convoId = `pandemonium_ship_${pid}`;
+        const dockedVariant =
+            npc.typeId === WILL_DOCKED_NPC_ID || npc.typeId === ANNE_DOCKED_NPC_ID;
+        const openAnneDialog = createNpcDialogFn(
+            player,
+            services,
+            onClose,
+            dockedVariant ? ANNE_DOCKED_NPC_ID : ANNE_BOAT_NPC_ID,
+            "Anne",
+        );
+        const openWillDialog = createNpcDialogFn(
+            player,
+            services,
+            onClose,
+            dockedVariant ? WILL_DOCKED_NPC_ID : WILL_BOAT_NPC_ID,
+            "Will",
+        );
+
+        playShipboardDialogue(
+            convoId,
+            playerName,
+            openAnneDialog,
+            openWillDialog,
+            npc.typeId === ANNE_DOCKED_NPC_ID || npc.typeId === ANNE_BOAT_NPC_ID
+                ? "anne"
+                : "will",
+            dockedVariant ? "docked" : "at_sea",
+        );
+    }
+
+    registry.registerNpcScript({
+        npcId: ANNE_SHORE_NPC_ID,
+        option: "talk-to",
+        handler: playShoreConversation,
+    });
+    registry.registerNpcScript({
+        npcId: ANNE_SHORE_NPC_ID,
+        option: undefined,
+        handler: playShoreConversation,
+    });
+
+    registry.registerNpcScript({
+        npcId: WILL_SHORE_NPC_ID,
+        option: "talk-to",
+        handler: playShoreConversation,
+    });
+    registry.registerNpcScript({
+        npcId: WILL_SHORE_NPC_ID,
+        option: undefined,
+        handler: playShoreConversation,
+    });
+
+    for (const npcId of [
+        WILL_BOAT_NPC_ID,
+        WILL_DOCKED_NPC_ID,
+        ANNE_BOAT_NPC_ID,
+        ANNE_DOCKED_NPC_ID,
+    ]) {
         registry.registerNpcScript({
-            npcId: ANNE_SHORE_NPC_ID,
+            npcId,
             option: "talk-to",
-            handler: playShoreConversation,
+            handler: playShipConversation,
         });
         registry.registerNpcScript({
-            npcId: ANNE_SHORE_NPC_ID,
+            npcId,
             option: undefined,
-            handler: playShoreConversation,
+            handler: playShipConversation,
         });
+    }
 
-        registry.registerNpcScript({
-            npcId: WILL_SHORE_NPC_ID,
-            option: "talk-to",
-            handler: playShoreConversation,
-        });
-        registry.registerNpcScript({
-            npcId: WILL_SHORE_NPC_ID,
-            option: undefined,
-            handler: playShoreConversation,
-        });
+    registry.registerLocInteraction(LOC_GANGPLANK, (event) => {
+        const { player } = event;
+        if (!isPlayerOnDockedSailingBoat(player)) return;
+        executeDisembarkSequence(player, services);
+    }, "disembark");
 
-        for (const npcId of [
-            WILL_BOAT_NPC_ID,
-            WILL_DOCKED_NPC_ID,
-            ANNE_BOAT_NPC_ID,
-            ANNE_DOCKED_NPC_ID,
-        ]) {
-            registry.registerNpcScript({
-                npcId,
-                option: "talk-to",
-                handler: playShipConversation,
-            });
-            registry.registerNpcScript({
-                npcId,
-                option: undefined,
-                handler: playShipConversation,
-            });
-        }
+    registry.registerActionHandler("sailing.board_tick1", (ctx) => {
+        const data = ctx.data as { playerName: string };
+        handleBoardingTick1(ctx.player, data, ctx.services);
+        return { ok: true };
+    });
 
-        registry.registerLocInteraction(LOC_GANGPLANK, (event) => {
-            const { player } = event;
-            if (!isPlayerOnDockedSailingBoat(player)) return;
-            executeDisembarkSequence(player, services);
-        }, "disembark");
+    registry.registerActionHandler("sailing.board_tick2", (ctx) => {
+        handleBoardingTick2(ctx.player, ctx.services);
+        return { ok: true };
+    });
 
-        registry.registerActionHandler("sailing.board_tick1", (ctx) => {
-            const data = ctx.data as { playerName: string };
-            handleBoardingTick1(ctx.player, data, ctx.services);
-            return { ok: true };
-        });
+    registry.registerActionHandler("sailing.disembark", (ctx) => {
+        handleDisembarkTick(ctx.player, ctx.services);
+        return { ok: true };
+    });
 
-        registry.registerActionHandler("sailing.board_tick2", (ctx) => {
-            handleBoardingTick2(ctx.player, ctx.services);
-            return { ok: true };
-        });
-
-        registry.registerActionHandler("sailing.disembark", (ctx) => {
-            handleDisembarkTick(ctx.player, ctx.services);
-            return { ok: true };
-        });
-
-        registry.registerCommand("sail", (event) => {
-            const playerName = event.player.name ?? "You";
-            handleBoardingTick1(event.player, { playerName }, services);
-            handleBoardingTick2(event.player, services);
-        });
-    },
-};
+    registry.registerCommand("sail", (event) => {
+        const playerName = event.player.name ?? "You";
+        handleBoardingTick1(event.player, { playerName }, services);
+        handleBoardingTick2(event.player, services);
+    });
+}
 
 function createNpcDialogFn(
     player: PlayerState,

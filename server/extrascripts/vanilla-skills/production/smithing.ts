@@ -7,7 +7,7 @@ import {
     type SmithingRecipe,
     getSmithingRecipeById,
 } from "../../../src/game/skills/skillSurfaces";
-import type { ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 import {
     type InventoryEntry,
     type SkillDialogChoice,
@@ -109,7 +109,7 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
     return { ok: true, cooldownTicks: recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 4, groups: ["skill.smith"], effects };
 }
 
-export function registerSmithingInteractions(registry: Parameters<ScriptModule["register"]>[0], services: Parameters<ScriptModule["register"]>[1]) {
+export function registerSmithingInteractions(registry: IScriptRegistry, services: ScriptServices) {
     const requestAction = services.requestAction;
     const openDialogOptions = services.openDialogOptions;
     const closeDialog = services.closeDialog;

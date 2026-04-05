@@ -3,7 +3,7 @@ import {
     SHOP_INVENTORY_INTERFACE_ID,
     SHOP_STOCK_COMPONENT,
 } from "../../../src/widgets/InterfaceService";
-import { type ScriptModule } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
 
 // Widget UIDs for shop stock (300:16) and shop inventory (301:0)
 const SHOP_STOCK_WIDGET_ID = (SHOP_INTERFACE_ID << 16) | SHOP_STOCK_COMPONENT;
@@ -46,83 +46,80 @@ function childIndexToSlot(childIndex: number): number {
     return childIndex - 1;
 }
 
-export const shopWidgetActionsModule: ScriptModule = {
-    id: "content.shop-widgets",
-    register(registry) {
-        // ========================================
-        // SHOP STOCK (300:16) - Buying items
-        // ========================================
+export function registerShopWidgetHandlers(registry: IScriptRegistry, _services: ScriptServices): void {
+    // ========================================
+    // SHOP STOCK (300:16) - Buying items
+    // ========================================
 
-        // Shop stock "Value" option (button 1)
+    // Shop stock "Value" option (button 1)
+    registry.registerWidgetAction({
+        widgetId: SHOP_STOCK_WIDGET_ID,
+        opId: SHOP_OP_VALUE,
+        handler: ({ player, services, slot }) => {
+            if (slot === undefined) return;
+            const slotIndex = childIndexToSlot(slot);
+            if (slotIndex < 0) return;
+            const info = services.getShopSlotValue?.(player, slotIndex);
+            if (info) {
+                const priceText =
+                    info.buyPrice === 0
+                        ? "is currently free"
+                        : `currently costs ${formatCoins(info.buyPrice)}`;
+                services.sendGameMessage(player, `${info.itemName}: ${priceText}.`);
+            }
+        },
+    });
+
+    // Shop stock buy buttons (buttons 2-5)
+    for (const opId of [SHOP_OP_QTY_1, SHOP_OP_QTY_5, SHOP_OP_QTY_10, SHOP_OP_QTY_50]) {
+        const quantity = BUTTON_TO_QUANTITY[opId];
         registry.registerWidgetAction({
             widgetId: SHOP_STOCK_WIDGET_ID,
-            opId: SHOP_OP_VALUE,
+            opId,
             handler: ({ player, services, slot }) => {
                 if (slot === undefined) return;
                 const slotIndex = childIndexToSlot(slot);
                 if (slotIndex < 0) return;
-                const info = services.getShopSlotValue?.(player, slotIndex);
-                if (info) {
-                    const priceText =
-                        info.buyPrice === 0
-                            ? "is currently free"
-                            : `currently costs ${formatCoins(info.buyPrice)}`;
-                    services.sendGameMessage(player, `${info.itemName}: ${priceText}.`);
-                }
+                services.buyFromShop?.(player, { slotIndex, quantity });
             },
         });
+    }
 
-        // Shop stock buy buttons (buttons 2-5)
-        for (const opId of [SHOP_OP_QTY_1, SHOP_OP_QTY_5, SHOP_OP_QTY_10, SHOP_OP_QTY_50]) {
-            const quantity = BUTTON_TO_QUANTITY[opId];
-            registry.registerWidgetAction({
-                widgetId: SHOP_STOCK_WIDGET_ID,
-                opId,
-                handler: ({ player, services, slot }) => {
-                    if (slot === undefined) return;
-                    const slotIndex = childIndexToSlot(slot);
-                    if (slotIndex < 0) return;
-                    services.buyFromShop?.(player, { slotIndex, quantity });
-                },
-            });
-        }
+    // ========================================
+    // SHOP INVENTORY (301:0) - Selling items
+    // ========================================
 
-        // ========================================
-        // SHOP INVENTORY (301:0) - Selling items
-        // ========================================
+    // Inventory "Value" option (button 1)
+    registry.registerWidgetAction({
+        widgetId: SHOP_INVENTORY_WIDGET_ID,
+        opId: SHOP_OP_VALUE,
+        handler: ({ player, services, itemId }) => {
+            if (itemId === undefined || itemId <= 0) return;
+            const info = services.getInventoryItemSellValue?.(player, itemId);
+            if (info) {
+                const priceText =
+                    info.sellPrice === 0
+                        ? "shop will buy for free"
+                        : `shop will buy for ${formatCoins(info.sellPrice)}`;
+                services.sendGameMessage(player, `${info.itemName}: ${priceText}.`);
+            }
+        },
+    });
 
-        // Inventory "Value" option (button 1)
+    // Inventory sell buttons (buttons 2-5)
+    for (const opId of [SHOP_OP_QTY_1, SHOP_OP_QTY_5, SHOP_OP_QTY_10, SHOP_OP_QTY_50]) {
+        const quantity = BUTTON_TO_QUANTITY[opId];
         registry.registerWidgetAction({
             widgetId: SHOP_INVENTORY_WIDGET_ID,
-            opId: SHOP_OP_VALUE,
-            handler: ({ player, services, itemId }) => {
-                if (itemId === undefined || itemId <= 0) return;
-                const info = services.getInventoryItemSellValue?.(player, itemId);
-                if (info) {
-                    const priceText =
-                        info.sellPrice === 0
-                            ? "shop will buy for free"
-                            : `shop will buy for ${formatCoins(info.sellPrice)}`;
-                    services.sendGameMessage(player, `${info.itemName}: ${priceText}.`);
-                }
+            opId,
+            handler: ({ player, services, slot, itemId }) => {
+                if (slot === undefined || itemId === undefined) return;
+                services.sellToShop?.(player, {
+                    inventorySlot: slot,
+                    itemId: itemId,
+                    quantity,
+                });
             },
         });
-
-        // Inventory sell buttons (buttons 2-5)
-        for (const opId of [SHOP_OP_QTY_1, SHOP_OP_QTY_5, SHOP_OP_QTY_10, SHOP_OP_QTY_50]) {
-            const quantity = BUTTON_TO_QUANTITY[opId];
-            registry.registerWidgetAction({
-                widgetId: SHOP_INVENTORY_WIDGET_ID,
-                opId,
-                handler: ({ player, services, slot, itemId }) => {
-                    if (slot === undefined || itemId === undefined) return;
-                    services.sellToShop?.(player, {
-                        inventorySlot: slot,
-                        itemId: itemId,
-                        quantity,
-                    });
-                },
-            });
-        }
-    },
-};
+    }
+}

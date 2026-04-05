@@ -1,18 +1,18 @@
-import { EquipmentSlot } from "../../../../../src/rs/config/player/Equipment";
+import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import {
     VARP_ATTACK_STYLE,
     VARP_AUTOCAST_SPELLPOS,
     VARP_AUTO_RETALIATE,
     VARP_SPECIAL_ATTACK,
-} from "../../../../../src/shared/vars";
+} from "../../../../src/shared/vars";
 import {
     buildVisibleAutocastIndices,
     canWeaponAutocastSpell,
     getAutocastCompatibilityMessage,
     getSpellIdFromAutocastIndex,
-} from "../../../data/spells";
-import { DisplayMode, getDefaultInterfaces } from "../../../widgets/WidgetManager";
-import { applyAutocastState, clearAutocastState } from "../../combat/AutocastState";
+} from "../../../src/data/spells";
+import { DisplayMode, getDefaultInterfaces } from "../../../src/widgets/WidgetManager";
+import { applyAutocastState, clearAutocastState } from "../../../src/game/combat/AutocastState";
 import {
     ROCK_KNOCKER_SOUND_ID,
     applyFishstabberFishingBoost,
@@ -23,8 +23,8 @@ import {
     getRockKnockerSpecialSequence,
     markInstantUtilitySpecialHandledAtTick,
     wasInstantUtilitySpecialHandledAtTick,
-} from "../../combat/RockKnockerSpecial";
-import { type ScriptModule } from "../types";
+} from "../../../src/game/combat/RockKnockerSpecial";
+import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
 
 /**
  * Combat widgets handlers for interface 593 (combat options tab) and 201 (autocast popup).
@@ -187,153 +187,150 @@ function tryActivateInstantUtilitySpecial(
     return true;
 }
 
-export const combatWidgetModule: ScriptModule = {
-    id: "content.combat-widgets",
-    register(registry, services) {
-        // ============ COMBAT STYLE BUTTONS (593:6, 593:10, 593:14, 593:18) ============
-        // The CS2 script already sets varp 43 before dispatching the action,
-        // so we just need to queue combat state update.
-        for (const componentId of COMBAT_STYLE_COMPONENTS) {
-            registry.onButton(COMBAT_WIDGET_GROUP_ID, componentId, (event) => {
-                const player = event.player;
-                services.queueCombatState?.(player);
-                services.logger?.info?.(
-                    `[script:combat-widgets] Combat style button clicked for player=${player.id} ` +
-                        `component=${componentId}`,
-                );
-            });
+export function registerCombatWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    // ============ COMBAT STYLE BUTTONS (593:6, 593:10, 593:14, 593:18) ============
+    // The CS2 script already sets varp 43 before dispatching the action,
+    // so we just need to queue combat state update.
+    for (const componentId of COMBAT_STYLE_COMPONENTS) {
+        registry.onButton(COMBAT_WIDGET_GROUP_ID, componentId, (event) => {
+            const player = event.player;
+            services.queueCombatState?.(player);
+            services.logger?.info?.(
+                `[script:combat-widgets] Combat style button clicked for player=${player.id} ` +
+                    `component=${componentId}`,
+            );
+        });
+    }
+
+    // ============ AUTO-RETALIATE BUTTON (593:32) ============
+    // OSRS parity: varp 172 is "option_nodef" where 0 = ON, 1 = OFF
+    registry.onButton(COMBAT_WIDGET_GROUP_ID, AUTO_RETALIATE_COMPONENT, (event) => {
+        const player = event.player;
+        const currentlyOn = !!player.autoRetaliate;
+        const newState = !currentlyOn;
+
+        // Toggle the state
+        player.setAutoRetaliate(newState);
+
+        // Update varp (0 = ON, 1 = OFF - inverted logic)
+        const varpValue = newState ? 0 : 1;
+        player.setVarpValue(VARP_AUTO_RETALIATE, varpValue);
+
+        // Send varp to client to update the UI
+        services.sendVarp?.(player, VARP_AUTO_RETALIATE, varpValue);
+
+        // Queue combat state update
+        services.queueCombatState?.(player);
+
+        services.logger?.info?.(
+            `[script:combat-widgets] Auto-retaliate toggled for player=${player.id} ` +
+                `newState=${newState ? "ON" : "OFF"}`,
+        );
+    });
+
+    // ============ SPECIAL ATTACK BUTTON (593:39) ============
+    // OSRS parity: varp 301 is special attack toggle (0 = off, 1 = on)
+    registry.onButton(COMBAT_WIDGET_GROUP_ID, SPECIAL_ATTACK_BUTTON_COMPONENT, (event) => {
+        const player = event.player;
+        const currentlyActivated = player.isSpecialActivated?.() ?? false;
+        const newState = !currentlyActivated;
+        const equip = player.appearance?.equip;
+        const weaponObjId = Array.isArray(equip) ? equip[EquipmentSlot.WEAPON] : 0;
+
+        if (
+            newState &&
+            tryActivateInstantUtilitySpecial(player, weaponObjId, event.tick, services)
+        ) {
+            return;
         }
 
-        // ============ AUTO-RETALIATE BUTTON (593:32) ============
-        // OSRS parity: varp 172 is "option_nodef" where 0 = ON, 1 = OFF
-        registry.onButton(COMBAT_WIDGET_GROUP_ID, AUTO_RETALIATE_COMPONENT, (event) => {
-            const player = event.player;
-            const currentlyOn = !!player.autoRetaliate;
-            const newState = !currentlyOn;
+        // Toggle the state
+        player.setSpecialActivated?.(newState);
 
-            // Toggle the state
-            player.setAutoRetaliate(newState);
+        // Update varp (0 = off, 1 = on)
+        const varpValue = newState ? 1 : 0;
+        player.setVarpValue(VARP_SPECIAL_ATTACK, varpValue);
 
-            // Update varp (0 = ON, 1 = OFF - inverted logic)
-            const varpValue = newState ? 0 : 1;
-            player.setVarpValue(VARP_AUTO_RETALIATE, varpValue);
+        // Send varp to client to update the UI
+        services.sendVarp?.(player, VARP_SPECIAL_ATTACK, varpValue);
 
-            // Send varp to client to update the UI
-            services.sendVarp?.(player, VARP_AUTO_RETALIATE, varpValue);
+        // Queue combat state update
+        services.queueCombatState?.(player);
 
-            // Queue combat state update
-            services.queueCombatState?.(player);
+        services.logger?.info?.(
+            `[script:combat-widgets] Special attack toggled for player=${player.id} ` +
+                `newState=${newState ? "ON" : "OFF"}`,
+        );
+    });
 
-            services.logger?.info?.(
-                `[script:combat-widgets] Auto-retaliate toggled for player=${player.id} ` +
-                    `newState=${newState ? "ON" : "OFF"}`,
-            );
-        });
+    // ============ AUTOCAST SPELL ICON (593:26) - Disable autocast ============
+    // Clicking the spell icon when autocast is active disables it
+    registry.onButton(COMBAT_WIDGET_GROUP_ID, AUTOCAST_SPELL_ICON_COMPONENT, (event) => {
+        const player = event.player;
 
-        // ============ SPECIAL ATTACK BUTTON (593:39) ============
-        // OSRS parity: varp 301 is special attack toggle (0 = off, 1 = on)
-        registry.onButton(COMBAT_WIDGET_GROUP_ID, SPECIAL_ATTACK_BUTTON_COMPONENT, (event) => {
-            const player = event.player;
-            const currentlyActivated = player.isSpecialActivated?.() ?? false;
-            const newState = !currentlyActivated;
-            const equip = player.appearance?.equip;
-            const weaponObjId = Array.isArray(equip) ? equip[EquipmentSlot.WEAPON] : 0;
-
-            if (
-                newState &&
-                tryActivateInstantUtilitySpecial(player, weaponObjId, event.tick, services)
-            ) {
-                return;
-            }
-
-            // Toggle the state
-            player.setSpecialActivated?.(newState);
-
-            // Update varp (0 = off, 1 = on)
-            const varpValue = newState ? 1 : 0;
-            player.setVarpValue(VARP_SPECIAL_ATTACK, varpValue);
-
-            // Send varp to client to update the UI
-            services.sendVarp?.(player, VARP_SPECIAL_ATTACK, varpValue);
-
-            // Queue combat state update
-            services.queueCombatState?.(player);
+        if (player.autocastEnabled) {
+            clearAutocastState(player, {
+                sendVarbit: services.sendVarbit,
+                queueCombatState: services.queueCombatState,
+            });
 
             services.logger?.info?.(
-                `[script:combat-widgets] Special attack toggled for player=${player.id} ` +
-                    `newState=${newState ? "ON" : "OFF"}`,
+                `[script:combat-widgets] Autocast disabled for player=${player.id}`,
             );
-        });
+        }
+    });
 
-        // ============ AUTOCAST SPELL ICON (593:26) - Disable autocast ============
-        // Clicking the spell icon when autocast is active disables it
-        registry.onButton(COMBAT_WIDGET_GROUP_ID, AUTOCAST_SPELL_ICON_COMPONENT, (event) => {
-            const player = event.player;
+    // ============ AUTOCAST BUTTON (593:28) - Opens spell chooser ============
+    registry.onButton(COMBAT_WIDGET_GROUP_ID, AUTOCAST_BUTTON_COMPONENT, (event) => {
+        openAutocastPopup(event.player, false, services);
+    });
 
-            if (player.autocastEnabled) {
-                clearAutocastState(player, {
-                    sendVarbit: services.sendVarbit,
-                    queueCombatState: services.queueCombatState,
-                });
+    // ============ DEFENSIVE AUTOCAST BUTTON (593:23) ============
+    registry.onButton(COMBAT_WIDGET_GROUP_ID, DEFENSIVE_AUTOCAST_BUTTON_COMPONENT, (event) => {
+        openAutocastPopup(event.player, true, services);
+    });
 
-                services.logger?.info?.(
-                    `[script:combat-widgets] Autocast disabled for player=${player.id}`,
-                );
-            }
-        });
-
-        // ============ AUTOCAST BUTTON (593:28) - Opens spell chooser ============
-        registry.onButton(COMBAT_WIDGET_GROUP_ID, AUTOCAST_BUTTON_COMPONENT, (event) => {
-            openAutocastPopup(event.player, false, services);
-        });
-
-        // ============ DEFENSIVE AUTOCAST BUTTON (593:23) ============
-        registry.onButton(COMBAT_WIDGET_GROUP_ID, DEFENSIVE_AUTOCAST_BUTTON_COMPONENT, (event) => {
-            openAutocastPopup(event.player, true, services);
-        });
-
-        // ============ AUTOCAST POPUP SPELL SELECTION (201:1 dynamic children) ============
-        // The CS2 autocast_setup script creates spell icon widgets via CC_CREATE under
-        // component 1 (the spell grid layer). Clicks on dynamic children arrive with
-        // group=201, child=1 (the parent layer), and slot = CC_CREATE childIndex.
-        // We map the sequential slot back to the autocast spell index using the same
-        // weapon-based visible spell list that the CS2 script builds.
-        registry.onButton(AUTOCAST_POPUP_GROUP_ID, AUTOCAST_SPELL_CONTAINER_COMPONENT, (event) => {
-            const slot = event.slot;
-            if (slot === undefined || slot < 1 || slot === 0xffff) {
-                // Background click on the layer or slot 0 header — ignore
-                return;
-            }
-            const weaponId = event.player.pendingAutocastWeaponId ?? 0;
-            const visibleSpells = buildVisibleAutocastIndices(weaponId);
-            // CC_CREATE childIndex is 1-based (slot 0 is a header/spacer), so subtract 1
-            const arrayIndex = slot - 1;
-            if (arrayIndex >= visibleSpells.length) {
-                services.logger?.warn?.(
-                    `[script:combat-widgets] Autocast slot=${slot} out of range ` +
-                        `(visible=${visibleSpells.length}) for player=${event.player.id}`,
-                );
-                return;
-            }
-            const autocastIndex = visibleSpells[arrayIndex];
-            handleAutocastSpellSelection(event.player, autocastIndex, services);
-        });
-
-        // ============ AUTOCAST POPUP CANCEL (201:0) ============
-        registry.onButton(AUTOCAST_POPUP_GROUP_ID, AUTOCAST_CANCEL_COMPONENT, (event) => {
-            const player = event.player;
-            // Clear temporary state
-            player.pendingAutocastDefensive = undefined;
-            player.pendingAutocastWeaponId = undefined;
-
-            const combatTabUid = getCombatTabUid(player);
-            services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
-            services.logger?.info?.(
-                `[script:combat-widgets] Autocast popup cancelled for player=${player.id}`,
+    // ============ AUTOCAST POPUP SPELL SELECTION (201:1 dynamic children) ============
+    // The CS2 autocast_setup script creates spell icon widgets via CC_CREATE under
+    // component 1 (the spell grid layer). Clicks on dynamic children arrive with
+    // group=201, child=1 (the parent layer), and slot = CC_CREATE childIndex.
+    // We map the sequential slot back to the autocast spell index using the same
+    // weapon-based visible spell list that the CS2 script builds.
+    registry.onButton(AUTOCAST_POPUP_GROUP_ID, AUTOCAST_SPELL_CONTAINER_COMPONENT, (event) => {
+        const slot = event.slot;
+        if (slot === undefined || slot < 1 || slot === 0xffff) {
+            // Background click on the layer or slot 0 header — ignore
+            return;
+        }
+        const weaponId = event.player.pendingAutocastWeaponId ?? 0;
+        const visibleSpells = buildVisibleAutocastIndices(weaponId);
+        // CC_CREATE childIndex is 1-based (slot 0 is a header/spacer), so subtract 1
+        const arrayIndex = slot - 1;
+        if (arrayIndex >= visibleSpells.length) {
+            services.logger?.warn?.(
+                `[script:combat-widgets] Autocast slot=${slot} out of range ` +
+                    `(visible=${visibleSpells.length}) for player=${event.player.id}`,
             );
-        });
-    },
-};
+            return;
+        }
+        const autocastIndex = visibleSpells[arrayIndex];
+        handleAutocastSpellSelection(event.player, autocastIndex, services);
+    });
+
+    // ============ AUTOCAST POPUP CANCEL (201:0) ============
+    registry.onButton(AUTOCAST_POPUP_GROUP_ID, AUTOCAST_CANCEL_COMPONENT, (event) => {
+        const player = event.player;
+        // Clear temporary state
+        player.pendingAutocastDefensive = undefined;
+        player.pendingAutocastWeaponId = undefined;
+
+        const combatTabUid = getCombatTabUid(player);
+        services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
+        services.logger?.info?.(
+            `[script:combat-widgets] Autocast popup cancelled for player=${player.id}`,
+        );
+    });
+}
 
 /**
  * Open the autocast spell selection popup

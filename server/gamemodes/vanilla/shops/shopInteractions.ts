@@ -1,4 +1,4 @@
-import { type ScriptModule } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
 
 const AUBURY_NPC_TYPE_IDS = [2886, 11434];
 const COMBAT_PATH_VOUCHER_ITEM_ID = 24131;
@@ -135,164 +135,161 @@ function openPlayerDialog(
     });
 }
 
-export const shopInteractionsModule: ScriptModule = {
-    id: "content.shops",
-    register(registry, services) {
-        registry.registerNpcAction("trade", ({ player, services, npc, tick }) => {
-            if (npc?.typeId == null) return;
-            services.requestAction(
-                player,
-                {
-                    kind: "npc.trade",
-                    data: { npcTypeId: npc.typeId },
-                    delayTicks: 0,
-                    cooldownTicks: 0,
-                    groups: ["npc.trade"],
-                },
-                tick,
-            );
+export function registerShopInteractionHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    registry.registerNpcAction("trade", ({ player, services, npc, tick }) => {
+        if (npc?.typeId == null) return;
+        services.requestAction(
+            player,
+            {
+                kind: "npc.trade",
+                data: { npcTypeId: npc.typeId },
+                delayTicks: 0,
+                cooldownTicks: 0,
+                groups: ["npc.trade"],
+            },
+            tick,
+        );
+    });
+
+    registry.registerNpcAction("trade-with", ({ player, services, npc, tick }) => {
+        if (npc?.typeId == null) return;
+        services.requestAction(
+            player,
+            {
+                kind: "npc.trade",
+                data: { npcTypeId: npc.typeId },
+                delayTicks: 0,
+                cooldownTicks: 0,
+                groups: ["npc.trade"],
+            },
+            tick,
+        );
+    });
+
+    for (const auburyNpcTypeId of AUBURY_NPC_TYPE_IDS) {
+        const auburyHandler = ({ player, services }: any) => {
+            const auburyDialogNpcId = 2886; // actual Aubury head model for dialog
+            const hasVoucher = player.hasItem(COMBAT_PATH_VOUCHER_ITEM_ID);
+            const claims = player.getVarpValue(COMBAT_PATH_REWARD_VARP);
+            const claimedCombatRewards = claims >= 1;
+            const hasRuneMysteries = player.getVarpValue(RUNE_MYSTERIES_VARP) >= RUNE_MYSTERIES_COMPLETE_VALUE;
+            const isMembersWorld = false; // TODO: adapt to world type if available
+
+            const continueToStandard = () =>
+                openAuburyStandardOptions(player, services, auburyNpcTypeId, hasRuneMysteries);
+
+            if (hasVoucher && !claimedCombatRewards) {
+                openNpcDialog(
+                    player,
+                    services,
+                    `aubury_${player.id}_voucher_first`,
+                    auburyDialogNpcId,
+                    "Aubury",
+                    ["Why yes, here are some air and mind runes."],
+                    () => {
+                        const airResult = player.addItem(556, 200, { assureFullInsertion: false });
+                        const mindResult = player.addItem(558, 200, { assureFullInsertion: false });
+                        if (airResult.completed < 200 || mindResult.completed < 200) {
+                            services.sendGameMessage(player, "Not enough inventory space for the reward items.");
+                        }
+                        player.setVarpValue(COMBAT_PATH_REWARD_VARP, 1);
+
+                        if (!isMembersWorld) {
+                            openNpcDialog(
+                                player,
+                                services,
+                                `aubury_${player.id}_voucher_members`,
+                                auburyDialogNpcId,
+                                "Aubury",
+                                [
+                                    "I do have more rewards for you, but you need to be on a members world for me to give you the reward. Maybe there is something else I can help you with.",
+                                ],
+                                continueToStandard,
+                            );
+                        } else {
+                            continueToStandard();
+                        }
+                    },
+                );
+                return;
+            }
+
+            if (hasVoucher && !isMembersWorld && !claimedCombatRewards) {
+                openNpcDialog(
+                    player,
+                    services,
+                    `aubury_${player.id}_voucher_members2`,
+                    auburyDialogNpcId,
+                    "Aubury",
+                    [
+                        "I do have more rewards for you, but you need to be on a members world for me to give you the reward. Maybe there is something else I can help you with.",
+                    ],
+                    continueToStandard,
+                );
+                return;
+            }
+
+            if (hasVoucher && claimedCombatRewards && !isMembersWorld) {
+                openNpcDialog(
+                    player,
+                    services,
+                    `aubury_${player.id}_voucher_claimed`,
+                    auburyDialogNpcId,
+                    "Aubury",
+                    [
+                        "I do have more rewards for you, but you need to be on a members world for me to give you the reward. Maybe there is something else I can help you with.",
+                    ],
+                    continueToStandard,
+                );
+                return;
+            }
+
+            continueToStandard();
+        };
+
+        registry.registerNpcScript({
+            npcId: auburyNpcTypeId,
+            option: "talk-to",
+            handler: auburyHandler,
         });
-
-        registry.registerNpcAction("trade-with", ({ player, services, npc, tick }) => {
-            if (npc?.typeId == null) return;
-            services.requestAction(
-                player,
-                {
-                    kind: "npc.trade",
-                    data: { npcTypeId: npc.typeId },
-                    delayTicks: 0,
-                    cooldownTicks: 0,
-                    groups: ["npc.trade"],
-                },
-                tick,
-            );
+        registry.registerNpcScript({
+            npcId: auburyNpcTypeId,
+            option: "trade",
+            handler: ({ player, services, tick }) => {
+                services.requestAction(
+                    player,
+                    {
+                        kind: "npc.trade",
+                        data: { npcTypeId: auburyNpcTypeId },
+                        delayTicks: 0,
+                        cooldownTicks: 0,
+                        groups: ["npc.trade"],
+                    },
+                    tick,
+                );
+            },
         });
-
-        for (const auburyNpcTypeId of AUBURY_NPC_TYPE_IDS) {
-            const auburyHandler = ({ player, services }: any) => {
-                const auburyDialogNpcId = 2886; // actual Aubury head model for dialog
-                const hasVoucher = player.hasItem(COMBAT_PATH_VOUCHER_ITEM_ID);
-                const claims = player.getVarpValue(COMBAT_PATH_REWARD_VARP);
-                const claimedCombatRewards = claims >= 1;
-                const hasRuneMysteries = player.getVarpValue(RUNE_MYSTERIES_VARP) >= RUNE_MYSTERIES_COMPLETE_VALUE;
-                const isMembersWorld = false; // TODO: adapt to world type if available
-
-                const continueToStandard = () =>
-                    openAuburyStandardOptions(player, services, auburyNpcTypeId, hasRuneMysteries);
-
-                if (hasVoucher && !claimedCombatRewards) {
-                    openNpcDialog(
-                        player,
-                        services,
-                        `aubury_${player.id}_voucher_first`,
-                        auburyDialogNpcId,
-                        "Aubury",
-                        ["Why yes, here are some air and mind runes."],
-                        () => {
-                            const airResult = player.addItem(556, 200, { assureFullInsertion: false });
-                            const mindResult = player.addItem(558, 200, { assureFullInsertion: false });
-                            if (airResult.completed < 200 || mindResult.completed < 200) {
-                                services.sendGameMessage(player, "Not enough inventory space for the reward items.");
-                            }
-                            player.setVarpValue(COMBAT_PATH_REWARD_VARP, 1);
-
-                            if (!isMembersWorld) {
-                                openNpcDialog(
-                                    player,
-                                    services,
-                                    `aubury_${player.id}_voucher_members`,
-                                    auburyDialogNpcId,
-                                    "Aubury",
-                                    [
-                                        "I do have more rewards for you, but you need to be on a members world for me to give you the reward. Maybe there is something else I can help you with.",
-                                    ],
-                                    continueToStandard,
-                                );
-                            } else {
-                                continueToStandard();
-                            }
-                        },
-                    );
-                    return;
-                }
-
-                if (hasVoucher && !isMembersWorld && !claimedCombatRewards) {
-                    openNpcDialog(
-                        player,
-                        services,
-                        `aubury_${player.id}_voucher_members2`,
-                        auburyDialogNpcId,
-                        "Aubury",
-                        [
-                            "I do have more rewards for you, but you need to be on a members world for me to give you the reward. Maybe there is something else I can help you with.",
-                        ],
-                        continueToStandard,
-                    );
-                    return;
-                }
-
-                if (hasVoucher && claimedCombatRewards && !isMembersWorld) {
-                    openNpcDialog(
-                        player,
-                        services,
-                        `aubury_${player.id}_voucher_claimed`,
-                        auburyDialogNpcId,
-                        "Aubury",
-                        [
-                            "I do have more rewards for you, but you need to be on a members world for me to give you the reward. Maybe there is something else I can help you with.",
-                        ],
-                        continueToStandard,
-                    );
-                    return;
-                }
-
-                continueToStandard();
-            };
-
-            registry.registerNpcScript({
-                npcId: auburyNpcTypeId,
-                option: "talk-to",
-                handler: auburyHandler,
-            });
-            registry.registerNpcScript({
-                npcId: auburyNpcTypeId,
-                option: "trade",
-                handler: ({ player, services, tick }) => {
-                    services.requestAction(
-                        player,
-                        {
-                            kind: "npc.trade",
-                            data: { npcTypeId: auburyNpcTypeId },
-                            delayTicks: 0,
-                            cooldownTicks: 0,
-                            groups: ["npc.trade"],
-                        },
-                        tick,
-                    );
-                },
-            });
-            registry.registerNpcScript({
-                npcId: auburyNpcTypeId,
-                option: "trade-with",
-                handler: ({ player, services, tick }) => {
-                    services.requestAction(
-                        player,
-                        {
-                            kind: "npc.trade",
-                            data: { npcTypeId: auburyNpcTypeId },
-                            delayTicks: 0,
-                            cooldownTicks: 0,
-                            groups: ["npc.trade"],
-                        },
-                        tick,
-                    );
-                },
-            });
-            registry.registerNpcScript({
-                npcId: auburyNpcTypeId,
-                option: undefined,
-                handler: auburyHandler,
-            });
-        }
-    },
-};
+        registry.registerNpcScript({
+            npcId: auburyNpcTypeId,
+            option: "trade-with",
+            handler: ({ player, services, tick }) => {
+                services.requestAction(
+                    player,
+                    {
+                        kind: "npc.trade",
+                        data: { npcTypeId: auburyNpcTypeId },
+                        delayTicks: 0,
+                        cooldownTicks: 0,
+                        groups: ["npc.trade"],
+                    },
+                    tick,
+                );
+            },
+        });
+        registry.registerNpcScript({
+            npcId: auburyNpcTypeId,
+            option: undefined,
+            handler: auburyHandler,
+        });
+    }
+}

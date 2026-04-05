@@ -1,17 +1,8 @@
-import type { ScriptModule } from "../../../src/game/scripts/types";
-import { prayerAltarModule } from "./altars";
-import { prayerModule } from "./prayer";
+import type { IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
+import { register as registerAltars } from "./altars";
+import { register as registerPrayer } from "./prayer";
 
-const prayerSubmodules: ScriptModule[] = [
-    prayerModule,
-    prayerAltarModule,
-];
-
-export const prayerSkillModule: ScriptModule = {
-    id: "vanilla-skills.prayer",
-    register(registry, services) {
-        for (const sub of prayerSubmodules) {
-            sub.register(registry, services);
-        }
-    },
-};
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registerPrayer(registry, services);
+    registerAltars(registry, services);
+}

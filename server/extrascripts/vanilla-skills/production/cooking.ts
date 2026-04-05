@@ -9,7 +9,7 @@ import {
     getCookingRecipeById,
     rollCookingOutcome,
 } from "../../../src/game/skills/skillSurfaces";
-import type { ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 import {
     type SkillDialogChoice,
     MAX_BATCH,
@@ -86,7 +86,7 @@ export function executeCookAction(ctx: ScriptActionHandlerContext): ActionExecut
     return { ok: true, cooldownTicks: recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 3, groups: ["skill.cook"], effects };
 }
 
-export function registerCookingInteractions(registry: Parameters<ScriptModule["register"]>[0], services: Parameters<ScriptModule["register"]>[1]) {
+export function registerCookingInteractions(registry: IScriptRegistry, services: ScriptServices) {
     const requestAction = services.requestAction;
     const openDialogOptions = services.openDialogOptions;
     const closeDialog = services.closeDialog;

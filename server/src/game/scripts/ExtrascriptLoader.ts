@@ -1,15 +1,20 @@
 import fs from "fs";
 import path from "path";
 
-import type { ScriptManifestEntry } from "./manifest";
-import type { ScriptModule } from "./types";
+import type { IScriptRegistry, ScriptServices } from "./types";
+
+export interface ExtrascriptEntry {
+    id: string;
+    register: (registry: IScriptRegistry, services: ScriptServices) => void;
+    watch?: string[];
+}
 
 const EXTRASCRIPTS_DIR = path.resolve(__dirname, "../../../../server/extrascripts");
 
-export function loadExtrascriptEntries(): ScriptManifestEntry[] {
+export function loadExtrascriptEntries(): ExtrascriptEntry[] {
     if (!fs.existsSync(EXTRASCRIPTS_DIR)) return [];
 
-    const entries: ScriptManifestEntry[] = [];
+    const entries: ExtrascriptEntry[] = [];
     let dirs: string[];
     try {
         dirs = fs.readdirSync(EXTRASCRIPTS_DIR);
@@ -31,10 +36,12 @@ export function loadExtrascriptEntries(): ScriptManifestEntry[] {
 
         entries.push({
             id: `extrascript.${name}`,
-            load: (): ScriptModule => {
+            register: (registry, services) => {
                 delete require.cache[require.resolve(indexPath)];
                 const mod = require(indexPath);
-                return mod.module as ScriptModule;
+                if (typeof mod.register === "function") {
+                    mod.register(registry, services);
+                }
             },
             watch: hasTsIndex
                 ? [path.resolve(dir, "index.ts")]

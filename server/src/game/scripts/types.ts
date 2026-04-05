@@ -133,11 +133,6 @@ export type ScriptActionHandler = (
     ctx: ScriptActionHandlerContext,
 ) => ActionExecutionResult;
 
-export interface ScriptModule {
-    id: string;
-    register(registry: IScriptRegistry, services: ScriptServices): void;
-}
-
 export interface ScriptDialogOptionRequest {
     id: string;
     title?: string;

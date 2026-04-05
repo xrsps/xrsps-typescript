@@ -1,7 +1,7 @@
-import { EquipmentSlot } from "../../../../../src/rs/config/player/Equipment";
-import { getEmoteSeq } from "../../emotes";
-import { getSkillcapeSeqId, getSkillcapeSpotId } from "../../equipment";
-import { type ScriptModule, type WidgetActionEvent } from "../types";
+import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
+import { getEmoteSeq } from "../../../src/game/emotes";
+import { getSkillcapeSeqId, getSkillcapeSpotId } from "../../../src/game/equipment";
+import { type IScriptRegistry, type ScriptServices, type WidgetActionEvent } from "../../../src/game/scripts/types";
 
 /**
  * Emote widget handlers for interface 216 (emotes tab).
@@ -57,16 +57,13 @@ const LOOP_SEQ_MAP: Record<number, number> = {
     54: 10061, // Sit down -> emote_sit_loop
 };
 
-export const emoteWidgetModule: ScriptModule = {
-    id: "content.emote-widgets",
-    register(registry, services) {
-        // Handle emote widget (216) actions
-        // Uses onButton for the emote container component
-        registry.onButton(EMOTE_WIDGET_GROUP_ID, EMOTE_CONTAINER_COMPONENT, (event) => {
-            handleEmote(event, services);
-        });
-    },
-};
+export function registerEmoteWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    // Handle emote widget (216) actions
+    // Uses onButton for the emote container component
+    registry.onButton(EMOTE_WIDGET_GROUP_ID, EMOTE_CONTAINER_COMPONENT, (event) => {
+        handleEmote(event, services);
+    });
+}
 
 /**
  * Handle emote button click

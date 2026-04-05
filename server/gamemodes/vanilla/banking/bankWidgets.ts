@@ -1,6 +1,6 @@
 import { BankMainChild, BankSideChild, BankVarbit, WidgetGroup } from "./bankConstants";
 import { type PlayerState } from "../../../src/game/player";
-import { type ScriptModule, type WidgetActionEvent } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices, type WidgetActionEvent } from "../../../src/game/scripts/types";
 
 const BANK_GROUP_ID = WidgetGroup.BANK_MAIN;
 const BANKSIDE_GROUP_ID = WidgetGroup.BANK_SIDE;
@@ -110,7 +110,7 @@ const handleWithdrawOp = (event: WidgetActionEvent, opId: number): void => {
     }
 };
 
-function registerMainBankWidgets(registry: Parameters<ScriptModule["register"]>[0]): void {
+function registerMainBankWidgets(registry: IScriptRegistry): void {
     const guard = (
         option: string,
         handler: (args: { player: any; services: any; event: any }) => void,
@@ -326,7 +326,7 @@ function registerMainBankWidgets(registry: Parameters<ScriptModule["register"]>[
     }
 }
 
-function registerBanksideWidgets(registry: Parameters<ScriptModule["register"]>[0]): void {
+function registerBanksideWidgets(registry: IScriptRegistry): void {
     const handleDeposit = (event: WidgetActionEvent) => {
         if (event.groupId !== BANKSIDE_GROUP_ID) return;
         if (event.widgetId !== BANKSIDE_ITEMS) return;
@@ -368,10 +368,7 @@ function registerBanksideWidgets(registry: Parameters<ScriptModule["register"]>[
     }
 }
 
-export const bankWidgetModule: ScriptModule = {
-    id: "vanilla.bank-widgets",
-    register(registry) {
-        registerMainBankWidgets(registry);
-        registerBanksideWidgets(registry);
-    },
-};
+export function registerBankWidgetHandlers(registry: IScriptRegistry, _services: ScriptServices): void {
+    registerMainBankWidgets(registry);
+    registerBanksideWidgets(registry);
+}

@@ -1,5 +1,3 @@
-import path from "path";
-
 import { LEAGUE_TASK_COMPLETION_VARPS } from "./data/leagueTaskVarps";
 import {
     MAP_FLAGS_LEAGUE_WORLD,
@@ -21,8 +19,10 @@ import {
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../src/shared/vars";
 import type { PlayerState } from "../../src/game/player";
-import type { ScriptManifestEntry } from "../../src/game/scripts/manifest";
-import type { ScriptModule } from "../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
+import { registerLeagueTutorHandlers } from "./scripts/leagueTutor";
+import { registerLeagueWidgetHandlers } from "./scripts/leagueWidgets";
+import { registerLeagueTutorialWidgetHandlers } from "./scripts/leagueTutorialWidgets";
 import { getLeagueVDropRateMultiplier, getLeagueVReplacementItemId, isLeagueVWorldPlayer } from "./leagueDrops";
 import { LeagueTaskManager } from "./LeagueTaskManager";
 import { LeagueTaskService, setTaskProgress } from "./LeagueTaskService";
@@ -329,32 +329,11 @@ export class LeaguesVGamemode extends VanillaGamemode {
         return new LeaguesVUiController(bridge);
     }
 
-    override getScriptManifest(): ScriptManifestEntry[] {
-        const SCRIPTS_DIR = path.resolve(__dirname, "scripts");
-        const loadModule = (relativePath: string, exportName: string): (() => ScriptModule) => {
-            const resolved = path.resolve(SCRIPTS_DIR, relativePath);
-            return () => {
-                const mod = require(resolved);
-                return mod[exportName] as ScriptModule;
-            };
-        };
-        return [
-            {
-                id: "content.league-tutor",
-                load: loadModule("leagueTutor", "leagueTutorModule"),
-                watch: [path.resolve(SCRIPTS_DIR, "leagueTutor.ts")],
-            },
-            {
-                id: "content.league-widgets",
-                load: loadModule("leagueWidgets", "leagueWidgetModule"),
-                watch: [path.resolve(SCRIPTS_DIR, "leagueWidgets.ts")],
-            },
-            {
-                id: "content.league-tutorial-widgets",
-                load: loadModule("leagueTutorialWidgets", "leagueTutorialWidgetModule"),
-                watch: [path.resolve(SCRIPTS_DIR, "leagueTutorialWidgets.ts")],
-            },
-        ];
+    override registerHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+        super.registerHandlers(registry, services);
+        registerLeagueTutorHandlers(registry, services);
+        registerLeagueWidgetHandlers(registry, services);
+        registerLeagueTutorialWidgetHandlers(registry, services);
     }
 
     // === Content Data ===

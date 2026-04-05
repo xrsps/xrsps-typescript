@@ -1,4 +1,4 @@
-import { type ScriptModule } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
 
 const DFS_ITEM_IDS = [11283, 11284];
 
@@ -98,113 +98,110 @@ const getExplorerRingState = (player: any): { dayKey: number; used: number } => 
     return state;
 };
 
-export const equipmentActionsModule: ScriptModule = {
-    id: "content.equipment",
-    register(registry, services) {
-        for (const itemId of DFS_ITEM_IDS) {
-            registry.registerEquipmentAction(
-                itemId,
-                ({ player }) => {
-                    const store = player;
-                    const charges = getDragonfireCharges(store);
-                    if (charges > 0) {
-                        services.sendGameMessage(
-                            player,
-                            `You unleash the dragonfire shield. Stored energy drops to ${Math.max(
-                                0,
-                                charges - 1,
-                            )}.`,
-                        );
-                        store[dfsChargeKey] = Math.max(0, charges - 1);
-                    } else {
-                        services.sendGameMessage(
-                            player,
-                            "The shield hasn't absorbed any dragonfire yet.",
-                        );
-                    }
-                },
-                "operate",
-            );
-
-            registry.registerEquipmentAction(
-                itemId,
-                ({ player }) => {
-                    const charges = getDragonfireCharges(player);
+export function registerEquipmentHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    for (const itemId of DFS_ITEM_IDS) {
+        registry.registerEquipmentAction(
+            itemId,
+            ({ player }) => {
+                const store = player;
+                const charges = getDragonfireCharges(store);
+                if (charges > 0) {
                     services.sendGameMessage(
                         player,
-                        `The shield currently holds ${charges} dragonfire charge${
-                            charges === 1 ? "" : "s"
-                        } (demo value).`,
+                        `You unleash the dragonfire shield. Stored energy drops to ${Math.max(
+                            0,
+                            charges - 1,
+                        )}.`,
                     );
-                },
-                "check",
-            );
-        }
-
-        for (const ring of EXPLORER_RING_DEFS) {
-            registry.registerEquipmentAction(
-                ring.itemId,
-                ({ player }) => {
-                    const state = getExplorerRingState(player);
-                    if (state.used >= ring.chargesPerDay) {
-                        services.sendGameMessage(
-                            player,
-                            "Your Explorer's ring has no remaining energy restores for today.",
-                        );
-                        return;
-                    }
-                    state.used++;
-                    player.adjustRunEnergyPercent(ring.restorePercent);
-                    const remaining = Math.max(0, ring.chargesPerDay - state.used);
+                    store[dfsChargeKey] = Math.max(0, charges - 1);
+                } else {
                     services.sendGameMessage(
                         player,
-                        `You recharge some run energy (${
-                            ring.restorePercent
-                        }%). ${remaining} charge${remaining === 1 ? "" : "s"} remaining today.`,
+                        "The shield hasn't absorbed any dragonfire yet.",
                     );
-                },
-                "operate",
-            );
+                }
+            },
+            "operate",
+        );
 
-            registry.registerEquipmentAction(
-                ring.itemId,
-                ({ player }) => {
-                    const state = getExplorerRingState(player);
-                    const remaining = Math.max(0, ring.chargesPerDay - state.used);
+        registry.registerEquipmentAction(
+            itemId,
+            ({ player }) => {
+                const charges = getDragonfireCharges(player);
+                services.sendGameMessage(
+                    player,
+                    `The shield currently holds ${charges} dragonfire charge${
+                        charges === 1 ? "" : "s"
+                    } (demo value).`,
+                );
+            },
+            "check",
+        );
+    }
+
+    for (const ring of EXPLORER_RING_DEFS) {
+        registry.registerEquipmentAction(
+            ring.itemId,
+            ({ player }) => {
+                const state = getExplorerRingState(player);
+                if (state.used >= ring.chargesPerDay) {
                     services.sendGameMessage(
                         player,
-                        `Explorer's ring restores remaining today: ${remaining} of ${ring.chargesPerDay}.`,
+                        "Your Explorer's ring has no remaining energy restores for today.",
                     );
-                },
-                "check",
-            );
-        }
+                    return;
+                }
+                state.used++;
+                player.adjustRunEnergyPercent(ring.restorePercent);
+                const remaining = Math.max(0, ring.chargesPerDay - state.used);
+                services.sendGameMessage(
+                    player,
+                    `You recharge some run energy (${
+                        ring.restorePercent
+                    }%). ${remaining} charge${remaining === 1 ? "" : "s"} remaining today.`,
+                );
+            },
+            "operate",
+        );
 
-        for (const entry of GOD_BOOKS) {
-            registry.registerEquipmentAction(
-                entry.id,
-                ({ player }) => {
-                    services.sendGameMessage(
-                        player,
-                        `You check the ${entry.name.toLowerCase()}. ${
-                            entry.deity
-                        } watches over you.`,
-                    );
-                },
-                "check",
-            );
+        registry.registerEquipmentAction(
+            ring.itemId,
+            ({ player }) => {
+                const state = getExplorerRingState(player);
+                const remaining = Math.max(0, ring.chargesPerDay - state.used);
+                services.sendGameMessage(
+                    player,
+                    `Explorer's ring restores remaining today: ${remaining} of ${ring.chargesPerDay}.`,
+                );
+            },
+            "check",
+        );
+    }
 
-            registry.registerEquipmentAction(
-                entry.id,
-                ({ player }) => {
-                    const lines = entry.preachLines;
-                    const line =
-                        lines[Math.floor(Math.random() * lines.length)] ??
-                        `${entry.deity} offers their guidance.`;
-                    services.sendGameMessage(player, line);
-                },
-                "preach",
-            );
-        }
-    },
-};
+    for (const entry of GOD_BOOKS) {
+        registry.registerEquipmentAction(
+            entry.id,
+            ({ player }) => {
+                services.sendGameMessage(
+                    player,
+                    `You check the ${entry.name.toLowerCase()}. ${
+                        entry.deity
+                    } watches over you.`,
+                );
+            },
+            "check",
+        );
+
+        registry.registerEquipmentAction(
+            entry.id,
+            ({ player }) => {
+                const lines = entry.preachLines;
+                const line =
+                    lines[Math.floor(Math.random() * lines.length)] ??
+                    `${entry.deity} offers their guidance.`;
+                services.sendGameMessage(player, line);
+            },
+            "preach",
+        );
+    }
+}

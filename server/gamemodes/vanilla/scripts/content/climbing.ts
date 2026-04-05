@@ -1,9 +1,9 @@
 import fs from "fs";
 import path from "path";
 
-import { CollisionFlag } from "../../../pathfinding/legacy/pathfinder/flag/CollisionFlag";
-import type { PathService } from "../../../pathfinding/PathService";
-import { type LocInteractionEvent, type ScriptModule } from "../types";
+import { CollisionFlag } from "../../../../src/pathfinding/legacy/pathfinder/flag/CollisionFlag";
+import type { PathService } from "../../../../src/pathfinding/PathService";
+import { type IScriptRegistry, type ScriptServices, type LocInteractionEvent } from "../../../../src/game/scripts/types";
 
 // ---------------------------------------------------------------------------
 // OSRS Loc Traversal System
@@ -451,16 +451,8 @@ function executeTraversal(
 
     const anim = direction === "down" ? LADDER_CLIMB_DOWN_ANIM : LADDER_CLIMB_UP_ANIM;
 
-    // OSRS parity (from packet dump): the climb animation plays at the
-    // SOURCE position on the interaction tick.  The teleport fires one tick
-    // later with NO animation stop — the client-side animation simply
-    // continues at the new position.  Sound is embedded in the seq
-    // definition (frame sounds), not sent as a separate area sound.
     services.playPlayerSeq?.(player, anim);
 
-    // Schedule a delayed teleport that preserves the in-progress animation.
-    // The teleport tick sends no animation update — the client-side seq
-    // simply continues playing at the new position (matching OSRS dump).
     services.requestTeleportAction?.(player, {
         x: dest.x,
         y: dest.y,
@@ -473,124 +465,121 @@ function executeTraversal(
 }
 
 // ---------------------------------------------------------------------------
-// Module
+// Registration
 // ---------------------------------------------------------------------------
 
-export const climbingModule: ScriptModule = {
-    id: "content.climbing",
-    register(registry, _services) {
-        // ---- climb-up: default plane + 1 ----
-        registry.registerLocAction("climb-up", (event) => {
-            const dest = resolveDestination(event, +1);
+export function registerClimbingHandlers(registry: IScriptRegistry, _services: ScriptServices): void {
+    // ---- climb-up: default plane + 1 ----
+    registry.registerLocAction("climb-up", (event) => {
+        const dest = resolveDestination(event, +1);
+        if (!dest) return;
+        executeTraversal(event, dest, "up");
+    });
+
+    // ---- climb-down / descend: default plane - 1 ----
+    for (const action of ["climb-down", "descend"]) {
+        registry.registerLocAction(action, (event) => {
+            const dest = resolveDestination(event, -1);
             if (!dest) return;
-            executeTraversal(event, dest, "up");
+            executeTraversal(event, dest, "down");
         });
+    }
 
-        // ---- climb-down / descend: default plane - 1 ----
-        for (const action of ["climb-down", "descend"]) {
-            registry.registerLocAction(action, (event) => {
-                const dest = resolveDestination(event, -1);
-                if (!dest) return;
-                executeTraversal(event, dest, "down");
-            });
+    // ---- enter: dungeon entrances, cave entries, etc. ----
+    registry.registerLocAction("enter", (event) => {
+        ensureResolved(event.services);
+        const link = intermapLinks.find(event.tile.x, event.tile.y, event.level);
+        if (!link) {
+            event.services.sendGameMessage(event.player, "Nothing interesting happens.");
+            return;
         }
+        const dir = link.level < event.level ? "down" : "up";
+        executeTraversal(event, link, dir);
+    });
 
-        // ---- enter: dungeon entrances, cave entries, etc. ----
-        registry.registerLocAction("enter", (event) => {
+    // ---- top-floor: skip directly to the highest floor (no animation) ----
+    for (const action of ["top-floor", "top floor"]) {
+        registry.registerLocAction(action, (event) => {
             ensureResolved(event.services);
-            const link = intermapLinks.find(event.tile.x, event.tile.y, event.level);
-            if (!link) {
-                event.services.sendGameMessage(event.player, "Nothing interesting happens.");
-                return;
-            }
-            const dir = link.level < event.level ? "down" : "up";
-            executeTraversal(event, link, dir);
-        });
+            const { tile, level } = event;
 
-        // ---- top-floor: skip directly to the highest floor (no animation) ----
-        for (const action of ["top-floor", "top floor"]) {
-            registry.registerLocAction(action, (event) => {
-                ensureResolved(event.services);
-                const { tile, level } = event;
-
-                // Intermap link takes priority (handles dungeon/non-standard destinations)
-                const link = intermapLinks.find(tile.x, tile.y, level);
-                if (link) {
-                    executeInstantTraversal(event, link);
-                    return;
-                }
-
-                const { level: targetLevel, fixedDest } = resolveMultiFloorTarget(event, "top");
-                if (targetLevel <= level) return;
-
-                // Use fixed dest from data file (OSRS-accurate) when available,
-                // otherwise fall back to nearest-walkable scan from player tile.
-                const destXY = fixedDest ?? { x: event.player.tileX, y: event.player.tileY };
-                executeInstantTraversal(event, { ...destXY, level: targetLevel });
-            });
-        }
-
-        // ---- bottom-floor: skip directly to the ground floor (no animation) ----
-        for (const action of ["bottom-floor", "bottom floor"]) {
-            registry.registerLocAction(action, (event) => {
-                ensureResolved(event.services);
-                const { tile, level } = event;
-
-                if (level <= 0) return;
-
-                // Intermap link takes priority
-                const link = intermapLinks.find(tile.x, tile.y, level);
-                if (link) {
-                    executeInstantTraversal(event, link);
-                    return;
-                }
-
-                const { level: targetLevel, fixedDest } = resolveMultiFloorTarget(event, "bottom");
-                if (targetLevel >= level) return;
-
-                const destXY = fixedDest ?? { x: event.player.tileX, y: event.player.tileY };
-                executeInstantTraversal(event, { ...destXY, level: targetLevel });
-            });
-        }
-
-        // ---- climb (ambiguous): show dialogue asking up or down ----
-        registry.registerLocAction("climb", (event) => {
-            ensureResolved(event.services);
-            const { player, level, services } = event;
-
-            // Check intermap link first — if present, use it directly (no ambiguity)
-            const link = intermapLinks.find(event.tile.x, event.tile.y, level);
+            // Intermap link takes priority (handles dungeon/non-standard destinations)
+            const link = intermapLinks.find(tile.x, tile.y, level);
             if (link) {
-                const dir = link.level < level ? "down" : "up";
-                executeTraversal(event, link, dir);
+                executeInstantTraversal(event, link);
                 return;
             }
 
-            // Fall back to plane +/- 1 with direction choice
-            const canGoUp = level < 3;
-            const canGoDown = level > 0;
+            const { level: targetLevel, fixedDest } = resolveMultiFloorTarget(event, "top");
+            if (targetLevel <= level) return;
 
-            const upDest = canGoUp ? resolveDestination(event, +1) : null;
-            const downDest = canGoDown ? resolveDestination(event, -1) : null;
-
-            if (upDest && downDest) {
-                services.openDialogOptions?.(player, {
-                    id: "climb-direction",
-                    title: "Climb up or down?",
-                    options: ["Climb-up.", "Climb-down."],
-                    onSelect: (choiceIndex: number) => {
-                        if (choiceIndex === 0 && upDest) {
-                            executeTraversal(event, upDest, "up");
-                        } else if (downDest) {
-                            executeTraversal(event, downDest, "down");
-                        }
-                    },
-                });
-            } else if (upDest) {
-                executeTraversal(event, upDest, "up");
-            } else if (downDest) {
-                executeTraversal(event, downDest, "down");
-            }
+            // Use fixed dest from data file (OSRS-accurate) when available,
+            // otherwise fall back to nearest-walkable scan from player tile.
+            const destXY = fixedDest ?? { x: event.player.tileX, y: event.player.tileY };
+            executeInstantTraversal(event, { ...destXY, level: targetLevel });
         });
-    },
-};
+    }
+
+    // ---- bottom-floor: skip directly to the ground floor (no animation) ----
+    for (const action of ["bottom-floor", "bottom floor"]) {
+        registry.registerLocAction(action, (event) => {
+            ensureResolved(event.services);
+            const { tile, level } = event;
+
+            if (level <= 0) return;
+
+            // Intermap link takes priority
+            const link = intermapLinks.find(tile.x, tile.y, level);
+            if (link) {
+                executeInstantTraversal(event, link);
+                return;
+            }
+
+            const { level: targetLevel, fixedDest } = resolveMultiFloorTarget(event, "bottom");
+            if (targetLevel >= level) return;
+
+            const destXY = fixedDest ?? { x: event.player.tileX, y: event.player.tileY };
+            executeInstantTraversal(event, { ...destXY, level: targetLevel });
+        });
+    }
+
+    // ---- climb (ambiguous): show dialogue asking up or down ----
+    registry.registerLocAction("climb", (event) => {
+        ensureResolved(event.services);
+        const { player, level, services } = event;
+
+        // Check intermap link first — if present, use it directly (no ambiguity)
+        const link = intermapLinks.find(event.tile.x, event.tile.y, level);
+        if (link) {
+            const dir = link.level < level ? "down" : "up";
+            executeTraversal(event, link, dir);
+            return;
+        }
+
+        // Fall back to plane +/- 1 with direction choice
+        const canGoUp = level < 3;
+        const canGoDown = level > 0;
+
+        const upDest = canGoUp ? resolveDestination(event, +1) : null;
+        const downDest = canGoDown ? resolveDestination(event, -1) : null;
+
+        if (upDest && downDest) {
+            services.openDialogOptions?.(player, {
+                id: "climb-direction",
+                title: "Climb up or down?",
+                options: ["Climb-up.", "Climb-down."],
+                onSelect: (choiceIndex: number) => {
+                    if (choiceIndex === 0 && upDest) {
+                        executeTraversal(event, upDest, "up");
+                    } else if (downDest) {
+                        executeTraversal(event, downDest, "down");
+                    }
+                },
+            });
+        } else if (upDest) {
+            executeTraversal(event, upDest, "up");
+        } else if (downDest) {
+            executeTraversal(event, downDest, "down");
+        }
+    });
+}

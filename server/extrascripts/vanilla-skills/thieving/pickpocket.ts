@@ -1,6 +1,6 @@
 import type { ActionEffect, ActionExecutionResult } from "../../../src/game/actions/types";
 import type { PlayerState } from "../../../src/game/player";
-import type { NpcInteractionEvent, ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, NpcInteractionEvent, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 // ---------------------------------------------------------------------------
 // Thieving System
@@ -878,94 +878,91 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
 // Module
 // ---------------------------------------------------------------------------
 
-export const thievingModule: ScriptModule = {
-    id: "vanilla-skills.thieving",
-    register(registry, _services) {
-        // Register pickpocket action handler
-        registry.registerActionHandler("skill.pickpocket", executePickpocketAction);
+export function register(registry: IScriptRegistry, _services: ScriptServices): void {
+    // Register pickpocket action handler
+    registry.registerActionHandler("skill.pickpocket", executePickpocketAction);
 
-        // Register NPC pickpocket interactions
-        for (const def of PICKPOCKET_NPCS) {
-            for (const npcId of def.npcIds) {
-                registry.registerNpcInteraction(
-                    npcId,
-                    (event: NpcInteractionEvent) => {
-                        const { player, npc, services, tick } = event;
+    // Register NPC pickpocket interactions
+    for (const def of PICKPOCKET_NPCS) {
+        for (const npcId of def.npcIds) {
+            registry.registerNpcInteraction(
+                npcId,
+                (event: NpcInteractionEvent) => {
+                    const { player, npc, services, tick } = event;
 
-                        const actionData: PickpocketActionData = {
-                            npcId: npc.id,
-                            npcTypeId: npc.typeId,
-                            reqLevel: def.reqLevel,
-                            xp: def.xp,
-                            lootTable: def.lootTable,
-                            coinPouchId: def.coinPouchId,
-                            minDamage: def.minDamage,
-                            maxDamage: def.maxDamage,
-                            stunTicks: def.stunTicks,
-                            displayName: def.displayName,
-                            phase: 0,
-                        };
+                    const actionData: PickpocketActionData = {
+                        npcId: npc.id,
+                        npcTypeId: npc.typeId,
+                        reqLevel: def.reqLevel,
+                        xp: def.xp,
+                        lootTable: def.lootTable,
+                        coinPouchId: def.coinPouchId,
+                        minDamage: def.minDamage,
+                        maxDamage: def.maxDamage,
+                        stunTicks: def.stunTicks,
+                        displayName: def.displayName,
+                        phase: 0,
+                    };
 
-                        services.requestAction(
-                            player,
-                            {
-                                kind: "skill.pickpocket",
-                                data: actionData,
-                                delayTicks: 0,
-                                cooldownTicks: 0,
-                                groups: ["skill.pickpocket"],
-                            },
-                            tick,
-                        );
-                    },
-                    "pickpocket",
-                );
+                    services.requestAction(
+                        player,
+                        {
+                            kind: "skill.pickpocket",
+                            data: actionData,
+                            delayTicks: 0,
+                            cooldownTicks: 0,
+                            groups: ["skill.pickpocket"],
+                        },
+                        tick,
+                    );
+                },
+                "pickpocket",
+            );
+        }
+    }
+
+    // Coin pouch: "Open" and "Open-all" item actions
+    for (const pouchId of COIN_POUCH_IDS) {
+        const openHandler = (event: import("../../../src/game/scripts/types").ItemOnItemEvent, openAll: boolean) => {
+            const { player, source, services } = event;
+            const slot = source.slot;
+            const inv = services.getInventoryItems(player);
+            const entry = inv[slot];
+            if (!entry || entry.itemId !== pouchId) return;
+
+            const count = openAll ? entry.quantity : 1;
+            const range = COIN_POUCH_VALUES[pouchId];
+            if (!range) return;
+
+            const isTokkul = pouchId === TOKKUL_POUCH_ID;
+            const currencyId = isTokkul ? TOKKUL_ITEM_ID : Items.COINS_995;
+
+            let totalCurrency = 0;
+            for (let i = 0; i < count; i++) {
+                const [min, max] = range;
+                totalCurrency += min === max
+                    ? min
+                    : min + Math.floor(Math.random() * (max - min + 1));
             }
-        }
 
-        // Coin pouch: "Open" and "Open-all" item actions
-        for (const pouchId of COIN_POUCH_IDS) {
-            const openHandler = (event: import("../../../src/game/scripts/types").ItemOnItemEvent, openAll: boolean) => {
-                const { player, source, services } = event;
-                const slot = source.slot;
-                const inv = services.getInventoryItems(player);
-                const entry = inv[slot];
-                if (!entry || entry.itemId !== pouchId) return;
+            const remaining = entry.quantity - count;
+            if (remaining > 0) {
+                services.setInventorySlot(player, slot, pouchId, remaining);
+            } else {
+                services.setInventorySlot(player, slot, -1, 0);
+            }
 
-                const count = openAll ? entry.quantity : 1;
-                const range = COIN_POUCH_VALUES[pouchId];
-                if (!range) return;
+            services.addItemToInventory(player, currencyId, totalCurrency);
+            services.snapshotInventory(player);
+            services.sendGameMessage(
+                player,
+                isTokkul
+                    ? `You open the coin pouch and receive ${totalCurrency} Tokkul.`
+                    : `You open the coin pouch and receive ${totalCurrency} coins.`,
+            );
+        };
 
-                const isTokkul = pouchId === TOKKUL_POUCH_ID;
-                const currencyId = isTokkul ? TOKKUL_ITEM_ID : Items.COINS_995;
-
-                let totalCurrency = 0;
-                for (let i = 0; i < count; i++) {
-                    const [min, max] = range;
-                    totalCurrency += min === max
-                        ? min
-                        : min + Math.floor(Math.random() * (max - min + 1));
-                }
-
-                const remaining = entry.quantity - count;
-                if (remaining > 0) {
-                    services.setInventorySlot(player, slot, pouchId, remaining);
-                } else {
-                    services.setInventorySlot(player, slot, -1, 0);
-                }
-
-                services.addItemToInventory(player, currencyId, totalCurrency);
-                services.snapshotInventory(player);
-                services.sendGameMessage(
-                    player,
-                    isTokkul
-                        ? `You open the coin pouch and receive ${totalCurrency} Tokkul.`
-                        : `You open the coin pouch and receive ${totalCurrency} coins.`,
-                );
-            };
-
-            registry.registerItemAction(pouchId, (event) => openHandler(event, true), "open-all");
-            registry.registerItemAction(pouchId, (event) => openHandler(event, false), "open");
-        }
-    },
-};
+        registry.registerItemAction(pouchId, (event) => openHandler(event, true), "open-all");
+        registry.registerItemAction(pouchId, (event) => openHandler(event, false), "open");
+    }
+}

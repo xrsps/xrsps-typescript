@@ -1,9 +1,9 @@
 import {
     VARBIT_SKILL_GUIDE_SKILL,
     VARBIT_SKILL_GUIDE_SUBSECTION,
-} from "../../../../../src/shared/vars";
-import { BaseComponentUids } from "../../../widgets/viewport/ViewportEnumService";
-import { type ScriptModule } from "../types";
+} from "../../../../src/shared/vars";
+import { BaseComponentUids } from "../../../src/widgets/viewport/ViewportEnumService";
+import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
 
 /**
  * Skill guide widget handlers - opens skill guide overlay when skill tab is clicked.
@@ -55,49 +55,46 @@ const SKILL_GUIDE_ENTRIES: readonly SkillGuideEntry[] = [
     { childId: 24, skillVarbitValue: 24, skillName: "Sailing" },
 ];
 
-export const skillGuideWidgetModule: ScriptModule = {
-    id: "content.skill-guide-widgets",
-    register(registry, services) {
-        // Register a handler for each skill in the skills tab (interface 320)
-        // Uses onButton since binary IF_BUTTON packets don't send option strings
-        for (const { childId, skillVarbitValue, skillName } of SKILL_GUIDE_ENTRIES) {
-            registry.onButton(SKILLS_TAB_GROUP_ID, childId, (event) => {
-                const player = event.player;
+export function registerSkillGuideWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    // Register a handler for each skill in the skills tab (interface 320)
+    // Uses onButton since binary IF_BUTTON packets don't send option strings
+    for (const { childId, skillVarbitValue, skillName } of SKILL_GUIDE_ENTRIES) {
+        registry.onButton(SKILLS_TAB_GROUP_ID, childId, (event) => {
+            const player = event.player;
 
-                player.setVarbitValue(VARBIT_SKILL_GUIDE_SUBSECTION, 0);
-                player.setVarbitValue(VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
+            player.setVarbitValue(VARBIT_SKILL_GUIDE_SUBSECTION, 0);
+            player.setVarbitValue(VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
 
-                services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SUBSECTION, 0);
-                services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
+            services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SUBSECTION, 0);
+            services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
 
-                const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
+            const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
 
-                services.openSubInterface?.(player, floaterUid, SKILL_GUIDE_GROUP_ID, 1, {
-                    varbits: {
-                        [VARBIT_SKILL_GUIDE_SUBSECTION]: 0,
-                        [VARBIT_SKILL_GUIDE_SKILL]: skillVarbitValue,
+            services.openSubInterface?.(player, floaterUid, SKILL_GUIDE_GROUP_ID, 1, {
+                varbits: {
+                    [VARBIT_SKILL_GUIDE_SUBSECTION]: 0,
+                    [VARBIT_SKILL_GUIDE_SKILL]: skillVarbitValue,
+                },
+                postScripts: [
+                    {
+                        scriptId: SCRIPT_SKILL_GUIDE_BUILD,
+                        args: [skillVarbitValue, 0, 0, 0],
                     },
-                    postScripts: [
-                        {
-                            scriptId: SCRIPT_SKILL_GUIDE_BUILD,
-                            args: [skillVarbitValue, 0, 0, 0],
-                        },
-                    ],
-                });
-
-                // Clear events on skill_guide:icons (214:32)
-                const SKILL_GUIDE_ICONS_UID = (SKILL_GUIDE_GROUP_ID << 16) | 32;
-                services.queueWidgetEvent?.(player.id, {
-                    action: "set_flags_range",
-                    uid: SKILL_GUIDE_ICONS_UID,
-                    fromSlot: -1,
-                    toSlot: -1,
-                    flags: 0,
-                });
+                ],
             });
-        }
 
-        // Sub-section button clicks (interface 214, children 11-24) are handled purely
-        // by CS2 scripts on the client - no server handler needed.
-    },
-};
+            // Clear events on skill_guide:icons (214:32)
+            const SKILL_GUIDE_ICONS_UID = (SKILL_GUIDE_GROUP_ID << 16) | 32;
+            services.queueWidgetEvent?.(player.id, {
+                action: "set_flags_range",
+                uid: SKILL_GUIDE_ICONS_UID,
+                fromSlot: -1,
+                toSlot: -1,
+                flags: 0,
+            });
+        });
+    }
+
+    // Sub-section button clicks (interface 214, children 11-24) are handled purely
+    // by CS2 scripts on the client - no server handler needed.
+}

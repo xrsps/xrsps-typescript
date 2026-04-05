@@ -1,8 +1,7 @@
 import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { WidgetAction } from "../../widgets/WidgetManager";
 import type { PlayerState } from "../player";
-import type { ScriptManifestEntry } from "../scripts/manifest";
-import type { ScriptServices } from "../scripts/types";
+import type { IScriptRegistry, ScriptServices } from "../scripts/types";
 
 export interface GamemodeUiController {
     normalizeSideJournalState(
@@ -162,7 +161,7 @@ export interface GamemodeDefinition {
     getChatPlayerType(player: PlayerState, isAdmin: boolean): number;
 
     // === Scripts ===
-    getScriptManifest(): ScriptManifestEntry[];
+    registerHandlers(registry: IScriptRegistry, services: ScriptServices): void;
     getGamemodeServices?(): Record<string, unknown>;
     /** Mutate the ScriptServices object to add gamemode-provided methods. */
     contributeScriptServices?(services: ScriptServices): void;

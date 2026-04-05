@@ -8,7 +8,7 @@ import {
     computeFireLightingDelayTicks,
     getFiremakingLogDefinition,
 } from "../../../src/game/skills/firemaking";
-import type { ScriptActionHandlerContext, ScriptModule, ScriptServices } from "../../../src/game/scripts/types";
+import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
 
 const FIRE_LIT_SYNTH_SOUND = 2596;
 
@@ -163,58 +163,55 @@ function executeFiremakingAction(ctx: ScriptActionHandlerContext): ActionExecuti
     return { ok: true, effects };
 }
 
-export const firemakingModule: ScriptModule = {
-    id: "vanilla-skills.firemaking",
-    register(registry, services) {
-        registry.registerActionHandler("skill.firemaking", executeFiremakingAction);
+export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    registry.registerActionHandler("skill.firemaking", executeFiremakingAction);
 
-        const requestAction = services.requestAction;
-        for (const logId of FIREMAKING_LOG_IDS) {
-            const logDef = getFiremakingLogDefinition(logId);
-            if (!logDef) continue;
-            for (const tinderboxId of TINDERBOX_ITEM_IDS) {
-                registry.registerItemOnItem(
-                    tinderboxId,
-                    logDef.logId,
-                    ({ player, source, target, tick }) => {
-                        const level = services.getSkill?.(player, SkillId.Firemaking)?.baseLevel ?? 1;
-                        if (level < logDef.level) {
-                            services.sendGameMessage(
-                                player,
-                                `You need Firemaking level ${logDef.level} to light these logs.`,
-                            );
-                            return;
-                        }
-                        const slot = source.itemId === logDef.logId ? source.slot : target.slot;
-                        const delay = computeFireLightingDelayTicks(level);
-
-                        services.playPlayerSeq?.(player, FIRE_LIGHTING_ANIMATION);
-
-                        const result = requestAction(
+    const requestAction = services.requestAction;
+    for (const logId of FIREMAKING_LOG_IDS) {
+        const logDef = getFiremakingLogDefinition(logId);
+        if (!logDef) continue;
+        for (const tinderboxId of TINDERBOX_ITEM_IDS) {
+            registry.registerItemOnItem(
+                tinderboxId,
+                logDef.logId,
+                ({ player, source, target, tick }) => {
+                    const level = services.getSkill?.(player, SkillId.Firemaking)?.baseLevel ?? 1;
+                    if (level < logDef.level) {
+                        services.sendGameMessage(
                             player,
-                            {
-                                kind: "skill.firemaking",
-                                data: {
-                                    logItemId: logDef.logId,
-                                    tile: { x: player.tileX, y: player.tileY },
-                                    level: player.level,
-                                    slot,
-                                    started: false,
-                                    attempts: 0,
-                                    previousLocId: 0,
-                                },
-                                delayTicks: delay,
-                                cooldownTicks: delay,
-                                groups: ["skill.firemaking"],
-                            },
-                            tick,
+                            `You need Firemaking level ${logDef.level} to light these logs.`,
                         );
-                        if (!result.ok) {
-                            services.sendGameMessage(player, "You're too busy to do that right now.");
-                        }
-                    },
-                );
-            }
+                        return;
+                    }
+                    const slot = source.itemId === logDef.logId ? source.slot : target.slot;
+                    const delay = computeFireLightingDelayTicks(level);
+
+                    services.playPlayerSeq?.(player, FIRE_LIGHTING_ANIMATION);
+
+                    const result = requestAction(
+                        player,
+                        {
+                            kind: "skill.firemaking",
+                            data: {
+                                logItemId: logDef.logId,
+                                tile: { x: player.tileX, y: player.tileY },
+                                level: player.level,
+                                slot,
+                                started: false,
+                                attempts: 0,
+                                previousLocId: 0,
+                            },
+                            delayTicks: delay,
+                            cooldownTicks: delay,
+                            groups: ["skill.firemaking"],
+                        },
+                        tick,
+                    );
+                    if (!result.ok) {
+                        services.sendGameMessage(player, "You're too busy to do that right now.");
+                    }
+                },
+            );
         }
-    },
-};
+    }
+}

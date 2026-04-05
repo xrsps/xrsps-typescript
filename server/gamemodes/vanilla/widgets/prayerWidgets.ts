@@ -3,17 +3,17 @@ import {
     PRAYER_NAME_TO_BIT,
     type PrayerDefinition,
     type PrayerName,
-} from "../../../../../src/rs/prayer/prayers";
+} from "../../../../src/rs/prayer/prayers";
 import {
     VARBIT_PRAYER_FILTER_ALLOW_COMBINED_TIER,
     VARBIT_PRAYER_FILTER_BLOCK_HEALING,
     VARBIT_PRAYER_FILTER_BLOCK_LACK_LEVEL,
     VARBIT_PRAYER_FILTER_BLOCK_LOCKED,
     VARBIT_PRAYER_FILTER_BLOCK_LOW_TIER,
-} from "../../../../../src/shared/vars";
-import { GameframeTab } from "../../../widgets/InterfaceService";
-import { DisplayMode, getPrayerTabUid } from "../../../widgets/viewport";
-import { type ScriptModule } from "../types";
+} from "../../../../src/shared/vars";
+import { GameframeTab } from "../../../src/widgets/InterfaceService";
+import { DisplayMode, getPrayerTabUid } from "../../../src/widgets/viewport";
+import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
 
 /**
  * Prayer widget handlers for interface 541 (prayer tab) and 160 (minimap prayer orb).
@@ -107,186 +107,183 @@ const DEFAULT_QUICK_PRAYER_SETUP_SLOTS = Array.from(PRAYER_BY_QUICK_SLOT.keys())
     (a, b) => a - b,
 );
 
-export const prayerWidgetModule: ScriptModule = {
-    id: "content.prayer-widgets",
-    register(registry, services) {
-        const quickPrayerSetupSlotToPrayer = buildQuickPrayerSetupSlotMap(services);
-        const quickPrayerSetupSlots = Array.from(
-            new Set<number>([
-                ...DEFAULT_QUICK_PRAYER_SETUP_SLOTS,
-                ...Array.from(quickPrayerSetupSlotToPrayer.keys()),
-            ]),
-        ).sort((a, b) => a - b);
-        const lastOrbToggleTickByPlayerId = new Map<number, number>();
-        const lastOrbSetupTickByPlayerId = new Map<number, number>();
-        const lastQuickPrayerToggleTickByPlayerSlot = new Map<string, number>();
-        const lastQuickPrayerDoneTickByPlayerId = new Map<number, number>();
+export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
+    const quickPrayerSetupSlotToPrayer = buildQuickPrayerSetupSlotMap(services);
+    const quickPrayerSetupSlots = Array.from(
+        new Set<number>([
+            ...DEFAULT_QUICK_PRAYER_SETUP_SLOTS,
+            ...Array.from(quickPrayerSetupSlotToPrayer.keys()),
+        ]),
+    ).sort((a, b) => a - b);
+    const lastOrbToggleTickByPlayerId = new Map<number, number>();
+    const lastOrbSetupTickByPlayerId = new Map<number, number>();
+    const lastQuickPrayerToggleTickByPlayerSlot = new Map<string, number>();
+    const lastQuickPrayerDoneTickByPlayerId = new Map<number, number>();
 
-        const queuePrayerFilterFlags = (playerId: number) => {
+    const queuePrayerFilterFlags = (playerId: number) => {
+        services.queueWidgetEvent?.(playerId, {
+            action: "set_flags_range",
+            uid: PRAYER_FILTER_WIDGET_UID,
+            fromSlot: PRAYER_FILTER_SLOT_START,
+            toSlot: PRAYER_FILTER_SLOT_END,
+            flags: PRAYER_FILTER_FLAGS,
+        });
+    };
+
+    const queueQuickPrayerSetupFlags = (playerId: number) => {
+        for (const slot of quickPrayerSetupSlots) {
             services.queueWidgetEvent?.(playerId, {
                 action: "set_flags_range",
-                uid: PRAYER_FILTER_WIDGET_UID,
-                fromSlot: PRAYER_FILTER_SLOT_START,
-                toSlot: PRAYER_FILTER_SLOT_END,
-                flags: PRAYER_FILTER_FLAGS,
-            });
-        };
-
-        const queueQuickPrayerSetupFlags = (playerId: number) => {
-            for (const slot of quickPrayerSetupSlots) {
-                services.queueWidgetEvent?.(playerId, {
-                    action: "set_flags_range",
-                    uid: QUICK_PRAYER_SETUP_WIDGET_UID,
-                    fromSlot: slot,
-                    toSlot: slot,
-                    flags: QUICK_PRAYER_SETUP_BUTTON_FLAGS,
-                });
-            }
-        };
-
-        // ============ PRAYER BUTTONS (541:9-37, non-sequential by prayer id) ============
-        // Register handler for each prayer button using onButton
-        for (const [childId, def] of PRAYERS_BY_CHILD_ID) {
-            registry.onButton(PRAYER_WIDGET_GROUP_ID, childId, (event) => {
-                const player = event.player;
-                const current = new Set(player.getActivePrayers());
-                // Always use toggle behavior based on server state.
-                // The client CS2 script (prayer_op) toggles local state before sending
-                // the action, so the option text reflects client state, not user intent.
-                if (current.has(def.id)) {
-                    current.delete(def.id);
-                } else {
-                    current.add(def.id);
-                }
-                const desired = Array.from(current);
-                player.setQuickPrayersEnabled(false);
-                if (services.applyPrayers) {
-                    services.applyPrayers(player, desired);
-                } else {
-                    player.setActivePrayers(desired);
-                    services.queueCombatState?.(player);
-                }
+                uid: QUICK_PRAYER_SETUP_WIDGET_UID,
+                fromSlot: slot,
+                toSlot: slot,
+                flags: QUICK_PRAYER_SETUP_BUTTON_FLAGS,
             });
         }
+    };
 
-        // ============ QUICK PRAYER BUTTON (541:4) ============
-        // The quick prayer orb in the prayer tab
-        const QUICK_PRAYER_COMPONENT = 4;
-        registry.onButton(PRAYER_WIDGET_GROUP_ID, QUICK_PRAYER_COMPONENT, (event) => {
+    // ============ PRAYER BUTTONS (541:9-37, non-sequential by prayer id) ============
+    // Register handler for each prayer button using onButton
+    for (const [childId, def] of PRAYERS_BY_CHILD_ID) {
+        registry.onButton(PRAYER_WIDGET_GROUP_ID, childId, (event) => {
             const player = event.player;
-            const opId = event.opId ?? 1;
-            // Op1 = toggle quick prayers, Op2 = set quick prayers
-            if (opId === 2) {
-                handleQuickPrayerAction(QUICK_ACTION_SET, player, services);
+            const current = new Set(player.getActivePrayers());
+            // Always use toggle behavior based on server state.
+            // The client CS2 script (prayer_op) toggles local state before sending
+            // the action, so the option text reflects client state, not user intent.
+            if (current.has(def.id)) {
+                current.delete(def.id);
             } else {
-                handleQuickPrayerAction(QUICK_ACTION_TOGGLE, player, services);
+                current.add(def.id);
             }
-        });
-
-        // ============ PRAYER FILTER ROWS (541:42 dynamic slots 0-4) ============
-        // The filters menu rows are dynamic children created by CS2 under 541:42.
-        // Server toggles backing varbits; client scripts redraw from onVarTransmit.
-        registry.onButton(PRAYER_WIDGET_GROUP_ID, PRAYER_FILTER_COMPONENT_ID, (event) => {
-            queuePrayerFilterFlags(event.player.id);
-
-            const slot = event.slot ?? -1;
-            const varbitId = PRAYER_FILTER_VARBIT_BY_SLOT.get(slot);
-            if (varbitId === undefined) return;
-
-            const player = event.player;
-            const current = player.getVarbitValue(varbitId);
-            const next = current === 0 ? 1 : 0;
-            player.setVarbitValue(varbitId, next);
-
-            if (services.queueVarbit) {
-                services.queueVarbit(player.id, varbitId, next);
+            const desired = Array.from(current);
+            player.setQuickPrayersEnabled(false);
+            if (services.applyPrayers) {
+                services.applyPrayers(player, desired);
             } else {
-                services.sendVarbit?.(player, varbitId, next);
-            }
-        });
-
-        // Ensure dynamic filter row transmit flags are refreshed when Filters tab is opened.
-        registry.onButton(PRAYER_WIDGET_GROUP_ID, PRAYER_FILTER_BUTTON_COMPONENT_ID, (event) => {
-            queuePrayerFilterFlags(event.player.id);
-        });
-
-        // ============ QUICK PRAYER SETUP (77:4, 77:5) ============
-        // 77:4 is the dynamic buttons container. Dynamic child slot IDs are generated by CS2.
-        registry.onButton(
-            QUICK_PRAYER_SETUP_GROUP_ID,
-            QUICK_PRAYER_SETUP_BUTTONS_COMPONENT,
-            (event) => {
-                const player = event.player;
-                const slot = event.slot ?? event.childId ?? -1;
-                if (slot < 0) return;
-
-                const pid = player.id;
-                const tick = event.tick;
-                const key = `${pid}:${slot}`;
-                if (lastQuickPrayerToggleTickByPlayerSlot.get(key) === tick) return;
-                lastQuickPrayerToggleTickByPlayerSlot.set(key, tick);
-
-                const prayer =
-                    quickPrayerSetupSlotToPrayer.get(slot) ?? PRAYER_BY_QUICK_SLOT.get(slot);
-                if (!prayer) return;
-
-                const next = new Set<PrayerName>(player.getQuickPrayers());
-                if (next.has(prayer)) {
-                    next.delete(prayer);
-                } else {
-                    next.add(prayer);
-                }
-                player.setQuickPrayers(next);
-                player.setQuickPrayersEnabled(false);
+                player.setActivePrayers(desired);
                 services.queueCombatState?.(player);
-            },
-        );
+            }
+        });
+    }
 
-        // 77:5 is the "Done" button in quick prayer setup.
-        registry.onButton(
-            QUICK_PRAYER_SETUP_GROUP_ID,
-            QUICK_PRAYER_SETUP_DONE_COMPONENT,
-            (event) => {
-                const player = event.player;
-                const pid = player.id;
-                const tick = event.tick;
-                if (lastQuickPrayerDoneTickByPlayerId.get(pid) === tick) return;
-                lastQuickPrayerDoneTickByPlayerId.set(pid, tick);
+    // ============ QUICK PRAYER BUTTON (541:4) ============
+    // The quick prayer orb in the prayer tab
+    const QUICK_PRAYER_COMPONENT = 4;
+    registry.onButton(PRAYER_WIDGET_GROUP_ID, QUICK_PRAYER_COMPONENT, (event) => {
+        const player = event.player;
+        const opId = event.opId ?? 1;
+        // Op1 = toggle quick prayers, Op2 = set quick prayers
+        if (opId === 2) {
+            handleQuickPrayerAction(QUICK_ACTION_SET, player, services);
+        } else {
+            handleQuickPrayerAction(QUICK_ACTION_TOGGLE, player, services);
+        }
+    });
 
-                openQuickPrayerSetupTab(false, player, services);
-            },
-        );
+    // ============ PRAYER FILTER ROWS (541:42 dynamic slots 0-4) ============
+    // The filters menu rows are dynamic children created by CS2 under 541:42.
+    // Server toggles backing varbits; client scripts redraw from onVarTransmit.
+    registry.onButton(PRAYER_WIDGET_GROUP_ID, PRAYER_FILTER_COMPONENT_ID, (event) => {
+        queuePrayerFilterFlags(event.player.id);
 
-        // ============ PRAYER ORB (160:20) ============
-        // Minimap prayer orb supports:
-        // - Op1: Activate/Deactivate quick prayers
-        // - Op2: Setup (open quick prayer interface 77 in prayer tab)
-        registry.onButton(MINIMAP_WIDGET_GROUP_ID, PRAYER_ORB_COMPONENT, (event) => {
+        const slot = event.slot ?? -1;
+        const varbitId = PRAYER_FILTER_VARBIT_BY_SLOT.get(slot);
+        if (varbitId === undefined) return;
+
+        const player = event.player;
+        const current = player.getVarbitValue(varbitId);
+        const next = current === 0 ? 1 : 0;
+        player.setVarbitValue(varbitId, next);
+
+        if (services.queueVarbit) {
+            services.queueVarbit(player.id, varbitId, next);
+        } else {
+            services.sendVarbit?.(player, varbitId, next);
+        }
+    });
+
+    // Ensure dynamic filter row transmit flags are refreshed when Filters tab is opened.
+    registry.onButton(PRAYER_WIDGET_GROUP_ID, PRAYER_FILTER_BUTTON_COMPONENT_ID, (event) => {
+        queuePrayerFilterFlags(event.player.id);
+    });
+
+    // ============ QUICK PRAYER SETUP (77:4, 77:5) ============
+    // 77:4 is the dynamic buttons container. Dynamic child slot IDs are generated by CS2.
+    registry.onButton(
+        QUICK_PRAYER_SETUP_GROUP_ID,
+        QUICK_PRAYER_SETUP_BUTTONS_COMPONENT,
+        (event) => {
+            const player = event.player;
+            const slot = event.slot ?? event.childId ?? -1;
+            if (slot < 0) return;
+
+            const pid = player.id;
+            const tick = event.tick;
+            const key = `${pid}:${slot}`;
+            if (lastQuickPrayerToggleTickByPlayerSlot.get(key) === tick) return;
+            lastQuickPrayerToggleTickByPlayerSlot.set(key, tick);
+
+            const prayer =
+                quickPrayerSetupSlotToPrayer.get(slot) ?? PRAYER_BY_QUICK_SLOT.get(slot);
+            if (!prayer) return;
+
+            const next = new Set<PrayerName>(player.getQuickPrayers());
+            if (next.has(prayer)) {
+                next.delete(prayer);
+            } else {
+                next.add(prayer);
+            }
+            player.setQuickPrayers(next);
+            player.setQuickPrayersEnabled(false);
+            services.queueCombatState?.(player);
+        },
+    );
+
+    // 77:5 is the "Done" button in quick prayer setup.
+    registry.onButton(
+        QUICK_PRAYER_SETUP_GROUP_ID,
+        QUICK_PRAYER_SETUP_DONE_COMPONENT,
+        (event) => {
             const player = event.player;
             const pid = player.id;
             const tick = event.tick;
-            const opId = event.opId ?? 1;
+            if (lastQuickPrayerDoneTickByPlayerId.get(pid) === tick) return;
+            lastQuickPrayerDoneTickByPlayerId.set(pid, tick);
 
-            if (opId === 2) {
-                if (lastOrbSetupTickByPlayerId.get(pid) === tick) return;
-                lastOrbSetupTickByPlayerId.set(pid, tick);
-                openQuickPrayerSetupTab(true, player, services);
-                queueQuickPrayerSetupFlags(pid);
-                return;
-            }
-            if (opId !== 1) return;
+            openQuickPrayerSetupTab(false, player, services);
+        },
+    );
 
-            if (lastOrbToggleTickByPlayerId.get(pid) === tick) return;
-            lastOrbToggleTickByPlayerId.set(pid, tick);
+    // ============ PRAYER ORB (160:20) ============
+    // Minimap prayer orb supports:
+    // - Op1: Activate/Deactivate quick prayers
+    // - Op2: Setup (open quick prayer interface 77 in prayer tab)
+    registry.onButton(MINIMAP_WIDGET_GROUP_ID, PRAYER_ORB_COMPONENT, (event) => {
+        const player = event.player;
+        const pid = player.id;
+        const tick = event.tick;
+        const opId = event.opId ?? 1;
 
-            const isEnabled = player.areQuickPrayersEnabled?.() ?? false;
-            handlePrayerOrbClick(isEnabled ? "deactivate" : "activate", player, services);
-        });
-    },
-};
+        if (opId === 2) {
+            if (lastOrbSetupTickByPlayerId.get(pid) === tick) return;
+            lastOrbSetupTickByPlayerId.set(pid, tick);
+            openQuickPrayerSetupTab(true, player, services);
+            queueQuickPrayerSetupFlags(pid);
+            return;
+        }
+        if (opId !== 1) return;
+
+        if (lastOrbToggleTickByPlayerId.get(pid) === tick) return;
+        lastOrbToggleTickByPlayerId.set(pid, tick);
+
+        const isEnabled = player.areQuickPrayersEnabled?.() ?? false;
+        handlePrayerOrbClick(isEnabled ? "deactivate" : "activate", player, services);
+    });
+}
 
 function buildQuickPrayerSetupSlotMap(
-    services: Parameters<ScriptModule["register"]>[1],
+    services: ScriptServices,
 ): Map<number, PrayerName> {
     const slotToPrayer = new Map<number, PrayerName>();
     const enumLoader = services.getEnumTypeLoader?.() ?? services.enumTypeLoader;
@@ -341,7 +338,7 @@ function buildQuickPrayerSetupSlotMap(
 function openQuickPrayerSetupTab(
     openSetup: boolean,
     player: any,
-    services: Parameters<ScriptModule["register"]>[1],
+    services: ScriptServices,
 ): void {
     const displayMode = (player?.displayMode ?? DisplayMode.RESIZABLE_NORMAL) as DisplayMode;
     const prayerTabUid = getPrayerTabUid(displayMode);
@@ -362,7 +359,7 @@ function openQuickPrayerSetupTab(
 function handlePrayerOrbClick(
     option: string,
     player: any,
-    services: Parameters<ScriptModule["register"]>[1],
+    services: ScriptServices,
 ): void {
     const quick = Array.from(player.getQuickPrayers() as Iterable<PrayerName>);
 
@@ -409,7 +406,7 @@ function normalizeQuickOption(option?: string): string {
 function handleQuickPrayerAction(
     option: string | undefined,
     player: any,
-    services: Parameters<ScriptModule["register"]>[1],
+    services: ScriptServices,
 ): void {
     const normalized = normalizeQuickOption(option);
     if (normalized === QUICK_ACTION_SET) {
