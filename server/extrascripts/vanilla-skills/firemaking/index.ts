@@ -2,13 +2,16 @@ import { SkillId } from "../../../../src/rs/skill/skills";
 import type { ActionEffect, ActionExecutionResult } from "../../../src/game/actions/types";
 import type { PlayerState } from "../../../src/game/player";
 import {
+    ASHES_ITEM_ID,
     FIRE_LIGHTING_ANIMATION,
     FIREMAKING_LOG_IDS,
     TINDERBOX_ITEM_IDS,
+    type FireNodeData,
     computeFireLightingDelayTicks,
     getFiremakingLogDefinition,
 } from "./firemakingData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
+import { ResourceNodeTracker, buildTileKey } from "../../../src/game/systems/ResourceNodeTracker";
 
 const FIRE_LIT_SYNTH_SOUND = 2596;
 
@@ -86,7 +89,7 @@ function executeFiremakingAction(ctx: ScriptActionHandlerContext): ActionExecuti
         return failFiremakingPrecheck(player, services, `You need Firemaking level ${logDef.level} to light these logs.`);
     }
 
-    if (services.gathering?.isTileLit(tile, plane)) {
+    if (services.gathering?.getTracker<FireNodeData>("firemaking")?.hasTile(tile, plane)) {
         return failFiremakingPrecheck(player, services, "There's already a fire here.");
     }
 
@@ -165,6 +168,77 @@ function executeFiremakingAction(ctx: ScriptActionHandlerContext): ActionExecuti
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerActionHandler("skill.firemaking", executeFiremakingAction);
+
+    const fireTracker = new ResourceNodeTracker<FireNodeData>();
+    services.gathering?.registerTracker("firemaking", fireTracker, (node, gatheringServices) => {
+        gatheringServices.emitLocChange(node.data.fireObjectId, 0, node.tile, node.level);
+        gatheringServices.spawnGroundItem(
+            ASHES_ITEM_ID,
+            1,
+            { x: node.tile.x, y: node.tile.y, level: node.level },
+            node.expiryTick,
+            { privateTicks: 0 },
+        );
+    });
+
+    services.isFiremakingTileBlocked = (tile, level) => {
+        const pathService = services.getPathService?.();
+        if (!pathService) return false;
+        const flag = pathService.getCollisionFlagAt(tile.x, tile.y, level);
+        if (flag === undefined || flag < 0) return false;
+        return (flag & 0x100_0300) !== 0;
+    };
+
+    services.lightFire = (params) => {
+        const key = buildTileKey(params.tile, params.level);
+        const burnTicks = params.burnTicks ?? { min: 75, max: 120 };
+        const min = Math.max(1, Math.floor(burnTicks.min));
+        const max = Math.max(min, Math.floor(burnTicks.max));
+        const span = max - min + 1;
+        const duration = min + (span > 0 ? Math.floor(Math.random() * span) : 0);
+        fireTracker.add(key, params.tile, params.level, params.currentTick + duration, {
+            fireObjectId: params.fireObjectId,
+            previousLocId: params.previousLocId,
+            logItemId: params.logItemId,
+            ownerId: params.ownerId,
+        });
+        return { fireObjectId: params.fireObjectId };
+    };
+
+    services.playerHasTinderbox = (player) => {
+        for (const id of TINDERBOX_ITEM_IDS) {
+            if (services.playerHasItem?.(player, id)) return true;
+        }
+        return false;
+    };
+
+    services.consumeFiremakingLog = (player, logId, slotIndex) => {
+        const inv = services.getInventoryItems(player);
+        if (
+            slotIndex !== undefined &&
+            slotIndex >= 0 &&
+            slotIndex < inv.length &&
+            inv[slotIndex]?.itemId === logId &&
+            inv[slotIndex]!.quantity > 0
+        ) {
+            if (services.consumeItem(player, slotIndex)) return slotIndex;
+        }
+        const fallback = services.findInventorySlotWithItem?.(player, logId);
+        if (fallback !== undefined && services.consumeItem(player, fallback)) return fallback;
+        return undefined;
+    };
+
+    services.walkPlayerAwayFromFire = (player, fireTile) => {
+        const westTile = { x: fireTile.x - 1, y: fireTile.y };
+        const pathService = services.getPathService?.();
+        const canStep = pathService?.canNpcStep?.(
+            { x: player.tileX, y: player.tileY, plane: player.level },
+            westTile,
+        ) ?? true;
+        if (canStep && (westTile.x !== player.tileX || westTile.y !== player.tileY)) {
+            player.setPath([westTile], false);
+        }
+    };
 
     const requestAction = services.requestAction;
     for (const logId of FIREMAKING_LOG_IDS) {

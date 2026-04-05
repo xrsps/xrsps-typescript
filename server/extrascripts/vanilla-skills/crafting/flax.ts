@@ -6,6 +6,7 @@ import {
     isFlaxLocId,
 } from "./flaxData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
+import { ResourceNodeTracker, buildTileKey } from "../../../src/game/systems/ResourceNodeTracker";
 
 const FLAX_ACTIONS = ["pick", "pick-flax"];
 const FLAX_GROUP = "skill.flax";
@@ -13,6 +14,8 @@ const FLAX_ITEM_ID = 1779;
 const FLAX_PICK_ANIMATION = 827;
 const FLAX_PICK_SOUND = 2581;
 const FLAX_RESPAWN_TICKS = 25;
+
+let flaxTracker: ResourceNodeTracker<{ locId: number }> | undefined;
 
 interface FlaxActionData {
     locId: number;
@@ -31,7 +34,7 @@ function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     const plane = data.level;
     const locId = data.locId;
 
-    if (services.gathering?.flaxTracker.isDepleted(tile, plane)) {
+    if (flaxTracker?.hasTile(tile, plane)) {
         services.stopGatheringInteraction?.(player);
         return { ok: true, effects: [] };
     }
@@ -48,12 +51,7 @@ function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
     services.enqueueSoundBroadcast?.(FLAX_PICK_SOUND, tile.x, tile.y, plane);
 
-    services.gathering?.markFlaxDepleted({
-        tile,
-        level: plane,
-        locId,
-        respawnTicks: FLAX_RESPAWN_TICKS,
-    }, tick);
+    flaxTracker?.add(buildTileKey(tile, plane), tile, plane, tick + FLAX_RESPAWN_TICKS, { locId });
     services.emitLocChange?.(locId, 0, tile, plane);
 
     const result = services.addItemToInventory(player, FLAX_ITEM_ID, 1);
@@ -75,6 +73,11 @@ function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerActionHandler("skill.flax", executeFlaxAction);
+
+    flaxTracker = new ResourceNodeTracker<{ locId: number }>();
+    services.gathering?.registerTracker("flax", flaxTracker, (node, gatheringSvc) => {
+        gatheringSvc.emitLocChange(0, node.data.locId, node.tile, node.level);
+    });
 
     const requestAction = services.requestAction;
     const registerLoc = (locId: number, action: string) => {

@@ -182,7 +182,6 @@ export interface WidgetDialogServices {
     // --- Constants ---
     getShopGroupId(): number;
     getBankGroupId(): number;
-    getSmithingGroupId(): number;
 
     // --- Logging ---
     log(level: "info" | "warn" | "error" | "debug", message: string, error?: unknown): void;
@@ -793,7 +792,7 @@ export class WidgetDialogHandler {
             this.services.closeShopInterface(player, { silent: true });
         } else if (groupId === this.services.getBankGroupId()) {
             this.services.closeBank(player);
-        } else if (groupId === this.services.getSmithingGroupId()) {
+        } else if (groupId === 312) {
             this.services.queueSmithingInterfaceMessage(player.id, { kind: "close" });
         }
     }

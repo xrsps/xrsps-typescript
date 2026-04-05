@@ -3,11 +3,13 @@ import type { ActionEffect, ActionExecutionResult } from "../../../src/game/acti
 import type { PlayerState } from "../../../src/game/player";
 import {
     type HatchetDefinition,
-    buildWoodcuttingTileKey,
+    buildWoodcuttingLocMap,
     getWoodcuttingTreeById,
+    getWoodcuttingTreeFromMap,
     selectHatchetByLevel,
 } from "./woodcuttingData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
+import { ResourceNodeTracker, buildTileKey } from "../../../src/game/systems/ResourceNodeTracker";
 
 const WOODCUT_ACTIONS = ["chop down", "chop-down"];
 const WOODCUTTING_DEPLETE_SOUND = 2734;
@@ -71,9 +73,9 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
 
     const tile = { x: data.tile.x, y: data.tile.y };
     const plane = data.level;
-    const nodeKey = buildWoodcuttingTileKey(tile, plane);
+    const nodeKey = buildTileKey(tile, plane);
 
-    if (services.gathering?.isWoodcuttingDepleted(nodeKey)) {
+    if (services.gathering?.getTracker("woodcutting")?.has(nodeKey)) {
         return failGatheringPrecheck(player, services, "The tree has no logs left.");
     }
 
@@ -181,15 +183,10 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
         if (shouldDeplete) {
             treeDepleted = true;
             if (locId > 0) {
-                services.gathering?.markWoodcuttingDepleted({
-                    key: nodeKey,
-                    locId,
-                    stumpId,
-                    tile,
-                    level: plane,
-                    treeId: tree.id,
-                    respawnTicks: tree.respawnTicks,
-                }, tick);
+                services.gathering?.getTracker<any>("woodcutting")?.addWithRandomDuration(
+                    nodeKey, tile, plane, tick, tree.respawnTicks,
+                    { locId, stumpId, treeId: tree.id },
+                );
                 services.emitLocChange?.(locId, stumpId, tile, plane);
                 services.enqueueSoundBroadcast?.(WOODCUTTING_DEPLETE_SOUND, tile.x, tile.y, plane);
                 services.stopGatheringInteraction?.(player);
@@ -205,7 +202,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
         services.queueBankSnapshot(player);
     }
 
-    let continueChopping = !treeDepleted && !services.gathering?.isWoodcuttingDepleted(nodeKey);
+    let continueChopping = !treeDepleted && !services.gathering?.getTracker("woodcutting")?.has(nodeKey);
     if (continueChopping) {
         if (!hasEchoAxePerk && !services.hasInventorySlot?.(player)) {
             continueChopping = false;
@@ -253,6 +250,15 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerActionHandler("skill.woodcut", executeWoodcutAction);
+
+    const wcTracker = new ResourceNodeTracker<{ locId: number; stumpId: number; treeId: string }>();
+    services.gathering?.registerTracker("woodcutting", wcTracker, (node, gatheringSvc) => {
+        gatheringSvc.emitLocChange(node.data.stumpId, node.data.locId, node.tile, node.level);
+    });
+
+    const locTypeLoader = services.getLocTypeLoader?.();
+    const wcLocMap = buildWoodcuttingLocMap(locTypeLoader);
+    services.getWoodcuttingTree = (locId) => getWoodcuttingTreeFromMap(locId, wcLocMap);
 
     if (!services.getWoodcuttingTree) {
         console.log("[script:woodcutting] tree lookup unavailable; module disabled");

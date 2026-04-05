@@ -524,9 +524,6 @@ const MELEE_HIT_DELAY_TICKS = 1;
 const COMBAT_SOUND_DELAY_MS = 50; // Small delay to ensure hitsplat renders before sound plays
 const DEFAULT_HIT_SOUND = 1979; // Generic blade hit sound
 
-// Shop/Bank group IDs imported from interface hooks
-const SMITHING_GROUP_ID = 312;
-const SMITHING_BAR_TYPE_VARBIT_ID = 3216;
 
 const RANGED_WEAPON_CATEGORY_IDS = new Set([3, 5, 6, 7, 8, 19]);
 const MAGIC_WEAPON_CATEGORY_IDS = new Set([18, 24, 29, 31]);
@@ -1547,7 +1544,6 @@ export class WSServer {
             this.gatheringSystem = this.createGatheringSystem();
             // Initialize EquipmentHandler
             this.equipmentHandler = this.createEquipmentHandler();
-            // SmithingSystem is now managed by the vanilla-skills/production extrascript
             // Initialize TickPhaseOrchestrator
             this.tickOrchestrator = this.createTickOrchestrator();
             // Initialize MessageRouter
@@ -6553,7 +6549,6 @@ export class WSServer {
             // --- Constants ---
             getShopGroupId: () => 300,
             getBankGroupId: () => 12,
-            getSmithingGroupId: () => SMITHING_GROUP_ID,
 
             // --- Logging ---
             log: (level, message, error) => {
@@ -6581,7 +6576,7 @@ export class WSServer {
                     targetPlayerIds: [playerId],
                 }),
             setSmithingBarType: (player, barType) =>
-                player.setVarbitValue(SMITHING_BAR_TYPE_VARBIT_ID, barType),
+                player.setVarbitValue(3216, barType),
             openSmithingForgeInterface: (player) => {
                 this.scriptRuntime.getServices().production?.openForgeInterface?.(player);
             },
@@ -7305,20 +7300,11 @@ export class WSServer {
                     try { player.clearWalkDestination(); } catch {}
                 },
                 gathering: this.gatheringSystem,
-                isFiremakingTileBlocked: (tile, level) => this.isFiremakingTileBlocked(tile, level),
+                isFiremakingTileBlocked: undefined,
                 lightFire: undefined,
                 playerHasTinderbox: undefined,
                 consumeFiremakingLog: undefined,
-                walkPlayerAwayFromFire: (player, fireTile) => {
-                    const westTile = { x: fireTile.x - 1, y: fireTile.y };
-                    const canStep = this.options.pathService?.canNpcStep(
-                        { x: player.tileX, y: player.tileY, plane: player.level },
-                        westTile,
-                    ) ?? true;
-                    if (canStep && (westTile.x !== player.tileX || westTile.y !== player.tileY)) {
-                        player.setPath([westTile], false);
-                    }
-                },
+                walkPlayerAwayFromFire: undefined,
                 getCookingRecipeByRawItemId: undefined,
                 production: {
                     takeInventoryItems: (player, inputs) =>
@@ -12114,15 +12100,6 @@ export class WSServer {
         } catch {}
     }
 
-    private isFiremakingTileBlocked(tile: { x: number; y: number }, level: number): boolean {
-        const pathService = this.options.pathService;
-        if (!pathService) return false;
-        const flag = pathService.getCollisionFlagAt(tile.x, tile.y, level);
-        if (flag === undefined || flag < 0) return false;
-        const blockingMask =
-            CollisionFlag.OBJECT | CollisionFlag.FLOOR_BLOCKED | CollisionFlag.OBJECT_ROUTE_BLOCKER;
-        return (flag & blockingMask) !== 0;
-    }
 
     private isAdjacentToNpc(player: PlayerState, npc: NpcState): boolean {
         const size = Math.max(1, npc.size);

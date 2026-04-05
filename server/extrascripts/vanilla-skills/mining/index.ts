@@ -3,11 +3,13 @@ import type { ActionEffect, ActionExecutionResult } from "../../../src/game/acti
 import type { PlayerState } from "../../../src/game/player";
 import {
     type PickaxeDefinition,
-    buildMiningTileKey,
+    buildMiningLocMap,
     getMiningRockById,
+    getMiningRockFromMap,
     selectPickaxeByLevel,
 } from "./miningData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../src/game/scripts/types";
+import { ResourceNodeTracker, buildTileKey } from "../../../src/game/systems/ResourceNodeTracker";
 
 const MINING_ACTIONS = ["mine", "mine rocks"];
 const ECHO_PICKAXE_ITEM_IDS = [25112, 25063, 25369, 25376];
@@ -70,9 +72,9 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     const tile = { x: data.tile.x, y: data.tile.y };
     const plane = data.level;
     const actionDepletedLocId = data.depletedLocId;
-    const nodeKey = buildMiningTileKey(tile, plane);
+    const nodeKey = buildTileKey(tile, plane);
 
-    if (services.gathering?.isMiningDepleted(nodeKey)) {
+    if (services.gathering?.getTracker("mining")?.has(nodeKey)) {
         return failMiningPrecheck(player, services, "The rock is depleted of ore.");
     }
 
@@ -175,15 +177,10 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
                         ? actionDepletedLocId
                         : undefined;
 
-                services.gathering?.markMiningDepleted({
-                    key: nodeKey,
-                    locId,
-                    depletedLocId,
-                    tile,
-                    level: plane,
-                    rockId: rock.id,
-                    respawnTicks: rock.respawnTicks,
-                }, tick);
+                services.gathering?.getTracker<any>("mining")?.addWithRandomDuration(
+                    nodeKey, tile, plane, tick, rock.respawnTicks,
+                    { locId, depletedLocId, rockId: rock.id },
+                );
 
                 if (depletedLocId !== undefined) {
                     services.emitLocChange?.(locId, depletedLocId, tile, plane);
@@ -201,7 +198,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         services.queueBankSnapshot(player);
     }
 
-    let continueMining = !services.gathering?.isMiningDepleted(nodeKey);
+    let continueMining = !services.gathering?.getTracker("mining")?.has(nodeKey);
     if (continueMining) {
         if (!hasEchoPickaxePerk && !services.hasInventorySlot?.(player)) {
             continueMining = false;
@@ -241,6 +238,17 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerActionHandler("skill.mine", executeMineAction);
+
+    const miningTracker = new ResourceNodeTracker<{ locId: number; depletedLocId?: number; rockId: string }>();
+    services.gathering?.registerTracker("mining", miningTracker, (node, gatheringSvc) => {
+        if (node.data.depletedLocId && node.data.locId > 0) {
+            gatheringSvc.emitLocChange(node.data.depletedLocId, node.data.locId, node.tile, node.level);
+        }
+    });
+
+    const locTypeLoader = services.getLocTypeLoader?.();
+    const miningLocMap = buildMiningLocMap(locTypeLoader);
+    services.getMiningRock = (locId) => getMiningRockFromMap(locId, miningLocMap);
 
     if (!services.getMiningRock) {
         console.log("[script:mining] rock lookup unavailable; module disabled");

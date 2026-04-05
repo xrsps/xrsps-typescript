@@ -4,6 +4,7 @@ import type { PlayerState } from "../../../src/game/player";
 import {
     type FishingToolDefinition,
     type FishingToolId,
+    buildFishingSpotMap,
     findFishingMethodByAction,
     getFishingMethodById,
     getFishingSpotById,
@@ -291,6 +292,16 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerActionHandler("skill.fish", executeFishAction);
+
+    const npcTypeLoader = services.getNpcTypeLoader?.();
+    if (npcTypeLoader) {
+        const fishingMap = buildFishingSpotMap(npcTypeLoader);
+        services.getFishingSpot = (npcTypeId) => {
+            const spotId = fishingMap.map.get(npcTypeId);
+            if (!spotId) return undefined;
+            return getFishingSpotById(spotId);
+        };
+    }
 
     if (!services.getFishingSpot) {
         console.log("[script:fishing] fishing spot lookup unavailable");

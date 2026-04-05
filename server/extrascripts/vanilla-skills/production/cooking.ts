@@ -142,7 +142,7 @@ export function registerCookingInteractions(registry: IScriptRegistry, services:
         registry.registerItemOnLoc(rawItemId, ANY_LOC_ID, (event) => {
             const tile = event.target.tile;
             const level = event.target.level;
-            const fire = services.gathering?.getFireNode(tile, level);
+            const fire = services.gathering?.getTracker("firemaking")?.hasTile(tile, level);
             if (!fire) return;
             const recipe = getCookingRecipeByRawItemId(event.source.itemId);
             if (!recipe) return;
