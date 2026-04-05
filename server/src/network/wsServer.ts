@@ -18,6 +18,7 @@ import { SoundService } from "../game/services/SoundService";
 import { MovementService } from "../game/services/MovementService";
 import { PlayerCombatService } from "../game/services/PlayerCombatService";
 import { buildScriptServices } from "../game/services/ScriptServiceAdapter";
+import { buildGamemodeServices } from "../game/services/GamemodeServiceAdapter";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 
@@ -357,10 +358,8 @@ import {
     MiscBroadcaster,
     ActorSyncBroadcaster,
 } from "./broadcast";
-import {
-    type MessageHandlerServices,
-    registerMessageHandlers as registerExtractedHandlers,
-} from "./MessageHandlers";
+import { type MessageHandlerServices } from "./MessageHandlers";
+import { registerAllHandlers, type BinaryHandlerExtServices } from "./handlers";
 import { MessageRouter, type MessageRouterServices, type RoutedMessage } from "./MessageRouter";
 import { buildTeleportNpcUpdateDelta, upsertNpcUpdateDelta } from "./NpcExternalSync";
 import { NpcSyncSession } from "./NpcSyncSession";
@@ -1877,7 +1876,25 @@ export class WSServer {
                     sendGameMessage: (player, text) =>
                         this.sendGameMessageToPlayer(player, text),
                 },
-                serverServices: this.buildGamemodeServerServices(),
+                serverServices: buildGamemodeServices({
+                    dataLoaders: this.dataLoaderService,
+                    variableService: this.variableService,
+                    messagingService: this.messagingService,
+                    inventoryService: this.inventoryService,
+                    equipmentService: this.equipmentService,
+                    appearanceService: this.appearanceService,
+                    getCurrentTick: () => this.options.ticker.currentTick(),
+                    getPlayerById: (id) => this.players?.getById(id),
+                    getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
+                    refreshCombatWeaponCategory: (p) => this.refreshCombatWeaponCategory(p),
+                    queueCombatSnapshot: (...args: any[]) => (this as any).queueCombatSnapshot(...args),
+                    queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
+                    queueGamemodeSnapshot: (k, pid, p) => this.queueGamemodeSnapshot(k, pid, p),
+                    registerSnapshotEncoder: (k, e, o) => this.registerSnapshotEncoder(k, e, o),
+                    gamemodeTickCallbacks: this.gamemodeTickCallbacks,
+                    interfaceService: this.interfaceService,
+                    sailingInstanceManager: this.sailingInstanceManager,
+                }),
             });
             logger.info(`Boot: gamemode "${this.gamemode.id}" initialized`);
 
@@ -3797,15 +3814,6 @@ export class WSServer {
         );
     }
 
-    private playLocGraphic(opts: {
-        spotId: number;
-        tile: { x: number; y: number };
-        level?: number;
-        height?: number;
-        delayTicks?: number;
-    }): void {
-        this.soundService.playLocGraphic(opts);
-    }
 
 
 
@@ -5259,63 +5267,6 @@ export class WSServer {
      * Build the generic server services bag for gamemodes to consume.
      * Any gamemode feature (banking, shops, etc.) uses these to interact with core server systems.
      */
-    private buildGamemodeServerServices(): import("../game/gamemodes/GamemodeDefinition").GamemodeServerServices {
-        return {
-            getPlayer: (playerId) => this.players?.getById(playerId),
-            getInventory: (player) => this.getInventory(player),
-            getEquipArray: (player) => this.ensureEquipArray(player),
-            getEquipQtyArray: (player) => this.ensureEquipQtyArray(player),
-            addItemToInventory: (player, itemId, qty) =>
-                this.addItemToInventory(player, itemId, qty),
-            sendInventorySnapshot: (playerId) => {
-                const sock = this.players?.getSocketByPlayerId(playerId);
-                const player = this.players?.getById(playerId);
-                if (sock && player) this.sendInventorySnapshot(sock, player);
-            },
-            refreshAppearance: (player) => this.refreshAppearanceKits(player),
-            refreshCombatWeapon: (player) => this.refreshCombatWeaponCategory(player),
-            sendAppearanceUpdate: (playerId) => {
-                const sock = this.players?.getSocketByPlayerId(playerId);
-                const player = this.players?.getById(playerId);
-                if (sock && player) this.sendAppearanceUpdate(sock, player);
-            },
-            queueCombatSnapshot: (
-                playerId,
-                category,
-                weaponItemId,
-                autoRetaliate,
-                styleSlot,
-                activePrayers,
-                combatSpellId,
-            ) => {
-                this.queueCombatSnapshot(
-                    playerId,
-                    category,
-                    weaponItemId,
-                    autoRetaliate,
-                    styleSlot,
-                    activePrayers,
-                    combatSpellId,
-                );
-            },
-            queueChatMessage: (opts) => this.queueChatMessage(opts),
-            queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
-            queueGamemodeSnapshot: (key, playerId, payload) =>
-                this.queueGamemodeSnapshot(key, playerId, payload),
-            registerSnapshotEncoder: (key, encoder, onSent) =>
-                this.registerSnapshotEncoder(key, encoder, onSent),
-            getObjType: (itemId) => this.getObjType(itemId),
-            getInterfaceService: () => this.interfaceService,
-            getCurrentTick: () => this.options.ticker.currentTick(),
-            registerTickCallback: (callback) => this.gamemodeTickCallbacks.push(callback),
-            isInSailingInstanceRegion: (player) =>
-                this.sailingInstanceManager?.isInSailingInstanceRegion(player) ?? false,
-            initSailingInstance: (player) =>
-                this.sailingInstanceManager?.initInstance(player),
-            logger: logger,
-        };
-    }
 
     /**
      * Create the NpcPacketEncoder with all required services.
@@ -6357,7 +6308,7 @@ export class WSServer {
 
     private registerMessageHandlers(router: MessageRouter): void {
         // Register extracted handlers from MessageHandlers.ts
-        const extendedServices: MessageHandlerServices = {
+        const extendedServices: BinaryHandlerExtServices = {
             // Player management
             getPlayer: (ws) => this.players?.get(ws),
             getPlayerById: (id) => this.players?.getById(id),
@@ -6536,8 +6487,36 @@ export class WSServer {
                 ),
                 SIDE_JOURNAL_TAB_CONTAINER_UID,
             }),
+
+            // --- Services for extracted handlers (logout, widget, varp_transmit, if_close) ---
+            completeLogout: (ws, player, source) => this.completeLogout(ws, player, source),
+            closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
+            noteWidgetEventForLedger: (playerId, event) => this.noteWidgetEventForLedger(playerId, event),
+            normalizeSideJournalState: (player, value?) => this.normalizeSideJournalState(player, value),
+            queueSideJournalGamemodeUi: (player) => this.queueSideJournalGamemodeUi(player),
+            syncMusicInterface: (player) => this.soundManager.syncMusicInterfaceForPlayer(player),
+            handleCs2ModalCloseState: (player, groupId) => this.cs2ModalManager.handleWidgetCloseState(player, groupId),
+            handleDialogCloseState: (player, groupId) => this.widgetDialogHandler.handleWidgetCloseState(player, groupId),
+            getInterfaceService: () => this.interfaceService,
+            getGamemodeUi: () => this.gamemodeUi,
+            getGamemode: () => this.gamemode,
+
+            // --- Services for binary message handlers ---
+            resolveGroundItemOptionByOpNum: (itemId, opNum) =>
+                this.resolveGroundItemOptionByOpNum(itemId, opNum),
+            handleGroundItemAction: (ws, payload) => this.handleGroundItemAction(ws, payload),
+            getScriptRegistry: () => this.scriptRegistry,
+            getScriptRuntime: () => this.scriptRuntime,
+            getCs2ModalManager: () => this.cs2ModalManager,
+            getWidgetDialogHandler: () => this.widgetDialogHandler,
+            getObjType: (itemId) => this.getObjType(itemId),
+            handleInventoryUseOnMessage: (ws, payload) =>
+                this.handleInventoryUseOnMessage(ws, payload),
+            getLevelUpPopupQueue: (playerId) =>
+                (this.interfaceManager as any).levelUpPopupQueue?.get(playerId),
+            advanceLevelUpPopupQueue: (player) => this.advanceLevelUpPopupQueue(player),
         };
-        registerExtractedHandlers(router, extendedServices);
+        registerAllHandlers(router, extendedServices);
 
         // Simple handlers
         router.register("hello", (ctx) => {
@@ -6999,9 +6978,6 @@ export class WSServer {
         return this.equipmentService.ensureEquipArray(p);
     }
 
-    private ensureEquipQtyArray(p: PlayerState): number[] {
-        return this.equipmentService.ensureEquipQtyArray(p);
-    }
 
     private getPlayerSaveKey(name: string | undefined, id: number): string {
         return buildPlayerSaveKey(name, id);
@@ -7484,9 +7460,6 @@ export class WSServer {
         );
     }
 
-    private sendAppearanceUpdate(ws: WebSocket, p: PlayerState): void {
-        this.queueAppearanceSnapshot(p);
-    }
 
     private equipItem(
         p: PlayerState,
@@ -8354,6 +8327,861 @@ export class WSServer {
         return this.equipmentService.performEquipmentAction(player, action);
     }
 
+
+    private handleLoginMessage(ws: WebSocket, payload: any): void {
+        // Handle login request with proper validation
+        const { username, password, revision } = payload;
+        const normalizedUsername = (username || "").trim().toLowerCase();
+
+        // Helper to send login error response
+        const sendLoginError = (errorCode: number, error: string) => {
+            this.withDirectSendBypass("login_response", () =>
+                this.sendWithGuard(
+                    ws,
+                    encodeMessage({
+                        type: "login_response",
+                        payload: { success: false, errorCode, error },
+                    }),
+                    "login_response",
+                ),
+            );
+            logger.info(`Login failed (code ${errorCode}): ${username} - ${error}`);
+        };
+
+        // Get client IP for rate limiting (fallback to ws identifier)
+        const clientIp = this.getSocketRemoteAddress(ws) ?? "ws-unknown";
+        logger.info(`Login attempt from: ${username} (${clientIp})`);
+
+        // 0. Check client revision matches server
+        const serverRevision = this.cacheEnv?.info?.revision ?? 0;
+        if (serverRevision > 0 && revision !== serverRevision) {
+            sendLoginError(6, "Please close the client and reload to update.");
+            return;
+        }
+
+        // 1. Check rate limiting first
+        if (this.checkLoginRateLimit(clientIp)) {
+            sendLoginError(9, "Login limit exceeded. Please wait a minute.");
+            return;
+        }
+
+        // 2. Check maintenance mode
+        if (this.maintenanceMode) {
+            sendLoginError(14, "The server is being updated. Please wait.");
+            return;
+        }
+
+        // 3. Check world capacity
+        if (this.isWorldFull()) {
+            sendLoginError(2, "This world is full. Please use a different world.");
+            return;
+        }
+
+        // 4. Validate username is not empty
+        if (!normalizedUsername || normalizedUsername.length === 0) {
+            sendLoginError(3, "Invalid username or password.");
+            return;
+        }
+
+        // 5. Check if already logged in
+        if (this.isPlayerAlreadyLoggedIn(normalizedUsername)) {
+            sendLoginError(
+                5,
+                "Your account is already logged in. Try again in 60 seconds.",
+            );
+            return;
+        }
+
+        // All checks passed - login successful
+        const displayName = (username ?? "").slice(0, 12);
+        this.setPendingLoginName(ws, displayName);
+        this.withDirectSendBypass("login_response", () =>
+            this.sendWithGuard(
+                ws,
+                encodeMessage({
+                    type: "login_response",
+                    payload: {
+                        success: true,
+                        displayName,
+                    },
+                }),
+                "login_response",
+            ),
+        );
+        logger.info(`Login successful: ${username}`);
+
+    }
+
+
+    private handleHandshakeMessage(ws: WebSocket, payload: any): void {
+        const parsed = { type: "handshake" as const, payload };
+        // Accept handshake and assign player id, then spawn
+        try {
+            // Get player name first to check for orphaned session
+            const pendingLoginName = this.consumePendingLoginName(ws);
+            const name = pendingLoginName || parsed.payload.name?.slice(0, 12) || undefined;
+
+            // Check for orphaned player (disconnected while in combat)
+            // We need to compute a preliminary save key based on name
+            const preliminarySaveKey = normalizePlayerAccountName(name);
+            let p: import("../game/player").PlayerState | undefined;
+            let isReconnect = false;
+
+            if (preliminarySaveKey && this.players?.hasOrphanedPlayer(preliminarySaveKey)) {
+                // Reconnect to orphaned player
+                p = this.players.reconnectOrphanedPlayer(ws, preliminarySaveKey);
+                if (p) {
+                    isReconnect = true;
+                    logger.info(
+                        `[handshake] Player ${name} reconnected to orphaned session (id=${p.id})`,
+                    );
+                }
+            }
+
+            if (!p) {
+                // No orphaned session - create new player
+                const spawn = this.gamemode.getSpawnLocation(undefined as any);
+                const spawnX = spawn.x,
+                    spawnY = spawn.y,
+                    level = spawn.level;
+                p = this.players?.add(ws, spawnX, spawnY, level);
+            }
+
+            if (!p) {
+                try {
+                    ws.close(1013, "server_full");
+                } catch {}
+                return;
+            }
+            {
+                p.widgets.setDispatcher((action) => {
+                    if (action.action === "close") {
+                        this.widgetDialogHandler.handleWidgetCloseState(p!, action.groupId);
+                    }
+                    this.queueWidgetEvent(p!.id, action);
+                });
+
+                if (!isReconnect) {
+                    // Only register with action scheduler for new players
+                    // Orphaned players were never unregistered
+                    this.actionScheduler.registerPlayer(p);
+                }
+
+                // RSMod parity: Set item definition resolver for inventory operations
+                p.setItemDefResolver((id) => getItemDefinition(id));
+
+                // Wire up death callback (tick-based death sequence)
+                p.onDeath = () => {
+                    if (this.playerDeathService) {
+                        this.playerDeathService.startPlayerDeath(p!);
+                    }
+                };
+
+                const appearance =
+                    parsed.payload.appearance !== undefined
+                        ? this.sanitizeHandshakeAppearance(parsed.payload.appearance)
+                        : this.createDefaultAppearance();
+
+                if (!isReconnect) {
+                    // Only set name/appearance for new players
+                    p.name = name ?? "";
+                    p.appearance = appearance;
+                    this.ensureEquipArray(p);
+                    this.refreshAppearanceKits(p);
+                    this.refreshCombatWeaponCategory(p);
+                    p.attackDelay = this.pickAttackSpeed(p);
+                    const saveKey = this.getPlayerSaveKey(name, p.id);
+                    p.__saveKey = saveKey;
+                    try {
+                        this.playerPersistence.applyToPlayer(p, saveKey);
+                    } catch (err) {
+                        logger.warn("[player] failed to apply persistent vars", err);
+                    }
+                    // New accounts (no persistence key yet) must complete the player design flow.
+                    // Existing saves default to post-design stage unless persisted otherwise.
+                    try {
+                        if (!this.playerPersistence.hasKey(saveKey)) {
+                            p.accountStage = 0;
+                        } else if (!Number.isFinite(p.accountStage)) {
+                            p.accountStage = 1;
+                        }
+                    } catch {
+                        if (!Number.isFinite(p.accountStage)) p.accountStage = 1;
+                    }
+                    // Let the gamemode resolve account stage (e.g. tutorial completion).
+                    try {
+                        this.gamemode.resolveAccountStage?.(p);
+                    } catch {}
+                    // Force run mode on login (default to enabled)
+                    p.setRunToggle(true);
+                    try {
+                        this.refreshAppearanceKits(p);
+                        this.refreshCombatWeaponCategory(p);
+                    } catch (err) {
+                        logger.warn(
+                            "[player] failed to refresh appearance after persist",
+                            err,
+                        );
+                    }
+                } else {
+                    // Reconnecting - just refresh appearance in case client needs it
+                    logger.info(
+                        `[handshake] Resuming player ${name} at (${p.tileX}, ${p.tileY})`,
+                    );
+                }
+
+                try {
+                    this.followerManager?.restoreFollowerForPlayer(p);
+                } catch (err) {
+                    logger.warn("[follower] failed to restore player follower", err);
+                }
+
+                // Unlock all achievement diaries
+                // Structure: [varbitId, value] pairs
+                const DIARY_VARBITS: Array<[number, number]> = [
+                    // === STARTED FLAGS (1 = started) ===
+                    [3576, 1], // Karamja (atjun_started)
+                    [4448, 1], // Ardougne
+                    [4449, 1], // Falador
+                    [4450, 1], // Fremennik
+                    [4451, 1], // Kandarin
+                    [4452, 1], // Desert
+                    [4453, 1], // Lumbridge
+                    [4454, 1], // Morytania
+                    [4455, 1], // Varrock
+                    [4456, 1], // Western
+                    [4457, 1], // Wilderness
+                    [7924, 1], // Kourend
+
+                    // === COMPLETION FLAGS (1 = complete) ===
+                    // Ardougne
+                    [4458, 1],
+                    [4459, 1],
+                    [4460, 1],
+                    [4461, 1],
+                    // Desert
+                    [4483, 1],
+                    [4484, 1],
+                    [4485, 1],
+                    [4486, 1],
+                    // Falador
+                    [4462, 1],
+                    [4463, 1],
+                    [4464, 1],
+                    [4465, 1],
+                    // Fremennik
+                    [4491, 1],
+                    [4492, 1],
+                    [4493, 1],
+                    [4494, 1],
+                    // Kandarin
+                    [4475, 1],
+                    [4476, 1],
+                    [4477, 1],
+                    [4478, 1],
+                    // Karamja (atjun)
+                    // OSRS CS2 parity: these "done" varbits use value 2 when complete.
+                    [3578, 2],
+                    [3599, 2],
+                    [3611, 2],
+                    [4566, 1],
+                    // Kourend
+                    [7925, 1],
+                    [7926, 1],
+                    [7927, 1],
+                    [7928, 1],
+                    // Lumbridge
+                    [4495, 1],
+                    [4496, 1],
+                    [4497, 1],
+                    [4498, 1],
+                    // Morytania
+                    [4487, 1],
+                    [4488, 1],
+                    [4489, 1],
+                    [4490, 1],
+                    // Varrock
+                    [4479, 1],
+                    [4480, 1],
+                    [4481, 1],
+                    [4482, 1],
+                    // Western
+                    [4471, 1],
+                    [4472, 1],
+                    [4473, 1],
+                    [4474, 1],
+                    // Wilderness
+                    [4466, 1],
+                    [4467, 1],
+                    [4468, 1],
+                    [4469, 1],
+
+                    // === TASK COUNTS (set to max required for each tier) ===
+                    // Karamja: easy=10, med=19, hard=10, elite=5
+                    [2423, 10],
+                    [6288, 19],
+                    [6289, 10],
+                    [6290, 5],
+                    // Ardougne: easy=10, med=12, hard=12, elite=8
+                    [6291, 10],
+                    [6292, 12],
+                    [6293, 12],
+                    [6294, 8],
+                    // Desert: easy=11, med=12, hard=10, elite=6
+                    [6295, 11],
+                    [6296, 12],
+                    [6297, 10],
+                    [6298, 6],
+                    // Falador: easy=11, med=14, hard=11, elite=6
+                    [6299, 11],
+                    [6300, 14],
+                    [6301, 11],
+                    [6302, 6],
+                    // Fremennik: easy=10, med=9, hard=9, elite=6
+                    [6303, 10],
+                    [6304, 9],
+                    [6305, 9],
+                    [6306, 6],
+                    // Kandarin: easy=11, med=14, hard=11, elite=7
+                    [6307, 11],
+                    [6308, 14],
+                    [6309, 11],
+                    [6310, 7],
+                    // Lumbridge: easy=12, med=12, hard=11, elite=6
+                    [6311, 12],
+                    [6312, 12],
+                    [6313, 11],
+                    [6314, 6],
+                    // Morytania: easy=11, med=11, hard=10, elite=6
+                    [6315, 11],
+                    [6316, 11],
+                    [6317, 10],
+                    [6318, 6],
+                    // Varrock: easy=14, med=13, hard=10, elite=5
+                    [6319, 14],
+                    [6320, 13],
+                    [6321, 10],
+                    [6322, 5],
+                    // Wilderness: easy=12, med=11, hard=10, elite=7
+                    [6323, 12],
+                    [6324, 11],
+                    [6325, 10],
+                    [6326, 7],
+                    // Western: easy=11, med=13, hard=13, elite=7
+                    [6327, 11],
+                    [6328, 13],
+                    [6329, 13],
+                    [6330, 7],
+                    // Kourend: easy=12, med=13, hard=10, elite=8
+                    [7933, 12],
+                    [7934, 13],
+                    [7935, 10],
+                    [7936, 8],
+
+                    // === REWARD FLAGS (1 = claimed) ===
+                    // Karamja: easy=3577, med=3598, hard=3610, elite=4567
+                    [3577, 1],
+                    [3598, 1],
+                    [3610, 1],
+                    [4567, 1],
+                    // Ardougne: easy=4499, med=4500, hard=4501, elite=4502
+                    [4499, 1],
+                    [4500, 1],
+                    [4501, 1],
+                    [4502, 1],
+                    // Falador: easy=4503, med=4504, hard=4505, elite=4506
+                    [4503, 1],
+                    [4504, 1],
+                    [4505, 1],
+                    [4506, 1],
+                    // Wilderness: easy=4507, med=4508, hard=4509, elite=4510
+                    [4507, 1],
+                    [4508, 1],
+                    [4509, 1],
+                    [4510, 1],
+                    // Western: easy=4511, med=4512, hard=4513, elite=4514
+                    [4511, 1],
+                    [4512, 1],
+                    [4513, 1],
+                    [4514, 1],
+                    // Kandarin: easy=4515, med=4516, hard=4517, elite=4518
+                    [4515, 1],
+                    [4516, 1],
+                    [4517, 1],
+                    [4518, 1],
+                    // Varrock: easy=4519, med=4520, hard=4521, elite=4522
+                    [4519, 1],
+                    [4520, 1],
+                    [4521, 1],
+                    [4522, 1],
+                    // Desert: easy=4523, med=4524, hard=4525, elite=4526
+                    [4523, 1],
+                    [4524, 1],
+                    [4525, 1],
+                    [4526, 1],
+                    // Morytania: easy=4527, med=4528, hard=4529, elite=4530
+                    [4527, 1],
+                    [4528, 1],
+                    [4529, 1],
+                    [4530, 1],
+                    // Fremennik: easy=4531, med=4532, hard=4533, elite=4534
+                    [4531, 1],
+                    [4532, 1],
+                    [4533, 1],
+                    [4534, 1],
+                    // Lumbridge: easy=4535, med=4536, hard=4537, elite=4538
+                    [4535, 1],
+                    [4536, 1],
+                    [4537, 1],
+                    [4538, 1],
+                    // Kourend: easy=7929, med=7930, hard=7931, elite=7932
+                    [7929, 1],
+                    [7930, 1],
+                    [7931, 1],
+                    [7932, 1],
+                ];
+                for (const [varbitId, value] of DIARY_VARBITS) {
+                    p.setVarbitValue(varbitId, value);
+                }
+
+                const handshakeAppearance = p.appearance;
+                const handshakeName = this.getAppearanceDisplayName(p) || name;
+                const handshakeChatIcons = this.isAdminPlayer(p)
+                    ? [ADMIN_CROWN_ICON]
+                    : undefined;
+                // Confirm handshake to client with assigned id and appearance
+                this.withDirectSendBypass("handshake_ack", () =>
+                    this.sendWithGuard(
+                        ws,
+                        encodeMessage({
+                            type: "handshake",
+                            payload: {
+                                id: p.id,
+                                name: handshakeName,
+                                appearance: handshakeAppearance,
+                                chatIcons: handshakeChatIcons,
+                            } as any,
+                        }),
+                        "handshake_ack",
+                    ),
+                );
+                this.sendAnimUpdate(ws, p);
+                this.sendInventorySnapshotImmediate(ws, p);
+                // OSRS parity: ensure login sends a full skill snapshot (packet 134 burst).
+                // Without this, reconnect paths can end up sending only deltas (or nothing),
+                // leading to briefly incorrect levels until the next XP/HP change.
+                p.requestFullSkillSync();
+                this.sendSkillsSnapshotImmediate(ws, p);
+                this.sendCombatState(ws, p);
+                this.sendRunEnergyState(ws, p);
+                // Send saved transmit varps to restore client state
+                this.sendSavedTransmitVarps(ws, p);
+                this.sendCollectionLogDisplayVarps(ws, p);
+                this.sendSavedAutocastTransmitVarbits(ws, p);
+                // Account type (varbit 1777) drives ownership filtering for ground items.
+                this.syncAccountTypeVarbit(ws, p);
+                const sideJournalState = this.normalizeSideJournalState(p);
+                // Send side-journal tab state immediately so varp/varbit selection state
+                // is synchronized before side_journal scripts execute.
+                this.withDirectSendBypass("varp", () =>
+                    this.sendWithGuard(
+                        ws,
+                        encodeMessage({
+                            type: "varp",
+                            payload: {
+                                varpId: VARP_SIDE_JOURNAL_STATE,
+                                value: sideJournalState.stateVarp,
+                            },
+                        }),
+                        "varp",
+                    ),
+                );
+                this.withDirectSendBypass("varbit", () =>
+                    this.sendWithGuard(
+                        ws,
+                        encodeMessage({
+                            type: "varbit",
+                            payload: {
+                                varbitId: VARBIT_SIDE_JOURNAL_TAB,
+                                value: sideJournalState.tab,
+                            },
+                        }),
+                        "varbit",
+                    ),
+                );
+
+                // Send diary varbits to client
+                for (const [varbitId, value] of DIARY_VARBITS) {
+                    this.withDirectSendBypass("varbit", () =>
+                        this.sendWithGuard(
+                            ws,
+                            encodeMessage({
+                                type: "varbit",
+                                payload: { varbitId, value },
+                            }),
+                            "varbit",
+                        ),
+                    );
+                }
+
+                // Send gamemode content data (tasks, masteries, etc.) before any varps
+                const contentDataPacket = this.gamemode.getContentDataPacket?.();
+                if (contentDataPacket) {
+                    this.withDirectSendBypass("gamemode_data", () =>
+                        this.sendWithGuard(ws, contentDataPacket, "gamemode_data"),
+                    );
+                }
+
+                // Gamemode handshake: send gamemode-specific varps/varbits
+                this.gamemode.onPlayerHandshake(p, {
+                    sendVarp: (varpId, value) =>
+                        this.withDirectSendBypass("varp", () =>
+                            this.sendWithGuard(ws, encodeMessage({
+                                type: "varp",
+                                payload: { varpId, value },
+                            }), "varp"),
+                        ),
+                    sendVarbit: (varbitId, value) =>
+                        this.withDirectSendBypass("varbit", () =>
+                            this.sendWithGuard(ws, encodeMessage({
+                                type: "varbit",
+                                payload: { varbitId, value },
+                            }), "varbit"),
+                        ),
+                    queueVarp: (playerId, varpId, value) =>
+                        this.queueVarp(playerId, varpId, value),
+                    queueVarbit: (playerId, varbitId, value) =>
+                        this.queueVarbit(playerId, varbitId, value),
+                    queueNotification: (playerId, notification) =>
+                        this.queueNotification(playerId, notification),
+                });
+
+                const clientType = parsed.payload.clientType;
+                const isMobileClient = clientType === 1;
+
+                // Seed standalone root bootstrap scripts before the root interface mounts.
+                // Reference cache:
+                // - clientscript 626 -> camera zoom clamp varcs for toplevel_resize
+                // - clientscript 5487 -> enhanced highlight/clientop channel bootstrap
+                // - proc 7581 -> enhanced NPC tagging client-op bootstrap
+                // These arrive as RUN_CLIENT_SCRIPT before root setup, not from later
+                // widget events or sub-interface post-scripts.
+                {
+                    const {
+                        getDefaultInterfaces,
+                        getRootInterfaceId,
+                        DisplayMode,
+                    } = require("../widgets/WidgetManager");
+                    const { getViewportRootInitScripts } = require("../widgets/viewport");
+                    const displayMode = isMobileClient
+                        ? DisplayMode.MOBILE
+                        : DisplayMode.RESIZABLE_NORMAL;
+                    const rootInterfaceGroupId = getRootInterfaceId(displayMode);
+                    for (const script of getViewportRootInitScripts()) {
+                        this.withDirectSendBypass("runClientScript", () =>
+                            this.sendWithGuard(
+                                ws,
+                                encodeMessage({
+                                    type: "runClientScript",
+                                    payload: {
+                                        scriptId: script.scriptId,
+                                        args: script.args,
+                                    },
+                                }),
+                                "runClientScript",
+                            ),
+                        );
+                    }
+                    this.queueWidgetEvent(p.id, {
+                        action: "set_root",
+                        groupId: rootInterfaceGroupId,
+                    });
+
+                    // Send IF_OPENSUB packets to populate all the tabs.
+                    // These trigger onSubChange events that re-run sidebuttons_enable.
+                    // Store the display mode on the player for later use (e.g., when opening interfaces)
+                    p.displayMode = displayMode;
+
+                    // Check which tabs to show based on account stage and tutorial progress:
+                    // - accountStage 0 (char creation): NO tabs
+                    // - accountStage 1, step 0 (welcome screen): NO tabs (Quest tab opens on "Get Started")
+                    // - accountStage 1, step >= 1 (in tutorial): Quest tab only
+                    // - accountStage 2 (tutorial complete): all tabs
+                    const accountStage = p.accountStage;
+                    const tutorialActive = this.gamemode.isTutorialActive(p);
+                    const tutorialMode = accountStage >= 1 && tutorialActive;
+                    const charCreationMode = accountStage === 0;
+                    // Hide ALL tabs until the player starts the tutorial
+                    const preStartMode = charCreationMode || (this.gamemode.isTutorialPreStart?.(p) ?? false);
+
+                    const interfaces = getDefaultInterfaces(displayMode, {
+                        tutorialMode: tutorialMode || charCreationMode,
+                    });
+                    // During char creation or welcome screen, don't open even the Quest tab
+                    const filteredInterfaces = preStartMode
+                        ? interfaces.filter((i: { groupId: number }) => i.groupId !== 629)
+                        : interfaces;
+                    const xpDropsEnabled = p.getVarbitValue(VARBIT_XPDROPS_ENABLED) === 1;
+                    for (const intf of filteredInterfaces) {
+                        // For quest tab (group 629 - side_journal), send quest progress varps/varbits
+                        // These varps control quest visibility and list height
+                        const questVarps: Record<number, number> = {};
+                        const questVarbits: Record<number, number> = {};
+                        if (intf.groupId === SIDE_JOURNAL_GROUP_ID) {
+                            // Quest progress varps would come from player save data in a real implementation.
+                            // We no longer blindly set varps 0-499 to 1, as this overwrites many
+                            // non-quest varps (e.g., varp 83 = PRAYER0, and others affecting prayerbook state).
+
+                            // Include gamemode-specific varps/varbits in the open_sub payload
+                            // so they're applied synchronously BEFORE the interface's CS2 scripts run.
+                            const gamemodeSideJournalBootstrap =
+                                this.gamemodeUi?.getSideJournalBootstrapState(p)
+                                ?? { varps: {}, varbits: {} };
+                            Object.assign(questVarps, gamemodeSideJournalBootstrap.varps);
+                            Object.assign(questVarbits, gamemodeSideJournalBootstrap.varbits);
+
+                            // Quest count varbits - these control the "Completed: X/Y" and "Quest Points: X/Y" display
+                            // Varbit 6347 = QUESTS_COMPLETED_COUNT - number of completed quests
+                            // Varbit 11877 = QUESTS_TOTAL_COUNT - total number of quests available
+                            // Varbit 1782 = QP_MAX - maximum quest points available
+                            // In a real implementation, these would be calculated from player save data.
+                            // For now, set reasonable defaults so the UI displays properly.
+                            questVarbits[6347] = 0; // quests_completed_count (0 completed)
+                            questVarbits[11877] = 158; // quests_total_count (158 total quests in OSRS)
+                            questVarbits[1782] = 300; // qp_max (300 max quest points)
+
+                            // Varp 101 = QP (current quest points)
+                            // Varp 904 = QP_TOTAL (triggers UI update for quest points display)
+                            questVarps[101] = 0; // qp (0 current quest points)
+                            questVarps[904] = 300; // qp_total (triggers questlist_qp script)
+                        }
+                        // Merge interface-defined varbits with quest varbits
+                        const mergedVarbits = {
+                            ...(intf.varbits ?? {}),
+                            ...questVarbits,
+                        };
+                        const mergedVarps = {
+                            ...(intf.varps ?? {}),
+                            ...questVarps,
+                        };
+                        // XP counter visibility must be applied after mount on login.
+                        // If sent early as a standalone set_hidden, the target widget may not exist yet.
+                        const hideXpCounterOnOpen = intf.groupId === 122 && !xpDropsEnabled;
+                        this.queueWidgetEvent(p.id, {
+                            action: "open_sub",
+                            targetUid: intf.targetUid,
+                            groupId: intf.groupId,
+                            type: intf.type,
+                            ...(Array.isArray(intf.postScripts) &&
+                            intf.postScripts.length > 0
+                                ? { postScripts: intf.postScripts }
+                                : {}),
+                            ...(hideXpCounterOnOpen
+                                ? { hiddenUids: [intf.targetUid] }
+                                : {}),
+                            ...(Object.keys(mergedVarps).length > 0
+                                ? { varps: mergedVarps }
+                                : {}),
+                            ...(Object.keys(mergedVarbits).length > 0
+                                ? { varbits: mergedVarbits }
+                                : {}),
+                        });
+
+                        // Side journal (quest tab) content is mounted onto 629:43.
+                        if (intf.groupId === SIDE_JOURNAL_GROUP_ID) {
+                            this.queueSideJournalGamemodeUi(p);
+                        }
+                    }
+                    if (tutorialMode && !preStartMode) {
+                        // Run once after all IF_OPENSUB mounts so toplevel state is ready.
+                        this.queueActivateQuestSideTab(p.id);
+                    }
+                    // Gamemode tutorial overlay (shown while tutorial is active).
+                    //
+                    // Project behavior: do not show the overlay over PlayerDesign (accountStage=0).
+                    if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {
+                        this.gamemodeUi?.queueTutorialOverlay(p);
+                    }
+
+                    // ============================================================
+                    // OSRS Parity: IF_SETEVENTS for inventory widget slots
+                    // ============================================================
+                    // The server must send IF_SETEVENTS to enable item operations.
+                    // Without this, clicking "Drop" shows the menu but never
+                    // transmits the packet to the server.
+                    //
+                    // Flags breakdown (1181694 = 0x120BFE):
+                    //   Bits 1-7:  1111111 - transmit ops 1-7 (Use, Wield, Drop, etc.)
+                    //   Bit 9:     1       - transmit op 9
+                    //   Bit 11:    1       - can target ground items
+                    //   Bits 17-19: 001    - drag depth 1 (for inventory swapping)
+                    //   Bit 20:    1       - drop target (can receive dragged items)
+                    //
+                    // Reference: RSMod Bank.kt line 136, player.setInterfaceEvents
+                    const INVENTORY_GROUP_ID = 149;
+                    const INVENTORY_CONTAINER_COMPONENT = 0;
+                    const INVENTORY_SLOT_COUNT = 28;
+                    const INVENTORY_FLAGS = 1181694; // Enables ops 1-7, 9 + drag/drop
+
+                    this.queueWidgetEvent(p.id, {
+                        action: "set_flags_range",
+                        uid: (INVENTORY_GROUP_ID << 16) | INVENTORY_CONTAINER_COMPONENT,
+                        fromSlot: 0,
+                        toSlot: INVENTORY_SLOT_COUNT - 1,
+                        flags: INVENTORY_FLAGS,
+                    });
+                    // ============================================================
+                    // OSRS Parity: IF_SETEVENTS for prayer filter dynamic rows
+                    // ============================================================
+                    // Prayer filters menu rows are dynamic children of 541:42 created via CC_CREATE.
+                    // Rows use OP1 ("Change"), so send transmit-op1 for slots 0..4.
+                    const PRAYER_GROUP_ID = 541;
+                    const PRAYER_FILTER_COMPONENT = 42;
+                    const PRAYER_FILTER_SLOT_START = 0;
+                    const PRAYER_FILTER_SLOT_END = 4;
+                    const PRAYER_FILTER_FLAGS = 1 << 1; // transmit op1
+
+                    this.queueWidgetEvent(p.id, {
+                        action: "set_flags_range",
+                        uid: (PRAYER_GROUP_ID << 16) | PRAYER_FILTER_COMPONENT,
+                        fromSlot: PRAYER_FILTER_SLOT_START,
+                        toSlot: PRAYER_FILTER_SLOT_END,
+                        flags: PRAYER_FILTER_FLAGS,
+                    });
+                    // ============================================================
+                    // OSRS Parity: IF_SETEVENTS for equipment widget slots
+                    // ============================================================
+                    // Equipment slots (387:15-25) need transmit flags for Remove action.
+                    // These are STATIC widgets (loaded from cache) with childIndex=-1.
+                    // OSRS client: class405.getWidgetFlags uses (childIndex + (id << 32)) as key.
+                    // Static widgets have childIndex=-1 (from Widget.java constructor).
+                    // To set flags on a static widget, use fromSlot=-1, toSlot=-1.
+                    //
+                    // Flags: 62 = 0b111110 (transmit ops 1-5 for Remove, etc.)
+                    const EQUIPMENT_GROUP_ID = 387;
+                    const EQUIPMENT_SLOT_START = 15;
+                    const EQUIPMENT_SLOT_END = 25;
+                    const EQUIPMENT_FLAGS = 62; // Ops 1-5 transmit
+
+                    for (
+                        let comp = EQUIPMENT_SLOT_START;
+                        comp <= EQUIPMENT_SLOT_END;
+                        comp++
+                    ) {
+                        this.queueWidgetEvent(p.id, {
+                            action: "set_flags_range",
+                            uid: (EQUIPMENT_GROUP_ID << 16) | comp,
+                            fromSlot: -1,
+                            toSlot: -1, // Static widget (childIndex=-1) - NOT dynamic children
+                            flags: EQUIPMENT_FLAGS,
+                        });
+                    }
+
+                    // ============================================================
+                    // OSRS Parity: IF_SETEVENTS for quest list dynamic children
+                    // ============================================================
+                    // Quest list (399:7) dynamic children need transmit flags for
+                    // ops 1-6 (View info, Read journal, Show on map, Wiki guide,
+                    // Wiki quick guide, Pin journal).
+                    // Without this, clicking a quest entry doesn't send a packet.
+                    const QUEST_LIST_GROUP_ID = 399;
+                    const QUEST_LIST_COMPONENT = 7;
+                    const QUEST_LIST_MAX_SLOT = 199; // generous upper bound for all quests
+                    const QUEST_LIST_FLAGS = 0x7e; // ops 1-6 transmit (bits 1-6)
+
+                    this.queueWidgetEvent(p.id, {
+                        action: "set_flags_range",
+                        uid: (QUEST_LIST_GROUP_ID << 16) | QUEST_LIST_COMPONENT,
+                        fromSlot: 0,
+                        toSlot: QUEST_LIST_MAX_SLOT,
+                        flags: QUEST_LIST_FLAGS,
+                    });
+                }
+
+                // Onboarding: open PlayerDesign (679) in mainmodal so the player can choose
+                // gender/body kits. accountStage=0 means the design is required.
+                if (p.accountStage === 0) {
+                    try {
+                        const { getMainmodalUid } = require("../widgets/WidgetManager");
+                        const targetUid = getMainmodalUid(p.displayMode);
+                        p.widgets.open(679, { targetUid, type: 0 });
+                    } catch {}
+                }
+
+                // Gamemode tutorial spawn: while tutorial is active, force the player
+                // into the tutorial area regardless of saved location.
+                try {
+                    if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {
+                        const spawn = this.gamemode.getSpawnLocation(p);
+                        p.teleport(spawn.x, spawn.y, spawn.level);
+                    }
+                } catch {}
+
+                // Let the gamemode restore any feature-specific state (sailing, etc.)
+                this.gamemode.onPlayerRestore?.(p);
+
+                const startTileX = p.tileX;
+                const startTileY = p.tileY;
+                const startLevel = p.level;
+                logger.info(
+                    `Handshake ok id=${p.id} spawn=(${startTileX},${startTileY},L${startLevel})`,
+                );
+                // Now send initial spawn position (after handshake)
+                // OSRS parity: Always send the server-authoritative appearance state (post-persistence,
+                // post refreshAppearanceKits), not the raw handshake payload.
+                const appearanceSnapshot = p.appearance;
+                this.queueAppearanceSnapshot(p, {
+                    x: (startTileX << 7) + 64,
+                    y: (startTileY << 7) + 64,
+                    level: startLevel,
+                    rot: p.rot,
+                    orientation: p.getOrientation() & 2047,
+                    running: false,
+                    appearance: appearanceSnapshot,
+                    name,
+                    moved: true,
+                    turned: false,
+                    snap: true,
+                });
+                p.markSent();
+
+                // Send welcome message
+                this.queueChatMessage({
+                    messageType: "server",
+                    text: "Welcome to Old School Runescape!",
+                    targetPlayerIds: [p.id],
+                });
+
+                if (this.npcManager && p) {
+                    const player = p;
+                    try {
+                        const nearby = this.npcManager.getNearby(
+                            startTileX,
+                            startTileY,
+                            startLevel,
+                            NPC_STREAM_RADIUS_TILES,
+                        );
+                        player.visibleNpcIds.clear();
+                        if (DEBUG_NPC_STREAM) {
+                            logger.debug(
+                                `[npcs] initial snapshot -> player=${player.id} count=${nearby.length}`,
+                            );
+                        }
+                        for (const npc of nearby) {
+                            const snap = this.npcSyncManager.serializeNpcSnapshot(npc);
+                            player.visibleNpcIds.add(snap.id);
+                            this.npcSyncManager.queueNpcSnapshot(player.id, snap);
+                        }
+                    } catch (err) {
+                        logger.warn("[NpcManager] snapshot send failed", err);
+                    }
+                }
+
+                this.maybeReplayDynamicLocState(ws, p, true);
+            }
+        } catch {}
+    }
+
     private onConnection(ws: WebSocket) {
         logger.info("Client connected");
         this.playerSyncSessions.set(ws, new PlayerSyncSession());
@@ -8486,7 +9314,7 @@ export class WSServer {
                             if (this.messageRouter.dispatch(ws, msg)) {
                                 continue;
                             }
-                            this.processBinaryMessage(ws, msg);
+                            this.messageRouter.dispatch(ws, msg) || logger.debug?.(`[binary] Unhandled: ${msg.type}`);
                         }
                     }
                     return;
@@ -8507,1290 +9335,15 @@ export class WSServer {
                 return; // Handler found and executed
             }
 
-            // Fall through to legacy handlers for messages not yet migrated to MessageRouter
+            // Pre-auth handlers (login/handshake execute before player exists)
             if (parsed.type === "login") {
-                // Handle login request with proper validation
-                const { username, password, revision } = parsed.payload;
-                const normalizedUsername = (username || "").trim().toLowerCase();
-
-                // Helper to send login error response
-                const sendLoginError = (errorCode: number, error: string) => {
-                    this.withDirectSendBypass("login_response", () =>
-                        this.sendWithGuard(
-                            ws,
-                            encodeMessage({
-                                type: "login_response",
-                                payload: { success: false, errorCode, error },
-                            }),
-                            "login_response",
-                        ),
-                    );
-                    logger.info(`Login failed (code ${errorCode}): ${username} - ${error}`);
-                };
-
-                // Get client IP for rate limiting (fallback to ws identifier)
-                const clientIp = this.getSocketRemoteAddress(ws) ?? "ws-unknown";
-                logger.info(`Login attempt from: ${username} (${clientIp})`);
-
-                // 0. Check client revision matches server
-                const serverRevision = this.cacheEnv?.info?.revision ?? 0;
-                if (serverRevision > 0 && revision !== serverRevision) {
-                    sendLoginError(6, "Please close the client and reload to update.");
-                    return;
-                }
-
-                // 1. Check rate limiting first
-                if (this.checkLoginRateLimit(clientIp)) {
-                    sendLoginError(9, "Login limit exceeded. Please wait a minute.");
-                    return;
-                }
-
-                // 2. Check maintenance mode
-                if (this.maintenanceMode) {
-                    sendLoginError(14, "The server is being updated. Please wait.");
-                    return;
-                }
-
-                // 3. Check world capacity
-                if (this.isWorldFull()) {
-                    sendLoginError(2, "This world is full. Please use a different world.");
-                    return;
-                }
-
-                // 4. Validate username is not empty
-                if (!normalizedUsername || normalizedUsername.length === 0) {
-                    sendLoginError(3, "Invalid username or password.");
-                    return;
-                }
-
-                // 5. Check if already logged in
-                if (this.isPlayerAlreadyLoggedIn(normalizedUsername)) {
-                    sendLoginError(
-                        5,
-                        "Your account is already logged in. Try again in 60 seconds.",
-                    );
-                    return;
-                }
-
-                // All checks passed - login successful
-                const displayName = (username ?? "").slice(0, 12);
-                this.setPendingLoginName(ws, displayName);
-                this.withDirectSendBypass("login_response", () =>
-                    this.sendWithGuard(
-                        ws,
-                        encodeMessage({
-                            type: "login_response",
-                            payload: {
-                                success: true,
-                                displayName,
-                            },
-                        }),
-                        "login_response",
-                    ),
-                );
-                logger.info(`Login successful: ${username}`);
+                this.handleLoginMessage(ws, parsed.payload);
+                return;
             } else if (parsed.type === "handshake") {
-                // Accept handshake and assign player id, then spawn
-                try {
-                    // Get player name first to check for orphaned session
-                    const pendingLoginName = this.consumePendingLoginName(ws);
-                    const name = pendingLoginName || parsed.payload.name?.slice(0, 12) || undefined;
-
-                    // Check for orphaned player (disconnected while in combat)
-                    // We need to compute a preliminary save key based on name
-                    const preliminarySaveKey = normalizePlayerAccountName(name);
-                    let p: import("../game/player").PlayerState | undefined;
-                    let isReconnect = false;
-
-                    if (preliminarySaveKey && this.players?.hasOrphanedPlayer(preliminarySaveKey)) {
-                        // Reconnect to orphaned player
-                        p = this.players.reconnectOrphanedPlayer(ws, preliminarySaveKey);
-                        if (p) {
-                            isReconnect = true;
-                            logger.info(
-                                `[handshake] Player ${name} reconnected to orphaned session (id=${p.id})`,
-                            );
-                        }
-                    }
-
-                    if (!p) {
-                        // No orphaned session - create new player
-                        const spawn = this.gamemode.getSpawnLocation(undefined as any);
-                        const spawnX = spawn.x,
-                            spawnY = spawn.y,
-                            level = spawn.level;
-                        p = this.players?.add(ws, spawnX, spawnY, level);
-                    }
-
-                    if (!p) {
-                        try {
-                            ws.close(1013, "server_full");
-                        } catch {}
-                        return;
-                    }
-                    {
-                        p.widgets.setDispatcher((action) => {
-                            if (action.action === "close") {
-                                this.widgetDialogHandler.handleWidgetCloseState(p!, action.groupId);
-                            }
-                            this.queueWidgetEvent(p!.id, action);
-                        });
-
-                        if (!isReconnect) {
-                            // Only register with action scheduler for new players
-                            // Orphaned players were never unregistered
-                            this.actionScheduler.registerPlayer(p);
-                        }
-
-                        // RSMod parity: Set item definition resolver for inventory operations
-                        p.setItemDefResolver((id) => getItemDefinition(id));
-
-                        // Wire up death callback (tick-based death sequence)
-                        p.onDeath = () => {
-                            if (this.playerDeathService) {
-                                this.playerDeathService.startPlayerDeath(p!);
-                            }
-                        };
-
-                        const appearance =
-                            parsed.payload.appearance !== undefined
-                                ? this.sanitizeHandshakeAppearance(parsed.payload.appearance)
-                                : this.createDefaultAppearance();
-
-                        if (!isReconnect) {
-                            // Only set name/appearance for new players
-                            p.name = name ?? "";
-                            p.appearance = appearance;
-                            this.ensureEquipArray(p);
-                            this.refreshAppearanceKits(p);
-                            this.refreshCombatWeaponCategory(p);
-                            p.attackDelay = this.pickAttackSpeed(p);
-                            const saveKey = this.getPlayerSaveKey(name, p.id);
-                            p.__saveKey = saveKey;
-                            try {
-                                this.playerPersistence.applyToPlayer(p, saveKey);
-                            } catch (err) {
-                                logger.warn("[player] failed to apply persistent vars", err);
-                            }
-                            // New accounts (no persistence key yet) must complete the player design flow.
-                            // Existing saves default to post-design stage unless persisted otherwise.
-                            try {
-                                if (!this.playerPersistence.hasKey(saveKey)) {
-                                    p.accountStage = 0;
-                                } else if (!Number.isFinite(p.accountStage)) {
-                                    p.accountStage = 1;
-                                }
-                            } catch {
-                                if (!Number.isFinite(p.accountStage)) p.accountStage = 1;
-                            }
-                            // Let the gamemode resolve account stage (e.g. tutorial completion).
-                            try {
-                                this.gamemode.resolveAccountStage?.(p);
-                            } catch {}
-                            // Force run mode on login (default to enabled)
-                            p.setRunToggle(true);
-                            try {
-                                this.refreshAppearanceKits(p);
-                                this.refreshCombatWeaponCategory(p);
-                            } catch (err) {
-                                logger.warn(
-                                    "[player] failed to refresh appearance after persist",
-                                    err,
-                                );
-                            }
-                        } else {
-                            // Reconnecting - just refresh appearance in case client needs it
-                            logger.info(
-                                `[handshake] Resuming player ${name} at (${p.tileX}, ${p.tileY})`,
-                            );
-                        }
-
-                        try {
-                            this.followerManager?.restoreFollowerForPlayer(p);
-                        } catch (err) {
-                            logger.warn("[follower] failed to restore player follower", err);
-                        }
-
-                        // Unlock all achievement diaries
-                        // Structure: [varbitId, value] pairs
-                        const DIARY_VARBITS: Array<[number, number]> = [
-                            // === STARTED FLAGS (1 = started) ===
-                            [3576, 1], // Karamja (atjun_started)
-                            [4448, 1], // Ardougne
-                            [4449, 1], // Falador
-                            [4450, 1], // Fremennik
-                            [4451, 1], // Kandarin
-                            [4452, 1], // Desert
-                            [4453, 1], // Lumbridge
-                            [4454, 1], // Morytania
-                            [4455, 1], // Varrock
-                            [4456, 1], // Western
-                            [4457, 1], // Wilderness
-                            [7924, 1], // Kourend
-
-                            // === COMPLETION FLAGS (1 = complete) ===
-                            // Ardougne
-                            [4458, 1],
-                            [4459, 1],
-                            [4460, 1],
-                            [4461, 1],
-                            // Desert
-                            [4483, 1],
-                            [4484, 1],
-                            [4485, 1],
-                            [4486, 1],
-                            // Falador
-                            [4462, 1],
-                            [4463, 1],
-                            [4464, 1],
-                            [4465, 1],
-                            // Fremennik
-                            [4491, 1],
-                            [4492, 1],
-                            [4493, 1],
-                            [4494, 1],
-                            // Kandarin
-                            [4475, 1],
-                            [4476, 1],
-                            [4477, 1],
-                            [4478, 1],
-                            // Karamja (atjun)
-                            // OSRS CS2 parity: these "done" varbits use value 2 when complete.
-                            [3578, 2],
-                            [3599, 2],
-                            [3611, 2],
-                            [4566, 1],
-                            // Kourend
-                            [7925, 1],
-                            [7926, 1],
-                            [7927, 1],
-                            [7928, 1],
-                            // Lumbridge
-                            [4495, 1],
-                            [4496, 1],
-                            [4497, 1],
-                            [4498, 1],
-                            // Morytania
-                            [4487, 1],
-                            [4488, 1],
-                            [4489, 1],
-                            [4490, 1],
-                            // Varrock
-                            [4479, 1],
-                            [4480, 1],
-                            [4481, 1],
-                            [4482, 1],
-                            // Western
-                            [4471, 1],
-                            [4472, 1],
-                            [4473, 1],
-                            [4474, 1],
-                            // Wilderness
-                            [4466, 1],
-                            [4467, 1],
-                            [4468, 1],
-                            [4469, 1],
-
-                            // === TASK COUNTS (set to max required for each tier) ===
-                            // Karamja: easy=10, med=19, hard=10, elite=5
-                            [2423, 10],
-                            [6288, 19],
-                            [6289, 10],
-                            [6290, 5],
-                            // Ardougne: easy=10, med=12, hard=12, elite=8
-                            [6291, 10],
-                            [6292, 12],
-                            [6293, 12],
-                            [6294, 8],
-                            // Desert: easy=11, med=12, hard=10, elite=6
-                            [6295, 11],
-                            [6296, 12],
-                            [6297, 10],
-                            [6298, 6],
-                            // Falador: easy=11, med=14, hard=11, elite=6
-                            [6299, 11],
-                            [6300, 14],
-                            [6301, 11],
-                            [6302, 6],
-                            // Fremennik: easy=10, med=9, hard=9, elite=6
-                            [6303, 10],
-                            [6304, 9],
-                            [6305, 9],
-                            [6306, 6],
-                            // Kandarin: easy=11, med=14, hard=11, elite=7
-                            [6307, 11],
-                            [6308, 14],
-                            [6309, 11],
-                            [6310, 7],
-                            // Lumbridge: easy=12, med=12, hard=11, elite=6
-                            [6311, 12],
-                            [6312, 12],
-                            [6313, 11],
-                            [6314, 6],
-                            // Morytania: easy=11, med=11, hard=10, elite=6
-                            [6315, 11],
-                            [6316, 11],
-                            [6317, 10],
-                            [6318, 6],
-                            // Varrock: easy=14, med=13, hard=10, elite=5
-                            [6319, 14],
-                            [6320, 13],
-                            [6321, 10],
-                            [6322, 5],
-                            // Wilderness: easy=12, med=11, hard=10, elite=7
-                            [6323, 12],
-                            [6324, 11],
-                            [6325, 10],
-                            [6326, 7],
-                            // Western: easy=11, med=13, hard=13, elite=7
-                            [6327, 11],
-                            [6328, 13],
-                            [6329, 13],
-                            [6330, 7],
-                            // Kourend: easy=12, med=13, hard=10, elite=8
-                            [7933, 12],
-                            [7934, 13],
-                            [7935, 10],
-                            [7936, 8],
-
-                            // === REWARD FLAGS (1 = claimed) ===
-                            // Karamja: easy=3577, med=3598, hard=3610, elite=4567
-                            [3577, 1],
-                            [3598, 1],
-                            [3610, 1],
-                            [4567, 1],
-                            // Ardougne: easy=4499, med=4500, hard=4501, elite=4502
-                            [4499, 1],
-                            [4500, 1],
-                            [4501, 1],
-                            [4502, 1],
-                            // Falador: easy=4503, med=4504, hard=4505, elite=4506
-                            [4503, 1],
-                            [4504, 1],
-                            [4505, 1],
-                            [4506, 1],
-                            // Wilderness: easy=4507, med=4508, hard=4509, elite=4510
-                            [4507, 1],
-                            [4508, 1],
-                            [4509, 1],
-                            [4510, 1],
-                            // Western: easy=4511, med=4512, hard=4513, elite=4514
-                            [4511, 1],
-                            [4512, 1],
-                            [4513, 1],
-                            [4514, 1],
-                            // Kandarin: easy=4515, med=4516, hard=4517, elite=4518
-                            [4515, 1],
-                            [4516, 1],
-                            [4517, 1],
-                            [4518, 1],
-                            // Varrock: easy=4519, med=4520, hard=4521, elite=4522
-                            [4519, 1],
-                            [4520, 1],
-                            [4521, 1],
-                            [4522, 1],
-                            // Desert: easy=4523, med=4524, hard=4525, elite=4526
-                            [4523, 1],
-                            [4524, 1],
-                            [4525, 1],
-                            [4526, 1],
-                            // Morytania: easy=4527, med=4528, hard=4529, elite=4530
-                            [4527, 1],
-                            [4528, 1],
-                            [4529, 1],
-                            [4530, 1],
-                            // Fremennik: easy=4531, med=4532, hard=4533, elite=4534
-                            [4531, 1],
-                            [4532, 1],
-                            [4533, 1],
-                            [4534, 1],
-                            // Lumbridge: easy=4535, med=4536, hard=4537, elite=4538
-                            [4535, 1],
-                            [4536, 1],
-                            [4537, 1],
-                            [4538, 1],
-                            // Kourend: easy=7929, med=7930, hard=7931, elite=7932
-                            [7929, 1],
-                            [7930, 1],
-                            [7931, 1],
-                            [7932, 1],
-                        ];
-                        for (const [varbitId, value] of DIARY_VARBITS) {
-                            p.setVarbitValue(varbitId, value);
-                        }
-
-                        const handshakeAppearance = p.appearance;
-                        const handshakeName = this.getAppearanceDisplayName(p) || name;
-                        const handshakeChatIcons = this.isAdminPlayer(p)
-                            ? [ADMIN_CROWN_ICON]
-                            : undefined;
-                        // Confirm handshake to client with assigned id and appearance
-                        this.withDirectSendBypass("handshake_ack", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "handshake",
-                                    payload: {
-                                        id: p.id,
-                                        name: handshakeName,
-                                        appearance: handshakeAppearance,
-                                        chatIcons: handshakeChatIcons,
-                                    } as any,
-                                }),
-                                "handshake_ack",
-                            ),
-                        );
-                        this.sendAnimUpdate(ws, p);
-                        this.sendInventorySnapshotImmediate(ws, p);
-                        // OSRS parity: ensure login sends a full skill snapshot (packet 134 burst).
-                        // Without this, reconnect paths can end up sending only deltas (or nothing),
-                        // leading to briefly incorrect levels until the next XP/HP change.
-                        p.requestFullSkillSync();
-                        this.sendSkillsSnapshotImmediate(ws, p);
-                        this.sendCombatState(ws, p);
-                        this.sendRunEnergyState(ws, p);
-                        // Send saved transmit varps to restore client state
-                        this.sendSavedTransmitVarps(ws, p);
-                        this.sendCollectionLogDisplayVarps(ws, p);
-                        this.sendSavedAutocastTransmitVarbits(ws, p);
-                        // Account type (varbit 1777) drives ownership filtering for ground items.
-                        this.syncAccountTypeVarbit(ws, p);
-                        const sideJournalState = this.normalizeSideJournalState(p);
-                        // Send side-journal tab state immediately so varp/varbit selection state
-                        // is synchronized before side_journal scripts execute.
-                        this.withDirectSendBypass("varp", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "varp",
-                                    payload: {
-                                        varpId: VARP_SIDE_JOURNAL_STATE,
-                                        value: sideJournalState.stateVarp,
-                                    },
-                                }),
-                                "varp",
-                            ),
-                        );
-                        this.withDirectSendBypass("varbit", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "varbit",
-                                    payload: {
-                                        varbitId: VARBIT_SIDE_JOURNAL_TAB,
-                                        value: sideJournalState.tab,
-                                    },
-                                }),
-                                "varbit",
-                            ),
-                        );
-
-                        // Send diary varbits to client
-                        for (const [varbitId, value] of DIARY_VARBITS) {
-                            this.withDirectSendBypass("varbit", () =>
-                                this.sendWithGuard(
-                                    ws,
-                                    encodeMessage({
-                                        type: "varbit",
-                                        payload: { varbitId, value },
-                                    }),
-                                    "varbit",
-                                ),
-                            );
-                        }
-
-                        // Send gamemode content data (tasks, masteries, etc.) before any varps
-                        const contentDataPacket = this.gamemode.getContentDataPacket?.();
-                        if (contentDataPacket) {
-                            this.withDirectSendBypass("gamemode_data", () =>
-                                this.sendWithGuard(ws, contentDataPacket, "gamemode_data"),
-                            );
-                        }
-
-                        // Gamemode handshake: send gamemode-specific varps/varbits
-                        this.gamemode.onPlayerHandshake(p, {
-                            sendVarp: (varpId, value) =>
-                                this.withDirectSendBypass("varp", () =>
-                                    this.sendWithGuard(ws, encodeMessage({
-                                        type: "varp",
-                                        payload: { varpId, value },
-                                    }), "varp"),
-                                ),
-                            sendVarbit: (varbitId, value) =>
-                                this.withDirectSendBypass("varbit", () =>
-                                    this.sendWithGuard(ws, encodeMessage({
-                                        type: "varbit",
-                                        payload: { varbitId, value },
-                                    }), "varbit"),
-                                ),
-                            queueVarp: (playerId, varpId, value) =>
-                                this.queueVarp(playerId, varpId, value),
-                            queueVarbit: (playerId, varbitId, value) =>
-                                this.queueVarbit(playerId, varbitId, value),
-                            queueNotification: (playerId, notification) =>
-                                this.queueNotification(playerId, notification),
-                        });
-
-                        const clientType = parsed.payload.clientType;
-                        const isMobileClient = clientType === 1;
-
-                        // Seed standalone root bootstrap scripts before the root interface mounts.
-                        // Reference cache:
-                        // - clientscript 626 -> camera zoom clamp varcs for toplevel_resize
-                        // - clientscript 5487 -> enhanced highlight/clientop channel bootstrap
-                        // - proc 7581 -> enhanced NPC tagging client-op bootstrap
-                        // These arrive as RUN_CLIENT_SCRIPT before root setup, not from later
-                        // widget events or sub-interface post-scripts.
-                        {
-                            const {
-                                getDefaultInterfaces,
-                                getRootInterfaceId,
-                                DisplayMode,
-                            } = require("../widgets/WidgetManager");
-                            const { getViewportRootInitScripts } = require("../widgets/viewport");
-                            const displayMode = isMobileClient
-                                ? DisplayMode.MOBILE
-                                : DisplayMode.RESIZABLE_NORMAL;
-                            const rootInterfaceGroupId = getRootInterfaceId(displayMode);
-                            for (const script of getViewportRootInitScripts()) {
-                                this.withDirectSendBypass("runClientScript", () =>
-                                    this.sendWithGuard(
-                                        ws,
-                                        encodeMessage({
-                                            type: "runClientScript",
-                                            payload: {
-                                                scriptId: script.scriptId,
-                                                args: script.args,
-                                            },
-                                        }),
-                                        "runClientScript",
-                                    ),
-                                );
-                            }
-                            this.queueWidgetEvent(p.id, {
-                                action: "set_root",
-                                groupId: rootInterfaceGroupId,
-                            });
-
-                            // Send IF_OPENSUB packets to populate all the tabs.
-                            // These trigger onSubChange events that re-run sidebuttons_enable.
-                            // Store the display mode on the player for later use (e.g., when opening interfaces)
-                            p.displayMode = displayMode;
-
-                            // Check which tabs to show based on account stage and tutorial progress:
-                            // - accountStage 0 (char creation): NO tabs
-                            // - accountStage 1, step 0 (welcome screen): NO tabs (Quest tab opens on "Get Started")
-                            // - accountStage 1, step >= 1 (in tutorial): Quest tab only
-                            // - accountStage 2 (tutorial complete): all tabs
-                            const accountStage = p.accountStage;
-                            const tutorialActive = this.gamemode.isTutorialActive(p);
-                            const tutorialMode = accountStage >= 1 && tutorialActive;
-                            const charCreationMode = accountStage === 0;
-                            // Hide ALL tabs until the player starts the tutorial
-                            const preStartMode = charCreationMode || (this.gamemode.isTutorialPreStart?.(p) ?? false);
-
-                            const interfaces = getDefaultInterfaces(displayMode, {
-                                tutorialMode: tutorialMode || charCreationMode,
-                            });
-                            // During char creation or welcome screen, don't open even the Quest tab
-                            const filteredInterfaces = preStartMode
-                                ? interfaces.filter((i: { groupId: number }) => i.groupId !== 629)
-                                : interfaces;
-                            const xpDropsEnabled = p.getVarbitValue(VARBIT_XPDROPS_ENABLED) === 1;
-                            for (const intf of filteredInterfaces) {
-                                // For quest tab (group 629 - side_journal), send quest progress varps/varbits
-                                // These varps control quest visibility and list height
-                                const questVarps: Record<number, number> = {};
-                                const questVarbits: Record<number, number> = {};
-                                if (intf.groupId === SIDE_JOURNAL_GROUP_ID) {
-                                    // Quest progress varps would come from player save data in a real implementation.
-                                    // We no longer blindly set varps 0-499 to 1, as this overwrites many
-                                    // non-quest varps (e.g., varp 83 = PRAYER0, and others affecting prayerbook state).
-
-                                    // Include gamemode-specific varps/varbits in the open_sub payload
-                                    // so they're applied synchronously BEFORE the interface's CS2 scripts run.
-                                    const gamemodeSideJournalBootstrap =
-                                        this.gamemodeUi?.getSideJournalBootstrapState(p)
-                                        ?? { varps: {}, varbits: {} };
-                                    Object.assign(questVarps, gamemodeSideJournalBootstrap.varps);
-                                    Object.assign(questVarbits, gamemodeSideJournalBootstrap.varbits);
-
-                                    // Quest count varbits - these control the "Completed: X/Y" and "Quest Points: X/Y" display
-                                    // Varbit 6347 = QUESTS_COMPLETED_COUNT - number of completed quests
-                                    // Varbit 11877 = QUESTS_TOTAL_COUNT - total number of quests available
-                                    // Varbit 1782 = QP_MAX - maximum quest points available
-                                    // In a real implementation, these would be calculated from player save data.
-                                    // For now, set reasonable defaults so the UI displays properly.
-                                    questVarbits[6347] = 0; // quests_completed_count (0 completed)
-                                    questVarbits[11877] = 158; // quests_total_count (158 total quests in OSRS)
-                                    questVarbits[1782] = 300; // qp_max (300 max quest points)
-
-                                    // Varp 101 = QP (current quest points)
-                                    // Varp 904 = QP_TOTAL (triggers UI update for quest points display)
-                                    questVarps[101] = 0; // qp (0 current quest points)
-                                    questVarps[904] = 300; // qp_total (triggers questlist_qp script)
-                                }
-                                // Merge interface-defined varbits with quest varbits
-                                const mergedVarbits = {
-                                    ...(intf.varbits ?? {}),
-                                    ...questVarbits,
-                                };
-                                const mergedVarps = {
-                                    ...(intf.varps ?? {}),
-                                    ...questVarps,
-                                };
-                                // XP counter visibility must be applied after mount on login.
-                                // If sent early as a standalone set_hidden, the target widget may not exist yet.
-                                const hideXpCounterOnOpen = intf.groupId === 122 && !xpDropsEnabled;
-                                this.queueWidgetEvent(p.id, {
-                                    action: "open_sub",
-                                    targetUid: intf.targetUid,
-                                    groupId: intf.groupId,
-                                    type: intf.type,
-                                    ...(Array.isArray(intf.postScripts) &&
-                                    intf.postScripts.length > 0
-                                        ? { postScripts: intf.postScripts }
-                                        : {}),
-                                    ...(hideXpCounterOnOpen
-                                        ? { hiddenUids: [intf.targetUid] }
-                                        : {}),
-                                    ...(Object.keys(mergedVarps).length > 0
-                                        ? { varps: mergedVarps }
-                                        : {}),
-                                    ...(Object.keys(mergedVarbits).length > 0
-                                        ? { varbits: mergedVarbits }
-                                        : {}),
-                                });
-
-                                // Side journal (quest tab) content is mounted onto 629:43.
-                                if (intf.groupId === SIDE_JOURNAL_GROUP_ID) {
-                                    this.queueSideJournalGamemodeUi(p);
-                                }
-                            }
-                            if (tutorialMode && !preStartMode) {
-                                // Run once after all IF_OPENSUB mounts so toplevel state is ready.
-                                this.queueActivateQuestSideTab(p.id);
-                            }
-                            // Gamemode tutorial overlay (shown while tutorial is active).
-                            //
-                            // Project behavior: do not show the overlay over PlayerDesign (accountStage=0).
-                            if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {
-                                this.gamemodeUi?.queueTutorialOverlay(p);
-                            }
-
-                            // ============================================================
-                            // OSRS Parity: IF_SETEVENTS for inventory widget slots
-                            // ============================================================
-                            // The server must send IF_SETEVENTS to enable item operations.
-                            // Without this, clicking "Drop" shows the menu but never
-                            // transmits the packet to the server.
-                            //
-                            // Flags breakdown (1181694 = 0x120BFE):
-                            //   Bits 1-7:  1111111 - transmit ops 1-7 (Use, Wield, Drop, etc.)
-                            //   Bit 9:     1       - transmit op 9
-                            //   Bit 11:    1       - can target ground items
-                            //   Bits 17-19: 001    - drag depth 1 (for inventory swapping)
-                            //   Bit 20:    1       - drop target (can receive dragged items)
-                            //
-                            // Reference: RSMod Bank.kt line 136, player.setInterfaceEvents
-                            const INVENTORY_GROUP_ID = 149;
-                            const INVENTORY_CONTAINER_COMPONENT = 0;
-                            const INVENTORY_SLOT_COUNT = 28;
-                            const INVENTORY_FLAGS = 1181694; // Enables ops 1-7, 9 + drag/drop
-
-                            this.queueWidgetEvent(p.id, {
-                                action: "set_flags_range",
-                                uid: (INVENTORY_GROUP_ID << 16) | INVENTORY_CONTAINER_COMPONENT,
-                                fromSlot: 0,
-                                toSlot: INVENTORY_SLOT_COUNT - 1,
-                                flags: INVENTORY_FLAGS,
-                            });
-                            // ============================================================
-                            // OSRS Parity: IF_SETEVENTS for prayer filter dynamic rows
-                            // ============================================================
-                            // Prayer filters menu rows are dynamic children of 541:42 created via CC_CREATE.
-                            // Rows use OP1 ("Change"), so send transmit-op1 for slots 0..4.
-                            const PRAYER_GROUP_ID = 541;
-                            const PRAYER_FILTER_COMPONENT = 42;
-                            const PRAYER_FILTER_SLOT_START = 0;
-                            const PRAYER_FILTER_SLOT_END = 4;
-                            const PRAYER_FILTER_FLAGS = 1 << 1; // transmit op1
-
-                            this.queueWidgetEvent(p.id, {
-                                action: "set_flags_range",
-                                uid: (PRAYER_GROUP_ID << 16) | PRAYER_FILTER_COMPONENT,
-                                fromSlot: PRAYER_FILTER_SLOT_START,
-                                toSlot: PRAYER_FILTER_SLOT_END,
-                                flags: PRAYER_FILTER_FLAGS,
-                            });
-                            // ============================================================
-                            // OSRS Parity: IF_SETEVENTS for equipment widget slots
-                            // ============================================================
-                            // Equipment slots (387:15-25) need transmit flags for Remove action.
-                            // These are STATIC widgets (loaded from cache) with childIndex=-1.
-                            // OSRS client: class405.getWidgetFlags uses (childIndex + (id << 32)) as key.
-                            // Static widgets have childIndex=-1 (from Widget.java constructor).
-                            // To set flags on a static widget, use fromSlot=-1, toSlot=-1.
-                            //
-                            // Flags: 62 = 0b111110 (transmit ops 1-5 for Remove, etc.)
-                            const EQUIPMENT_GROUP_ID = 387;
-                            const EQUIPMENT_SLOT_START = 15;
-                            const EQUIPMENT_SLOT_END = 25;
-                            const EQUIPMENT_FLAGS = 62; // Ops 1-5 transmit
-
-                            for (
-                                let comp = EQUIPMENT_SLOT_START;
-                                comp <= EQUIPMENT_SLOT_END;
-                                comp++
-                            ) {
-                                this.queueWidgetEvent(p.id, {
-                                    action: "set_flags_range",
-                                    uid: (EQUIPMENT_GROUP_ID << 16) | comp,
-                                    fromSlot: -1,
-                                    toSlot: -1, // Static widget (childIndex=-1) - NOT dynamic children
-                                    flags: EQUIPMENT_FLAGS,
-                                });
-                            }
-
-                            // ============================================================
-                            // OSRS Parity: IF_SETEVENTS for quest list dynamic children
-                            // ============================================================
-                            // Quest list (399:7) dynamic children need transmit flags for
-                            // ops 1-6 (View info, Read journal, Show on map, Wiki guide,
-                            // Wiki quick guide, Pin journal).
-                            // Without this, clicking a quest entry doesn't send a packet.
-                            const QUEST_LIST_GROUP_ID = 399;
-                            const QUEST_LIST_COMPONENT = 7;
-                            const QUEST_LIST_MAX_SLOT = 199; // generous upper bound for all quests
-                            const QUEST_LIST_FLAGS = 0x7e; // ops 1-6 transmit (bits 1-6)
-
-                            this.queueWidgetEvent(p.id, {
-                                action: "set_flags_range",
-                                uid: (QUEST_LIST_GROUP_ID << 16) | QUEST_LIST_COMPONENT,
-                                fromSlot: 0,
-                                toSlot: QUEST_LIST_MAX_SLOT,
-                                flags: QUEST_LIST_FLAGS,
-                            });
-                        }
-
-                        // Onboarding: open PlayerDesign (679) in mainmodal so the player can choose
-                        // gender/body kits. accountStage=0 means the design is required.
-                        if (p.accountStage === 0) {
-                            try {
-                                const { getMainmodalUid } = require("../widgets/WidgetManager");
-                                const targetUid = getMainmodalUid(p.displayMode);
-                                p.widgets.open(679, { targetUid, type: 0 });
-                            } catch {}
-                        }
-
-                        // Gamemode tutorial spawn: while tutorial is active, force the player
-                        // into the tutorial area regardless of saved location.
-                        try {
-                            if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {
-                                const spawn = this.gamemode.getSpawnLocation(p);
-                                p.teleport(spawn.x, spawn.y, spawn.level);
-                            }
-                        } catch {}
-
-                        // Let the gamemode restore any feature-specific state (sailing, etc.)
-                        this.gamemode.onPlayerRestore?.(p);
-
-                        const startTileX = p.tileX;
-                        const startTileY = p.tileY;
-                        const startLevel = p.level;
-                        logger.info(
-                            `Handshake ok id=${p.id} spawn=(${startTileX},${startTileY},L${startLevel})`,
-                        );
-                        // Now send initial spawn position (after handshake)
-                        // OSRS parity: Always send the server-authoritative appearance state (post-persistence,
-                        // post refreshAppearanceKits), not the raw handshake payload.
-                        const appearanceSnapshot = p.appearance;
-                        this.queueAppearanceSnapshot(p, {
-                            x: (startTileX << 7) + 64,
-                            y: (startTileY << 7) + 64,
-                            level: startLevel,
-                            rot: p.rot,
-                            orientation: p.getOrientation() & 2047,
-                            running: false,
-                            appearance: appearanceSnapshot,
-                            name,
-                            moved: true,
-                            turned: false,
-                            snap: true,
-                        });
-                        p.markSent();
-
-                        // Send welcome message
-                        this.queueChatMessage({
-                            messageType: "server",
-                            text: "Welcome to Old School Runescape!",
-                            targetPlayerIds: [p.id],
-                        });
-
-                        if (this.npcManager && p) {
-                            const player = p;
-                            try {
-                                const nearby = this.npcManager.getNearby(
-                                    startTileX,
-                                    startTileY,
-                                    startLevel,
-                                    NPC_STREAM_RADIUS_TILES,
-                                );
-                                player.visibleNpcIds.clear();
-                                if (DEBUG_NPC_STREAM) {
-                                    logger.debug(
-                                        `[npcs] initial snapshot -> player=${player.id} count=${nearby.length}`,
-                                    );
-                                }
-                                for (const npc of nearby) {
-                                    const snap = this.npcSyncManager.serializeNpcSnapshot(npc);
-                                    player.visibleNpcIds.add(snap.id);
-                                    this.npcSyncManager.queueNpcSnapshot(player.id, snap);
-                                }
-                            } catch (err) {
-                                logger.warn("[NpcManager] snapshot send failed", err);
-                            }
-                        }
-
-                        this.maybeReplayDynamicLocState(ws, p, true);
-                    }
-                } catch {}
-            } else if (parsed.type === "logout") {
-                // Handle logout request - check if player can logout first
-                try {
-                    const player = this.players?.get(ws);
-                    if (player) {
-                        // Check if player can logout (not in combat, etc.)
-                        if (!player.canLogout()) {
-                            const activeCombatTicks = player.timers.getOrDefault(
-                                ACTIVE_COMBAT_TIMER,
-                                0,
-                            );
-                            const logoutReason =
-                                LockState.NONE !== player.lock ? "locked" : "combat";
-                            const logoutMessage =
-                                logoutReason === "locked"
-                                    ? "You can't log out right now."
-                                    : "You can't log out until 10 seconds after the end of combat.";
-                            // Send denial - player cannot logout
-                            logger.info(
-                                `[logout] Player ${player.id} cannot logout reason=${logoutReason} lock=${player.lock} activeCombatTicks=${activeCombatTicks}`,
-                            );
-                            try {
-                                const response = encodeMessage({
-                                    type: "logout_response",
-                                    payload: {
-                                        success: false,
-                                        reason: logoutMessage,
-                                    },
-                                });
-                                ws.send(response);
-                            } catch {}
-                            return;
-                        }
-
-                        this.completeLogout(ws, player);
-                    }
-                    if (!player) this.completeLogout(ws);
-                } catch (err) {
-                    logger.warn("[logout] Error during logout:", err);
-                    try {
-                        ws.close(1000, "logout");
-                    } catch {}
-                }
-            } else if (parsed.type === "if_close") {
-                const player = this.players?.get(ws);
-                if (player) {
-                    // OSRS parity: IF_CLOSE should close active interruptible interfaces
-                    // and run modal onClose hooks (bank/shop side panel restore, etc.).
-                    this.closeInterruptibleInterfaces(player);
-                }
-            } else if (parsed.type === "widget") {
-                try {
-                    const p = this.players?.get(ws);
-                    if (!p) return;
-                    const { groupId, action, modal } = parsed.payload;
-                    if (action === "open") {
-                        logger.info(`[widget-open] player=${p.id} group=${groupId} modal=${modal}`);
-                        this.noteWidgetEventForLedger(p.id, {
-                            action: "open",
-                            groupId: groupId,
-                            modal,
-                        });
-                        p.widgets.open(groupId, { modal });
-                        if (groupId === SIDE_JOURNAL_GROUP_ID) {
-                            const sideJournalState = this.normalizeSideJournalState(p);
-                            // Ensure icon/optext/tab var state is corrected before side-journal scripts re-run.
-                            this.withDirectSendBypass("varp", () =>
-                                this.sendWithGuard(
-                                    ws,
-                                    encodeMessage({
-                                        type: "varp",
-                                        payload: {
-                                            varpId: VARP_SIDE_JOURNAL_STATE,
-                                            value: sideJournalState.stateVarp,
-                                        },
-                                    }),
-                                    "varp",
-                                ),
-                            );
-                            this.withDirectSendBypass("varbit", () =>
-                                this.sendWithGuard(
-                                    ws,
-                                    encodeMessage({
-                                        type: "varbit",
-                                        payload: {
-                                            varbitId: VARBIT_SIDE_JOURNAL_TAB,
-                                            value: sideJournalState.tab,
-                                        },
-                                    }),
-                                    "varbit",
-                                ),
-                            );
-                            this.queueSideJournalGamemodeUi(p);
-                        }
-                        if (groupId === MUSIC_GROUP_ID) {
-                            this.soundManager.syncMusicInterfaceForPlayer(p);
-                        }
-                    } else if (action === "close") {
-                        const closedGroupId = groupId;
-                        logger.info(`[widget-close] player=${p.id} group=${closedGroupId}`);
-                        this.noteWidgetEventForLedger(p.id, {
-                            action: "close",
-                            groupId: closedGroupId,
-                        });
-                        // Ensure cleanup happens even if server thought it was already closed
-                        this.cs2ModalManager.handleWidgetCloseState(p, closedGroupId);
-                        this.widgetDialogHandler.handleWidgetCloseState(p, closedGroupId);
-                        let closedEntries: WidgetEntry[] = [];
-                        let handledByInterfaceService = false;
-                        if (this.interfaceService?.isChatboxModalOpen(p, closedGroupId)) {
-                            handledByInterfaceService = true;
-                            this.interfaceService.closeChatboxModal(p);
-                        } else if (this.interfaceService?.isModalOpen(p, closedGroupId)) {
-                            handledByInterfaceService = true;
-                            this.interfaceService.closeModal(p);
-                        } else if (
-                            this.interfaceService?.getCurrentSidemodal(p) === closedGroupId
-                        ) {
-                            handledByInterfaceService = true;
-                            this.interfaceService.closeSidemodal(p);
-                        } else {
-                            closedEntries = p.widgets.close(closedGroupId);
-                        }
-                        if (this.interfaceService && closedEntries.length > 0) {
-                            this.interfaceService.triggerCloseHooksForEntries(p, closedEntries);
-                        } else if (this.interfaceService && !handledByInterfaceService) {
-                            this.interfaceService.triggerCloseHooksForExternalClose(
-                                p,
-                                closedGroupId,
-                            );
-                        }
-
-                        this.gamemodeUi?.handleWidgetClose(p, closedGroupId);
-                    }
-                } catch {}
-            } else if (parsed.type === "varp_transmit") {
-                // Generic varp transmit handler - stores varp and handles special cases
-                try {
-                    const p = this.players?.get(ws);
-                    if (p) {
-                        const payload = (parsed as any).payload;
-                        const varpId = payload?.varpId as number;
-                        const value = payload?.value as number;
-                        const previousVarpValue = p.getVarpValue(varpId);
-
-                        // Store varp value on player (persisted)
-                        p.setVarpValue(varpId, value);
-                        const nextVarpValue = p.getVarpValue(varpId);
-
-                        // Handle special varp logic
-                        // Side journal (quest tab) selection: varbit 8168 is packed into varp 1141 (bits 4..6).
-                        // OSRS parity: server sends IF_OPENSUB to swap the mounted content interface under 629:43.
-                        if (varpId === VARP_SIDE_JOURNAL_STATE) {
-                            const { tab: sideJournalTab, stateVarp: normalizedSideJournalVarp } =
-                                this.normalizeSideJournalState(p, value);
-                            if (normalizedSideJournalVarp !== value) {
-                                this.withDirectSendBypass("varp", () =>
-                                    this.sendWithGuard(
-                                        ws,
-                                        encodeMessage({
-                                            type: "varp",
-                                            payload: {
-                                                varpId: VARP_SIDE_JOURNAL_STATE,
-                                                value: normalizedSideJournalVarp,
-                                            },
-                                        }),
-                                        "varp",
-                                    ),
-                                );
-                            }
-                            const previousSideJournalTab =
-                                decodeSideJournalTabFromStateVarp(previousVarpValue);
-                            const sideJournalSelectionChanged =
-                                previousSideJournalTab !== sideJournalTab;
-                            if (sideJournalSelectionChanged) {
-                                // Mount the selected content interface into side_journal container (629:43).
-                                // Tabs: 0=Summary, 1=Quests, 2=Diary, 3=Adventure Log, 4=Leagues
-                                this.queueSideJournalGamemodeUi(p);
-                            }
-
-                            // Delegate gamemode-specific varp handling (task completion, tutorial progression)
-                            this.gamemode.onVarpTransmit?.(p, varpId, value, previousVarpValue);
-                            if (sideJournalSelectionChanged) {
-                                this.gamemodeUi?.applySideJournalUi(p);
-                            }
-                        }
-                        if (varpId === VARP_MUSICPLAY) {
-                            this.soundManager.handleMusicModeChange(
-                                p,
-                                previousVarpValue,
-                                nextVarpValue,
-                            );
-                        }
-                        if (varpId === VARP_MUSIC_VOLUME) {
-                            this.soundManager.handleMusicVolumeChange(
-                                p,
-                                previousVarpValue,
-                                nextVarpValue,
-                            );
-                        }
-                        if (varpId === VARP_OPTION_RUN) {
-                            const on = value !== 0;
-                            (p as any).setRunToggle?.(on);
-                            this.sendRunEnergyState(ws, p);
-                        } else if (varpId === VARP_SPECIAL_ATTACK) {
-                            // Special attack toggle
-                            const desired = value !== 0;
-                            const normalizedVarpValue = desired ? 1 : 0;
-                            const equip = this.ensureEquipArray(p);
-                            const weaponId = equip[EquipmentSlot.WEAPON];
-                            const weaponCost =
-                                weaponId > 0
-                                    ? this.getWeaponSpecialCostPercent(weaponId)
-                                    : undefined;
-                            const rockKnockerSeqId = desired
-                                ? getRockKnockerSpecialSequence(weaponId)
-                                : undefined;
-                            const fishstabberSeqId = desired
-                                ? getFishstabberSpecialSequence(weaponId)
-                                : undefined;
-                            const lumberUpSeqId = desired
-                                ? getLumberUpSpecialSequence(weaponId)
-                                : undefined;
-                            if (
-                                desired &&
-                                (rockKnockerSeqId !== undefined ||
-                                    fishstabberSeqId !== undefined ||
-                                    lumberUpSeqId !== undefined)
-                            ) {
-                                const seqId = (rockKnockerSeqId ??
-                                    fishstabberSeqId ??
-                                    lumberUpSeqId) as number;
-                                const currentTick = this.options.ticker.currentTick();
-                                if (wasInstantUtilitySpecialHandledAtTick(p as any, currentTick)) {
-                                    p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-                                    p.setSpecialActivated(false);
-                                    this.queueCombatState(p);
-                                    this.withDirectSendBypass("varp", () =>
-                                        this.sendWithGuard(
-                                            ws,
-                                            encodeMessage({
-                                                type: "varp",
-                                                payload: { varpId: VARP_SPECIAL_ATTACK, value: 0 },
-                                            }),
-                                            "varp",
-                                        ),
-                                    );
-                                } else if (weaponCost === undefined) {
-                                    markInstantUtilitySpecialHandledAtTick(p as any, currentTick);
-                                    p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-                                    p.setSpecialActivated(false);
-                                    this.queueCombatState(p);
-                                    this.withDirectSendBypass("varp", () =>
-                                        this.sendWithGuard(
-                                            ws,
-                                            encodeMessage({
-                                                type: "varp",
-                                                payload: { varpId: VARP_SPECIAL_ATTACK, value: 0 },
-                                            }),
-                                            "varp",
-                                        ),
-                                    );
-                                } else if (
-                                    p.getSpecialEnergyUnits() < weaponCost ||
-                                    !p.consumeSpecialEnergy(weaponCost)
-                                ) {
-                                    markInstantUtilitySpecialHandledAtTick(p as any, currentTick);
-                                    p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-                                    p.setSpecialActivated(false);
-                                    this.queueCombatState(p);
-                                    this.queueChatMessage({
-                                        messageType: "game",
-                                        text: "You do not have enough special attack energy.",
-                                        targetPlayerIds: [p.id],
-                                    });
-                                    this.withDirectSendBypass("varp", () =>
-                                        this.sendWithGuard(
-                                            ws,
-                                            encodeMessage({
-                                                type: "varp",
-                                                payload: { varpId: VARP_SPECIAL_ATTACK, value: 0 },
-                                            }),
-                                            "varp",
-                                        ),
-                                    );
-                                } else {
-                                    markInstantUtilitySpecialHandledAtTick(p as any, currentTick);
-                                    if (rockKnockerSeqId !== undefined) {
-                                        applyRockKnockerMiningBoost(p);
-                                    } else if (fishstabberSeqId !== undefined) {
-                                        applyFishstabberFishingBoost(p);
-                                    } else {
-                                        applyLumberUpWoodcuttingBoost(p);
-                                    }
-                                    p.setSpecialActivated(false);
-                                    p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-                                    p.queueOneShotSeq(seqId, 0);
-                                    if (rockKnockerSeqId !== undefined) {
-                                        this.sendSound(p, ROCK_KNOCKER_SOUND_ID);
-                                    }
-                                    this.queueCombatState(p);
-                                    this.withDirectSendBypass("varp", () =>
-                                        this.sendWithGuard(
-                                            ws,
-                                            encodeMessage({
-                                                type: "varp",
-                                                payload: { varpId: VARP_SPECIAL_ATTACK, value: 0 },
-                                            }),
-                                            "varp",
-                                        ),
-                                    );
-                                    logger.info(
-                                        `[combat] instant utility special activated: ` +
-                                            `player=${p.id} weapon=${weaponId} kind=${
-                                                rockKnockerSeqId !== undefined
-                                                    ? "rock_knocker"
-                                                    : fishstabberSeqId !== undefined
-                                                    ? "fishstabber"
-                                                    : "lumber_up"
-                                            } seq=${seqId}`,
-                                    );
-                                }
-                            } else if (desired && weaponCost === undefined) {
-                                // Weapon has no special attack - revert.
-                                p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-                                p.setSpecialActivated(false);
-                                this.queueCombatState(p);
-                                this.withDirectSendBypass("varp", () =>
-                                    this.sendWithGuard(
-                                        ws,
-                                        encodeMessage({
-                                            type: "varp",
-                                            payload: { varpId: VARP_SPECIAL_ATTACK, value: 0 },
-                                        }),
-                                        "varp",
-                                    ),
-                                );
-                            } else if (
-                                desired &&
-                                typeof weaponCost === "number" &&
-                                p.getSpecialEnergyUnits() < weaponCost
-                            ) {
-                                // Not enough energy - revert client varp + ensure server state stays off.
-                                p.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-                                p.setSpecialActivated(false);
-                                this.queueCombatState(p);
-                                this.queueChatMessage({
-                                    messageType: "game",
-                                    text: "You do not have enough special attack energy.",
-                                    targetPlayerIds: [p.id],
-                                });
-                                this.withDirectSendBypass("varp", () =>
-                                    this.sendWithGuard(
-                                        ws,
-                                        encodeMessage({
-                                            type: "varp",
-                                            payload: { varpId: VARP_SPECIAL_ATTACK, value: 0 },
-                                        }),
-                                        "varp",
-                                    ),
-                                );
-                            } else {
-                                p.setSpecialActivated(desired);
-                                p.setVarpValue(VARP_SPECIAL_ATTACK, normalizedVarpValue);
-                                if (normalizedVarpValue !== value) {
-                                    this.withDirectSendBypass("varp", () =>
-                                        this.sendWithGuard(
-                                            ws,
-                                            encodeMessage({
-                                                type: "varp",
-                                                payload: {
-                                                    varpId: VARP_SPECIAL_ATTACK,
-                                                    value: normalizedVarpValue,
-                                                },
-                                            }),
-                                            "varp",
-                                        ),
-                                    );
-                                }
-                                this.queueCombatState(p);
-                            }
-                        } else if (varpId === VARP_ATTACK_STYLE) {
-                            // Attack style change (0-3)
-                            const requested = Math.max(0, Math.min(3, value));
-                            p.setCombatStyle(requested, p.combatWeaponCategory);
-                            const normalized = p.combatStyleSlot;
-                            p.setVarpValue(VARP_ATTACK_STYLE, normalized);
-                            // Send varp back to client to confirm the style change
-                            // The CS2 combat interface reads this varp to highlight the active button
-                            this.withDirectSendBypass("varp", () =>
-                                this.sendWithGuard(
-                                    ws,
-                                    encodeMessage({
-                                        type: "varp",
-                                        payload: {
-                                            varpId: VARP_ATTACK_STYLE,
-                                            value: normalized,
-                                        },
-                                    }),
-                                    "varp",
-                                ),
-                            );
-                            this.queueCombatState(p);
-                            logger.info(
-                                `[combat] attack style change: player=${p.id} slot=${normalized}`,
-                            );
-                        } else if (varpId === VARP_AUTO_RETALIATE) {
-                            // Auto-retaliate toggle
-                            // OSRS parity: varp 172 is "option_nodef" where 0 = ON, 1 = OFF
-                            // The CS2 checks %option_nodef=0 to display "(On)"
-                            const on = value === 0;
-                            p.setAutoRetaliate(on);
-                            const normalized = on ? 0 : 1;
-                            if (normalized !== value) {
-                                p.setVarpValue(VARP_AUTO_RETALIATE, normalized);
-                                this.withDirectSendBypass("varp", () =>
-                                    this.sendWithGuard(
-                                        ws,
-                                        encodeMessage({
-                                            type: "varp",
-                                            payload: {
-                                                varpId: VARP_AUTO_RETALIATE,
-                                                value: normalized,
-                                            },
-                                        }),
-                                        "varp",
-                                    ),
-                                );
-                            }
-                            this.queueCombatState(p);
-                        }
-                    }
-                    // NOTE: spell_cast_*, debug, chat handlers moved to MessageHandlers.ts
-                } catch {}
+                this.handleHandshakeMessage(ws, parsed.payload);
+                return;
             } else {
-                this.processBinaryMessage(ws, parsed);
+                this.messageRouter.dispatch(ws, parsed) || logger.debug?.(`[binary] Unhandled: ${parsed.type}`);
             }
         });
 
@@ -10355,390 +9908,6 @@ export class WSServer {
     /**
      * Process binary packet converted to ClientToServer message format
      */
-    private processBinaryMessage(ws: WebSocket, parsed: RoutedMessage): void {
-        // Binary packets are converted to the same message format as JSON
-        // so we can reuse existing handlers. Log for debugging.
-        logger.debug?.(`[binary] Processing message type=${parsed.type}`);
-
-        // OSRS parity: Centralized interface closing for actions that dismiss modals/dialogs
-        if (INTERFACE_CLOSING_ACTIONS.has(parsed.type)) {
-            const player = this.players?.get(ws);
-            if (player) {
-                // Don't close interfaces for walk if player can't move (e.g., during tutorial)
-                if (parsed.type === "walk" && !player.canMove()) {
-                    // Skip interface closing - movement will be blocked
-                } else {
-                    this.closeInterruptibleInterfaces(player);
-                }
-            }
-        }
-
-        // Route to existing handlers based on message type
-        switch (parsed.type) {
-            case "walk": {
-                const to = parsed.payload.to;
-                const modifierFlags = parsed.payload.modifierFlags ?? 0;
-                const player = this.players?.get(ws);
-                if (player) {
-                    let effectiveRun = player.runToggle;
-                    if ((modifierFlags & MODIFIER_FLAG_CTRL) !== 0) {
-                        effectiveRun = !effectiveRun;
-                    }
-                    if (modifierFlags === MODIFIER_FLAG_CTRL_SHIFT) {
-                        effectiveRun = true;
-                    }
-                    const nowTick = this.options.ticker.currentTick();
-                    const command: PendingWalkCommand = {
-                        to: { x: to.x, y: to.y },
-                        run: effectiveRun,
-                        enqueuedTick: nowTick,
-                    };
-                    this.movementService.getPendingWalkCommands().set(ws, command);
-                }
-                break;
-            }
-
-            case "npc_attack": {
-                const { npcId } = parsed.payload;
-                if (!this.players || !this.npcManager) return;
-                const player = this.players.get(ws);
-                const npc = this.npcManager.getById(npcId);
-                if (player && npc) {
-                    logger.info?.(`[binary] npc_attack player=${player.id} npc=${npcId}`);
-                    const tick = this.options.ticker.currentTick();
-                    const attackSpeed = this.pickAttackSpeed(player);
-                    const res = this.players.startNpcAttack(ws, npc, tick, attackSpeed);
-                    if (!res.ok) {
-                        if (res.chatMessage) {
-                            this.queueChatMessage({
-                                messageType: "game",
-                                text: res.chatMessage,
-                                targetPlayerIds: [player.id],
-                            });
-                        }
-                    } else {
-                        player.setInteraction("npc", npc.id);
-                        this.playerCombatManager?.startCombat(player, npc, tick, attackSpeed);
-                    }
-                }
-                break;
-            }
-
-            case "npc_interact": {
-                const { npcId, option } = parsed.payload;
-                if (!this.players || !this.npcManager) return;
-                const player = this.players.get(ws);
-                const npc = this.npcManager.getById(npcId);
-                if (player && npc) {
-                    logger.info?.(
-                        `[binary] npc_interact player=${player.id} npc=${npcId} opt=${option}`,
-                    );
-                    if (!this.messageRouter.dispatch(ws, parsed)) {
-                        logger.warn(
-                            `[binary] npc_interact not handled by MessageRouter player=${player.id} npc=${npcId}`,
-                        );
-                    }
-                }
-                break;
-            }
-
-            case "loc_interact": {
-                const { id, tile, action } = parsed.payload;
-                const player = this.players?.get(ws);
-                if (player) {
-                    logger.info?.(
-                        `[binary] loc_interact player=${player.id} loc=${id} tile=(${tile?.x},${tile?.y}) action=${action}`,
-                    );
-                    if (!this.messageRouter.dispatch(ws, parsed)) {
-                        logger.warn(
-                            `[binary] loc_interact not handled by MessageRouter player=${player.id} loc=${id}`,
-                        );
-                    }
-                }
-                break;
-            }
-
-            case "ground_item_action": {
-                const payload: GroundItemActionPayload = { ...parsed.payload };
-                const player = this.players?.get(ws);
-                if (player) {
-                    if (!payload.option || payload.option.length === 0) {
-                        const opNum = payload.opNum;
-                        if (opNum !== undefined && opNum > 0) {
-                            const resolved = this.resolveGroundItemOptionByOpNum(
-                                payload.itemId,
-                                opNum,
-                            );
-                            if (resolved) payload.option = resolved;
-                        }
-                    }
-                    logger.info?.(
-                        `[binary] ground_item_action player=${player.id} item=${
-                            payload.itemId
-                        } tile=(${payload.tile?.x},${payload.tile?.y}) option=${
-                            payload.option ?? "?"
-                        } opNum=${payload.opNum ?? "?"}`,
-                    );
-                    // Delegate to the real handler that takes ws
-                    this.handleGroundItemAction(ws, payload);
-                }
-                break;
-            }
-
-            case "interact": {
-                const { mode, targetId } = parsed.payload;
-                const player = this.players?.get(ws);
-                if (player) {
-                    logger.info?.(
-                        `[binary] interact player=${player.id} mode=${mode} target=${targetId}`,
-                    );
-                    if (mode === "trade" || mode === "follow") {
-                        this.players?.startFollowing(ws, targetId, mode);
-                    }
-                }
-                break;
-            }
-
-            case "widget_action": {
-                // OSRS parity: Binary IF_BUTTON packets arrive here via BinaryBridge
-                // BinaryBridge sends: { widgetId, groupId, childId, slot, itemId, buttonNum }
-                //
-                // For dynamic children (CC_CREATE):
-                //   - widgetId = (interfaceId << 16) | parentComponentId
-                //   - slot = dynamic child index (this is the "childId" for script handlers)
-                // For static children:
-                //   - widgetId = (interfaceId << 16) | componentId
-                //   - slot = inventory slot or -1
-                const payload = parsed.payload;
-                console.log(`[DEBUG widget_action] RECEIVED widgetId=${payload.widgetId} group=${(payload.widgetId >>> 16) & 0xffff} child=${payload.widgetId & 0xffff} buttonNum=${payload.buttonNum} slot=${payload.slot} itemId=${payload.itemId}`);
-                const player = this.players?.get(ws);
-                if (player) {
-                    const groupId = payload.groupId ?? (payload.widgetId >> 16) & 0xffff;
-                    const componentId = payload.widgetId & 0xffff;
-                    const opId = payload.buttonNum ?? 1;
-                    // For dynamic children, slot IS the childId (dynamic child index)
-                    // For static widgets, slot is -1/65535 and childId should be componentId
-                    const slotVal = payload.slot;
-                    // slot=-1 (or 65535 unsigned) means "no slot", use component as childId
-                    // slot>=0 means it's a valid child index or inventory slot
-                    const hasValidSlot = slotVal !== undefined && slotVal >= 0 && slotVal !== 65535;
-                    const childId = hasValidSlot ? slotVal : componentId;
-
-                    // Check script registry button handlers first (extrascript modals)
-                    const buttonHandler = this.scriptRegistry.findButton(groupId, componentId);
-                    if (buttonHandler) {
-                        const tick = this.options.ticker.currentTick();
-                        buttonHandler({
-                            tick,
-                            services: this.scriptRuntime.getServices(),
-                            player,
-                            widgetId: payload.widgetId,
-                            groupId,
-                            childId,
-                            option: payload.option,
-                            opId,
-                            slot: slotVal,
-                            itemId: payload.itemId,
-                        });
-                        break;
-                    }
-
-                    if (
-                        this.cs2ModalManager.handleWidgetAction(
-                            player,
-                            groupId,
-                            componentId,
-                            payload.option,
-                            payload.itemId,
-                        )
-                    ) {
-                        break;
-                    }
-
-                    // Handle dialog options (interface 219)
-                    if (groupId === 219) {
-                        this.widgetDialogHandler.handleDialogOptionClick(ws, player.id, childId);
-                    } else {
-                        // OSRS parity: inventory item actions resolve the option from
-                        // the item's cache definition and route through the item action
-                        // system before falling back to generic widget handlers.
-                        if (
-                            payload.itemId !== undefined &&
-                            payload.itemId > 0 &&
-                            hasValidSlot &&
-                            opId >= 1
-                        ) {
-                            // Check custom item registry first for overridden actions
-                            let actions: (string | null | undefined)[] | undefined;
-                            const customItem = CustomItemRegistry.get(payload.itemId);
-                            if (customItem?.definition?.objType?.inventoryActions) {
-                                actions = customItem.definition.objType.inventoryActions;
-                            }
-                            if (!actions) {
-                                const obj = this.getObjType(payload.itemId);
-                                actions = obj?.inventoryActions;
-                            }
-                            if (actions) {
-                                const resolved = actions[opId - 1];
-                                if (resolved) {
-                                    const option = resolved.toLowerCase();
-                                    const tick = this.options.ticker.currentTick();
-                                    const handled = this.scriptRuntime.queueItemAction({
-                                        tick,
-                                        player,
-                                        itemId: payload.itemId,
-                                        slot: slotVal ?? 0,
-                                        option,
-                                    });
-                                    if (handled) break;
-                                }
-                            }
-                            // Fallback: try script registry with no specific option
-                            {
-                                const tick = this.options.ticker.currentTick();
-                                const handled = this.scriptRuntime.queueItemAction({
-                                    tick,
-                                    player,
-                                    itemId: payload.itemId,
-                                    slot: slotVal ?? 0,
-                                });
-                                if (handled) break;
-                            }
-                        }
-
-                        // Route through standard widget action handler with opId
-                        this.widgetDialogHandler.handleWidgetActionMessage(ws, {
-                            ...payload,
-                            opId,
-                            childId,
-                        });
-                    }
-                }
-                break;
-            }
-
-            case "item_spawner_search": {
-                const player = this.players?.get(ws);
-                if (player) {
-                    const msgHandler = this.scriptRegistry.findClientMessageHandler("item_spawner_search");
-                    if (msgHandler) {
-                        const tick = this.options.ticker.currentTick();
-                        msgHandler({
-                            tick,
-                            services: this.scriptRuntime.getServices(),
-                            player,
-                            messageType: "item_spawner_search",
-                            payload: parsed.payload ?? {},
-                        });
-                    }
-                }
-                break;
-            }
-
-            case "if_close": {
-                const player = this.players?.get(ws);
-                if (player) {
-                    // Keep close behavior consistent across both packet->message paths.
-                    this.closeInterruptibleInterfaces(player);
-                }
-                break;
-            }
-
-            case "if_triggeroplocal": {
-                const player = this.players?.get(ws);
-                if (player) {
-                    const { widgetUid, childIndex, itemId, opcodeParam } = parsed.payload;
-
-                    // Best-effort parity bridge:
-                    // when the forwarded op param is a canonical widget op (1-10),
-                    // route it through the existing widget action pipeline.
-                    if (opcodeParam >= 1 && opcodeParam <= 10) {
-                        const groupId = (widgetUid >>> 16) & 0xffff;
-                        const componentId = widgetUid & 0xffff;
-                        const hasChild = childIndex >= 0;
-                        const childId = hasChild ? childIndex : componentId;
-                        this.widgetDialogHandler.handleWidgetActionMessage(ws, {
-                            widgetId: widgetUid,
-                            groupId,
-                            childId,
-                            opId: opcodeParam,
-                            slot: hasChild ? childIndex : undefined,
-                            itemId,
-                        });
-                    }
-                }
-                break;
-            }
-
-            case "inventory_use_on": {
-                const { slot, itemId, target } = parsed.payload;
-                const player = this.players?.get(ws);
-                if (player) {
-                    logger.info?.(
-                        `[binary] inventory_use_on player=${player.id} slot=${slot} item=${itemId} target=${target.kind}`,
-                    );
-                    this.handleInventoryUseOnMessage(ws, parsed.payload);
-                }
-                break;
-            }
-
-            case "resume_pausebutton": {
-                const player = this.players?.get(ws);
-                if (player) {
-                    const { widgetId, childIndex } = parsed.payload;
-                    const widgetGroup = (widgetId >> 16) & 0xffff;
-
-                    // Check for level up popup first
-                    const q = (this.interfaceManager as any).levelUpPopupQueue?.get(player.id);
-                    if (q && q.length > 0 && widgetGroup === LEVELUP_INTERFACE_ID) {
-                        const expectedWidgetId =
-                            (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT;
-                        const current = q[0];
-                        const expectsLevelupDisplay =
-                            current.kind === "combat" ||
-                            (current.kind === "skill" && current.skillId !== SkillId.Hunter);
-
-                        if (!expectsLevelupDisplay || widgetId === expectedWidgetId) {
-                            this.advanceLevelUpPopupQueue(player);
-                        }
-                    } else if (widgetGroup === 270) {
-                        // Chatbox production/select UI (e.g. crossbow bolt enchantments).
-                        // RESUME_PAUSEBUTTON carries:
-                        // - widgetId: selected product component UID (270:15..32)
-                        // - childIndex: selected quantity
-                        // Route through widget_action so script modules can handle it uniformly.
-                        this.widgetDialogHandler.handleWidgetActionMessage(ws, {
-                            widgetId,
-                            groupId: widgetGroup,
-                            childId: widgetId & 0xffff,
-                            opId: 1,
-                            slot: childIndex,
-                        });
-                    } else if (
-                        this.cs2ModalManager.handleResumePauseButton(player, widgetId, childIndex)
-                    ) {
-                        break;
-                    } else {
-                        this.widgetDialogHandler.handleResumePauseButton(
-                            ws,
-                            player.id,
-                            widgetId,
-                            childIndex,
-                        );
-                    }
-                }
-                break;
-            }
-
-            case "if_buttond": {
-                this.messageRouter.dispatch(ws, parsed);
-                break;
-            }
-
-            default:
-                logger.debug?.(`[binary] Unhandled message type: ${parsed.type}`);
-        }
-    }
 
     private broadcast(msg: string | Uint8Array, context = "broadcast") {
         for (const client of this.wss.clients) {

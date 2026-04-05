@@ -318,6 +318,18 @@ export interface MessageHandlerServices {
         SIDE_JOURNAL_TAB_CONTAINER_UID: number;
     };
 
+    // --- Services for extracted handlers (logout, widget, varp_transmit, if_close) ---
+    completeLogout: (ws: WebSocket, player?: PlayerState, source?: string) => void;
+    closeInterruptibleInterfaces: (player: PlayerState) => void;
+    noteWidgetEventForLedger: (playerId: number, event: any) => void;
+    normalizeSideJournalState: (player: PlayerState, value?: number) => { tab: number; stateVarp: number };
+    queueSideJournalGamemodeUi: (player: PlayerState) => void;
+    syncMusicInterface: (player: PlayerState) => void;
+    handleCs2ModalCloseState: (player: PlayerState, groupId: number) => void;
+    handleDialogCloseState: (player: PlayerState, groupId: number) => void;
+    getInterfaceService: () => any;
+    getGamemodeUi: () => any;
+    getGamemode: () => any;
 }
 
 const DEFAULT_CHAT_PREFIX = "";
