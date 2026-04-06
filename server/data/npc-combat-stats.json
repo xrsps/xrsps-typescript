@@ -32,7 +32,9 @@
         "ranged": -15
       },
       "immunities": [],
-      "species": ["goblin"]
+      "species": [
+        "goblin"
+      ]
     },
     "101": {
       "name": "Goblin",
@@ -55,7 +57,9 @@
         "magic": -15,
         "ranged": -15
       },
-      "species": ["goblin"]
+      "species": [
+        "goblin"
+      ]
     },
     "102": {
       "name": "Goblin",
@@ -78,7 +82,9 @@
         "magic": -15,
         "ranged": -15
       },
-      "species": ["goblin"]
+      "species": [
+        "goblin"
+      ]
     },
     "298": {
       "name": "Rat",
@@ -149,7 +155,9 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["human"]
+      "species": [
+        "human"
+      ]
     },
     "3108": {
       "name": "Woman",
@@ -172,7 +180,9 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["human"]
+      "species": [
+        "human"
+      ]
     },
     "3106": {
       "name": "Guard",
@@ -197,7 +207,9 @@
         "magic": -4,
         "ranged": 24
       },
-      "species": ["human"]
+      "species": [
+        "human"
+      ]
     },
     "3254": {
       "name": "Guard",
@@ -222,7 +234,9 @@
         "magic": -4,
         "ranged": 24
       },
-      "species": ["human"]
+      "species": [
+        "human"
+      ]
     },
     "3107": {
       "name": "Man",
@@ -245,7 +259,9 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["human"]
+      "species": [
+        "human"
+      ]
     },
     "6818": {
       "name": "Man",
@@ -268,7 +284,9 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["human"]
+      "species": [
+        "human"
+      ]
     },
     "178": {
       "name": "Black Knight",
@@ -294,7 +312,9 @@
         "magic": -4,
         "ranged": 40
       },
-      "species": ["human"]
+      "species": [
+        "human"
+      ]
     },
     "2028": {
       "name": "Cow",
@@ -363,7 +383,9 @@
         "magic": -5,
         "ranged": -5
       },
-      "species": ["spider"]
+      "species": [
+        "spider"
+      ]
     },
     "3017": {
       "name": "Hill Giant",
@@ -388,7 +410,279 @@
         "magic": -18,
         "ranged": -18
       },
-      "species": ["giant"]
+      "species": [
+        "giant"
+      ]
+    },
+    "2098": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2099": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2100": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2101": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2102": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2103": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "7261": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "10374": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "10375": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "10376": {
+      "name": "Hill Giant",
+      "combatLevel": 28,
+      "hitpoints": 35,
+      "attackLevel": 18,
+      "strengthLevel": 22,
+      "defenceLevel": 26,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 4,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
     },
     "2090": {
       "name": "Moss Giant",
@@ -413,7 +707,9 @@
         "magic": -18,
         "ranged": -18
       },
-      "species": ["giant"]
+      "species": [
+        "giant"
+      ]
     },
     "2025": {
       "name": "Ice Giant",
@@ -438,7 +734,9 @@
         "magic": -18,
         "ranged": -18
       },
-      "species": ["giant"]
+      "species": [
+        "giant"
+      ]
     },
     "2069": {
       "name": "Fire Giant",
@@ -463,7 +761,10 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["giant", "fiery"]
+      "species": [
+        "giant",
+        "fiery"
+      ]
     },
     "2005": {
       "name": "Lesser Demon",
@@ -487,7 +788,9 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["demon"]
+      "species": [
+        "demon"
+      ]
     },
     "2026": {
       "name": "Greater Demon",
@@ -512,7 +815,9 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["demon"]
+      "species": [
+        "demon"
+      ]
     },
     "2048": {
       "name": "Black Demon",
@@ -537,7 +842,9 @@
         "magic": 0,
         "ranged": 30
       },
-      "species": ["demon"]
+      "species": [
+        "demon"
+      ]
     },
     "415": {
       "name": "Skeleton",
@@ -561,7 +868,9 @@
         "magic": 0,
         "ranged": 10
       },
-      "species": ["undead"]
+      "species": [
+        "undead"
+      ]
     },
     "70": {
       "name": "Zombie",
@@ -585,7 +894,9 @@
         "magic": -20,
         "ranged": -20
       },
-      "species": ["undead"]
+      "species": [
+        "undead"
+      ]
     },
     "5862": {
       "name": "Abyssal Demon",
@@ -610,7 +921,10 @@
         "magic": 0,
         "ranged": 20
       },
-      "species": ["demon", "abyssal"]
+      "species": [
+        "demon",
+        "abyssal"
+      ]
     },
     "963": {
       "name": "Kalphite Worker",
@@ -634,7 +948,9 @@
         "magic": 0,
         "ranged": 40
       },
-      "species": ["kalphite"]
+      "species": [
+        "kalphite"
+      ]
     },
     "959": {
       "name": "Kalphite Soldier",
@@ -658,7 +974,9 @@
         "magic": 0,
         "ranged": 50
       },
-      "species": ["kalphite"]
+      "species": [
+        "kalphite"
+      ]
     },
     "960": {
       "name": "Kalphite Guardian",
@@ -682,7 +1000,9 @@
         "magic": 0,
         "ranged": 60
       },
-      "species": ["kalphite"]
+      "species": [
+        "kalphite"
+      ]
     },
     "2042": {
       "name": "Zulrah (Green)",
@@ -708,7 +1028,9 @@
         "magic": 300,
         "ranged": 0
       },
-      "species": ["serpent"],
+      "species": [
+        "serpent"
+      ],
       "boss": true
     },
     "2043": {
@@ -735,7 +1057,9 @@
         "magic": 0,
         "ranged": 300
       },
-      "species": ["serpent"],
+      "species": [
+        "serpent"
+      ],
       "boss": true
     },
     "2044": {
@@ -762,7 +1086,9 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["serpent"],
+      "species": [
+        "serpent"
+      ],
       "boss": true
     },
     "3127": {
@@ -788,7 +1114,9 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["tzhaar"],
+      "species": [
+        "tzhaar"
+      ],
       "boss": true,
       "multiAttack": true
     },
@@ -815,7 +1143,9 @@
         "magic": 100,
         "ranged": 150
       },
-      "species": ["tzhaar"],
+      "species": [
+        "tzhaar"
+      ],
       "boss": true,
       "multiAttack": true
     },
@@ -842,7 +1172,9 @@
         "magic": -40,
         "ranged": 255
       },
-      "species": ["dagannoth"],
+      "species": [
+        "dagannoth"
+      ],
       "boss": true
     },
     "2266": {
@@ -868,7 +1200,9 @@
         "magic": 255,
         "ranged": -40
       },
-      "species": ["dagannoth"],
+      "species": [
+        "dagannoth"
+      ],
       "boss": true
     },
     "2267": {
@@ -894,7 +1228,9 @@
         "magic": 255,
         "ranged": 255
       },
-      "species": ["dagannoth"],
+      "species": [
+        "dagannoth"
+      ],
       "boss": true
     },
     "319": {
@@ -951,7 +1287,10 @@
         "magic": 20,
         "ranged": 0
       },
-      "species": ["demon", "abyssal"],
+      "species": [
+        "demon",
+        "abyssal"
+      ],
       "boss": true
     },
     "494": {
@@ -1006,7 +1345,10 @@
         "magic": 100,
         "ranged": 100
       },
-      "species": ["hellhound", "demon"],
+      "species": [
+        "hellhound",
+        "demon"
+      ],
       "boss": true,
       "multiAttack": true
     },
@@ -1060,7 +1402,10 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["hellhound", "demon"]
+      "species": [
+        "hellhound",
+        "demon"
+      ]
     },
     "2215": {
       "name": "General Graardor",
@@ -1085,7 +1430,10 @@
         "magic": -10,
         "ranged": 200
       },
-      "species": ["ork", "bandosian"],
+      "species": [
+        "ork",
+        "bandosian"
+      ],
       "boss": true,
       "multiAttack": true
     },
@@ -1112,7 +1460,9 @@
         "magic": 300,
         "ranged": 40
       },
-      "species": ["saradominist"],
+      "species": [
+        "saradominist"
+      ],
       "boss": true,
       "multiAttack": true
     },
@@ -1140,7 +1490,10 @@
         "magic": 0,
         "ranged": 90
       },
-      "species": ["demon", "zamorakian"],
+      "species": [
+        "demon",
+        "zamorakian"
+      ],
       "boss": true,
       "multiAttack": true
     },
@@ -1167,7 +1520,10 @@
         "magic": 200,
         "ranged": 0
       },
-      "species": ["aviansie", "armadylean"],
+      "species": [
+        "aviansie",
+        "armadylean"
+      ],
       "boss": true,
       "multiAttack": true
     },
@@ -1195,7 +1551,10 @@
         "magic": 240,
         "ranged": 26
       },
-      "species": ["dragon", "undead"],
+      "species": [
+        "dragon",
+        "undead"
+      ],
       "boss": true,
       "multiAttack": true
     },
@@ -1223,7 +1582,9 @@
         "magic": 80,
         "ranged": 70
       },
-      "species": ["dragon"],
+      "species": [
+        "dragon"
+      ],
       "boss": true,
       "multiAttack": true,
       "dragonfire": true
@@ -1251,7 +1612,9 @@
         "magic": 0,
         "ranged": 0
       },
-      "species": ["elemental"],
+      "species": [
+        "elemental"
+      ],
       "boss": true,
       "multiAttack": true
     },
@@ -1278,7 +1641,9 @@
         "magic": -5,
         "ranged": 100
       },
-      "species": ["undead"],
+      "species": [
+        "undead"
+      ],
       "boss": true,
       "notes": "Uses Dharok's set effect when player has low HP"
     },
@@ -1289,7 +1654,971 @@
       "defenceLevel": 1,
       "aggressive": false,
       "attackable": false,
-      "species": ["impling"]
+      "species": [
+        "impling"
+      ]
+    },
+    "2091": {
+      "name": "Moss Giant",
+      "combatLevel": 42,
+      "hitpoints": 60,
+      "attackLevel": 30,
+      "strengthLevel": 30,
+      "defenceLevel": 30,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 5,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2092": {
+      "name": "Moss Giant",
+      "combatLevel": 42,
+      "hitpoints": 60,
+      "attackLevel": 30,
+      "strengthLevel": 30,
+      "defenceLevel": 30,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 5,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2093": {
+      "name": "Moss Giant",
+      "combatLevel": 42,
+      "hitpoints": 60,
+      "attackLevel": 30,
+      "strengthLevel": 30,
+      "defenceLevel": 30,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 5,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "3851": {
+      "name": "Moss Giant",
+      "combatLevel": 42,
+      "hitpoints": 60,
+      "attackLevel": 30,
+      "strengthLevel": 30,
+      "defenceLevel": 30,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 5,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "7262": {
+      "name": "Moss Giant",
+      "combatLevel": 42,
+      "hitpoints": 60,
+      "attackLevel": 30,
+      "strengthLevel": 30,
+      "defenceLevel": 30,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 5,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "8015": {
+      "name": "Moss Giant",
+      "combatLevel": 42,
+      "hitpoints": 60,
+      "attackLevel": 30,
+      "strengthLevel": 30,
+      "defenceLevel": 30,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 5,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "8016": {
+      "name": "Moss Giant",
+      "combatLevel": 42,
+      "hitpoints": 60,
+      "attackLevel": 30,
+      "strengthLevel": 30,
+      "defenceLevel": 30,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 5,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "8017": {
+      "name": "Moss Giant",
+      "combatLevel": 42,
+      "hitpoints": 60,
+      "attackLevel": 30,
+      "strengthLevel": 30,
+      "defenceLevel": 30,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 5,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "8018": {
+      "name": "Moss Giant",
+      "combatLevel": 42,
+      "hitpoints": 60,
+      "attackLevel": 30,
+      "strengthLevel": 30,
+      "defenceLevel": 30,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 5,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2085": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2086": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2087": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2088": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2089": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "7878": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "7879": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "7880": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "8488": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "8489": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "8490": {
+      "name": "Ice Giant",
+      "combatLevel": 53,
+      "hitpoints": 70,
+      "attackLevel": 40,
+      "strengthLevel": 40,
+      "defenceLevel": 40,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 7,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": -18,
+        "slash": -18,
+        "crush": -18,
+        "magic": -18,
+        "ranged": -18
+      },
+      "species": [
+        "giant"
+      ]
+    },
+    "2075": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "2076": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "2077": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "2078": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "2079": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "2080": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "2081": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "2082": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "2083": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "7251": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "7252": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "8392": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "8393": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "8394": {
+      "name": "Fire Giant",
+      "combatLevel": 86,
+      "hitpoints": 111,
+      "attackLevel": 65,
+      "strengthLevel": 65,
+      "defenceLevel": 65,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "crush",
+      "maxHit": 11,
+      "aggressive": true,
+      "aggressiveRadius": 4,
+      "size": 2,
+      "defenceBonuses": {
+        "stab": 0,
+        "slash": 0,
+        "crush": 0,
+        "magic": 0,
+        "ranged": 0
+      },
+      "species": [
+        "giant",
+        "fiery"
+      ]
+    },
+    "6593": {
+      "name": "Lava dragon",
+      "combatLevel": 252,
+      "hitpoints": 230,
+      "attackLevel": 240,
+      "strengthLevel": 220,
+      "defenceLevel": 220,
+      "magicLevel": 1,
+      "rangedLevel": 1,
+      "attackSpeed": 4,
+      "attackType": "melee",
+      "attackStyle": "slash",
+      "maxHit": 23,
+      "aggressive": true,
+      "aggressiveRadius": 8,
+      "size": 4,
+      "poisonous": false,
+      "defenceBonuses": {
+        "stab": 20,
+        "slash": 90,
+        "crush": 90,
+        "magic": 80,
+        "ranged": 70
+      },
+      "species": [
+        "dragon",
+        "fiery"
+      ],
+      "dragonfire": true
     }
   },
   "defaults": {

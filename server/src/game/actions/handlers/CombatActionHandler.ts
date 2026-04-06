@@ -526,7 +526,7 @@ export interface CombatActionServices {
 
     // --- League Tasks ---
     /** Notify task manager of NPC kill (auto-completes matching tasks). */
-    onNpcKill(playerId: number, npcId: number): void;
+    onNpcKill(playerId: number, npcId: number, combatLevel?: number): void;
 }
 
 // ============================================================================
@@ -2339,7 +2339,7 @@ export class CombatActionHandler {
 
         // League task: Notify task manager of NPC kill (auto-completes matching tasks)
         const killerId = eligibility?.primaryLooter?.id ?? player.id;
-        this.services.onNpcKill(killerId, npc.typeId);
+        this.services.onNpcKill(killerId, npc.typeId, npc.getCombatLevel());
 
         if (!this.services.isActiveFrame() && effects.length > 0) {
             this.services.dispatchActionEffects(effects);

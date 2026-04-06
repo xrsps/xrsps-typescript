@@ -36,6 +36,7 @@ export {
     // Enum overrides (for ConfigOps ENUM/ENUM_GETOUTPUTCOUNT)
     getEnumCountOverride,
     getEnumValueOverride,
+    getReplacedChallengeStructIds,
     // Data access - Tasks
     getAllCustomTasks,
     getCustomTaskByStructId,

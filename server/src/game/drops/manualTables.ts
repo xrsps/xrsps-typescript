@@ -658,4 +658,76 @@ export const MANUAL_NPC_DROP_OVERRIDES: ManualNpcDropOverride[] = [
             ],
         },
     },
+    // Lava Dragon drops (OSRS wiki - NPC 6593, combat 252)
+    {
+        npcTypeIds: [6593],
+        table: {
+            always: [
+                drop("Lava dragon bones", 1, "Always"),
+                drop("Black dragonhide", 1, "Always"),
+                drop("Lava scale", 1, "Always"),
+            ],
+            pools: [
+                {
+                    kind: "weighted",
+                    category: "weapons_armour",
+                    entries: [
+                        drop("Rune dart", 12, "6/128"),
+                        drop("Rune knife", 8, "4/128"),
+                        drop("Lava battlestaff", 1, "3/128"),
+                        drop("Adamant 2h sword", 1, "2/128"),
+                        drop("Adamant platebody", 1, "2/128"),
+                        drop("Rune axe", 1, "2/128"),
+                        drop("Rune kiteshield", 1, "2/128"),
+                        drop("Rune longsword", 1, "2/128"),
+                        drop("Rune med helm", 1, "1/128"),
+                        drop("Rune full helm", 1, "1/128"),
+                    ],
+                },
+                {
+                    kind: "weighted",
+                    category: "runes_ammo",
+                    entries: [
+                        drop("Rune javelin", 20, "10/128"),
+                        drop("Fire rune", 75, "7/128"),
+                        drop("Blood rune", 20, "7/128"),
+                        drop("Runite bolts", 30, "6/128"),
+                        drop("Death rune", 20, "5/128"),
+                        drop("Law rune", 20, "5/128"),
+                        drop("Lava rune", 15, "4/128"),
+                        drop("Lava rune", 30, "4/128"),
+                    ],
+                },
+                {
+                    kind: "weighted",
+                    category: "coins",
+                    entries: [
+                        drop("Coins", 66, "15/128"),
+                        drop("Coins", 690, "1/128"),
+                    ],
+                },
+                {
+                    kind: "weighted",
+                    category: "other",
+                    entries: [
+                        drop("Fire talisman", 1, "1/128"),
+                        drop("Fire orb", 15, "5/128"),
+                        drop("Chocolate cake", 3, "3/128"),
+                        drop("Adamantite bar", 2, "5/128"),
+                        drop("Onyx bolt tips", 12, "5/128"),
+                        drop("Dragon javelin heads", 15, "7/128"),
+                    ],
+                },
+                {
+                    kind: "independent",
+                    category: "tertiary",
+                    entries: [
+                        drop("Ensouled dragon head", 1, "1/18"),
+                        drop("Draconic visage", 1, "1/10000"),
+                        { itemName: "Clue scroll (elite)", quantity: 1, rarity: "1/250" },
+                    ],
+                },
+            ],
+        },
+    },
 ];

@@ -7564,8 +7564,8 @@ export class WSServer {
             },
 
             // --- League Tasks ---
-            onNpcKill: (playerId, npcId) => {
-                this.leagueTaskManager?.onNpcKill(playerId, npcId);
+            onNpcKill: (playerId, npcId, combatLevel?) => {
+                this.leagueTaskManager?.onNpcKill(playerId, npcId, combatLevel);
             },
         };
         return new CombatActionHandler(services);
@@ -7700,6 +7700,11 @@ export class WSServer {
             playerHasTinderbox: (player) => this.playerHasTinderbox(player),
             consumeFiremakingLog: (player, logId, slotIndex) =>
                 this.consumeFiremakingLog(player, logId, slotIndex),
+
+            // --- League Tasks ---
+            onItemCraft: (playerId, itemId, count) => {
+                this.leagueTaskManager?.onItemCraft(playerId, itemId, count);
+            },
 
             // --- Description Helpers ---
             describeLog: (itemId) => this.describeLog(itemId),
@@ -9359,7 +9364,7 @@ export class WSServer {
         this.playerCombatManager?.cleanupNpc?.(npc);
 
         const killerId = eligibility?.primaryLooter?.id ?? player.id;
-        this.leagueTaskManager?.onNpcKill(killerId, npc.typeId);
+        this.leagueTaskManager?.onNpcKill(killerId, npc.typeId, npc.getCombatLevel());
     }
 
     private ensureEquipArray(p: PlayerState): number[] {
@@ -9998,7 +10003,14 @@ export class WSServer {
         if (result.completed === 0 || result.slots.length === 0) {
             return { slot: -1, added: 0 };
         }
-        return { slot: result.slots[0].slot, added: result.completed };
+        const added = result.completed;
+
+        // League task: notify on item obtain
+        if (added > 0) {
+            this.leagueTaskManager?.onItemObtain(p.id, itemId, added);
+        }
+
+        return { slot: result.slots[0].slot, added };
     }
 
     private performScheduledAction(
@@ -11033,6 +11045,11 @@ export class WSServer {
         }
 
         const result = this.equipmentHandler.equipItem(p, slotIndex, itemId, equipSlot, opts);
+
+        // League task: notify on successful equip
+        if (result.ok) {
+            this.leagueTaskManager?.onItemEquip(p.id, itemId);
+        }
 
         // Handle ring of forging initialization (wsServer-specific logic)
         if (result.ok && equipSlot === EquipmentSlot.RING && itemId === RING_OF_FORGING_ITEM_ID) {
@@ -12557,6 +12574,12 @@ export class WSServer {
                                 this.playerPersistence.applyToPlayer(p, saveKey);
                             } catch (err) {
                                 logger.warn("[player] failed to apply persistent vars", err);
+                            }
+                            // Migrate old challenge varbit values (counter stored in completion varbit)
+                            try {
+                                this.leagueTaskManager?.migratePlayerChallengeVarbits(p);
+                            } catch (err) {
+                                logger.warn("[leagues] failed to migrate challenge varbits", err);
                             }
                             // New accounts (no persistence key yet) must complete the player design flow.
                             // Existing saves default to post-design stage unless persisted otherwise.
@@ -14524,22 +14547,31 @@ export class WSServer {
         hitData: any,
         effects: ActionEffect[],
     ): void {
-        if (!(damage > 0)) return;
-
         // Extract attack type and style mode from hit data
         const attackType = hitData?.attackType as CombatXpAttackType | undefined;
+        const resolvedAttackType: CombatXpAttackType = attackType ?? "melee";
+
+        // OSRS parity: Magic always grants spell base XP even on splash (damage=0).
+        // Melee/ranged only grant XP when damage > 0.
+        if (!(damage > 0) && resolvedAttackType !== "magic") return;
+
+
         const styleMode = hitData?.attackStyleMode as StyleMode | string | undefined;
-        const spellId = hitData?.spellId as number | undefined;
-        const spellBaseXpAtCast = !!hitData?.spellBaseXpAtCast;
+        let spellId = hitData?.spellId as number | undefined;
+        // Fallback: If magic attack and spellId is missing/0, always use player.combatSpellId
+        if (resolvedAttackType === "magic") {
+            if (!spellId || spellId <= 0) {
+                spellId = player.combatSpellId ?? undefined;
+            }
+        }
 
         // Default to melee accurate if not specified
-        const resolvedAttackType: CombatXpAttackType = attackType ?? "melee";
         const resolvedStyleMode: StyleMode | string = styleMode ?? "accurate";
 
-        // Get spell base XP for magic attacks
+        // Get spell base XP for magic attacks — always resolve from spell data.
+        // OSRS: base XP is awarded on every cast, including splashes.
         const spellBaseXp =
             resolvedAttackType === "magic" &&
-            !spellBaseXpAtCast &&
             spellId !== undefined &&
             spellId > 0
                 ? getSpellBaseXp(spellId)

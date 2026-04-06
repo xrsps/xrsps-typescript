@@ -10,6 +10,12 @@ export type NpcKillTrigger = {
     count?: number; // For "Kill 10 Goblins" style tasks
 };
 
+export type NpcKillCombatLevelTrigger = {
+    type: "npc_kill_combat_level";
+    minCombatLevel: number;
+    count: number;
+};
+
 export type ItemEquipTrigger = {
     type: "item_equip";
     itemIds: number[];
@@ -59,6 +65,7 @@ export type CustomTrigger = {
 // Union of all trigger types
 export type TaskTrigger =
     | NpcKillTrigger
+    | NpcKillCombatLevelTrigger
     | ItemEquipTrigger
     | ItemObtainTrigger
     | ItemCraftTrigger

@@ -472,6 +472,9 @@ export interface SkillActionServices {
      */
     clearPlayerFaceTarget(player: PlayerState): void;
 
+    // --- League Tasks ---
+    onItemCraft?(playerId: number, itemId: number, count: number): void;
+
     // --- Logging ---
     log(level: "info" | "warn" | "error", message: string, data?: unknown): void;
 }
@@ -662,6 +665,7 @@ export class SkillActionHandler {
 
         player.queueOneShotSeq(recipe.animation ?? 898);
         this.services.awardSkillXp(player, SkillId.Smithing, recipe.xp);
+        this.services.onItemCraft?.(player.id, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
 
         const effects: ActionEffect[] = [
             { type: "inventorySnapshot", playerId: player.id },
@@ -760,6 +764,7 @@ export class SkillActionHandler {
 
         if (cooked) {
             this.services.awardSkillXp(player, SkillId.Cooking, recipe.xp);
+            this.services.onItemCraft?.(player.id, recipe.cookedItemId, 1);
         }
 
         const effects: ActionEffect[] = [
@@ -841,6 +846,7 @@ export class SkillActionHandler {
         this.services.setInventorySlot(player, slot, recipe.outputItemId, 1);
         player.queueOneShotSeq(recipe.animation ?? 1249);
         this.services.awardSkillXp(player, SkillId.Crafting, recipe.xp);
+        this.services.onItemCraft?.(player.id, recipe.outputItemId, 1);
 
         const effects: ActionEffect[] = [
             { type: "inventorySnapshot", playerId: player.id },
@@ -981,6 +987,7 @@ export class SkillActionHandler {
             );
         }
 
+        this.services.onItemCraft?.(player.id, recipe.productItemId, productQuantity);
         player.queueOneShotSeq(recipe.animation ?? 1248);
         this.services.awardSkillXp(player, SkillId.Fletching, recipe.xp);
 
@@ -1093,6 +1100,7 @@ export class SkillActionHandler {
             }
         }
 
+        this.services.onItemCraft?.(player.id, recipe.productItemId, productQuantity);
         player.queueOneShotSeq(recipe.animation);
         this.services.awardSkillXp(player, SkillId.Crafting, recipe.xp);
 
@@ -1866,6 +1874,7 @@ export class SkillActionHandler {
                 player.queueOneShotSeq(recipe.animation ?? FURNACE_ANIMATION);
                 const xpAward = this.services.getSmeltingXpWithBonuses(recipe, equip);
                 this.services.awardSkillXp(player, SkillId.Smithing, xpAward);
+                this.services.onItemCraft?.(player.id, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
                 const barName = this.services.describeBar(recipe.outputItemId);
                 effects.push(
                     { type: "inventorySnapshot", playerId: player.id },
@@ -2038,6 +2047,7 @@ export class SkillActionHandler {
         if (xpPerSet > 0) {
             this.services.awardSkillXp(player, SkillId.Magic, xpPerSet);
         }
+        this.services.onItemCraft?.(player.id, enchantedItemId, BOLT_ENCHANT_BOLTS_PER_SET);
 
         const effects: ActionEffect[] = [
             { type: "inventorySnapshot", playerId: player.id },

@@ -9,6 +9,7 @@ import {
 import {
     getEnumCountOverride as getCustomEnumCountOverride,
     getEnumValueOverride as getCustomEnumValueOverride,
+    getReplacedChallengeStructIds,
     getStructParam as getCustomStructParam,
 } from "../../../shared/leagues/custom";
 import { getRelicOrMasteryStructParam } from "../../../shared/leagues/leagueMasteries";
@@ -318,8 +319,30 @@ export function registerConfigOps(handlers: HandlerMap): void {
                 ctx.pushInt(customOverride.custom);
                 return;
             }
-            // Shift the key to account for inserted custom content
+            // Shift the key to account for inserted custom content.
+            // For mastery challenge enum (5695), replaced cache entries are skipped:
+            // the shifted key needs to advance past any cache keys whose struct is replaced.
             key = customOverride.shiftedKey;
+
+            const replacedStructIds = getReplacedChallengeStructIds();
+            if (replacedStructIds.size > 0 && enumType?.intValues && enumType.keys) {
+                // Advance the shifted key past replaced cache entries.
+                // The shifted key is 1-based for the cache enum. We need the Nth non-replaced
+                // cache entry where N = shiftedKey.
+                let target = key; // How many non-replaced entries we want (1-based)
+                let nonReplacedSeen = 0;
+                for (let cacheKey = 1; cacheKey <= baseCount; cacheKey++) {
+                    const cacheIdx = enumType.keys.indexOf(cacheKey);
+                    if (cacheIdx < 0) continue;
+                    const structId = enumType.intValues[cacheIdx];
+                    if (replacedStructIds.has(structId)) continue;
+                    nonReplacedSeen++;
+                    if (nonReplacedSeen === target) {
+                        key = cacheKey;
+                        break;
+                    }
+                }
+            }
         }
 
         if (enumType?.outputType === "s") {

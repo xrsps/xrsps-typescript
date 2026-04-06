@@ -217,6 +217,7 @@ function mergeStates(
     const varps: Record<number, number> = {};
     const varbits: Record<number, number> = {};
     const leagueTaskProgress: Record<number, number> = {};
+    const leagueChallengeProgress: Record<number, number> = {};
     const sources: PlayerPersistentVars[] = [defaults ?? {}, overrides ?? {}];
     for (const source of sources) {
         if (source.varps) {
@@ -243,6 +244,14 @@ function mergeStates(
                 }
             }
         }
+        if (source.leagueChallengeProgress) {
+            for (const [key, value] of Object.entries(source.leagueChallengeProgress)) {
+                const challengeId = parseInt(key, 10);
+                if (!Number.isNaN(challengeId)) {
+                    leagueChallengeProgress[challengeId] = value;
+                }
+            }
+        }
     }
     const result: PlayerPersistentVars = {};
     if (Object.keys(varps).length > 0) result.varps = varps;
@@ -259,6 +268,20 @@ function mergeStates(
         }
         if (Object.keys(sanitizedLeagueTaskProgress).length > 0) {
             result.leagueTaskProgress = sanitizedLeagueTaskProgress;
+        }
+    }
+    if (Object.keys(leagueChallengeProgress).length > 0) {
+        const sanitizedLeagueChallengeProgress: Record<number, number> = {};
+        for (const [key, value] of Object.entries(leagueChallengeProgress)) {
+            const challengeId = parseInt(key, 10);
+            if (Number.isNaN(challengeId) || challengeId < 0) continue;
+            const normalized = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+            if (normalized > 0) {
+                sanitizedLeagueChallengeProgress[challengeId] = normalized;
+            }
+        }
+        if (Object.keys(sanitizedLeagueChallengeProgress).length > 0) {
+            result.leagueChallengeProgress = sanitizedLeagueChallengeProgress;
         }
     }
     const bankSource = overrides?.bank ?? defaults?.bank;

@@ -37,6 +37,8 @@ export type LeagueTaskPlayer = {
     getLeagueTaskProgress: (taskId: number) => number;
     setLeagueTaskProgress: (taskId: number, value: number) => void;
     clearLeagueTaskProgress: (taskId: number) => void;
+    getChallengeProgress: (customIndex: number) => number;
+    setChallengeProgress: (customIndex: number, value: number) => void;
 };
 
 function getLeagueTaskBitfield(taskId: number): { varpId: number; mask: number } {

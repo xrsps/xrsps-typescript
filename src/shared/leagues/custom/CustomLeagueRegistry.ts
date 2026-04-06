@@ -49,6 +49,9 @@ const challengesByStructId = new Map<number, RegisteredCustomChallenge>();
 /** Challenges grouped by enum ID for enum overrides (APPENDED to enum) */
 const challengesByEnumId = new Map<number, RegisteredCustomChallenge[]>();
 
+/** Cache struct IDs replaced by custom challenges (to avoid enum duplicates) */
+const replacedCacheStructIds = new Set<number>();
+
 // Synthetic task ID base - uses groups 58-61 (taskIds 1856-1983)
 // CS2 script league_task_is_completed only handles groups 0-61
 // Cache tasks max at taskId 1845 (group 57), so groups 58-61 are free
@@ -115,6 +118,11 @@ const SYNTHETIC_TASK_ID_BASE = 1856;
 
         registeredChallenges.push(registered);
         challengesByStructId.set(registered.structId, registered);
+
+        // Track replaced cache struct IDs to exclude from enum
+        if (challenge.replacesStructId !== undefined) {
+            replacedCacheStructIds.add(challenge.replacesStructId | 0);
+        }
 
         // All challenges go to enum 5695
         let arr = challengesByEnumId.get(ENUM_IDS.MASTERY_CHALLENGES);
@@ -206,6 +214,9 @@ function getChallengeStructParam(
  * Get the count override for an enum (number of custom entries to add).
  * Called by ConfigOps.ts ENUM_GETOUTPUTCOUNT handler.
  *
+ * For mastery challenges (enum 5695), replacement challenges don't increase the
+ * total count since they replace existing cache entries.
+ *
  * @param enumId The enum ID being queried
  * @returns Number of custom entries to add to the enum count
  */
@@ -218,10 +229,14 @@ export function getEnumCountOverride(enumId: number): number {
         return tasks.length;
     }
 
-    // Check for appended challenges
+    // Check for prepended challenges
     const challenges = challengesByEnumId.get(eid);
     if (challenges && challenges.length > 0) {
-        return challenges.length;
+        // Custom challenges that replace cache entries don't add to the total count.
+        // They take the place of the cache entry they replace, so net effect is:
+        // newEntries = customCount - replacementCount
+        const newEntries = challenges.filter((c) => c.replacesStructId === undefined).length;
+        return newEntries;
     }
 
     return 0;
@@ -230,7 +245,9 @@ export function getEnumCountOverride(enumId: number): number {
 /**
  * Get enum value override for custom content.
  * - Custom tasks are PREPENDED to the enum (inserted at the beginning)
- * - Custom challenges are APPENDED to the enum (added at the end)
+ * - Custom challenges are PREPENDED to the enum (inserted at the beginning)
+ *   - Replacement challenges take the place of their cache counterpart (no duplication)
+ *   - Cache entries matching a replacedStructId are skipped during key resolution
  *
  * Called by ConfigOps.ts ENUM handler.
  *
@@ -264,7 +281,7 @@ export function getEnumValueOverride(
     // Check for prepended challenges (challenges are inserted at beginning)
     // The mastery challenge enum uses 1-based keys (1, 2, 3...)
     // Custom challenges are inserted at keys 1..(customCount)
-    // Original cache challenges shift from key N to key N + customCount
+    // Cache challenges that are NOT replaced follow after, with replaced entries skipped.
     const challenges = challengesByEnumId.get(eid);
     if (challenges && challenges.length > 0) {
         const customCount = challenges.length;
@@ -274,12 +291,51 @@ export function getEnumValueOverride(
             return { custom: challenges[k - 1].structId };
         }
 
-        // Original enum keys are shifted: key N becomes N - customCount
-        // (only applies to keys > customCount)
+        // Keys > customCount map to cache entries, but we need to skip replaced entries.
+        // The ConfigOps ENUM handler will use the shiftedKey to look up the cache enum.
+        // We return a shiftedKey that accounts for replaced entries being removed.
+        //
+        // Example with 3 custom challenges (2 replacements) and 10 cache entries:
+        //   Total = 3 custom + (10 - 2 replaced) = 11 entries
+        //   Keys 1-3: custom challenges
+        //   Keys 4-11: cache challenges (skipping replaced struct IDs)
+        //
+        // The cache enum has 1-based keys: 1=struct1177, 2=struct1178, ..., 10=struct1186
+        // If struct 1177 (cache key 1) and 1178 (cache key 2) are replaced:
+        //   Our key 4 → cache key 3 (skipping replaced keys 1 and 2)
+        //   Our key 5 → cache key 4, etc.
+        //
+        // We achieve this by returning a shiftedKey that the cache handler will resolve.
+        // However, ConfigOps uses `shiftedKey` to directly index the original cache enum,
+        // so we need to map: our key → how many non-replaced cache entries to skip → original cache key.
+        //
+        // Position within the cache section: keyInCacheSection = k - customCount (1-based)
+        // We need the Nth non-replaced cache entry (1-based).
+        if (replacedCacheStructIds.size === 0) {
+            // No replacements — simple shift like before
+            return { shiftedKey: k - customCount };
+        }
+
+        // We need to tell ConfigOps which original cache key to use.
+        // The problem: we don't know which cache keys map to which struct IDs here.
+        // Solution: return a special marker that ConfigOps can use.
+        // Actually, we DO know the replaced struct IDs, but not the cache key→struct mapping.
+        //
+        // Alternative approach: return the shifted key with skip count.
+        // ConfigOps will need to handle skipping replaced structs.
+        // For now, use the skipReplacedCacheEntries mechanism.
         return { shiftedKey: k - customCount };
     }
 
     return undefined;
+}
+
+/**
+ * Get the set of cache struct IDs that are replaced by custom challenges.
+ * ConfigOps uses this to skip replaced cache entries when resolving enum keys.
+ */
+export function getReplacedChallengeStructIds(): ReadonlySet<number> {
+    return replacedCacheStructIds;
 }
 
 // =============================================================================

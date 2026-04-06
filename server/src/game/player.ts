@@ -375,6 +375,7 @@ export interface PlayerPersistentVars {
     varps?: Record<number, number>;
     varbits?: Record<number, number>;
     leagueTaskProgress?: Record<number, number>;
+    leagueChallengeProgress?: Record<number, number>;
     /** Server-only onboarding progression (project-specific). */
     accountStage?: number;
     accountCreationTimeMs?: number;
@@ -560,6 +561,7 @@ export class PlayerState extends Actor {
     private varpValues: Map<number, number> = new Map();
     private varbitValues: Map<number, number> = new Map();
     private leagueTaskProgress: Map<number, number> = new Map();
+    private leagueChallengeProgress: Map<number, number> = new Map();
 
     // Music region tracking for area-based music
     private lastMusicRegionId: number = -1;
@@ -1666,6 +1668,21 @@ export class PlayerState extends Actor {
         this.leagueTaskProgress.delete(taskId | 0);
     }
 
+    getChallengeProgress(customIndex: number): number {
+        return this.leagueChallengeProgress.get(customIndex | 0) ?? 0;
+    }
+
+    setChallengeProgress(customIndex: number, value: number): void {
+        const idx = customIndex | 0;
+        if (idx < 0) return;
+        const normalized = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+        if (normalized > 0) {
+            this.leagueChallengeProgress.set(idx, normalized);
+        } else {
+            this.leagueChallengeProgress.delete(idx);
+        }
+    }
+
     // Music region tracking
     getLastMusicRegionId(): number {
         return this.lastMusicRegionId;
@@ -2653,6 +2670,15 @@ export class PlayerState extends Actor {
         if (Object.keys(leagueTaskProgress).length > 0) {
             snapshot.leagueTaskProgress = leagueTaskProgress;
         }
+        const leagueChallengeProgress: Record<number, number> = {};
+        for (const [idx, value] of this.leagueChallengeProgress.entries()) {
+            if (value > 0) {
+                leagueChallengeProgress[idx] = value;
+            }
+        }
+        if (Object.keys(leagueChallengeProgress).length > 0) {
+            snapshot.leagueChallengeProgress = leagueChallengeProgress;
+        }
         // Persist character design (gender/body kits/colors). Equipment is stored separately.
         snapshot.accountStage = Number.isFinite(this.accountStage) ? this.accountStage : 1;
         if (this.appearance) {
@@ -2747,6 +2773,7 @@ export class PlayerState extends Actor {
         this.varpValues.clear();
         this.varbitValues.clear();
         this.leagueTaskProgress.clear();
+        this.leagueChallengeProgress.clear();
         if (!state) {
             this.setVarbitValue(VARBIT_XPDROPS_ENABLED, DEFAULT_XPDROPS_ENABLED);
             this.ensureBankInitialized();
@@ -2797,6 +2824,14 @@ export class PlayerState extends Actor {
                 const taskId = parseInt(key, 10);
                 if (!Number.isNaN(taskId)) {
                     this.setLeagueTaskProgress(taskId, value);
+                }
+            }
+        }
+        if (state.leagueChallengeProgress) {
+            for (const [key, value] of Object.entries(state.leagueChallengeProgress)) {
+                const idx = parseInt(key, 10);
+                if (!Number.isNaN(idx)) {
+                    this.setChallengeProgress(idx, value);
                 }
             }
         }
