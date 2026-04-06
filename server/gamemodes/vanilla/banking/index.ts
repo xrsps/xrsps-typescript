@@ -53,7 +53,7 @@ export function registerBankingHandlers(registry: IScriptRegistry, services: Scr
                 ? true
                 : modeRaw === "swap"
                 ? false
-                : event.player.getBankInsertMode?.() ?? false;
+                : event.player.bank.getBankInsertMode();
         const entry = event.services.getBankEntryAtClientSlot?.(event.player, from);
         if (!entry) return;
         // Use the withdrawFromBankSlot/queueBankSnapshot pattern via moveBankSlot

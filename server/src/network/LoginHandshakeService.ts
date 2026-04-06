@@ -395,7 +395,7 @@ export class LoginHandshakeService {
 
                 p.setItemDefResolver((id) => getItemDefinition(id));
 
-                p.onDeath = () => {
+                p.status.onDeath = () => {
                     if (this.server.playerDeathService) {
                         this.server.playerDeathService.startPlayerDeath(p!);
                     }
@@ -412,7 +412,7 @@ export class LoginHandshakeService {
                     this.server.equipmentService.ensureEquipArray(p);
                     this.server.appearanceService.refreshAppearanceKits(p);
                     this.server.equipmentService.refreshCombatWeaponCategory(p);
-                    p.attackDelay = this.server.playerCombatService.pickAttackSpeed(p);
+                    p.combat.attackDelay = this.server.playerCombatService.pickAttackSpeed(p);
                     const saveKey = this.server.getPlayerSaveKey(name, p.id);
                     p.__saveKey = saveKey;
                     try {

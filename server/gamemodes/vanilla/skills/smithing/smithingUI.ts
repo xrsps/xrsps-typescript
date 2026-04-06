@@ -119,8 +119,8 @@ export class SmithingUI {
             mode,
             title: mode === "smelt" ? "Smelting" : "Smithing",
             options,
-            quantityMode: player.getSmithingQuantityMode(),
-            customQuantity: player.getSmithingCustomQuantity(),
+            quantityMode: player.bank.getSmithingQuantityMode(),
+            customQuantity: player.bank.getSmithingCustomQuantity(),
         });
     }
 
@@ -235,16 +235,16 @@ export class SmithingUI {
 
     handleModeChange(player: PlayerState, modeRaw: number, customRaw?: number): void {
         const mode = Math.max(0, Math.min(4, modeRaw));
-        player.setSmithingQuantityMode(mode);
+        player.bank.setSmithingQuantityMode(mode);
         if (mode === 3 && customRaw !== undefined && customRaw > 0) {
-            player.setSmithingCustomQuantity(customRaw);
+            player.bank.setSmithingCustomQuantity(customRaw);
         } else if (mode !== 3 && customRaw !== undefined) {
-            player.setSmithingCustomQuantity(customRaw);
+            player.bank.setSmithingCustomQuantity(customRaw);
         }
         this.services.production?.queueSmithingMessage?.(player.id, {
             kind: "mode",
-            quantityMode: player.getSmithingQuantityMode(),
-            customQuantity: player.getSmithingCustomQuantity(),
+            quantityMode: player.bank.getSmithingQuantityMode(),
+            customQuantity: player.bank.getSmithingCustomQuantity(),
         });
     }
 
@@ -266,8 +266,8 @@ export class SmithingUI {
             this.updateSmeltingInterface(player);
             return;
         }
-        const currentMode = player.getSmithingQuantityMode();
-        const customAmount = player.getSmithingCustomQuantity();
+        const currentMode = player.bank.getSmithingQuantityMode();
+        const customAmount = player.bank.getSmithingCustomQuantity();
         const desiredRaw = requestedCount && requestedCount > 0
             ? requestedCount
             : this.resolveQuantity(currentMode, available, customAmount);
@@ -308,8 +308,8 @@ export class SmithingUI {
             this.updateSmithingInterface(player);
             return;
         }
-        const currentMode = player.getSmithingQuantityMode();
-        const customAmount = player.getSmithingCustomQuantity();
+        const currentMode = player.bank.getSmithingQuantityMode();
+        const customAmount = player.bank.getSmithingCustomQuantity();
         const desiredRaw = requestedCount && requestedCount > 0
             ? requestedCount
             : this.resolveQuantity(currentMode, available, customAmount);

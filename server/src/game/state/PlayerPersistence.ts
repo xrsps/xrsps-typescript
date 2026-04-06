@@ -6,7 +6,6 @@ import { MAX_XP, SKILL_IDS } from "../../../../src/rs/skill/skills";
 import { DEFAULT_EQUIP_SLOT_COUNT } from "../equipment";
 import {
     type BankSnapshotEntry,
-    DEFAULT_BANK_CAPACITY,
     type EquipmentSnapshotEntry,
     INVENTORY_SLOT_COUNT,
     type InventorySnapshotEntry,
@@ -16,6 +15,7 @@ import {
     PlayerState,
     normalizeSkillXpValue,
 } from "../player";
+import { DEFAULT_BANK_CAPACITY } from "./PlayerBankSystem";
 
 const DEFAULT_DATA_DIR = path.resolve(__dirname, "../../../data");
 const MAX_TILE_COORD = 32767;

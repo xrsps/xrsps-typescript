@@ -297,7 +297,7 @@ export class VanillaGamemode implements GamemodeDefinition {
             (playerId, _payload) => {
                 const player = ss.getPlayer(playerId);
                 if (player) {
-                    player.setBankClientSlotMapping(bm.buildBankSlotMapping(player));
+                    player.bank.setBankClientSlotMapping(bm.buildBankSlotMapping(player));
                 }
             },
         );
@@ -393,8 +393,8 @@ export class VanillaGamemode implements GamemodeDefinition {
             name: snapshot.name,
             currencyItemId: snapshot.currencyItemId,
             generalStore: snapshot.generalStore,
-            buyMode: player.getShopBuyMode(),
-            sellMode: player.getShopSellMode(),
+            buyMode: player.bank.getShopBuyMode(),
+            sellMode: player.bank.getShopSellMode(),
             stock: snapshot.stock.map((entry) => ({
                 slot: entry.slot,
                 itemId: entry.itemId,

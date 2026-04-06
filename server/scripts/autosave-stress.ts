@@ -6,7 +6,6 @@ import { MAX_XP, SKILL_IDS, getXpForLevel } from "../../src/rs/skill/skills";
 import { DEFAULT_EQUIP_SLOT_COUNT } from "../src/game/equipment";
 import {
     type BankSnapshotEntry,
-    DEFAULT_BANK_CAPACITY,
     type EquipmentSnapshotEntry,
     INVENTORY_SLOT_COUNT,
     type InventorySnapshotEntry,
@@ -15,6 +14,7 @@ import {
     type PlayerSkillPersistentEntry,
     PlayerState,
 } from "../src/game/player";
+import { DEFAULT_BANK_CAPACITY } from "../src/game/state/PlayerBankSystem";
 import { PlayerPersistence } from "../src/game/state/PlayerPersistence";
 
 const DEFAULT_OPTIONS = {

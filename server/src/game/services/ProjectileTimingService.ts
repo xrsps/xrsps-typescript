@@ -103,8 +103,8 @@ export class ProjectileTimingService {
                         castSeq = opts.spellData.castAnimId;
                     } else if (opts.spellData.id > 0) {
                         const isAutocast =
-                            !!opts.player.autocastEnabled &&
-                            (opts.player.combatSpellId ?? -1) === opts.spellData.id;
+                            !!opts.player.combat.autocastEnabled &&
+                            (opts.player.combat.spellId ?? -1) === opts.spellData.id;
                         castSeq = this.deps.pickSpellCastSequence(
                             opts.player,
                             opts.spellData.id,

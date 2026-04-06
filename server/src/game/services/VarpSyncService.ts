@@ -138,7 +138,7 @@ export class VarpSyncService {
             let value = player.varps.getVarpValue(varpId);
 
             if (varpId === VARP_AUTO_RETALIATE) {
-                value = player.autoRetaliate ? 0 : 1;
+                value = player.combat.autoRetaliate ? 0 : 1;
                 player.varps.setVarpValue(VARP_AUTO_RETALIATE, value);
             }
 

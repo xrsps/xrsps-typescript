@@ -103,7 +103,7 @@ export class ShopManager {
         if (!existing) return undefined;
         existing.watchers.delete(playerId);
         this.playerToShop.delete(playerId);
-        player.setActiveShopId(undefined);
+        player.bank.setActiveShopId(undefined);
         return existing;
     }
 
@@ -128,7 +128,7 @@ export class ShopManager {
         mode: number,
     ): { shopId?: string; buyMode: number } | undefined {
         const normalized = Math.max(0, Math.min(4, Math.trunc(mode)));
-        player.setShopBuyMode(normalized);
+        player.bank.setShopBuyMode(normalized);
         return { shopId: this.getShopIdForPlayer(player), buyMode: normalized };
     }
 
@@ -137,7 +137,7 @@ export class ShopManager {
         mode: number,
     ): { shopId?: string; sellMode: number } | undefined {
         const normalized = Math.max(0, Math.min(4, Math.trunc(mode)));
-        player.setShopSellMode(normalized);
+        player.bank.setShopSellMode(normalized);
         return { shopId: this.getShopIdForPlayer(player), sellMode: normalized };
     }
 
@@ -323,7 +323,7 @@ export class ShopManager {
         this.closeShopForPlayer(player);
         shop.watchers.add(player.id);
         this.playerToShop.set(player.id, shop);
-        player.setActiveShopId(shop.id);
+        player.bank.setActiveShopId(shop.id);
         return this.buildSnapshot(shop);
     }
 

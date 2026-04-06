@@ -80,7 +80,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 return;
             }
             player.skillSystem.setSkillBoost(SkillId.Prayer, baseLevel);
-            player.resetPrayerDrainAccumulator();
+            player.prayer.resetDrainAccumulator();
             services.sendGameMessage(player, "You recharge your Prayer points.");
             markCooldown(lastPrayTickByPlayer, pid, tick);
         });

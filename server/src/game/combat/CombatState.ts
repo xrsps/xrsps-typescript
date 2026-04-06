@@ -72,23 +72,23 @@ export interface PlayerCombatConfig {
  * Extract PlayerCombatConfig from a PlayerState.
  * Helper to avoid direct coupling to PlayerState in combat logic.
  */
-export function extractPlayerCombatConfig(player: {
-    combatWeaponCategory: number;
-    combatWeaponItemId: number;
-    combatWeaponRange: number;
-    combatStyleSlot: number;
-    combatSpellId: number;
+export function extractPlayerCombatConfig(combat: {
+    weaponCategory: number;
+    weaponItemId: number;
+    weaponRange: number;
+    styleSlot: number;
+    spellId: number;
     autocastEnabled: boolean;
     autocastMode: "autocast" | "defensive_autocast" | null;
 }): PlayerCombatConfig {
     return {
-        weaponCategory: player.combatWeaponCategory,
-        weaponItemId: player.combatWeaponItemId,
-        weaponRange: player.combatWeaponRange,
-        styleSlot: player.combatStyleSlot,
-        spellId: player.combatSpellId,
-        autocastEnabled: player.autocastEnabled,
-        autocastMode: player.autocastMode,
+        weaponCategory: combat.weaponCategory,
+        weaponItemId: combat.weaponItemId,
+        weaponRange: combat.weaponRange,
+        styleSlot: combat.styleSlot,
+        spellId: combat.spellId,
+        autocastEnabled: combat.autocastEnabled,
+        autocastMode: combat.autocastMode,
     };
 }
 

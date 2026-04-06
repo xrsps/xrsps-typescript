@@ -45,8 +45,8 @@ export function applyAutocastState(
     }
 
     player.setCombatSpell(spellId);
-    player.autocastEnabled = true;
-    player.autocastMode = isDefensive ? "defensive_autocast" : "autocast";
+    player.combat.autocastEnabled = true;
+    player.combat.autocastMode = isDefensive ? "defensive_autocast" : "autocast";
 
     syncAutocastVarbit(player, VARBIT_AUTOCAST_SET, 1, callbacks);
     syncAutocastVarbit(player, VARBIT_AUTOCAST_SPELL, autocastIndex, callbacks);
@@ -59,8 +59,8 @@ export function restoreAutocastState(
     weaponItemId: number,
     callbacks: AutocastSyncCallbacks = {},
 ): void {
-    const spellId = player.combatSpellId ?? -1;
-    const autocastEnabled = !!player.autocastEnabled;
+    const spellId = player.combat.spellId ?? -1;
+    const autocastEnabled = !!player.combat.autocastEnabled;
     const autocastIndex = spellId > 0 ? getAutocastIndexFromSpellId(spellId) : undefined;
 
     if (!autocastEnabled || !(spellId > 0) || !(autocastIndex && autocastIndex > 0)) {
@@ -78,7 +78,7 @@ export function restoreAutocastState(
         player,
         spellId,
         autocastIndex,
-        player.autocastMode === "defensive_autocast",
+        player.combat.autocastMode === "defensive_autocast",
         callbacks,
     );
 }

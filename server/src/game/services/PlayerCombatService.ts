@@ -64,10 +64,10 @@ export class PlayerCombatService {
 
     pickAttackSequence(player: PlayerState): number {
         try {
-            const spellId = player.combatSpellId;
-            const autocastEnabled = !!player.autocastEnabled;
+            const spellId = player.combat.spellId;
+            const autocastEnabled = !!player.combat.autocastEnabled;
             if (spellId > 0 && autocastEnabled) {
-                const category = player.combatWeaponCategory ?? 0;
+                const category = player.combat.weaponCategory ?? 0;
                 if (MAGIC_WEAPON_CATEGORY_IDS.has(category)) {
                     const mapped = SPELL_CAST_SEQUENCE_OVERRIDES[spellId];
                     if (mapped) return mapped;
@@ -75,14 +75,14 @@ export class PlayerCombatService {
                 }
             }
 
-            const weaponCategory = player.combatWeaponCategory ?? 0;
+            const weaponCategory = player.combat.weaponCategory ?? 0;
             const equip = this.deps.ensureEquipArray(player);
             const weaponId = equip[EquipmentSlot.WEAPON];
 
             if (weaponId > 0) {
                 const dataEntry = this.deps.weaponData.get(weaponId);
                 if (dataEntry) {
-                    const styleSlot = player.combatStyleSlot ?? 0;
+                    const styleSlot = player.combat.styleSlot ?? 0;
                     const attackSequences = dataEntry?.attackSequences;
                     if (attackSequences) {
                         const styleAnim = attackSequences[styleSlot as 0 | 1 | 2 | 3];
@@ -95,7 +95,7 @@ export class PlayerCombatService {
                 }
             }
 
-            const styleSlot = player.combatStyleSlot ?? 0;
+            const styleSlot = player.combat.styleSlot ?? 0;
             const mapped = getMeleeAttackSequenceForCategory(weaponCategory, styleSlot);
             if (mapped !== undefined && mapped > 0) return mapped;
         } catch (err) { logger.warn("[combat] failed to resolve attack sequence", err); }
@@ -104,9 +104,9 @@ export class PlayerCombatService {
 
     pickCombatSound(player: PlayerState, isHit: boolean): number {
         try {
-            const spellId = player.combatSpellId ?? -1;
-            const autocastEnabled = !!player.autocastEnabled;
-            const category = player.combatWeaponCategory ?? 0;
+            const spellId = player.combat.spellId ?? -1;
+            const autocastEnabled = !!player.combat.autocastEnabled;
+            const category = player.combat.weaponCategory ?? 0;
             if (spellId > 0 && autocastEnabled && MAGIC_WEAPON_CATEGORY_IDS.has(category)) {
                 const stage: "impact" | "splash" = isHit ? "impact" : "splash";
                 const spellSound = this.pickSpellSound(spellId, stage);
@@ -115,7 +115,7 @@ export class PlayerCombatService {
             if (!isHit) return getMissSound();
             const equip = this.deps.ensureEquipArray(player);
             const weaponId = equip[EquipmentSlot.WEAPON];
-            const styleSlot = player.combatStyleSlot ?? 0;
+            const styleSlot = player.combat.styleSlot ?? 0;
             if (weaponId > 0) {
                 const hitSound = getHitSoundForStyle(weaponId, styleSlot);
                 if (hitSound !== undefined) return hitSound;
@@ -185,8 +185,8 @@ export class PlayerCombatService {
         const equip = this.deps.ensureEquipArray(player);
         const weaponId = equip[EquipmentSlot.WEAPON];
         const baseSpeed = this.resolveBaseAttackSpeed(player);
-        const weaponCategory = player.combatWeaponCategory ?? 0;
-        const styleSlot = player.combatStyleSlot ?? 0;
+        const weaponCategory = player.combat.weaponCategory ?? 0;
+        const styleSlot = player.combat.styleSlot ?? 0;
         if (RANGED_WEAPON_CATEGORY_IDS.has(weaponCategory)) {
             const actualStyle = getAttackStyle(weaponId, styleSlot);
             if (actualStyle === AttackStyle.RAPID) return Math.max(1, baseSpeed - 1);
@@ -205,7 +205,7 @@ export class PlayerCombatService {
                 if (rawRange !== undefined && rawRange > 0) baseRange = rawRange;
             }
         } catch (err) { logger.warn("[combat] failed to resolve attack range", err); }
-        return resolvePlayerAttackReach(player, { baseRange });
+        return resolvePlayerAttackReach(player.combat, { baseRange });
     }
 
     pickSpellCastSequence(
@@ -214,7 +214,7 @@ export class PlayerCombatService {
         isAutocast: boolean,
     ): number {
         const normalizedSpellId = spellId;
-        const category = player.combatWeaponCategory ?? 0;
+        const category = player.combat.weaponCategory ?? 0;
         const hasMagicWeapon = MAGIC_WEAPON_CATEGORY_IDS.has(category);
 
         if (hasMagicWeapon) {
@@ -235,8 +235,8 @@ export class PlayerCombatService {
     deriveAttackTypeFromStyle(style: number | undefined, attacker?: PlayerState): AttackType {
         const stored = attacker?.getCurrentAttackType?.();
         if (stored) return stored;
-        if (style === 3 || (attacker?.combatSpellId ?? -1) > 0) return "magic";
-        const category = attacker?.combatWeaponCategory ?? -1;
+        if (style === 3 || (attacker?.combat.spellId ?? -1) > 0) return "magic";
+        const category = attacker?.combat.weaponCategory ?? -1;
         if (MAGIC_WEAPON_CATEGORY_IDS.has(category)) return "magic";
         if (RANGED_WEAPON_CATEGORY_IDS.has(category)) return "ranged";
         return "melee";

@@ -1,8 +1,5 @@
 import { EquipmentSlot } from "../../../src/rs/config/player/Equipment";
 import {
-    PRAYER_HEAD_ICON_IDS,
-    PRAYER_NAME_SET,
-    PrayerHeadIcon,
     PrayerName,
 } from "../../../src/rs/prayer/prayers";
 import {
@@ -45,6 +42,8 @@ import { PlayerStatusState } from "./state/PlayerStatusState";
 import { PlayerAggressionTracker } from "./state/PlayerAggressionTracker";
 import { PlayerRunEnergyState } from "./state/PlayerRunEnergyState";
 import { PlayerVarpState } from "./state/PlayerVarpState";
+import { PlayerBankSystem, DEFAULT_BANK_CAPACITY } from "./state/PlayerBankSystem";
+import { PlayerSpecialEnergyState } from "./state/PlayerSpecialEnergyState";
 import {
     PlayerSkillSystem,
     type SkillEntry,
@@ -157,27 +156,11 @@ export interface PlayerFollowerPersistentEntry {
 
 export type { CollectionLogUnlockEntry } from "./state/PlayerCollectionLogState";
 
-// modern OSRS bank starts at 800 slots (varp BANK_LOCKED_SLOTS is based on 1410 max slots).
-export const DEFAULT_BANK_CAPACITY = 800;
 export const INVENTORY_SLOT_COUNT = 28;
-
-function createEmptyBank(capacity: number): BankEntry[] {
-    return Array.from({ length: capacity }, () => ({
-        itemId: -1,
-        quantity: 0,
-        placeholder: false,
-        tab: 0,
-    }));
-}
 
 function createEmptyInventory(): InventoryEntry[] {
     return Array.from({ length: INVENTORY_SLOT_COUNT }, () => ({ itemId: -1, quantity: 0 }));
 }
-
-const SPECIAL_ENERGY_MAX = 100;
-const SPECIAL_ENERGY_REGEN_CHUNK = 10;
-const SPECIAL_ENERGY_REGEN_INTERVAL_TICKS = 50;
-const DEFAULT_SPECIAL_ACCURACY_MULTIPLIER = 1.1;
 
 const DEFAULT_MAX_COMBAT_STYLE_SLOT = 3;
 /**
@@ -290,51 +273,12 @@ export class PlayerState extends Actor {
     /** Composed combat state (weapon, style, targets, freeze, special energy, etc.) */
     readonly combat = new PlayerCombatState();
 
-    // Delegation accessors for combat fields (preserves public API)
-    get autoRetaliate(): boolean { return this.combat.autoRetaliate; }
-    set autoRetaliate(v: boolean) { this.combat.autoRetaliate = v; }
-    get combatWeaponCategory(): number { return this.combat.weaponCategory; }
-    set combatWeaponCategory(v: number) { this.combat.weaponCategory = v; }
-    get combatWeaponItemId(): number { return this.combat.weaponItemId; }
-    set combatWeaponItemId(v: number) { this.combat.weaponItemId = v; }
-    get combatWeaponRange(): number { return this.combat.weaponRange; }
-    set combatWeaponRange(v: number) { this.combat.weaponRange = v; }
-    get combatStyleSlot(): number { return this.combat.styleSlot; }
-    set combatStyleSlot(v: number) { this.combat.styleSlot = v; }
-    get combatStyleCategory(): number | undefined { return this.combat.styleCategory; }
-    set combatStyleCategory(v: number | undefined) { this.combat.styleCategory = v; }
-    get combatSpellId(): number { return this.combat.spellId; }
-    set combatSpellId(v: number) { this.combat.spellId = v; }
-    get autocastEnabled(): boolean { return this.combat.autocastEnabled; }
-    set autocastEnabled(v: boolean) { this.combat.autocastEnabled = v; }
-    get autocastMode(): "autocast" | "defensive_autocast" | null { return this.combat.autocastMode; }
-    set autocastMode(v: "autocast" | "defensive_autocast" | null) { this.combat.autocastMode = v; }
-    get pendingAutocastDefensive(): boolean | undefined { return this.combat.pendingAutocastDefensive; }
-    set pendingAutocastDefensive(v: boolean | undefined) { this.combat.pendingAutocastDefensive = v; }
-    get pendingAutocastWeaponId(): number | undefined { return this.combat.pendingAutocastWeaponId; }
-    set pendingAutocastWeaponId(v: number | undefined) { this.combat.pendingAutocastWeaponId = v; }
-    get lastSpellCastTick(): number { return this.combat.lastSpellCastTick; }
-    set lastSpellCastTick(v: number) { this.combat.lastSpellCastTick = v; }
-    get pendingPlayerSpellDamage(): { targetId: number } | undefined { return this.combat.pendingPlayerSpellDamage; }
-    set pendingPlayerSpellDamage(v: { targetId: number } | undefined) { this.combat.pendingPlayerSpellDamage = v; }
-    get slayerTask() { return this.combat.slayerTask; }
-    set slayerTask(v: typeof this.combat.slayerTask) { this.combat.slayerTask = v; }
-    get attackDelay(): number { return this.combat.attackDelay; }
-    set attackDelay(v: number) { this.combat.attackDelay = v; }
-    get _lastWildernessLevel(): number { return this.combat.lastWildernessLevel; }
-    set _lastWildernessLevel(v: number) { this.combat.lastWildernessLevel = v; }
-    get _lastInMultiCombat(): boolean { return this.combat.lastInMultiCombat; }
-    set _lastInMultiCombat(v: boolean) { this.combat.lastInMultiCombat = v; }
-    get _lastInPvPArea(): boolean { return this.combat.lastInPvPArea; }
-    set _lastInPvPArea(v: boolean) { this.combat.lastInPvPArea = v; }
-    get _lastInRaid(): boolean { return this.combat.lastInRaid; }
-    set _lastInRaid(v: boolean) { this.combat.lastInRaid = v; }
-    get _lastInLMS(): boolean { return this.combat.lastInLMS; }
-    set _lastInLMS(v: boolean) { this.combat.lastInLMS = v; }
     /** Save key for persistence. */
     __saveKey?: string;
     /** Composed inventory/bank/shop state */
     readonly items = new PlayerInventoryState();
+    /** Composed bank operations system */
+    readonly bank = new PlayerBankSystem(this.items);
     /** Composed account metadata (creation time, play time, stage) */
     readonly account = new PlayerAccountState();
     /** Composed collection log state */
@@ -344,13 +288,6 @@ export class PlayerState extends Actor {
     /** Composed status state (hitpoints, poison, venom, disease, regen) */
     readonly status = new PlayerStatusState();
 
-    // Prayer delegation accessors
-    get activePrayers(): Set<PrayerName> { return this.prayer.activePrayers; }
-    set activePrayers(v: Set<PrayerName>) { this.prayer.activePrayers = v; }
-
-    // Status delegation accessors
-    get onDeath(): (() => void) | undefined { return this.status.onDeath; }
-    set onDeath(v: (() => void) | undefined) { this.status.onDeath = v; }
     /** Composed run energy & stamina state */
     readonly energy = new PlayerRunEnergyState(
         this as any,
@@ -360,11 +297,9 @@ export class PlayerState extends Actor {
     readonly aggression = new PlayerAggressionTracker();
     /** Composed varp/varbit storage */
     readonly varps = new PlayerVarpState();
+    /** Composed special attack energy state */
+    readonly specEnergy = new PlayerSpecialEnergyState(this.combat);
     private equipmentChargeMap = new Map<number, number>();
-    get degradationCharges(): ChargeTracker { return this.combat.degradationCharges; }
-    set degradationCharges(v: ChargeTracker) { this.combat.degradationCharges = v; }
-    get degradationLastItemId(): Map<number, number> { return this.combat.degradationLastItemId; }
-    set degradationLastItemId(v: Map<number, number>) { this.combat.degradationLastItemId = v; }
     private walkDestination?: { x: number; y: number };
     private walkDestinationRun: boolean = false;
     private walkRepathAfterTick: number = Number.MIN_SAFE_INTEGER;
@@ -375,9 +310,6 @@ export class PlayerState extends Actor {
     // These mirror RSMod's COMBAT_TARGET_FOCUS_ATTR, INTERACTING_NPC_ATTR, etc.
     // ========================================================================
 
-    // Combat target/interaction WeakRefs delegated to combat state
-    get attackDelayTicks(): number { return this.combat.attackDelayTicks; }
-    set attackDelayTicks(v: number) { this.combat.attackDelayTicks = v; }
 
     // Combat target accessors
     getCombatTarget(): NpcState | PlayerState | null {
@@ -457,7 +389,7 @@ export class PlayerState extends Actor {
      * RSMod: Combat.isAttackDelayReady(pawn)
      */
     isAttackDelayReady(): boolean {
-        return this.attackDelayTicks <= 0;
+        return this.combat.attackDelayTicks <= 0;
     }
 
     // ========================================================================
@@ -645,14 +577,14 @@ export class PlayerState extends Actor {
         this.widgets = new PlayerWidgetManager();
         this.skillSystem = new PlayerSkillSystem(
             this.status,
-            (name) => this.hasPrayerActive(name as PrayerName),
+            (name) => this.prayer.hasPrayerActive(name as PrayerName),
             (h, s, l, o, d) => this.setColorOverride(h, s, l, o, d),
             PlayerState.gamemodeRef?.getDefaultSkillXp
                 ? (id) => PlayerState.gamemodeRef!.getDefaultSkillXp!(id)
                 : undefined,
         );
         this.skillSystem.requestFullSkillSync();
-        this.combatStyleCategory = 0;
+        this.combat.styleCategory = 0;
         this.appearance = {
             gender: 0,
             colors: undefined,
@@ -660,6 +592,16 @@ export class PlayerState extends Actor {
             equip: new Array<number>(DEFAULT_EQUIP_SLOT_COUNT).fill(-1),
             headIcons: { prayer: -1 },
         };
+        // Wire prayer deps for head icon and prayer level resolution
+        this.prayer.setDeps({
+            getPrayerSkillLevel: () => {
+                const skill = this.skillSystem.getSkill(SkillId.Prayer);
+                return Math.max(0, skill.baseLevel + skill.boost);
+            },
+            setHeadIconIndex: (index) => {
+                this.appearance.headIcons.prayer = index;
+            },
+        });
         // Default to post-design for existing saves; new accounts can override to 0.
         this.account.accountStage = 1;
 
@@ -695,7 +637,7 @@ export class PlayerState extends Actor {
     }
 
     setBankSlot(slot: number, itemId: number, quantity: number): void {
-        const bank = this.ensureBankInitialized();
+        const bank = this.bank.getBankEntries();
         if (slot < 0 || slot >= bank.length) return;
 
         const nextId = quantity > 0 ? itemId : -1;
@@ -751,7 +693,7 @@ export class PlayerState extends Actor {
     takeBankSnapshot(): BankSnapshotEntry[] | undefined {
         if (!this.items.bankDirty) return undefined;
         this.items.bankDirty = false;
-        return this.exportBankSnapshot();
+        return this.bank.exportBankSnapshot();
     }
 
     takeEquipmentSnapshot(): EquipmentSnapshotEntry[] | undefined {
@@ -834,13 +776,9 @@ export class PlayerState extends Actor {
         // Path buffer is populated eagerly; nothing to prepare.
     }
 
-    setAutoRetaliate(on: boolean): void {
-        this.autoRetaliate = !!on;
-    }
-
     setCombatStyle(style: number | null | undefined, category?: number): void {
-        const normalizedCategory = category ?? this.combatStyleCategory;
-        const previousCategory = this.combatStyleCategory;
+        const normalizedCategory = category ?? this.combat.styleCategory;
+        const previousCategory = this.combat.styleCategory;
         const categoryChanged =
             normalizedCategory !== undefined && normalizedCategory !== previousCategory;
         const maxSlot = this.getMaxCombatStyleSlot(normalizedCategory);
@@ -855,7 +793,7 @@ export class PlayerState extends Actor {
         } else if (styleIsDefined) {
             desiredSlot = style;
         } else {
-            desiredSlot = this.combatStyleSlot;
+            desiredSlot = this.combat.styleSlot;
         }
 
         let normalizedSlot = Math.max(0, Math.min(maxSlot, desiredSlot ?? 0));
@@ -885,9 +823,9 @@ export class PlayerState extends Actor {
                 }
             }
         }
-        this.combatStyleSlot = normalizedSlot;
+        this.combat.styleSlot = normalizedSlot;
         if (normalizedCategory !== undefined) {
-            this.combatStyleCategory = normalizedCategory;
+            this.combat.styleCategory = normalizedCategory;
             this.combat.styleMemory.set(normalizedCategory, normalizedSlot);
         }
     }
@@ -896,21 +834,21 @@ export class PlayerState extends Actor {
         this.combat.attackTypes = types ? types.slice() : undefined;
         if (this.combat.attackTypes && this.combat.attackTypes.length > 0) {
             const maxSlot = this.combat.attackTypes.length - 1;
-            if (this.combatStyleSlot > maxSlot) {
-                this.combatStyleSlot = maxSlot;
+            if (this.combat.styleSlot > maxSlot) {
+                this.combat.styleSlot = maxSlot;
             }
             // Ensure slot is valid (sparse arrays have gaps, e.g., bows skip slot 2)
-            if (this.combat.attackTypes[this.combatStyleSlot] === undefined) {
+            if (this.combat.attackTypes[this.combat.styleSlot] === undefined) {
                 // Find nearest valid slot
                 let foundSlot: number | undefined;
-                for (let s = this.combatStyleSlot - 1; s >= 0; s--) {
+                for (let s = this.combat.styleSlot - 1; s >= 0; s--) {
                     if (this.combat.attackTypes[s] !== undefined) {
                         foundSlot = s;
                         break;
                     }
                 }
                 if (foundSlot === undefined) {
-                    for (let s = this.combatStyleSlot + 1; s < this.combat.attackTypes.length; s++) {
+                    for (let s = this.combat.styleSlot + 1; s < this.combat.attackTypes.length; s++) {
                         if (this.combat.attackTypes[s] !== undefined) {
                             foundSlot = s;
                             break;
@@ -918,7 +856,7 @@ export class PlayerState extends Actor {
                     }
                 }
                 if (foundSlot !== undefined) {
-                    this.combatStyleSlot = foundSlot;
+                    this.combat.styleSlot = foundSlot;
                 }
             }
         }
@@ -928,15 +866,15 @@ export class PlayerState extends Actor {
         this.combat.meleeBonusIndices = indices ? indices.slice() : undefined;
         if (this.combat.meleeBonusIndices && this.combat.meleeBonusIndices.length > 0) {
             const maxSlot = this.combat.meleeBonusIndices.length - 1;
-            if (this.combatStyleSlot > maxSlot) {
-                this.combatStyleSlot = maxSlot;
+            if (this.combat.styleSlot > maxSlot) {
+                this.combat.styleSlot = maxSlot;
             }
         }
     }
 
     getCurrentAttackType(): AttackType | undefined {
         if (!this.combat.attackTypes || this.combat.attackTypes.length === 0) return undefined;
-        const slot = Math.max(0, Math.min(this.combat.attackTypes.length - 1, this.combatStyleSlot));
+        const slot = Math.max(0, Math.min(this.combat.attackTypes.length - 1, this.combat.styleSlot));
         return this.combat.attackTypes[slot];
     }
 
@@ -945,7 +883,7 @@ export class PlayerState extends Actor {
             return undefined;
         const slot = Math.max(
             0,
-            Math.min(this.combat.meleeBonusIndices.length - 1, this.combatStyleSlot),
+            Math.min(this.combat.meleeBonusIndices.length - 1, this.combat.styleSlot),
         );
         return this.combat.meleeBonusIndices[slot];
     }
@@ -963,38 +901,16 @@ export class PlayerState extends Actor {
 
     setCombatSpell(spellId: number | null | undefined): void {
         if (spellId == null || !Number.isFinite(spellId) || spellId <= 0) {
-            this.combatSpellId = -1;
-            this.autocastEnabled = false;
-            this.autocastMode = null;
+            this.combat.spellId = -1;
+            this.combat.autocastEnabled = false;
+            this.combat.autocastMode = null;
             return;
         }
-        this.combatSpellId = spellId;
+        this.combat.spellId = spellId;
     }
 
     setActivePrayers(prayers: Iterable<PrayerName>): boolean {
-        const next = new Set<PrayerName>();
-        for (const prayer of prayers) {
-            next.add(prayer);
-        }
-        let changed = next.size !== this.activePrayers.size;
-        if (!changed) {
-            for (const prayer of next) {
-                if (!this.activePrayers.has(prayer)) {
-                    changed = true;
-                    break;
-                }
-            }
-        }
-        if (!changed) return false;
-        this.activePrayers = next;
-        this.updatePrayerHeadIcon();
-        if (
-            this.prayer.quickPrayersEnabled &&
-            !this.arePrayerSetsEqual(this.prayer.quickPrayers, this.activePrayers)
-        ) {
-            this.prayer.quickPrayersEnabled = false;
-        }
-        return true;
+        return this.prayer.setActivePrayers(prayers);
     }
 
     public override hasAvailableRunEnergy(): boolean { return this.energy.hasAvailableRunEnergy(); }
@@ -1011,222 +927,19 @@ export class PlayerState extends Actor {
         return this.movementLockRemaining(currentTick) > 0;
     }
 
-    /**
-     * Apply a freeze effect to this player.
-     * OSRS: Cannot be frozen while immune (5 ticks after previous freeze ends).
-     */
     applyFreeze(durationTicks: number, currentTick: number): boolean {
-        // Check freeze immunity (5 ticks after previous freeze)
-        if (currentTick < this.combat.freezeImmunityUntilTick) {
-            return false; // Immune to freeze
-        }
-
-        const expires = Math.max(this.combat.freezeExpiryTick, currentTick + Math.max(1, durationTicks));
-        this.combat.freezeExpiryTick = expires;
+        const expires = this.combat.tryApplyFreeze(durationTicks, currentTick);
+        if (expires < 0) return false;
         this.lockMovementUntil(expires);
         this.clearPath();
         this.running = false;
-        // OSRS: Ice blue tint for freeze duration
         this.setColorOverride(42, 5, 80, 30, Math.max(1, durationTicks));
         return true;
     }
 
-    isFrozen(currentTick: number): boolean {
-        if (this.combat.freezeExpiryTick > 0 && currentTick >= this.combat.freezeExpiryTick) {
-            // Freeze just ended - start 5 tick immunity
-            this.combat.freezeImmunityUntilTick = currentTick + 5;
-            this.combat.freezeExpiryTick = 0;
-            return false;
-        }
-        return this.combat.freezeExpiryTick > currentTick;
-    }
-
-    isFreezeImmune(currentTick: number): boolean {
-        return currentTick < this.combat.freezeImmunityUntilTick;
-    }
-
-    getFreezeRemaining(currentTick: number): number {
-        const remaining = this.combat.freezeExpiryTick - currentTick;
-        return Math.max(0, remaining);
-    }
-
-    getSpecialEnergyUnits(): number {
-        return Math.max(0, Math.min(SPECIAL_ENERGY_MAX, Math.floor(this.combat.specialEnergy)));
-    }
-
-    getSpecialEnergyPercent(): number {
-        return Math.floor((this.getSpecialEnergyUnits() / SPECIAL_ENERGY_MAX) * 100);
-    }
-
-    setSpecialEnergyPercent(percent: number): void {
-        const normalized = Math.max(0, Math.min(SPECIAL_ENERGY_MAX, Math.floor(percent)));
-        if (normalized === this.getSpecialEnergyUnits()) return;
-        this.combat.specialEnergy = normalized;
-        this.combat.specialEnergyDirty = true;
-        if (normalized === 0) {
-            this.combat.specialActivatedFlag = false;
-        }
-    }
-
-    setSpecialActivated(on: boolean): boolean {
-        const normalized = !!on;
-        if (normalized && this.getSpecialEnergyUnits() <= 0) {
-            return false;
-        }
-        this.combat.specialActivatedFlag = normalized;
-        return true;
-    }
-
-    isSpecialActivated(): boolean {
-        return this.combat.specialActivatedFlag;
-    }
-
-    consumeSpecialEnergy(costPercent: number): boolean {
-        const cost = Math.max(0, Math.min(SPECIAL_ENERGY_MAX, Math.floor(costPercent)));
-        if (cost <= 0) return true;
-        if (this.getSpecialEnergyUnits() < cost) {
-            this.combat.specialActivatedFlag = false;
-            return false;
-        }
-        this.combat.specialEnergy = Math.max(0, this.getSpecialEnergyUnits() - cost);
-        this.combat.specialActivatedFlag = false;
-        this.combat.specialEnergyDirty = true;
-        return true;
-    }
-
-    tickSpecialEnergy(currentTick: number): boolean {
-        if (this.getSpecialEnergyUnits() >= SPECIAL_ENERGY_MAX) {
-            this.combat.nextSpecialRegenTick = currentTick + SPECIAL_ENERGY_REGEN_INTERVAL_TICKS;
-            return false;
-        }
-        if (this.combat.nextSpecialRegenTick <= 0) {
-            this.combat.nextSpecialRegenTick = currentTick + SPECIAL_ENERGY_REGEN_INTERVAL_TICKS;
-            return false;
-        }
-        if (currentTick >= this.combat.nextSpecialRegenTick) {
-            this.combat.specialEnergy = Math.min(
-                SPECIAL_ENERGY_MAX,
-                this.getSpecialEnergyUnits() + SPECIAL_ENERGY_REGEN_CHUNK,
-            );
-            this.combat.nextSpecialRegenTick = currentTick + SPECIAL_ENERGY_REGEN_INTERVAL_TICKS;
-            this.combat.specialEnergyDirty = true;
-            return true;
-        }
-        return false;
-    }
-
-    hasSpecialEnergyUpdate(): boolean {
-        return this.combat.specialEnergyDirty;
-    }
-
-    markSpecialEnergySynced(): void {
-        this.combat.specialEnergyDirty = false;
-    }
 
 
-    getBankCapacity(): number {
-        return Math.max(1, this.items.bankCapacity);
-    }
 
-    setBankCapacity(capacity: number): void {
-        // CS2 bank scripts use a 1410-slot addressing space (0..1409).
-        // Allow up to 1410 without runaway allocations.
-        const normalized = Math.max(1, Math.min(1410, Math.floor(capacity)));
-        if (normalized === this.items.bankCapacity && this.items.bank.length === normalized) {
-            return;
-        }
-        const next = createEmptyBank(normalized);
-        const current = Array.isArray(this.items.bank) ? this.items.bank : [];
-        for (let i = 0; i < Math.min(current.length, normalized); i++) {
-            const entry = current[i];
-            next[i] = {
-                itemId: entry?.itemId ?? -1,
-                quantity: entry?.quantity ?? 0,
-            };
-        }
-        this.items.bankCapacity = normalized;
-        this.items.bank = next;
-        this.items.bankClientSlotMapping = [];
-    }
-
-    private ensureBankInitialized(): BankEntry[] {
-        const capacity = this.getBankCapacity();
-        if (!Array.isArray(this.items.bank) || this.items.bank.length !== capacity) {
-            this.items.bank = createEmptyBank(capacity);
-        }
-        return this.items.bank;
-    }
-
-    getBankEntries(): BankEntry[] {
-        return this.ensureBankInitialized();
-    }
-
-    setBankClientSlotMapping(mapping: number[]): void {
-        if (!Array.isArray(mapping)) {
-            this.items.bankClientSlotMapping = [];
-            return;
-        }
-        this.items.bankClientSlotMapping = mapping.map((slot) =>
-            Number.isFinite(slot) ? (slot as number) : -1,
-        );
-    }
-
-    getBankServerSlotForClientSlot(clientSlot: number): number {
-        if (!Number.isFinite(clientSlot)) return -1;
-        const slot = clientSlot;
-        if (slot < 0 || slot >= this.items.bankClientSlotMapping.length) return -1;
-        const mapped = this.items.bankClientSlotMapping[slot] ?? -1;
-        return Number.isFinite(mapped) ? mapped : -1;
-    }
-
-    loadBankSnapshot(entries?: Iterable<BankSnapshotEntry>, capacityOverride?: number): void {
-        if (Number.isFinite(capacityOverride) && (capacityOverride as number) > 0) {
-            this.setBankCapacity(capacityOverride as number);
-        } else {
-            this.ensureBankInitialized();
-        }
-        const bank = this.getBankEntries();
-        for (const slot of bank) {
-            slot.itemId = -1;
-            slot.quantity = 0;
-        }
-        if (!entries) return;
-        for (const entry of entries) {
-            const slot = Math.max(0, Math.min(bank.length - 1, entry.slot));
-            const itemId = entry.itemId;
-            const quantity = Math.max(0, entry.quantity);
-            const placeholder = !!entry.placeholder;
-            const filler = !!entry.filler;
-            const tab = Math.max(0, entry.tab ?? 0);
-            const hasItem = itemId > 0 && quantity > 0;
-            bank[slot].itemId = hasItem ? itemId : placeholder || filler ? itemId : -1;
-            bank[slot].quantity = hasItem ? quantity : 0;
-            bank[slot].placeholder = placeholder && itemId > 0;
-            bank[slot].filler = filler && itemId > 0;
-            bank[slot].tab = tab;
-        }
-        this.items.bankClientSlotMapping = [];
-    }
-
-    exportBankSnapshot(): BankSnapshotEntry[] {
-        const snapshot: BankSnapshotEntry[] = [];
-        const bank = this.getBankEntries();
-        for (let i = 0; i < bank.length; i++) {
-            const entry = bank[i];
-            if (!entry) continue;
-            if (entry.itemId > 0 && (entry.quantity > 0 || entry.placeholder || entry.filler)) {
-                snapshot.push({
-                    slot: i,
-                    itemId: entry.itemId,
-                    quantity: Math.max(0, entry.quantity),
-                    placeholder: !!entry.placeholder,
-                    filler: !!entry.filler,
-                    tab: Math.max(0, entry.tab ?? 0),
-                });
-            }
-        }
-        return snapshot;
-    }
 
     exportInventorySnapshot(): InventorySnapshotEntry[] {
         const snapshot: InventorySnapshotEntry[] = [];
@@ -1259,10 +972,7 @@ export class PlayerState extends Actor {
         return snapshot;
     }
 
-    clearBank(): void {
-        this.items.bank = createEmptyBank(this.getBankCapacity());
-        this.items.bankClientSlotMapping = [];
-    }
+
 
     clearInventory(): void {
         const inventory = this.getInventoryEntries();
@@ -1275,246 +985,6 @@ export class PlayerState extends Actor {
         }
     }
 
-    getBankWithdrawNotes(): boolean {
-        return !!this.items.bankWithdrawNoteMode;
-    }
-
-    setBankWithdrawNotes(enabled: boolean): void {
-        this.items.bankWithdrawNoteMode = !!enabled;
-    }
-
-    getBankInsertMode(): boolean {
-        return !!this.items.bankInsertMode;
-    }
-
-    setBankInsertMode(insert: boolean): void {
-        this.items.bankInsertMode = !!insert;
-    }
-
-    getBankPlaceholderMode(): boolean {
-        return !!this.items.bankPlaceholderMode;
-    }
-
-    setBankPlaceholderMode(enabled: boolean): void {
-        this.items.bankPlaceholderMode = !!enabled;
-    }
-
-    releaseBankPlaceholders(): number {
-        let cleared = 0;
-        const bank = this.ensureBankInitialized();
-        for (const entry of bank) {
-            if (entry && entry.placeholder && entry.quantity === 0) {
-                entry.itemId = -1;
-                entry.quantity = 0;
-                entry.placeholder = false;
-                cleared++;
-            }
-        }
-        if (cleared > 0) this.items.bankDirty = true;
-        return cleared;
-    }
-
-    getBankQuantityMode(): number {
-        return this.items.bankQuantityMode;
-    }
-
-    setBankQuantityMode(mode: number): void {
-        if (!Number.isFinite(mode)) return;
-        this.items.bankQuantityMode = Math.max(0, Math.min(5, mode));
-    }
-
-    getBankCustomQuantity(): number {
-        return Math.max(0, this.items.bankCustomQuantity);
-    }
-
-    setBankCustomQuantity(amount: number): void {
-        if (!Number.isFinite(amount)) {
-            this.items.bankCustomQuantity = 0;
-            return;
-        }
-        this.items.bankCustomQuantity = Math.max(0, Math.min(2147483647, amount));
-    }
-
-    /**
-     * Get the number of active bank tabs.
-     * Calculates dynamically from actual bank entries.
-     * Returns the highest tab number with items + 1 (minimum 1 for "All items" tab).
-     */
-    getBankTabCount(): number {
-        // Calculate dynamically from actual bank entries
-        // This matches how client-side CS2 determines tab visibility via varbits
-        const bank = this.getBankEntries();
-        let maxTab = 0;
-        for (const entry of bank) {
-            // Count items AND placeholders (both keep tabs visible in OSRS)
-            if (entry.itemId > 0 && !entry.filler) {
-                const tab = entry.tab ?? 0;
-                if (tab >= 1 && tab <= 9 && tab > maxTab) {
-                    maxTab = tab;
-                }
-            }
-        }
-        // Tab 0 is always "All items", tabs 1-9 are user tabs
-        // So if maxTab is 2, we have tabs 0, 1, 2 = 3 tabs
-        return maxTab + 1;
-    }
-
-    /**
-     * Get the first available slot in a specific tab (server-side array index).
-     * Returns -1 if no slot is available.
-     *
-     * Note: This operates on the server's internal storage where items have
-     * a `tab` property. The client sees items reorganized by tab (contiguous).
-     * See buildBankPayload() in BankingManager for the client-facing model.
-     */
-    getFirstAvailableSlotInTab(tab: number): number {
-        const bank = this.getBankEntries();
-        // Find empty slot near existing items in this tab
-        let tabStart = -1;
-        let tabEnd = -1;
-
-        for (let i = 0; i < bank.length; i++) {
-            const entry = bank[i];
-            if (entry.itemId > 0 && entry.tab === tab) {
-                if (tabStart === -1) tabStart = i;
-                tabEnd = i;
-            }
-        }
-
-        if (tab === 0) {
-            // For "All items" tab, find first empty slot anywhere
-            for (let i = 0; i < bank.length; i++) {
-                if (bank[i].itemId <= 0 && !bank[i].placeholder) {
-                    return i;
-                }
-            }
-        } else {
-            // For other tabs, add after the last item in that tab
-            if (tabEnd >= 0 && tabEnd + 1 < bank.length) {
-                return tabEnd + 1;
-            }
-        }
-
-        return -1;
-    }
-
-    /**
-     * Create a new bank tab with an item from inventory.
-     * Returns the new tab number, or -1 if failed.
-     */
-    createBankTab(): number {
-        const currentTabs = this.getBankTabCount();
-        if (currentTabs >= 10) {
-            // Maximum 9 user tabs + 1 "All items" tab = 10 total
-            return -1;
-        }
-        // New tab number is current count (since tabs are 0-indexed)
-        return currentTabs;
-    }
-
-    /**
-     * Get the size of a specific bank tab (1-9).
-     * Calculates dynamically by counting items with that tab property.
-     */
-    getBankTabSize(tabIndex: number): number {
-        if (tabIndex < 1 || tabIndex > 9) return 0;
-        const bank = this.getBankEntries();
-        let count = 0;
-        for (const entry of bank) {
-            if (entry.itemId > 0 && !entry.filler && entry.tab === tabIndex) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    /**
-     * Get all bank tab sizes as an array.
-     * Calculates dynamically from actual bank entries.
-     * Index 0 = tab 1 size, index 1 = tab 2 size, etc.
-     */
-    getBankTabSizes(): number[] {
-        const bank = this.getBankEntries();
-        const sizes = [0, 0, 0, 0, 0, 0, 0, 0, 0];
-        for (const entry of bank) {
-            if (entry.itemId > 0 && !entry.filler) {
-                const tab = entry.tab ?? 0;
-                if (tab >= 1 && tab <= 9) {
-                    sizes[tab - 1]++;
-                }
-            }
-        }
-        return sizes;
-    }
-
-    /**
-     * Get the starting slot for a bank tab based on cumulative sizes.
-     *
-     * In OSRS, bank items are stored contiguously by tab.
-     * Tab 1 items occupy slots 0 to (tab1_size - 1), Tab 2 items occupy
-     * slots tab1_size to (tab1_size + tab2_size - 1), etc.
-     * Tab 0 (untabbed/"All items") items are stored after all tabbed items.
-     *
-     * Note: Our server stores items with a `tab` property in any slot.
-     * buildBankPayload() reorganizes items by tab when sending to client,
-     * so client slot indices match this contiguous model.
-     */
-    getBankTabStartSlot(tabIndex: number): number {
-        if (tabIndex <= 1) return 0;
-        const sizes = this.getBankTabSizes();
-        let startSlot = 0;
-        for (let t = 1; t < tabIndex && t <= 9; t++) {
-            startSlot += sizes[t - 1] ?? 0;
-        }
-        return startSlot;
-    }
-
-    getActiveShopId(): string | undefined {
-        return this.items.activeShopId;
-    }
-
-    setActiveShopId(id: string | undefined): void {
-        this.items.activeShopId = id ? String(id) : undefined;
-    }
-
-    getShopBuyMode(): number {
-        return this.items.shopBuyMode;
-    }
-
-    setShopBuyMode(mode: number): void {
-        if (!Number.isFinite(mode)) return;
-        this.items.shopBuyMode = Math.max(0, Math.min(4, mode));
-    }
-
-    getShopSellMode(): number {
-        return this.items.shopSellMode;
-    }
-
-    setShopSellMode(mode: number): void {
-        if (!Number.isFinite(mode)) return;
-        this.items.shopSellMode = Math.max(0, Math.min(4, mode));
-    }
-
-    getSmithingQuantityMode(): number {
-        return this.items.smithingQuantityMode;
-    }
-
-    setSmithingQuantityMode(mode: number): void {
-        if (!Number.isFinite(mode)) return;
-        this.items.smithingQuantityMode = Math.max(0, Math.min(4, mode));
-    }
-
-    getSmithingCustomQuantity(): number {
-        return Math.max(0, this.items.smithingCustomQuantity);
-    }
-
-    setSmithingCustomQuantity(amount: number): void {
-        if (!Number.isFinite(amount)) {
-            this.items.smithingCustomQuantity = 0;
-            return;
-        }
-        this.items.smithingCustomQuantity = Math.max(0, Math.min(2147483647, amount));
-    }
 
     getEquipmentCharges(itemId: number): number {
         return Math.max(0, this.equipmentChargeMap.get(itemId) ?? 0);
@@ -1878,22 +1348,22 @@ export class PlayerState extends Actor {
                 colors: this.appearance.colors?.map((n) => n),
             };
         }
-        const bankSnapshot = this.exportBankSnapshot();
+        const bankSnapshot = this.bank.exportBankSnapshot();
         if (bankSnapshot.length > 0) snapshot.bank = bankSnapshot;
-        const capacity = this.getBankCapacity();
+        const capacity = this.bank.getBankCapacity();
         if (capacity !== DEFAULT_BANK_CAPACITY) {
             snapshot.bankCapacity = capacity;
         } else if (bankSnapshot.length > 0) {
             snapshot.bankCapacity = capacity;
         }
-        const customQuantity = this.getBankCustomQuantity();
+        const customQuantity = this.bank.getBankCustomQuantity();
         if (customQuantity > 0) {
             snapshot.bankQuantityCustom = customQuantity;
         }
-        snapshot.bankInsertMode = this.getBankInsertMode();
-        snapshot.bankWithdrawNotes = this.getBankWithdrawNotes();
-        snapshot.bankQuantityMode = this.getBankQuantityMode();
-        snapshot.bankPlaceholders = this.getBankPlaceholderMode();
+        snapshot.bankInsertMode = this.bank.getBankInsertMode();
+        snapshot.bankWithdrawNotes = this.bank.getBankWithdrawNotes();
+        snapshot.bankQuantityMode = this.bank.getBankQuantityMode();
+        snapshot.bankPlaceholders = this.bank.getBankPlaceholderMode();
         snapshot.inventory = this.exportInventorySnapshot();
         snapshot.equipment = this.exportEquipmentSnapshot();
         snapshot.skills = this.exportSkillSnapshot();
@@ -1907,18 +1377,18 @@ export class PlayerState extends Actor {
         };
         snapshot.runEnergy = this.energy.getRunEnergyUnits();
         snapshot.runToggle = !!this.runToggle;
-        snapshot.autoRetaliate = !!this.autoRetaliate;
-        snapshot.combatStyleSlot = this.combatStyleSlot;
-        if (this.combatStyleCategory !== undefined) {
-            snapshot.combatStyleCategory = this.combatStyleCategory;
+        snapshot.autoRetaliate = !!this.combat.autoRetaliate;
+        snapshot.combatStyleSlot = this.combat.styleSlot;
+        if (this.combat.styleCategory !== undefined) {
+            snapshot.combatStyleCategory = this.combat.styleCategory;
         }
-        if (this.combatSpellId > 0) {
-            snapshot.combatSpellId = this.combatSpellId;
+        if (this.combat.spellId > 0) {
+            snapshot.combatSpellId = this.combat.spellId;
         }
-        snapshot.autocastEnabled = !!this.autocastEnabled;
-        snapshot.autocastMode = this.autocastMode ?? null;
-        snapshot.specialEnergy = this.getSpecialEnergyUnits();
-        snapshot.specialActivated = this.isSpecialActivated();
+        snapshot.autocastEnabled = !!this.combat.autocastEnabled;
+        snapshot.autocastMode = this.combat.autocastMode ?? null;
+        snapshot.specialEnergy = this.specEnergy.getUnits();
+        snapshot.specialActivated = this.specEnergy.isActivated();
         if (this.prayer.quickPrayers.size > 0) {
             snapshot.quickPrayers = Array.from(this.prayer.quickPrayers);
         }
@@ -1930,10 +1400,10 @@ export class PlayerState extends Actor {
             if (entries.length > 0) snapshot.equipmentCharges = entries;
         }
         // Degradation charges (crystal bow, etc.)
-        if (this.degradationCharges.size > 0) {
+        if (this.combat.degradationCharges.size > 0) {
             const degradationEntries: Array<{ slot: number; itemId: number; charges: number }> = [];
-            for (const [slot, charges] of this.degradationCharges.entries()) {
-                const itemId = this.degradationLastItemId.get(slot);
+            for (const [slot, charges] of this.combat.degradationCharges.entries()) {
+                const itemId = this.combat.degradationLastItemId.get(slot);
                 if (itemId !== undefined && charges > 0) {
                     degradationEntries.push({ slot, itemId, charges });
                 }
@@ -1960,7 +1430,7 @@ export class PlayerState extends Actor {
         this.gamemodeState.clear();
         if (!state) {
             this.varps.deserialize(undefined);
-            this.ensureBankInitialized();
+            this.bank.getBankEntries();
             return;
         }
         this.account.deserialize({
@@ -1989,29 +1459,29 @@ export class PlayerState extends Actor {
         }
         const capacity = state.bankCapacity;
         if (capacity !== undefined && capacity > 0) {
-            this.setBankCapacity(capacity);
+            this.bank.setBankCapacity(capacity);
         } else {
-            this.ensureBankInitialized();
+            this.bank.getBankEntries();
         }
         if (state.bankPlaceholders !== undefined) {
-            this.setBankPlaceholderMode(state.bankPlaceholders);
+            this.bank.setBankPlaceholderMode(state.bankPlaceholders);
         }
         if (Array.isArray(state.bank)) {
-            this.loadBankSnapshot(state.bank, undefined);
+            this.bank.loadBankSnapshot(state.bank, undefined);
         } else {
-            this.ensureBankInitialized();
+            this.bank.getBankEntries();
         }
         if (state.bankQuantityCustom !== undefined) {
-            this.setBankCustomQuantity(state.bankQuantityCustom);
+            this.bank.setBankCustomQuantity(state.bankQuantityCustom);
         }
         if (state.bankQuantityMode !== undefined) {
-            this.setBankQuantityMode(state.bankQuantityMode);
+            this.bank.setBankQuantityMode(state.bankQuantityMode);
         }
         if (state.bankWithdrawNotes !== undefined) {
-            this.setBankWithdrawNotes(state.bankWithdrawNotes);
+            this.bank.setBankWithdrawNotes(state.bankWithdrawNotes);
         }
         if (state.bankInsertMode !== undefined) {
-            this.setBankInsertMode(state.bankInsertMode);
+            this.bank.setBankInsertMode(state.bankInsertMode);
         }
         if (state.inventory) {
             this.loadInventorySnapshot(state.inventory);
@@ -2035,7 +1505,7 @@ export class PlayerState extends Actor {
             this.setRunToggle(state.runToggle);
         }
         if (state.autoRetaliate !== undefined) {
-            this.setAutoRetaliate(state.autoRetaliate);
+            this.combat.autoRetaliate = !!state.autoRetaliate;
         }
         if (state.combatStyleSlot !== undefined || state.combatStyleCategory !== undefined) {
             this.setCombatStyle(state.combatStyleSlot, state.combatStyleCategory);
@@ -2044,31 +1514,27 @@ export class PlayerState extends Actor {
             this.setCombatSpell(state.combatSpellId);
         }
         if (state.autocastEnabled !== undefined) {
-            this.autocastEnabled = state.autocastEnabled;
+            this.combat.autocastEnabled = state.autocastEnabled;
         }
         if (
             state.autocastMode === "autocast" ||
             state.autocastMode === "defensive_autocast" ||
             state.autocastMode === null
         ) {
-            this.autocastMode = state.autocastMode ?? null;
+            this.combat.autocastMode = state.autocastMode ?? null;
         }
         const equip = this.ensureAppearanceEquip();
         restoreAutocastState(this, equip[EquipmentSlot.WEAPON] ?? -1);
         if (state.specialEnergy !== undefined) {
-            const normalized = Math.max(
-                0,
-                Math.min(SPECIAL_ENERGY_MAX, Math.floor(state.specialEnergy)),
-            );
-            this.setSpecialEnergyPercent(normalized);
+            this.specEnergy.setPercent(state.specialEnergy);
         }
         if (state.specialActivated !== undefined) {
-            this.setSpecialActivated(state.specialActivated);
+            this.specEnergy.setActivated(state.specialActivated);
         }
         if (Array.isArray(state.quickPrayers) && state.quickPrayers.length > 0) {
-            this.setQuickPrayers(state.quickPrayers as PrayerName[]);
+            this.prayer.setQuickPrayers(state.quickPrayers as PrayerName[]);
         } else {
-            this.setQuickPrayers([]);
+            this.prayer.setQuickPrayers([]);
         }
         this.equipmentChargeMap.clear();
         if (Array.isArray(state.equipmentCharges)) {
@@ -2079,16 +1545,16 @@ export class PlayerState extends Actor {
             }
         }
         // Load degradation charges (crystal bow, etc.)
-        this.degradationCharges.clear();
-        this.degradationLastItemId.clear();
+        this.combat.degradationCharges.clear();
+        this.combat.degradationLastItemId.clear();
         if (Array.isArray(state.degradationCharges)) {
             for (const entry of state.degradationCharges) {
                 const slot = entry.slot;
                 const itemId = entry.itemId;
                 const charges = entry.charges;
                 if (slot < 0 || itemId <= 0 || charges <= 0) continue;
-                this.degradationCharges.set(slot, charges);
-                this.degradationLastItemId.set(slot, itemId);
+                this.combat.degradationCharges.set(slot, charges);
+                this.combat.degradationLastItemId.set(slot, itemId);
             }
         }
         // Load collection log data
@@ -2106,91 +1572,6 @@ export class PlayerState extends Actor {
         return ensureEquipQtyArrayOn(this.appearance, DEFAULT_EQUIP_SLOT_COUNT);
     }
 
-    getActivePrayers(): ReadonlySet<PrayerName> {
-        return this.activePrayers;
-    }
-
-    clearActivePrayers(): boolean {
-        if (this.activePrayers.size === 0) return false;
-        this.activePrayers.clear();
-        this.updatePrayerHeadIcon();
-        return true;
-    }
-
-    getQuickPrayers(): ReadonlySet<PrayerName> {
-        return this.prayer.quickPrayers;
-    }
-
-    setQuickPrayers(prayers: Iterable<PrayerName | string>): boolean {
-        const next = new Set<PrayerName>();
-        for (const entry of prayers) {
-            const name = entry as PrayerName;
-            if (!PRAYER_NAME_SET.has(name)) continue;
-            next.add(name);
-        }
-        const changed = !this.arePrayerSetsEqual(next, this.prayer.quickPrayers);
-        if (!changed) return false;
-        this.prayer.quickPrayers = next;
-        if (!this.arePrayerSetsEqual(this.prayer.quickPrayers, this.activePrayers)) {
-            this.prayer.quickPrayersEnabled = false;
-        }
-        return true;
-    }
-
-    areQuickPrayersEnabled(): boolean {
-        return this.prayer.quickPrayersEnabled;
-    }
-
-    setQuickPrayersEnabled(enabled: boolean): void {
-        this.prayer.quickPrayersEnabled = !!enabled;
-    }
-
-    private arePrayerSetsEqual(a: ReadonlySet<PrayerName>, b: ReadonlySet<PrayerName>): boolean {
-        if (a.size !== b.size) return false;
-        for (const entry of a) {
-            if (!b.has(entry)) return false;
-        }
-        return true;
-    }
-
-    hasPrayerActive(prayer: PrayerName): boolean {
-        return this.activePrayers.has(prayer);
-    }
-
-    private updatePrayerHeadIcon(): void {
-        let icon: PrayerHeadIcon | null = null;
-        if (this.activePrayers.has("protect_from_melee")) icon = "protect_melee";
-        else if (this.activePrayers.has("protect_from_missiles")) icon = "protect_missiles";
-        else if (this.activePrayers.has("protect_from_magic")) icon = "protect_magic";
-        else if (this.activePrayers.has("retribution")) icon = "retribution";
-        else if (this.activePrayers.has("smite")) icon = "smite";
-        else if (this.activePrayers.has("redemption")) icon = "redemption";
-        this.setPrayerHeadIcon(icon);
-    }
-
-    private setPrayerHeadIcon(icon: PrayerHeadIcon | null): void {
-        if (this.prayer.headIcon === icon) return;
-        this.prayer.headIcon = icon;
-        const index = icon != null ? PRAYER_HEAD_ICON_IDS[icon] ?? -1 : -1;
-        this.appearance.headIcons.prayer = index;
-    }
-
-    getPrayerLevel(): number {
-        const skill = this.skillSystem.getSkill(SkillId.Prayer);
-        return Math.max(0, skill.baseLevel + skill.boost);
-    }
-
-    getPrayerDrainAccumulator(): number {
-        return this.prayer.drainAccumulator;
-    }
-
-    setPrayerDrainAccumulator(value: number): void {
-        this.prayer.drainAccumulator = Math.max(0, value);
-    }
-
-    resetPrayerDrainAccumulator(): void {
-        this.prayer.drainAccumulator = 0;
-    }
 
     /**
      * Add delay to the player's attack timer (OSRS: eating food adds +3 ticks, combo food +2 ticks).
@@ -2200,7 +1581,7 @@ export class PlayerState extends Actor {
      */
     addAttackDelay(ticks: number): void {
         if (!(ticks > 0)) return;
-        this.attackDelayTicks = Math.max(this.attackDelayTicks, 0) + ticks;
+        this.combat.attackDelayTicks = Math.max(this.combat.attackDelayTicks, 0) + ticks;
     }
 }
 

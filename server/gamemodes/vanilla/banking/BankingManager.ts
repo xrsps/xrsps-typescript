@@ -18,9 +18,9 @@ import { BANK_INTERFACE_ID, type BankOpenData } from "./BankInterfaceHooks";
 import type { BankingProvider, BankingProviderServices, BankOperationResult, BankServerUpdate } from "./BankingProvider";
 import {
     type BankEntry,
-    DEFAULT_BANK_CAPACITY,
     type PlayerState,
 } from "../../../src/game/player";
+import { DEFAULT_BANK_CAPACITY } from "../../../src/game/state/PlayerBankSystem";
 
 const INVENTORY_SLOT_COUNT = 28;
 
@@ -44,7 +44,7 @@ export class BankingManager implements BankingProvider {
      * Get player's bank entries array.
      */
     getBank(player: PlayerState): BankEntry[] {
-        return player.getBankEntries();
+        return player.bank.getBankEntries();
     }
 
     /**
@@ -106,7 +106,7 @@ export class BankingManager implements BankingProvider {
      */
     buildBankSlotMapping(player: PlayerState): number[] {
         const bank = this.getBank(player);
-        const capacity = player.getBankCapacity() || bank.length || DEFAULT_BANK_CAPACITY;
+        const capacity = player.bank.getBankCapacity() || bank.length || DEFAULT_BANK_CAPACITY;
 
         // Collect entries with their original indices, grouped by tab
         const tabBuckets: Array<{ entry: BankEntry; originalIndex: number }[]> = [
@@ -162,7 +162,7 @@ export class BankingManager implements BankingProvider {
      * Returns -1 if the slot is empty or out of bounds.
      */
     clientSlotToServerIndex(player: PlayerState, clientSlot: number): number {
-        const cached = player.getBankServerSlotForClientSlot(clientSlot);
+        const cached = player.bank.getBankServerSlotForClientSlot(clientSlot);
         if (cached >= 0) {
             return cached;
         }
@@ -335,7 +335,7 @@ export class BankingManager implements BankingProvider {
         const entry = bank[from];
         if (!entry) return false;
 
-        const insert = opts.insert ?? player.getBankInsertMode();
+        const insert = opts.insert ?? player.bank.getBankInsertMode();
         const tab =
             Number.isFinite(opts.tab) && (opts.tab as number) >= 0
                 ? Math.max(0, opts.tab as number)
@@ -443,7 +443,7 @@ export class BankingManager implements BankingProvider {
     buildBankPayload(player: PlayerState): BankServerUpdate | undefined {
         try {
             const bank = this.getBank(player);
-            const capacity = player.getBankCapacity() || bank.length || DEFAULT_BANK_CAPACITY;
+            const capacity = player.bank.getBankCapacity() || bank.length || DEFAULT_BANK_CAPACITY;
 
             // Collect items by tab, preserving relative order within each tab
             // Index 0 = tab 0 (untabbed), index 1 = tab 1, etc.
@@ -650,12 +650,12 @@ export class BankingManager implements BankingProvider {
             if (categoryChanged || weaponItemChanged) {
                 this.services.queueCombatSnapshot(
                     player.id,
-                    player.combatWeaponCategory,
-                    player.combatWeaponItemId,
-                    !!player.autoRetaliate,
-                    player.combatStyleSlot,
-                    Array.from(player.activePrayers ?? []),
-                    player.combatSpellId > 0 ? player.combatSpellId : undefined,
+                    player.combat.weaponCategory,
+                    player.combat.weaponItemId,
+                    !!player.combat.autoRetaliate,
+                    player.combat.styleSlot,
+                    Array.from(player.prayer.activePrayers ?? []),
+                    player.combat.spellId > 0 ? player.combat.spellId : undefined,
                 );
             }
             // Update tab varbits if a specific tab was targeted (may create new tab)
@@ -902,7 +902,7 @@ export class BankingManager implements BankingProvider {
      * Create a new bank tab with an item from inventory.
      */
     createTabWithItem(player: PlayerState, invSlot: number, invItemId: number): void {
-        const newTabIndex = player.createBankTab?.();
+        const newTabIndex = player.bank.createBankTab();
         if (newTabIndex === undefined || newTabIndex < 0) {
             return;
         }
@@ -929,7 +929,7 @@ export class BankingManager implements BankingProvider {
         if (!Number.isFinite(slotRaw) || !Number.isFinite(quantityRaw)) return { ok: false };
         const clientSlot = slotRaw;
         const quantity = Math.max(1, quantityRaw);
-        const notedPref = opts.overrideNoted ?? player.getBankWithdrawNotes();
+        const notedPref = opts.overrideNoted ?? player.bank.getBankWithdrawNotes();
 
         // Translate client slot to server array index
         // Client sees items reorganized by tab; server stores in flat array
@@ -942,7 +942,7 @@ export class BankingManager implements BankingProvider {
             player,
             serverSlot,
             quantity,
-            player.getBankPlaceholderMode?.() ?? false,
+            player.bank.getBankPlaceholderMode(),
         );
         if (!removal) {
             return { ok: false, message: "You don't have enough of that item in your bank." };
@@ -1115,7 +1115,7 @@ export class BankingManager implements BankingProvider {
      * @param bankSlot - Client slot index (reorganized by tab order)
      */
     createTabFromBank(player: PlayerState, bankSlot: number, sourceItemIdHint?: number): void {
-        const newTabIndex = player.createBankTab?.();
+        const newTabIndex = player.bank.createBankTab();
         if (newTabIndex === undefined || newTabIndex < 0) {
             return;
         }
@@ -1207,7 +1207,7 @@ export class BankingManager implements BankingProvider {
             targetGroup === WidgetGroup.BANK_MAIN &&
             targetChild === BankMainChild.ITEMS
         ) {
-            const insert = player.getBankInsertMode?.() ?? false;
+            const insert = player.bank.getBankInsertMode() ?? false;
             this.moveBankSlot(player, sourceSlot, targetSlot, { insert });
             return;
         }
@@ -1313,7 +1313,7 @@ export class BankingManager implements BankingProvider {
 
         try {
             // Calculate locked slots based on player's bank capacity
-            const capacity = player.getBankCapacity();
+            const capacity = player.bank.getBankCapacity();
             const locked = Math.max(0, BankLimits.MAX_SLOTS - Math.max(1, capacity));
 
             // Build varps for bank interface
@@ -1328,11 +1328,11 @@ export class BankingManager implements BankingProvider {
             const varbits: Record<number, number> = {
                 [BankVarbit.CURRENT_TAB]: 0,
                 [BankVarbit.TAB_DISPLAY]: 0,
-                [BankVarbit.LEAVE_PLACEHOLDERS]: player.getBankPlaceholderMode?.() ?? false ? 1 : 0,
-                [BankVarbit.WITHDRAW_NOTES]: player.getBankWithdrawNotes?.() ?? false ? 1 : 0,
-                [BankVarbit.INSERT_MODE]: player.getBankInsertMode?.() ?? false ? 1 : 0,
-                [BankVarbit.QUANTITY_TYPE]: player.getBankQuantityMode?.() ?? 0,
-                [BankVarbit.REQUESTED_QUANTITY]: Math.max(0, player.getBankCustomQuantity?.() ?? 0),
+                [BankVarbit.LEAVE_PLACEHOLDERS]: player.bank.getBankPlaceholderMode() ? 1 : 0,
+                [BankVarbit.WITHDRAW_NOTES]: player.bank.getBankWithdrawNotes() ? 1 : 0,
+                [BankVarbit.INSERT_MODE]: player.bank.getBankInsertMode() ? 1 : 0,
+                [BankVarbit.QUANTITY_TYPE]: player.bank.getBankQuantityMode(),
+                [BankVarbit.REQUESTED_QUANTITY]: Math.max(0, player.bank.getBankCustomQuantity()),
                 [BankVarbit.SLOT_LOCK_IGNORE]: 1,
             };
 

@@ -106,7 +106,7 @@ export class EquipmentService {
         const equip = this.ensureEquipArray(p);
         const weaponId = equip[EquipmentSlot.WEAPON];
         const normalizedWeaponId = weaponId > 0 ? weaponId : -1;
-        const previousWeaponId = p.combatWeaponItemId ?? -1;
+        const previousWeaponId = p.combat.weaponItemId ?? -1;
 
         const dataEntry = this.deps.weaponData.get(normalizedWeaponId);
         const obj = normalizedWeaponId > 0 ? this.deps.dataLoaders.getObjType(normalizedWeaponId) : undefined;
@@ -122,13 +122,13 @@ export class EquipmentService {
             if (inferred !== undefined) derived = inferred;
         }
         const normalizedCategory = derived ?? DEFAULT_WEAPON_CATEGORY;
-        const previousCategory = p.combatWeaponCategory;
+        const previousCategory = p.combat.weaponCategory;
 
         const categoryChanged = previousCategory !== normalizedCategory;
         const weaponItemChanged = previousWeaponId !== normalizedWeaponId;
 
-        p.combatWeaponCategory = normalizedCategory;
-        p.combatWeaponItemId = normalizedWeaponId;
+        p.combat.weaponCategory = normalizedCategory;
+        p.combat.weaponItemId = normalizedWeaponId;
         try {
             let baseRange = 0;
             if (normalizedWeaponId > 0) {
@@ -137,15 +137,15 @@ export class EquipmentService {
                     baseRange = Math.max(1, rawRange);
                 }
             }
-            p.combatWeaponRange = baseRange;
+            p.combat.weaponRange = baseRange;
         } catch {
-            p.combatWeaponRange = 0;
+            p.combat.weaponRange = 0;
         }
         if (categoryChanged) {
-            const currentSlot = Math.max(0, Math.min(p.combatStyleSlot ?? 0, 3));
+            const currentSlot = Math.max(0, Math.min(p.combat.styleSlot ?? 0, 3));
             p.setCombatStyle(currentSlot, normalizedCategory);
-        } else if (p.combatStyleCategory !== normalizedCategory) {
-            p.combatStyleCategory = normalizedCategory;
+        } else if (p.combat.styleCategory !== normalizedCategory) {
+            p.combat.styleCategory = normalizedCategory;
         }
 
         if (this.deps.combatCategoryData) {

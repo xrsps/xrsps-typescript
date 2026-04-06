@@ -109,7 +109,7 @@ export class EquipmentHandler {
         this.services.refreshAppearanceKits(player);
 
         // Reset autocast when weapon changes
-        if (weaponItemChanged && player.autocastEnabled) {
+        if (weaponItemChanged && player.combat.autocastEnabled) {
             this.services.resetAutocast(player);
         }
 
@@ -139,7 +139,7 @@ export class EquipmentHandler {
             this.services.refreshAppearanceKits(player);
 
             // Unequipping the weapon clears autocast state
-            if (equipSlot === EquipmentSlot.WEAPON && player.autocastEnabled) {
+            if (equipSlot === EquipmentSlot.WEAPON && player.combat.autocastEnabled) {
                 this.services.resetAutocast(player);
             }
         }

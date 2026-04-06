@@ -504,10 +504,10 @@ export class TickPhaseService implements TickPhaseProvider {
             const tileX = player.x / 128;
             const tileY = player.y / 128;
             const currentWildyLevel = getWildernessLevel(tileX, tileY);
-            const previousWildyLevel = player._lastWildernessLevel ?? 0;
+            const previousWildyLevel = player.combat.lastWildernessLevel ?? 0;
 
             if (currentWildyLevel !== previousWildyLevel) {
-                player._lastWildernessLevel = currentWildyLevel;
+                player.combat.lastWildernessLevel = currentWildyLevel;
 
                 const PVP_INTERFACE_ID = 90;
                 const PVP_ICONS_CONTAINER_UID = (161 << 16) | 3;
@@ -535,26 +535,26 @@ export class TickPhaseService implements TickPhaseProvider {
             }
 
             const currentInMulti = multiCombatSystem.isMultiCombat(tileX, tileY, player.level);
-            const previousInMulti = player._lastInMultiCombat ?? false;
+            const previousInMulti = player.combat.lastInMultiCombat ?? false;
 
             if (currentInMulti !== previousInMulti) {
-                player._lastInMultiCombat = currentInMulti;
+                player.combat.lastInMultiCombat = currentInMulti;
                 this.deps.variableService.queueVarbit(player.id, VARBIT_MULTICOMBAT_AREA, currentInMulti ? 1 : 0);
             }
 
             const currentInPvP = isInPvPArea(tileX, tileY, player.level);
-            const previousInPvP = player._lastInPvPArea ?? false;
+            const previousInPvP = player.combat.lastInPvPArea ?? false;
 
             if (currentInPvP !== previousInPvP) {
-                player._lastInPvPArea = currentInPvP;
+                player.combat.lastInPvPArea = currentInPvP;
                 this.deps.variableService.queueVarbit(player.id, VARBIT_PVP_SPEC_ORB, currentInPvP ? 1 : 0);
             }
 
             const currentInRaid = isInRaid(tileX, tileY, player.level);
-            const previousInRaid = player._lastInRaid ?? false;
+            const previousInRaid = player.combat.lastInRaid ?? false;
 
             if (currentInRaid !== previousInRaid) {
-                player._lastInRaid = currentInRaid;
+                player.combat.lastInRaid = currentInRaid;
                 this.deps.variableService.queueVarbit(player.id, VARBIT_IN_RAID, currentInRaid ? 1 : 0);
                 if (!currentInRaid) {
                     this.deps.variableService.queueVarbit(player.id, VARBIT_RAID_STATE, 0);
@@ -562,28 +562,28 @@ export class TickPhaseService implements TickPhaseProvider {
             }
 
             const currentInLMS = isInLMS(tileX, tileY, player.level);
-            const previousInLMS = player._lastInLMS ?? false;
+            const previousInLMS = player.combat.lastInLMS ?? false;
 
             if (currentInLMS !== previousInLMS) {
-                player._lastInLMS = currentInLMS;
+                player.combat.lastInLMS = currentInLMS;
                 this.deps.variableService.queueVarbit(player.id, VARBIT_IN_LMS, currentInLMS ? 1 : 0);
             }
 
             player.skillSystem.tickSkillRestoration(frame.tick);
-            let specialUpdated = player.tickSpecialEnergy(frame.tick);
-            if (!specialUpdated && player.hasSpecialEnergyUpdate?.()) {
+            let specialUpdated = player.specEnergy.tick(frame.tick);
+            if (!specialUpdated && player.specEnergy.hasUpdate?.()) {
                 specialUpdated = true;
             }
 
             if (specialUpdated) {
                 this.deps.queueCombatSnapshot(
                     player.id,
-                    player.combatWeaponCategory,
-                    player.combatWeaponItemId,
-                    !!player.autoRetaliate,
-                    player.combatStyleSlot,
-                    Array.from(player.activePrayers ?? []),
-                    player.combatSpellId > 0 ? player.combatSpellId : undefined,
+                    player.combat.weaponCategory,
+                    player.combat.weaponItemId,
+                    !!player.combat.autoRetaliate,
+                    player.combat.styleSlot,
+                    Array.from(player.prayer.activePrayers ?? []),
+                    player.combat.spellId > 0 ? player.combat.spellId : undefined,
                 );
             }
             const snap = player.wasTeleported() ?? false;
@@ -752,7 +752,7 @@ export class TickPhaseService implements TickPhaseProvider {
                     }
                 }
                 this.deps.varpSyncService.syncCombatTargetPlayerVarp(player);
-                player.attackDelay = this.deps.playerCombatService.pickAttackSpeed(player);
+                player.combat.attackDelay = this.deps.playerCombatService.pickAttackSpeed(player);
             });
             this.deps.players.forEachBot((bot) => {
                 const seqData = bot.popPendingSeq() as { seqId: number; delay: number } | undefined;
@@ -1023,25 +1023,25 @@ export class TickPhaseService implements TickPhaseProvider {
                 let quickPrayers: string[] | undefined;
                 let quickPrayersEnabled: boolean | undefined;
                 try {
-                    specialEnergy = player.getSpecialEnergyPercent();
-                    specialActivated = player.isSpecialActivated();
-                    player.markSpecialEnergySynced();
-                    const quickSet = player.getQuickPrayers();
+                    specialEnergy = player.specEnergy.getPercent();
+                    specialActivated = player.specEnergy.isActivated();
+                    player.specEnergy.markSynced();
+                    const quickSet = player.prayer.getQuickPrayers();
                     quickPrayers = Array.from(quickSet);
-                    quickPrayersEnabled = player.areQuickPrayersEnabled();
+                    quickPrayersEnabled = player.prayer.areQuickPrayersEnabled();
                 } catch (err) { logger.warn("Failed to read combat UI state", err); }
                 this.deps.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "combat",
                         payload: {
-                            weaponCategory: player.combatWeaponCategory,
-                            weaponItemId: player.combatWeaponItemId,
-                            autoRetaliate: !!player.autoRetaliate,
-                            activeStyle: player.combatStyleSlot,
-                            activePrayers: Array.from(player.activePrayers ?? []),
+                            weaponCategory: player.combat.weaponCategory,
+                            weaponItemId: player.combat.weaponItemId,
+                            autoRetaliate: !!player.combat.autoRetaliate,
+                            activeStyle: player.combat.styleSlot,
+                            activePrayers: Array.from(player.prayer.activePrayers ?? []),
                             activeSpellId:
-                                player.combatSpellId > 0 ? player.combatSpellId : undefined,
+                                player.combat.spellId > 0 ? player.combat.spellId : undefined,
                             specialEnergy,
                             specialActivated,
                             quickPrayers,

@@ -110,7 +110,7 @@ export class InventoryService {
             return findOwnedItemLocationInSnapshot(itemId, {
                 inventory: this.getInventory(player),
                 equipment: this.deps.getEquipArray(player),
-                bank: player.getBankEntries(),
+                bank: player.bank.getBankEntries(),
             });
         } catch {
             return undefined;

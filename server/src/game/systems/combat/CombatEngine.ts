@@ -508,7 +508,7 @@ export class CombatEngine {
         // OSRS: Dark bow fires 2 arrows, with the second hitting 1 tick after the first
         // Reference: docs/projectiles-hitdelay.md
         let additionalHits: AdditionalHit[] | undefined;
-        const weaponId = context.player.combatWeaponItemId;
+        const weaponId = context.player.combat.weaponItemId;
         if (this.isDarkBow(weaponId)) {
             // Second arrow: roll independent hit and damage
             const secondHitLanded = forceHit ? true : this.rng.next() < hitChance;
@@ -630,7 +630,7 @@ export class CombatEngine {
 
             case "ranged": {
                 // Check if using thrown weapons (darts, knives, throwing axes, chinchompas)
-                const rangedWeaponId = context.player.combatWeaponItemId;
+                const rangedWeaponId = context.player.combat.weaponItemId;
                 const isThrown = this.isThrownWeapon(rangedWeaponId);
                 if (isThrown) {
                     // OSRS: Thrown weapons use 1 + floor(distance / 6)
@@ -982,7 +982,7 @@ export class CombatEngine {
     }
 
     private getSlayerTaskInfo(player: PlayerState): SlayerTaskInfo {
-        return player.skillSystem.getSlayerTaskInfo(player.slayerTask);
+        return player.skillSystem.getSlayerTaskInfo(player.combat.slayerTask);
     }
 
     private buildTargetInfo(npc: NpcState): TargetInfo {
@@ -1243,10 +1243,10 @@ export class CombatEngine {
     }
 
     private resolveAttackStyle(player: PlayerState, bonuses: number[]): AttackStyle {
-        const category = player.combatWeaponCategory;
-        const styleSlot = Math.max(0, player.combatStyleSlot);
-        const autocastEnabled = player.autocastEnabled;
-        const hasCombatSpell = player.combatSpellId > 0;
+        const category = player.combat.weaponCategory;
+        const styleSlot = Math.max(0, player.combat.styleSlot);
+        const autocastEnabled = player.combat.autocastEnabled;
+        const hasCombatSpell = player.combat.spellId > 0;
         const mappedAttackType = player.getCurrentAttackType?.();
         const mappedMeleeBonusIndex = player.getCurrentMeleeBonusIndex?.();
 
@@ -1255,7 +1255,7 @@ export class CombatEngine {
         // - Style 1+ with autocast enabled = magic attack
         // If autocast is OFF, the melee styles should do melee attacks (punching).
         if (mappedAttackType === "magic" && hasCombatSpell) {
-            const autocastMode = player.autocastMode;
+            const autocastMode = player.combat.autocastMode;
             const mode: MagicStyleMode =
                 autocastMode === "defensive_autocast"
                     ? "defensive"
@@ -1276,13 +1276,13 @@ export class CombatEngine {
             // When autocast is enabled with a valid spell, the attack is magic even if
             // the style slot maps to a melee attack type (e.g., "Bash" on style 0).
             if (autocastEnabled && hasCombatSpell) {
-                const autocastMode = player.autocastMode;
+                const autocastMode = player.combat.autocastMode;
                 const mode: MagicStyleMode =
                     autocastMode === "defensive_autocast" ? "defensive" : "accurate";
                 return { kind: "magic", mode, bonusIndex: AttackBonusIndex.Magic };
             }
             // Use weapon-specific style data for correct XP mode
-            const weaponId = player.combatWeaponItemId ?? -1;
+            const weaponId = player.combat.weaponItemId ?? -1;
             const meleeMode = this.getMeleeStyleMode(weaponId, styleSlot);
             const bonusIndex =
                 mappedMeleeBonusIndex !== undefined
@@ -1302,7 +1302,7 @@ export class CombatEngine {
             }
             // Only use magic if autocast is enabled with a valid spell
             if (autocastEnabled && hasCombatSpell) {
-                const autocastMode = player.autocastMode;
+                const autocastMode = player.combat.autocastMode;
                 const mode: MagicStyleMode =
                     autocastMode === "defensive_autocast" ? "defensive" : "accurate";
                 return { kind: "magic", mode, bonusIndex: AttackBonusIndex.Magic };
@@ -1317,7 +1317,7 @@ export class CombatEngine {
         }
 
         // Use weapon-specific style data for correct XP mode
-        const weaponId = player.combatWeaponItemId ?? -1;
+        const weaponId = player.combat.weaponItemId ?? -1;
         const meleeMode = this.getMeleeStyleMode(weaponId, styleSlot);
         // Pick the best melee bonus index based on player's attack bonuses
         const bonusIndex =
@@ -1389,12 +1389,12 @@ export class CombatEngine {
      * Uses combatWeaponItemId which is set by wsServer.refreshCombatWeaponCategory.
      */
     private getPlayerWeaponId(player: PlayerState): number {
-        const weaponId = player.combatWeaponItemId;
+        const weaponId = player.combat.weaponItemId;
         return weaponId > 0 ? weaponId : 0;
     }
 
     private getActiveSpellId(player: PlayerState): number | undefined {
-        const spellId = player.combatSpellId;
+        const spellId = player.combat.spellId;
         if (spellId > 0) return spellId;
         return undefined;
     }
@@ -1441,7 +1441,7 @@ export class CombatEngine {
 
     private getPrayerMultiplier(player: PlayerState, stat: PrayerStat): number {
         const prayers: Set<string> | undefined = (() => {
-            const active = player.activePrayers;
+            const active = player.prayer.activePrayers;
             if (active instanceof Set) return active as Set<string>;
             if (Array.isArray(active)) return new Set(active as string[]);
             return undefined;

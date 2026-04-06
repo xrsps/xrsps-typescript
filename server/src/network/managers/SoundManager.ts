@@ -740,9 +740,9 @@ export class SoundManager {
      */
     pickCombatSound(player: PlayerState, isHit: boolean): number {
         try {
-            const spellId = player.combatSpellId ?? -1;
-            const autocastEnabled = !!player.autocastEnabled;
-            const category = player.combatWeaponCategory ?? 0;
+            const spellId = player.combat.spellId ?? -1;
+            const autocastEnabled = !!player.combat.autocastEnabled;
+            const category = player.combat.weaponCategory ?? 0;
             const hasMagicWeapon = MAGIC_WEAPON_CATEGORY_IDS.has(category);
 
             // Magic spell sounds take priority
@@ -760,7 +760,7 @@ export class SoundManager {
             // Get hit sound based on weapon and combat style
             const equip = this.services.ensureEquipArray(player);
             const weaponId = equip[14]; // EquipmentSlot.WEAPON = 14
-            const styleIndex = player.combatStyleSlot ?? 0;
+            const styleIndex = player.combat.styleSlot ?? 0;
 
             if (weaponId > 0) {
                 // Use attack-type-aware hit sound

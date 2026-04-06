@@ -34,7 +34,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
     registry.registerClientMessageHandler("smithing_mode", (event) => {
         smithingUI.handleModeChange(
             event.player,
-            (event.payload.mode as number) ?? event.player.getSmithingQuantityMode(),
+            (event.payload.mode as number) ?? event.player.bank.getSmithingQuantityMode(),
             event.payload.custom as number | undefined,
         );
     });

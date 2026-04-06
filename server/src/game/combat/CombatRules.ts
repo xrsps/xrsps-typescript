@@ -11,10 +11,10 @@ export const DEFAULT_NPC_RANGED_RANGE = 7;
 export const DEFAULT_NPC_MAGIC_RANGE = 10;
 
 export interface PlayerCombatRuleState {
-    combatWeaponCategory?: number;
-    combatStyleSlot?: number;
-    combatWeaponRange?: number;
-    combatSpellId?: number;
+    weaponCategory?: number;
+    styleSlot?: number;
+    weaponRange?: number;
+    spellId?: number;
     autocastEnabled?: boolean;
 }
 
@@ -53,7 +53,7 @@ function normalizeBaseRange(
         const range = explicitBaseRange;
         if (range > 0) return Math.max(1, range);
     }
-    const storedRange = state.combatWeaponRange ?? 0;
+    const storedRange = state.weaponRange ?? 0;
     if (storedRange > 0) return Math.max(1, storedRange);
     return undefined;
 }
@@ -63,9 +63,9 @@ function normalizeBaseRange(
  * This follows OSRS hybrid-weapon behavior (staves/salamanders/powered staves).
  */
 export function resolvePlayerAttackType(state: PlayerCombatRuleState): AttackType {
-    const category = state.combatWeaponCategory ?? 0;
-    const styleSlot = state.combatStyleSlot ?? 0;
-    const spellId = state.combatSpellId ?? -1;
+    const category = state.weaponCategory ?? 0;
+    const styleSlot = state.styleSlot ?? 0;
+    const spellId = state.spellId ?? -1;
     const autocastEnabled = !!state.autocastEnabled;
 
     if (category === SALAMANDER_WEAPON_CATEGORY) {
@@ -96,9 +96,9 @@ export function resolvePlayerAttackReach(
     state: PlayerCombatRuleState,
     options: PlayerAttackReachOptions = {},
 ): number {
-    const category = state.combatWeaponCategory ?? 0;
-    const styleSlot = state.combatStyleSlot ?? 0;
-    const spellId = state.combatSpellId ?? -1;
+    const category = state.weaponCategory ?? 0;
+    const styleSlot = state.styleSlot ?? 0;
+    const spellId = state.spellId ?? -1;
     const autocastEnabled = !!state.autocastEnabled;
     const baseRange = normalizeBaseRange(state, options.baseRange);
     const attackType = resolvePlayerAttackType(state);

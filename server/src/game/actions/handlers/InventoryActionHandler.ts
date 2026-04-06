@@ -622,7 +622,7 @@ export class InventoryActionHandler {
         this.services.refreshAppearanceKits(player);
 
         // Reset autocast when weapon is unequipped
-        if (weaponItemChanged && player.autocastEnabled) {
+        if (weaponItemChanged && player.combat.autocastEnabled) {
             this.services.resetAutocast(player);
         }
 

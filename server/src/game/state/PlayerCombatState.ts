@@ -78,6 +78,39 @@ export class PlayerCombatState {
     // Equipment degradation
     degradationCharges: ChargeTracker = createChargeTracker();
     degradationLastItemId: Map<number, number> = new Map();
+
+    // Freeze query methods
+
+    isFrozen(currentTick: number): boolean {
+        if (this.freezeExpiryTick > 0 && currentTick >= this.freezeExpiryTick) {
+            this.freezeImmunityUntilTick = currentTick + 5;
+            this.freezeExpiryTick = 0;
+            return false;
+        }
+        return this.freezeExpiryTick > currentTick;
+    }
+
+    isFreezeImmune(currentTick: number): boolean {
+        return currentTick < this.freezeImmunityUntilTick;
+    }
+
+    getFreezeRemaining(currentTick: number): number {
+        return Math.max(0, this.freezeExpiryTick - currentTick);
+    }
+
+    /**
+     * Check freeze immunity and compute new expiry tick.
+     * Returns the new expiry tick, or -1 if immune.
+     * The caller (PlayerState) must apply Actor-level side effects.
+     */
+    tryApplyFreeze(durationTicks: number, currentTick: number): number {
+        if (currentTick < this.freezeImmunityUntilTick) {
+            return -1;
+        }
+        const expires = Math.max(this.freezeExpiryTick, currentTick + Math.max(1, durationTicks));
+        this.freezeExpiryTick = expires;
+        return expires;
+    }
 }
 
 /**

@@ -327,13 +327,13 @@ export class SpellActionHandler {
         tick: number;
     }): boolean {
         const { player, npc, plan, tick } = opts;
-        const spellId = player.combatSpellId ?? -1;
+        const spellId = player.combat.spellId ?? -1;
         if (!(spellId > 0)) return true;
-        if (!player.autocastEnabled) return true;
-        if (player.lastSpellCastTick >= tick) return true;
+        if (!player.combat.autocastEnabled) return true;
+        if (player.combat.lastSpellCastTick >= tick) return true;
 
         // Autocast only works with a compatible magic weapon equipped.
-        const weaponItemId = player.combatWeaponItemId;
+        const weaponItemId = player.combat.weaponItemId;
         const weaponCompatibility = this.services.canWeaponAutocastSpell(weaponItemId, spellId);
         if (!weaponCompatibility.compatible) {
             return true;
@@ -358,7 +358,7 @@ export class SpellActionHandler {
 
         const validation = this.services.validateSpellCast(castContext);
         if (!validation.success) {
-            const castMode = player.autocastMode ?? "autocast";
+            const castMode = player.combat.autocastMode ?? "autocast";
             this.services.log(
                 "info",
                 `[combat] disabling autocast (npc) for player ${
@@ -385,11 +385,11 @@ export class SpellActionHandler {
             } catch (err) { logger.warn("[spell] failed to enqueue spell failure chat", err); }
             this.services.queueCombatSnapshot(
                 player.id,
-                player.combatWeaponCategory,
-                player.combatWeaponItemId,
-                !!player.autoRetaliate,
-                player.combatStyleSlot,
-                Array.from(player.activePrayers ?? []),
+                player.combat.weaponCategory,
+                player.combat.weaponItemId,
+                !!player.combat.autoRetaliate,
+                player.combat.styleSlot,
+                Array.from(player.prayer.activePrayers ?? []),
                 undefined,
             );
             return false;
@@ -412,7 +412,7 @@ export class SpellActionHandler {
                         tile: { x: npc.tileX, y: npc.tileY, plane: npc.level },
                         modifiers: {
                             isAutocast: true,
-                            castMode: player.autocastMode ?? "autocast",
+                            castMode: player.combat.autocastMode ?? "autocast",
                         },
                     };
                     this.services.queueSpellResult(player.id, failurePayload);
@@ -452,7 +452,7 @@ export class SpellActionHandler {
             targetId: npc.id,
             modifiers: {
                 isAutocast: true,
-                castMode: player.autocastMode ?? "autocast",
+                castMode: player.combat.autocastMode ?? "autocast",
             },
             tile: { x: targetTileX, y: targetTileY, plane: npc.level },
             castSpotAnim: spellData.castSpotAnim !== undefined ? spellData.castSpotAnim : undefined,
@@ -507,7 +507,7 @@ export class SpellActionHandler {
             }
         } catch (err) { logger.warn("[spell] failed to queue autocast animation", err); }
 
-        player.lastSpellCastTick = tick;
+        player.combat.lastSpellCastTick = tick;
 
         // Queue projectile for viewers
         const scheduledImpactDelayTicks = timing
@@ -838,7 +838,7 @@ export class SpellActionHandler {
             request.modifiers?.castMode === "autocast" ||
             request.modifiers?.castMode === "defensive_autocast";
         const implicitAutocast =
-            !request.modifiers && player.autocastEnabled && player.combatSpellId === spellId;
+            !request.modifiers && player.combat.autocastEnabled && player.combat.spellId === spellId;
         const isAutocast = explicitAutocast || implicitAutocast;
 
         const castContext: SpellCastContext = {
@@ -879,12 +879,12 @@ export class SpellActionHandler {
 
         // Store pending player damage for scheduling
         if (targetPlayer) {
-            player.pendingPlayerSpellDamage = {
+            player.combat.pendingPlayerSpellDamage = {
                 targetId: targetPlayer.id,
             };
         }
 
-        player.lastSpellCastTick = tick;
+        player.combat.lastSpellCastTick = tick;
 
         const sock = this.services.getPlayerSocket(player.id);
         if (!sock) {
@@ -1122,9 +1122,9 @@ export class SpellActionHandler {
         }
 
         // Schedule player damage if targeting a player
-        const pendingDamage = player.pendingPlayerSpellDamage;
+        const pendingDamage = player.combat.pendingPlayerSpellDamage;
         if (pendingDamage && targetPlayer && timing) {
-            player.pendingPlayerSpellDamage = undefined;
+            player.combat.pendingPlayerSpellDamage = undefined;
             const currentTick = deliveryTick;
             targetPlayer.refreshActiveCombatTimer();
             let outcome: { landed: boolean; maxHit: number; damage: number };

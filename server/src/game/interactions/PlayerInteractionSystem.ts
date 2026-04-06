@@ -1333,12 +1333,12 @@ export class PlayerInteractionSystem {
                 return;
             }
 
-            const spellId = me.combatSpellId;
-            if (!(me.autocastEnabled && spellId > 0)) return;
+            const spellId = me.combat.spellId;
+            if (!(me.combat.autocastEnabled && spellId > 0)) return;
 
             const attackDelay = Math.max(1, opts?.pickPlayerAttackDelay?.(me, target) ?? 4);
-            me.attackDelay = attackDelay;
-            const last = me.lastSpellCastTick;
+            me.combat.attackDelay = attackDelay;
+            const last = me.combat.lastSpellCastTick;
             if (tick < last + attackDelay) return;
 
             schedulePlayerAttack(me, target, attackDelay, tick);
@@ -2346,7 +2346,7 @@ export class PlayerInteractionSystem {
         run?: boolean,
     ): boolean {
         const normalizedReach = Math.max(1, reach);
-        const attackType = resolvePlayerAttackType(player);
+        const attackType = resolvePlayerAttackType(player.combat);
         // Melee requires cardinal positioning (N/S/E/W), not diagonal
         const strategy =
             normalizedReach <= 1
@@ -2407,19 +2407,19 @@ export class PlayerInteractionSystem {
     }
 
     private getPlayerAttackReach(player: PlayerState): number {
-        return resolvePlayerAttackReach(player);
+        return resolvePlayerAttackReach(player.combat);
     }
 
     private shouldRepeatNpcAttack(player: PlayerState): boolean {
-        const combatSpellId = player.combatSpellId;
+        const combatSpellId = player.combat.spellId;
         if (combatSpellId > 0) {
             // For regular staves/salamander magic, repeating requires autocast.
             // Powered staves always repeat and are handled separately by style resolution.
-            const attackType = resolvePlayerAttackType(player);
-            const category = player.combatWeaponCategory ?? 0;
+            const attackType = resolvePlayerAttackType(player.combat);
+            const category = player.combat.weaponCategory ?? 0;
             const isPoweredStaff = POWERED_STAFF_CATEGORIES.has(category);
             if (attackType === "magic" && !isPoweredStaff) {
-                return !!player.autocastEnabled;
+                return !!player.combat.autocastEnabled;
             }
         }
         return true;
@@ -2512,7 +2512,7 @@ export class PlayerInteractionSystem {
         }
 
         // For reach > 1 (e.g., halberds), use attack type resolution to decide LoS vs wall-path checks.
-        const isMelee = resolvePlayerAttackType(player) === "melee";
+        const isMelee = resolvePlayerAttackType(player.combat) === "melee";
 
         // Ranged/magic attacks require LINE OF SIGHT to the target.
         // Wall checks are different from LoS - walls block melee, but projectiles

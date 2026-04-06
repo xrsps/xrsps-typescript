@@ -118,7 +118,7 @@ export class PlayerDeathService {
         const appearance = player.appearance;
         const wasSkulled =
             appearance?.headIcons?.skull !== undefined && appearance.headIcons.skull >= 0;
-        const hadProtectItem = player.hasPrayerActive("protect_item");
+        const hadProtectItem = player.prayer.hasPrayerActive("protect_item");
 
         // Capture death location
         const deathLocation = {
@@ -470,7 +470,7 @@ export class PlayerDeathService {
      */
     private restorePlayerState(player: PlayerState): void {
         // Clear all prayers
-        player.clearActivePrayers();
+        player.prayer.clearActivePrayers();
 
         // Clear death-related timers (stuns, freezes, etc.)
         player.timers.clearOnDeath();
@@ -496,7 +496,7 @@ export class PlayerDeathService {
         player.skillSystem.cureDisease();
 
         // Reset special attack energy to 100%
-        player.setSpecialEnergyPercent(1000);
+        player.specEnergy.setPercent(1000);
 
         // Clear any queued actions
         player.interruptQueues();

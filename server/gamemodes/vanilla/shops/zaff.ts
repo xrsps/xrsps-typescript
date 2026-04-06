@@ -73,7 +73,7 @@ function hasCompletedWhatLiesBelow(player: any): boolean {
 }
 
 function hasItemInBank(player: any, itemId: number): boolean {
-    const bank = player.getBankEntries();
+    const bank = player.bank.getBankEntries();
     if (!bank) return false;
     for (const entry of bank) {
         if (entry.itemId === itemId && entry.quantity > 0) return true;

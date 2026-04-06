@@ -632,7 +632,7 @@ export class PlayerManager implements PlayerRepository {
                 p.processTimersAndQueue();
                 p.skillSystem.tickHitpoints(currentTick);
                 p.skillSystem.tickSkillRestoration(currentTick);
-                p.tickSpecialEnergy(currentTick);
+                p.specEnergy.tick(currentTick);
                 p.setMovementTick(currentTick);
             }
             p.tickStep();

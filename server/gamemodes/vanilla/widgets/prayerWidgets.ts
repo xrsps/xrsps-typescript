@@ -147,7 +147,7 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
     for (const [childId, def] of PRAYERS_BY_CHILD_ID) {
         registry.onButton(PRAYER_WIDGET_GROUP_ID, childId, (event) => {
             const player = event.player;
-            const current = new Set(player.getActivePrayers());
+            const current = new Set(player.prayer.getActivePrayers());
             // Always use toggle behavior based on server state.
             // The client CS2 script (prayer_op) toggles local state before sending
             // the action, so the option text reflects client state, not user intent.
@@ -157,11 +157,11 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
                 current.add(def.id);
             }
             const desired = Array.from(current);
-            player.setQuickPrayersEnabled(false);
+            player.prayer.setQuickPrayersEnabled(false);
             if (services.applyPrayers) {
                 services.applyPrayers(player, desired);
             } else {
-                player.setActivePrayers(desired);
+                player.prayer.setActivePrayers(desired);
                 services.queueCombatState?.(player);
             }
         });
@@ -228,14 +228,14 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
                 quickPrayerSetupSlotToPrayer.get(slot) ?? PRAYER_BY_QUICK_SLOT.get(slot);
             if (!prayer) return;
 
-            const next = new Set<PrayerName>(player.getQuickPrayers());
+            const next = new Set<PrayerName>(player.prayer.getQuickPrayers());
             if (next.has(prayer)) {
                 next.delete(prayer);
             } else {
                 next.add(prayer);
             }
-            player.setQuickPrayers(next);
-            player.setQuickPrayersEnabled(false);
+            player.prayer.setQuickPrayers(next);
+            player.prayer.setQuickPrayersEnabled(false);
             services.queueCombatState?.(player);
         },
     );
@@ -277,7 +277,7 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
         if (lastOrbToggleTickByPlayerId.get(pid) === tick) return;
         lastOrbToggleTickByPlayerId.set(pid, tick);
 
-        const isEnabled = player.areQuickPrayersEnabled?.() ?? false;
+        const isEnabled = player.prayer.areQuickPrayersEnabled?.() ?? false;
         handlePrayerOrbClick(isEnabled ? "deactivate" : "activate", player, services);
     });
 }
@@ -361,11 +361,11 @@ function handlePrayerOrbClick(
     player: any,
     services: ScriptServices,
 ): void {
-    const quick = Array.from(player.getQuickPrayers() as Iterable<PrayerName>);
+    const quick = Array.from(player.prayer.getQuickPrayers() as Iterable<PrayerName>);
 
     if (option === "activate") {
         if (quick.length === 0) {
-            player.setQuickPrayersEnabled(false);
+            player.prayer.setQuickPrayersEnabled(false);
             services.sendGameMessage(player, "You haven't selected any quick-prayers.");
             services.queueCombatState?.(player);
             return;
@@ -378,23 +378,23 @@ function handlePrayerOrbClick(
                     player,
                     result.errors[0]?.message ?? "You can't use that prayer.",
                 );
-                player.setQuickPrayersEnabled(false);
+                player.prayer.setQuickPrayersEnabled(false);
                 services.queueCombatState?.(player);
                 return;
             }
         } else {
-            player.setActivePrayers(quick);
+            player.prayer.setActivePrayers(quick);
         }
-        player.setQuickPrayersEnabled(true);
+        player.prayer.setQuickPrayersEnabled(true);
         services.queueCombatState?.(player);
     } else if (option === "deactivate") {
         const apply = services.applyPrayers;
         if (apply) {
             apply(player, []);
         } else {
-            player.clearActivePrayers();
+            player.prayer.clearActivePrayers();
         }
-        player.setQuickPrayersEnabled(false);
+        player.prayer.setQuickPrayersEnabled(false);
         services.queueCombatState?.(player);
     }
 }
@@ -410,29 +410,29 @@ function handleQuickPrayerAction(
 ): void {
     const normalized = normalizeQuickOption(option);
     if (normalized === QUICK_ACTION_SET) {
-        const next = Array.from(player.getActivePrayers() as Iterable<PrayerName>);
-        player.setQuickPrayers(next);
-        player.setQuickPrayersEnabled(false);
+        const next = Array.from(player.prayer.getActivePrayers() as Iterable<PrayerName>);
+        player.prayer.setQuickPrayers(next);
+        player.prayer.setQuickPrayersEnabled(false);
         services.queueCombatState?.(player);
         return;
     }
     if (normalized === QUICK_ACTION_TOGGLE) {
-        const quick = Array.from(player.getQuickPrayers() as Iterable<PrayerName>);
+        const quick = Array.from(player.prayer.getQuickPrayers() as Iterable<PrayerName>);
         if (quick.length === 0) {
-            player.setQuickPrayersEnabled(false);
+            player.prayer.setQuickPrayersEnabled(false);
             services.sendGameMessage(player, "You haven't selected any quick-prayers.");
             services.queueCombatState?.(player);
             return;
         }
         const apply = services.applyPrayers;
-        if (player.areQuickPrayersEnabled()) {
+        if (player.prayer.areQuickPrayersEnabled()) {
             if (apply) {
                 apply(player, []);
             } else {
-                player.clearActivePrayers();
+                player.prayer.clearActivePrayers();
                 services.queueCombatState?.(player);
             }
-            player.setQuickPrayersEnabled(false);
+            player.prayer.setQuickPrayersEnabled(false);
             services.queueCombatState?.(player);
             return;
         }
@@ -448,10 +448,10 @@ function handleQuickPrayerAction(
                 return;
             }
         } else {
-            player.setActivePrayers(quick);
+            player.prayer.setActivePrayers(quick);
             services.queueCombatState?.(player);
         }
-        player.setQuickPrayersEnabled(true);
+        player.prayer.setQuickPrayersEnabled(true);
         services.queueCombatState?.(player);
         return;
     }

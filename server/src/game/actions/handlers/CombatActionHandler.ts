@@ -605,7 +605,7 @@ export class CombatActionHandler {
             }
         } else {
             // do not allow long-reach melee attacks through walls
-            const isMelee = resolvePlayerAttackType(player) === "melee";
+            const isMelee = resolvePlayerAttackType(player.combat) === "melee";
             if (isMelee && pathService) {
                 if (!this.services.hasDirectMeleePath(player, npc, pathService)) {
                     return { ok: false, reason: "not_in_range" };
@@ -669,7 +669,7 @@ export class CombatActionHandler {
 
         // Magic autocast rune consumption
         // Skip if onMagicAttack already handled runes at schedule time (prevents double consumption)
-        if (plannedAttackType === "magic" && player.autocastEnabled && !data.magicAutocastHandled) {
+        if (plannedAttackType === "magic" && player.combat.autocastEnabled && !data.magicAutocastHandled) {
             const result = this.handleAutocastRuneConsumption(player, npc, weaponItemId);
             if (!result.ok) {
                 return result;
@@ -694,7 +694,7 @@ export class CombatActionHandler {
         if (specialCostPercent !== undefined) {
             const costPercent = Math.max(0, Math.min(100, specialCostPercent));
             if (costPercent > 0) {
-                const ok = player.consumeSpecialEnergy(costPercent);
+                const ok = player.specEnergy.consume(costPercent);
                 specialActivated = ok;
                 player.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
                 this.services.queueCombatState(player);
@@ -800,7 +800,7 @@ export class CombatActionHandler {
             attackDelay = this.services.pickAttackSpeed(player);
         }
         attackDelay = Math.max(1, attackDelay);
-        player.attackDelay = attackDelay;
+        player.combat.attackDelay = attackDelay;
 
         // Keep combat hit resolution aligned with projectile travel so impact never resolves
         // before the launched projectile can actually arrive.
@@ -986,7 +986,7 @@ export class CombatActionHandler {
     ): ActionExecutionResult {
         // Keep autocast pacing consistent even on failure
         try {
-            player.lastSpellCastTick = tick;
+            player.combat.lastSpellCastTick = tick;
         } catch (err) { logger.warn("[combat] failed to set last spell cast tick", err); }
 
         const targetId = data.targetId;
@@ -1007,7 +1007,7 @@ export class CombatActionHandler {
         }
 
         const spellIdRaw = data.spellId ?? -1;
-        const spellId = spellIdRaw > 0 ? spellIdRaw : player.combatSpellId ?? -1;
+        const spellId = spellIdRaw > 0 ? spellIdRaw : player.combat.spellId ?? -1;
         if (!(spellId > 0)) {
             this.services.log(
                 "info",
@@ -1114,7 +1114,7 @@ export class CombatActionHandler {
 
         // Stop one-shot spell interaction (keep for autocast)
         try {
-            if (!player.autocastEnabled) {
+            if (!player.combat.autocastEnabled) {
                 const sock = this.services.getPlayerSocket(player.id);
                 if (sock) this.services.stopPlayerCombat(sock);
             }
@@ -1159,7 +1159,7 @@ export class CombatActionHandler {
                 Number.isFinite(explicitSpellIdRaw) &&
                 explicitSpellIdRaw > 0
                     ? explicitSpellIdRaw
-                    : player.combatSpellId ?? -1;
+                    : player.combat.spellId ?? -1;
             this.handleMagicPvpEffects(
                 player,
                 target,
@@ -1321,7 +1321,7 @@ export class CombatActionHandler {
                 Number.isFinite(explicitSpellIdRaw) &&
                 explicitSpellIdRaw > 0
                     ? explicitSpellIdRaw
-                    : player.combatSpellId ?? -1;
+                    : player.combat.spellId ?? -1;
             this.handleMagicNpcEffects(
                 player,
                 npc,
@@ -1455,7 +1455,7 @@ export class CombatActionHandler {
         // Handle auto-retaliate
         const sock = this.services.getPlayerSocket(player.id);
         const interactionState = this.services.getInteractionState(sock);
-        if (player.autoRetaliate && sock) {
+        if (player.combat.autoRetaliate && sock) {
             this.handlePlayerAutoRetaliate(player, npc, sock, interactionState, tick);
         }
 
@@ -1536,7 +1536,7 @@ export class CombatActionHandler {
         // ========================================================================
         if (DegradationSystem.isDegradable(weaponItemId)) {
             // Check if weapon was swapped (different item family) - reset charges if so
-            const lastItemId = player.degradationLastItemId.get(EquipmentSlot.WEAPON);
+            const lastItemId = player.combat.degradationLastItemId.get(EquipmentSlot.WEAPON);
             const currentConfig = DegradationSystem.getConfig(weaponItemId);
             const lastConfig = lastItemId ? DegradationSystem.getConfig(lastItemId) : undefined;
 
@@ -1549,7 +1549,7 @@ export class CombatActionHandler {
 
             let currentCharges = weaponSwapped
                 ? 0
-                : getChargesUsed(player.degradationCharges, EquipmentSlot.WEAPON);
+                : getChargesUsed(player.combat.degradationCharges, EquipmentSlot.WEAPON);
 
             // Process each shot (for multi-hit attacks like dark bow spec)
             let currentItemId = weaponItemId;
@@ -1575,14 +1575,14 @@ export class CombatActionHandler {
 
             // Update charge tracking (unless depleted)
             if (!depleted) {
-                setChargesUsed(player.degradationCharges, EquipmentSlot.WEAPON, chargesUsed);
-                player.degradationLastItemId.set(EquipmentSlot.WEAPON, currentItemId);
+                setChargesUsed(player.combat.degradationCharges, EquipmentSlot.WEAPON, chargesUsed);
+                player.combat.degradationLastItemId.set(EquipmentSlot.WEAPON, currentItemId);
             }
 
             // Handle full depletion (e.g., crystal bow → crystal seed)
             if (depleted) {
-                player.degradationCharges.delete(EquipmentSlot.WEAPON);
-                player.degradationLastItemId.delete(EquipmentSlot.WEAPON);
+                player.combat.degradationCharges.delete(EquipmentSlot.WEAPON);
+                player.combat.degradationLastItemId.delete(EquipmentSlot.WEAPON);
                 this.services.queueChatMessage({
                     messageType: "game",
                     text: "Your weapon has reverted to a seed.",
@@ -1667,7 +1667,7 @@ export class CombatActionHandler {
         npc: NpcState,
         weaponItemId: number,
     ): ActionExecutionResult {
-        const autocastSpellId = player.combatSpellId;
+        const autocastSpellId = player.combat.spellId;
         if (!(Number.isFinite(autocastSpellId) && autocastSpellId > 0)) {
             return { ok: true };
         }
@@ -1747,7 +1747,7 @@ export class CombatActionHandler {
             return undefined;
         }
 
-        const spellId = player.combatSpellId ?? -1;
+        const spellId = player.combat.spellId ?? -1;
         const spellData = spellId > 0 ? this.services.getSpellData(spellId) : undefined;
         if (spellData && spellData.category === "combat") {
             const projectileDefaults = this.services.getProjectileParams(spellData.projectileId);
@@ -1785,7 +1785,7 @@ export class CombatActionHandler {
     ): void {
         if (attackType !== "magic") return;
 
-        const spellId = player.combatSpellId ?? -1;
+        const spellId = player.combat.spellId ?? -1;
         const spellData = spellId > 0 ? this.services.getSpellData(spellId) : undefined;
         if (!spellData || spellData.category !== "combat") return;
 
@@ -1848,10 +1848,10 @@ export class CombatActionHandler {
     ): void {
         try {
             if (
-                target.autoRetaliate &&
-                target.autocastEnabled &&
-                Number.isFinite(target.combatSpellId) &&
-                target.combatSpellId > 0
+                target.combat.autoRetaliate &&
+                target.combat.autocastEnabled &&
+                Number.isFinite(target.combat.spellId) &&
+                target.combat.spellId > 0
             ) {
                 const targetSock = this.services.getPlayerSocket(targetId);
                 if (targetSock) {
@@ -1880,10 +1880,10 @@ export class CombatActionHandler {
     ): void {
         const spellId =
             (Number.isFinite(spellIdOverride) ? spellIdOverride : undefined) ??
-            player.combatSpellId ??
+            player.combat.spellId ??
             -1;
         const spell = spellId > 0 ? this.services.getSpellData(spellId) : undefined;
-        const weaponId = player.combatWeaponItemId ?? -1;
+        const weaponId = player.combat.weaponItemId ?? -1;
         const poweredStaffData = weaponId > 0 ? getPoweredStaffSpellData(weaponId) : undefined;
 
         const sfx = this.pickResolvedMagicSound(spellId, landed, poweredStaffData);
@@ -2026,7 +2026,7 @@ export class CombatActionHandler {
         ) {
             const restore = Math.floor(dealt * prayerFraction);
             if (restore > 0) {
-                const current = player.getPrayerLevel();
+                const current = player.prayer.getPrayerLevel();
                 const base = player.skillSystem.getSkill(5).baseLevel; // SkillId.Prayer
                 const target = Math.min(base, current + restore);
                 player.skillSystem.setSkillBoost(5, target);
@@ -2051,12 +2051,12 @@ export class CombatActionHandler {
     ): void {
         const spellId =
             (Number.isFinite(spellIdOverride) ? spellIdOverride : undefined) ??
-            player.combatSpellId ??
+            player.combat.spellId ??
             -1;
         const spell = spellId > 0 ? this.services.getSpellData(spellId) : undefined;
 
         // For powered staves (Trident, Tumeken's Shadow, etc.), get built-in spell data
-        const weaponId = player.combatWeaponItemId ?? -1;
+        const weaponId = player.combat.weaponItemId ?? -1;
         const poweredStaffData = weaponId > 0 ? getPoweredStaffSpellData(weaponId) : undefined;
 
         // Determine impact/splash spot animation from either regular spell or powered staff

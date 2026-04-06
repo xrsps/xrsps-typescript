@@ -14,13 +14,13 @@ const BANKSIDE_ITEMS = packWidgetId(BANKSIDE_GROUP_ID, BankSideChild.ITEMS);
 const BANK_FILLER_ITEM_ID = 20594;
 
 const requestedQuantityOrZero = (player: PlayerState): number => {
-    const requested = Math.trunc(player.getBankCustomQuantity());
+    const requested = Math.trunc(player.bank.getBankCustomQuantity());
     return requested > 0 ? requested : 0;
 };
 
 const quantityForDefaultMode = (player: PlayerState, available: number): number => {
     const total = Math.max(0, available);
-    switch (player.getBankQuantityMode()) {
+    switch (player.bank.getBankQuantityMode()) {
         case 0:
             return total > 0 ? 1 : 0;
         case 1:
@@ -103,7 +103,7 @@ const handleWithdrawOp = (event: WidgetActionEvent, opId: number): void => {
     const quantity = quantityForWithdrawOp(player, opId, entry.quantity);
     if (!(quantity > 0)) return;
 
-    const noted = player.getBankWithdrawNotes?.() ?? false;
+    const noted = player.bank.getBankWithdrawNotes();
     const result = services.withdrawFromBankSlot(player, event.slot, quantity, { noted });
     if (!result.ok && result.message) {
         services.sendGameMessage(player, result.message);
@@ -149,8 +149,8 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         BANK_GROUP_ID,
         BankMainChild.SWAP_INSERT_BUTTON,
         ({ player, services }) => {
-            const next = !(player.getBankInsertMode?.() ?? false);
-            player.setBankInsertMode(next);
+            const next = !player.bank.getBankInsertMode();
+            player.bank.setBankInsertMode(next);
             services.sendVarbit?.(player, BankVarbit.INSERT_MODE, next ? 1 : 0);
             services.logger?.debug?.(
                 `[script:bank-widgets] insert mode=${next} player=${player.id}`,
@@ -159,8 +159,8 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
     );
 
     registry.onButton(BANK_GROUP_ID, BankMainChild.NOTE_BUTTON, ({ player, services }) => {
-        const next = !(player.getBankWithdrawNotes?.() ?? false);
-        player.setBankWithdrawNotes(next);
+        const next = !player.bank.getBankWithdrawNotes();
+        player.bank.setBankWithdrawNotes(next);
         services.sendVarbit?.(player, BankVarbit.WITHDRAW_NOTES, next ? 1 : 0);
         services.logger?.debug?.(
             `[script:bank-widgets] withdraw notes=${next} player=${player.id}`,
@@ -168,7 +168,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
     });
 
     const setQuantityMode = (player: PlayerState, services: any, mode: number) => {
-        player.setBankQuantityMode(mode);
+        player.bank.setBankQuantityMode(mode);
         services.sendVarbit?.(player, BankVarbit.QUANTITY_TYPE, mode);
         services.logger?.debug?.(
             `[script:bank-widgets] quantity mode=${mode} player=${player.id}`,
@@ -219,8 +219,8 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         BANK_GROUP_ID,
         BankMainChild.PLACEHOLDER_BUTTON,
         ({ player, services }) => {
-            const next = !(player.getBankPlaceholderMode?.() ?? false);
-            player.setBankPlaceholderMode?.(next);
+            const next = !player.bank.getBankPlaceholderMode();
+            player.bank.setBankPlaceholderMode(next);
             services.sendVarbit?.(player, BankVarbit.LEAVE_PLACEHOLDERS, next ? 1 : 0);
             services.logger?.debug?.(
                 `[script:bank-widgets] placeholders=${next} player=${player.id}`,
@@ -229,8 +229,8 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
     );
 
     guard("Placeholders", ({ player, services }) => {
-        const next = !(player.getBankPlaceholderMode?.() ?? false);
-        player.setBankPlaceholderMode?.(next);
+        const next = !player.bank.getBankPlaceholderMode();
+        player.bank.setBankPlaceholderMode(next);
         services.sendVarbit?.(player, BankVarbit.LEAVE_PLACEHOLDERS, next ? 1 : 0);
         services.logger?.debug?.(
             `[script:bank-widgets] placeholders=${next} player=${player.id}`,
@@ -238,7 +238,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
     });
 
     guard("Release placeholders", ({ player, services }) => {
-        const cleared = player.releaseBankPlaceholders?.() ?? 0;
+        const cleared = player.bank.releaseBankPlaceholders();
         services.logger?.debug?.(
             `[script:bank-widgets] release placeholders player=${player.id} cleared=${cleared}`,
         );
@@ -262,8 +262,8 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
     });
 
     guard("Fillers", ({ player, services }) => {
-        if (!player?.getBankEntries) return;
-        const bank = player.getBankEntries();
+        if (!player?.bank) return;
+        const bank = player.bank.getBankEntries();
         let filled = 0;
         for (const entry of bank) {
             if (!entry) continue;
@@ -284,8 +284,8 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
     });
 
     guard("Release fillers", ({ player, services }) => {
-        if (!player?.getBankEntries) return;
-        const bank = player.getBankEntries();
+        if (!player?.bank) return;
+        const bank = player.bank.getBankEntries();
         let cleared = 0;
         for (const entry of bank) {
             if (!entry) continue;

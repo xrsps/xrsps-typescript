@@ -84,12 +84,7 @@ export class EquipmentStatsUiService {
         const equip = this.deps.ensureEquipArray(player);
         const amuletId = equip[EquipmentSlot.AMULET];
         const headId = equip[EquipmentSlot.HEAD];
-        const attackType = resolvePlayerAttackType({
-            combatWeaponCategory: player.combatWeaponCategory,
-            combatStyleSlot: player.combatStyleSlot,
-            combatSpellId: player.combatSpellId,
-            autocastEnabled: player.autocastEnabled,
-        });
+        const attackType = resolvePlayerAttackType(player.combat);
 
         let undeadPercent = 0;
         if (attackType === "melee") {
@@ -110,7 +105,7 @@ export class EquipmentStatsUiService {
         }
 
         let slayerPercent = 0;
-        const task = player.skillSystem.getSlayerTaskInfo(player.slayerTask);
+        const task = player.skillSystem.getSlayerTaskInfo(player.combat.slayerTask);
         const onSlayerTask = !!task.onTask;
         const hasSlayerHelm = SLAYER_HELM_IDS.has(headId) || IMBUED_SLAYER_HELM_IDS.has(headId);
         const hasImbuedSlayerHelm = IMBUED_SLAYER_HELM_IDS.has(headId);

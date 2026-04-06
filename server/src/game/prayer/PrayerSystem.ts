@@ -32,7 +32,7 @@ export class PrayerSystem implements PrayerSystemProvider {
             });
             return {
                 changed: false,
-                activePrayers: Array.from(player.getActivePrayers()),
+                activePrayers: Array.from(player.prayer.getActivePrayers()),
                 errors,
             };
         }
@@ -59,33 +59,33 @@ export class PrayerSystem implements PrayerSystemProvider {
             this.removeConflicts(next, def);
             next.push(prayer);
         }
-        const changed = player.setActivePrayers(next);
+        const changed = player.prayer.setActivePrayers(next);
         return {
             changed,
-            activePrayers: Array.from(player.getActivePrayers()),
+            activePrayers: Array.from(player.prayer.getActivePrayers()),
             errors,
         };
     }
 
     processPlayer(player: PlayerState): PrayerTickResult | undefined {
-        const active = player.getActivePrayers();
+        const active = player.prayer.getActivePrayers();
         if (active.size === 0) {
-            player.resetPrayerDrainAccumulator();
+            player.prayer.resetDrainAccumulator();
             return undefined;
         }
         const skill = player.skillSystem.getSkill(SkillId.Prayer);
         let current = Math.max(0, skill.baseLevel + skill.boost);
         if (current <= 0) {
-            player.resetPrayerDrainAccumulator();
+            player.prayer.resetDrainAccumulator();
             return { prayerDepleted: active.size > 0 };
         }
         const drainRate = this.computeDrainRate(active);
         if (!(drainRate > 0)) {
-            player.resetPrayerDrainAccumulator();
+            player.prayer.resetDrainAccumulator();
             return undefined;
         }
         const resistance = Math.max(1, 60 + this.computePrayerBonus(player) * 2);
-        let accumulator = player.getPrayerDrainAccumulator();
+        let accumulator = player.prayer.getDrainAccumulator();
         accumulator += drainRate;
         let drained = 0;
         while (accumulator >= resistance && current > 0) {
@@ -93,12 +93,12 @@ export class PrayerSystem implements PrayerSystemProvider {
             drained++;
             current--;
         }
-        player.setPrayerDrainAccumulator(accumulator);
+        player.prayer.setDrainAccumulator(accumulator);
         if (drained <= 0) return undefined;
         player.skillSystem.adjustSkillBoost(SkillId.Prayer, -drained);
-        const remaining = player.getPrayerLevel();
+        const remaining = player.prayer.getPrayerLevel();
         if (remaining <= 0) {
-            player.resetPrayerDrainAccumulator();
+            player.prayer.resetDrainAccumulator();
             return { prayerDepleted: active.size > 0 };
         }
         return undefined;

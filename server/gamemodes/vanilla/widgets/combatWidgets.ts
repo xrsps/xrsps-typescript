@@ -206,7 +206,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
     // varp 172 is "option_nodef" where 0 = ON, 1 = OFF
     registry.onButton(COMBAT_WIDGET_GROUP_ID, AUTO_RETALIATE_COMPONENT, (event) => {
         const player = event.player;
-        const currentlyOn = !!player.autoRetaliate;
+        const currentlyOn = !!player.combat.autoRetaliate;
         const newState = !currentlyOn;
 
         // Toggle the state
@@ -268,7 +268,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
     registry.onButton(COMBAT_WIDGET_GROUP_ID, AUTOCAST_SPELL_ICON_COMPONENT, (event) => {
         const player = event.player;
 
-        if (player.autocastEnabled) {
+        if (player.combat.autocastEnabled) {
             clearAutocastState(player, {
                 sendVarbit: services.sendVarbit,
                 queueCombatState: services.queueCombatState,
@@ -302,7 +302,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
             // Background click on the layer or slot 0 header — ignore
             return;
         }
-        const weaponId = event.player.pendingAutocastWeaponId ?? 0;
+        const weaponId = event.player.combat.pendingAutocastWeaponId ?? 0;
         const visibleSpells = buildVisibleAutocastIndices(weaponId);
         // CC_CREATE childIndex is 1-based (slot 0 is a header/spacer), so subtract 1
         const arrayIndex = slot - 1;
@@ -321,8 +321,8 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
     registry.onButton(AUTOCAST_POPUP_GROUP_ID, AUTOCAST_CANCEL_COMPONENT, (event) => {
         const player = event.player;
         // Clear temporary state
-        player.pendingAutocastDefensive = undefined;
-        player.pendingAutocastWeaponId = undefined;
+        player.combat.pendingAutocastDefensive = undefined;
+        player.combat.pendingAutocastWeaponId = undefined;
 
         const combatTabUid = getCombatTabUid(player);
         services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
@@ -342,8 +342,8 @@ function openAutocastPopup(player: any, isDefensive: boolean, services: any): vo
         weaponObjId > 0 && AUTOCAST_SPELLPOS_WEAPON_IDS.has(weaponObjId) ? weaponObjId : -1;
 
     // Store autocast popup state so the handler can reconstruct the visible spell list
-    player.pendingAutocastDefensive = isDefensive;
-    player.pendingAutocastWeaponId = weaponObjId;
+    player.combat.pendingAutocastDefensive = isDefensive;
+    player.combat.pendingAutocastWeaponId = weaponObjId;
 
     // Open the autocast popup (interface 201) in the Combat tab container
     const combatTabUid = getCombatTabUid(player);
@@ -388,7 +388,7 @@ function openAutocastPopup(player: any, isDefensive: boolean, services: any): vo
  * Handle spell selection in autocast popup
  */
 function handleAutocastSpellSelection(player: any, spellIndex: number, services: any): void {
-    const isDefensive = player.pendingAutocastDefensive ?? false;
+    const isDefensive = player.combat.pendingAutocastDefensive ?? false;
 
     // Convert spell index to actual spell ID
     const spellId = getSpellIdFromAutocastIndex(spellIndex);
@@ -411,8 +411,8 @@ function handleAutocastSpellSelection(player: any, spellIndex: number, services:
                 `spell=${spellId} weapon=${weaponObjId} reason=${compatibility.reason}`,
         );
         // Clear temporary state and close popup
-        player.pendingAutocastDefensive = undefined;
-        player.pendingAutocastWeaponId = undefined;
+        player.combat.pendingAutocastDefensive = undefined;
+        player.combat.pendingAutocastWeaponId = undefined;
         const combatTabUid = getCombatTabUid(player);
         services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
         return;
@@ -422,8 +422,8 @@ function handleAutocastSpellSelection(player: any, spellIndex: number, services:
         sendVarbit: services.sendVarbit,
         queueCombatState: services.queueCombatState,
     });
-    player.pendingAutocastDefensive = undefined;
-    player.pendingAutocastWeaponId = undefined;
+    player.combat.pendingAutocastDefensive = undefined;
+    player.combat.pendingAutocastWeaponId = undefined;
 
     // Return to the combat options tab UI
     const combatTabUid = getCombatTabUid(player);

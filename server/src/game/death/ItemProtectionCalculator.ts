@@ -240,7 +240,7 @@ export class ItemProtectionCalculator {
         const appearance = player.appearance;
         const wasSkulled =
             appearance?.headIcons?.skull !== undefined && appearance.headIcons.skull >= 0;
-        const hadProtectItem = player.hasPrayerActive("protect_item");
+        const hadProtectItem = player.prayer.hasPrayerActive("protect_item");
 
         const calculator = new ItemProtectionCalculator({
             getItemDefinition,

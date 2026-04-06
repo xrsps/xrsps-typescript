@@ -66,14 +66,13 @@ import { isInWilderness, getWildernessLevel } from "../game/combat/MultiCombatZo
 import { combatEffectApplicator } from "../game/combat/CombatEffectApplicator";
 import { normalizeAttackType } from "../game/combat/AttackType";
 import {
-    pickSpecialAttackVisualOverride,
-    testRandFloat,
     EQUIP_SLOT_COUNT,
     COMBAT_SOUND_DELAY_MS,
     PLAYER_TAKE_DAMAGE_SOUND,
     PLAYER_ZERO_DAMAGE_SOUND,
-    TEST_HIT_FORCE,
-} from "./wsServer";
+} from "./wsServerTypes";
+import { pickSpecialAttackVisualOverride } from "../game/combat/SpecialAttackVisuals";
+import { testRandFloat, TEST_HIT_FORCE } from "../game/testing/TestRng";
 import { faceAngleRs } from "../../../src/rs/utils/rotation";
 import { getItemDefinition } from "../data/items";
 import { getRangedImpactSound } from "../game/combat/WeaponDataProvider";
@@ -496,9 +495,10 @@ export function createSpellActionHandler(server: any): SpellActionHandler {
             try {
                 const engine = new CombatEngine();
                 const magicCaster = Object.create(attacker) as PlayerState;
-                (magicCaster as any).combatSpellId = spellId;
-                (magicCaster as any).autocastEnabled = false;
-                (magicCaster as any).autocastMode = null;
+                (magicCaster as any).combat = Object.create(attacker.combat);
+                magicCaster.combat.spellId = spellId;
+                magicCaster.combat.autocastEnabled = false;
+                magicCaster.combat.autocastMode = null;
                 (magicCaster as any).getCurrentAttackType = () => "magic";
                 const res = engine.planPlayerAttack({
                     player: magicCaster,

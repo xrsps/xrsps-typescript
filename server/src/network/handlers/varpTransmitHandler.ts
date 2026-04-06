@@ -120,7 +120,7 @@ function handleSpecialAttackVarp(
         return;
     }
 
-    if (desired && typeof weaponCost === "number" && p.getSpecialEnergyUnits() < weaponCost) {
+    if (desired && typeof weaponCost === "number" && p.specEnergy.getUnits() < weaponCost) {
         revertSpecialAttack(services, ws, p);
         services.queueChatMessage({
             messageType: "game",
@@ -131,7 +131,7 @@ function handleSpecialAttackVarp(
     }
 
     const normalizedVarpValue = desired ? 1 : 0;
-    p.setSpecialActivated(desired);
+    p.specEnergy.setActivated(desired);
     p.varps.setVarpValue(VARP_SPECIAL_ATTACK, normalizedVarpValue);
     if (normalizedVarpValue !== value) {
         sendVarpCorrection(services, ws, VARP_SPECIAL_ATTACK, normalizedVarpValue);
@@ -157,7 +157,7 @@ function handleInstantUtilitySpecial(
         return;
     }
 
-    if (p.getSpecialEnergyUnits() < (weaponCost ?? 0) || !p.consumeSpecialEnergy(weaponCost ?? 0)) {
+    if (p.specEnergy.getUnits() < (weaponCost ?? 0) || !p.specEnergy.consume(weaponCost ?? 0)) {
         markInstantUtilitySpecialHandledAtTick(p as any, currentTick);
         revertSpecialAttack(services, ws, p);
         services.queueChatMessage({
@@ -173,7 +173,7 @@ function handleInstantUtilitySpecial(
     else if (fishstabberSeqId !== undefined) applyFishstabberFishingBoost(p);
     else applyLumberUpWoodcuttingBoost(p);
 
-    p.setSpecialActivated(false);
+    p.specEnergy.setActivated(false);
     p.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
     p.queueOneShotSeq(seqId, 0);
     if (rockKnockerSeqId !== undefined) services.sendSound?.(p, ROCK_KNOCKER_SOUND_ID);
@@ -191,7 +191,7 @@ function handleInstantUtilitySpecial(
 
 function revertSpecialAttack(services: MessageHandlerServices, ws: WebSocket, p: PlayerState): void {
     p.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-    p.setSpecialActivated(false);
+    p.specEnergy.setActivated(false);
     services.queueCombatState(p);
     sendVarpCorrection(services, ws, VARP_SPECIAL_ATTACK, 0);
 }
@@ -203,8 +203,8 @@ function handleAttackStyleVarp(
     value: number,
 ): void {
     const requested = Math.max(0, Math.min(3, value));
-    p.setCombatStyle(requested, p.combatWeaponCategory);
-    const normalized = p.combatStyleSlot;
+    p.setCombatStyle(requested, p.combat.weaponCategory);
+    const normalized = p.combat.styleSlot;
     p.varps.setVarpValue(VARP_ATTACK_STYLE, normalized);
     sendVarpCorrection(services, ws, VARP_ATTACK_STYLE, normalized);
     services.queueCombatState(p);

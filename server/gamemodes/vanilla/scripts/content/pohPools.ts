@@ -95,7 +95,7 @@ export function registerPohPoolHandlers(registry: IScriptRegistry, services: Scr
                     player.skillSystem.setSkillBoost(SkillId.Prayer, prayer.baseLevel);
                 }
                 if (pool.restoreSpecial) {
-                    player.setSpecialEnergyPercent(100);
+                    player.specEnergy.setPercent(100);
                 }
                 if (pool.curePoison) player.skillSystem.curePoison();
                 if (pool.cureDisease) player.skillSystem.cureDisease();

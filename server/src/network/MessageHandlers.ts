@@ -444,7 +444,7 @@ export function registerMessageHandlers(
             -2147483648,
             Math.min(2147483647, Math.floor(ctx.payload.amount)),
         );
-        ctx.player.setBankCustomQuantity(normalized);
+        ctx.player.bank.setBankCustomQuantity(normalized);
         ctx.player.taskQueue.submitReturnValue(normalized);
     });
 
@@ -1524,8 +1524,8 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
 
                     // Clear autocast when switching to a spellbook
                     // that doesn't contain the current autocast spell.
-                    if (sender.autocastEnabled && sender.combatSpellId > 0) {
-                        const autocastSpellData = getSpellData(sender.combatSpellId);
+                    if (sender.combat.autocastEnabled && sender.combat.spellId > 0) {
+                        const autocastSpellData = getSpellData(sender.combat.spellId);
                         if (!autocastSpellData || autocastSpellData.spellbook !== root) {
                             clearAutocastState(sender, {
                                 sendVarbit: (player, varbitId, varbitValue) =>

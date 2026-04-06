@@ -500,7 +500,7 @@ export class CombatEffectApplicator {
                 if (prayerFraction > 0) {
                     const restore = Math.floor(damageDealt * prayerFraction);
                     if (restore > 0) {
-                        const current = attacker.getPrayerLevel();
+                        const current = attacker.prayer.getPrayerLevel();
                         const base = attacker.skillSystem.getSkill(SkillId.Prayer).baseLevel;
                         const target = Math.min(base, current + restore);
                         attacker.skillSystem.setSkillBoost(SkillId.Prayer, target);

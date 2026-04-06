@@ -66,24 +66,24 @@ export class CombatEffectService {
             text: message,
             targetPlayerIds: [player.id],
         });
-        player.resetPrayerDrainAccumulator();
-        const hadPrayers = (player.getActivePrayers()?.size ?? 0) > 0;
+        player.prayer.resetDrainAccumulator();
+        const hadPrayers = (player.prayer.getActivePrayers()?.size ?? 0) > 0;
         if (hadPrayers) {
-            player.clearActivePrayers();
+            player.prayer.clearActivePrayers();
             this.deps.queueCombatSnapshot(
                 player.id,
-                player.combatWeaponCategory,
-                player.combatWeaponItemId,
-                !!player.autoRetaliate,
-                player.combatStyleSlot,
-                Array.from(player.getActivePrayers() ?? []),
-                player.combatSpellId > 0 ? player.combatSpellId : undefined,
+                player.combat.weaponCategory,
+                player.combat.weaponItemId,
+                !!player.combat.autoRetaliate,
+                player.combat.styleSlot,
+                Array.from(player.prayer.getActivePrayers() ?? []),
+                player.combat.spellId > 0 ? player.combat.spellId : undefined,
             );
         }
     }
 
     tryActivateRedemption(player: any): boolean {
-        if (!player.hasPrayerActive("redemption")) return false;
+        if (!player.prayer.hasPrayerActive("redemption")) return false;
         const currentHp = player.skillSystem.getHitpointsCurrent();
         if (!(currentHp > 0)) return false;
         const maxHp = player.skillSystem.getHitpointsMax();
@@ -102,18 +102,18 @@ export class CombatEffectService {
 
     applySmite(attacker: any, target: any, damage: number): void {
         if (!(damage > 0)) return;
-        if (!attacker.hasPrayerActive("smite")) return;
+        if (!attacker.prayer.hasPrayerActive("smite")) return;
         const drain = Math.max(0, Math.floor(damage / 4));
         if (!(drain > 0)) return;
         target.skillSystem.adjustSkillBoost(SkillId.Prayer, -drain);
-        if (target.getPrayerLevel() <= 0) {
+        if (target.prayer.getPrayerLevel() <= 0) {
             target.skillSystem.setSkillBoost(SkillId.Prayer, 0);
             this.handlePrayerDepleted(target);
         }
     }
 
     tryActivateRetribution(player: any, tick: number): void {
-        if (!player.hasPrayerActive("retribution")) return;
+        if (!player.prayer.hasPrayerActive("retribution")) return;
         const prayerSkill = player.skillSystem.getSkill(SkillId.Prayer);
         const baseDamage = Math.min(25, Math.max(1, Math.floor(prayerSkill.baseLevel * 0.25)));
         if (!(baseDamage > 0)) return;
@@ -197,7 +197,7 @@ export class CombatEffectService {
     ): number {
         if (!(damage > 0)) return 0;
         const prayer = PROTECTION_PRAYER_MAP[attackType];
-        if (!prayer || !target.hasPrayerActive(prayer)) return damage;
+        if (!prayer || !target.prayer.hasPrayerActive(prayer)) return damage;
         const reduction = source === "npc" ? NPC_PROTECTION_REDUCTION : PVP_PROTECTION_REDUCTION;
         const remaining = Math.floor(damage * (1 - reduction));
         return Math.max(0, remaining);

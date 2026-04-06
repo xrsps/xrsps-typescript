@@ -1,4 +1,3 @@
-import JavaRandom from "java-random";
 import { WebSocket, WebSocketServer } from "ws";
 import { config } from "../config";
 import { GameContext } from "../game/GameContext";
@@ -40,7 +39,6 @@ import { DbRepository } from "../../../src/rs/config/db/DbRepository";
 import { ArchiveHealthBarDefinitionLoader } from "../../../src/rs/config/healthbar/HealthBarDefinitionLoader";
 import type { NpcTypeLoader } from "../../../src/rs/config/npctype/NpcTypeLoader";
 import type { ObjTypeLoader } from "../../../src/rs/config/objtype/ObjTypeLoader";
-import type { ProjectileLaunch } from "../../../src/shared/projectiles/ProjectileLaunch";
 import { ACCOUNT_SUMMARY_GROUP_ID } from "../../../src/shared/ui/accountSummary";
 import {
     VARP_FOLLOWER_INDEX,
@@ -51,7 +49,6 @@ import { NpcSoundLookup } from "../audio/NpcSoundLookup";
 import { getItemDefinition } from "../data/items";
 import { populateLocEffectsFromLoader } from "../data/locEffects";
 import {
-    ActionEffect,
     ActionScheduler,
     EffectDispatcher,
     InventoryActionHandler,
@@ -75,12 +72,10 @@ import { GroundItemManager } from "../game/items/GroundItemManager";
 import type { GamemodeDefinition } from "../game/gamemodes/GamemodeDefinition";
 import { getGamemodeDataDir } from "../game/gamemodes/GamemodeRegistry";
 import { NpcState, type NpcUpdateDelta } from "../game/npc";
-import { NpcManager, type NpcStatusEvent } from "../game/npcManager";
+import { NpcManager } from "../game/npcManager";
 import {
-    type PlayerAppearance as PlayerAppearanceState,
     PlayerManager,
     PlayerState,
-    SkillSyncUpdate,
 } from "../game/player";
 import { PrayerSystem } from "../game/prayer/PrayerSystem";
 import { ScriptRegistry } from "../game/scripts";
@@ -89,11 +84,6 @@ import { bootstrapScripts } from "../game/scripts";
 import { PlayerPersistence } from "../game/state/PlayerPersistence";
 import {
     BroadcastScheduler,
-    type ChatMessageSnapshot,
-    type ForcedChatBroadcast,
-    type ForcedMovementBroadcast,
-    type HitsplatBroadcast,
-    type PendingSpotAnimation,
     type PlayerAnimSet,
 } from "../game/systems";
 import { EquipmentHandler } from "../game/systems";
@@ -139,286 +129,26 @@ import {
     SoundManager,
 } from "./managers";
 import {
-    SpellResultPayload,
     encodeMessage,
 } from "./messages";
 import { REPORT_GAME_TIME_GROUP_ID, ReportGameTimeTracker } from "./reportGameTime";
-
-const DEFAULT_AUTOSAVE_SECONDS = 120; // Tuned via docs/autosave-sizing.md (Nov 2025)
-
-export const EQUIP_SLOT_COUNT = 14;
-// Special attack visual overrides (RuneLite gameval anchors)
-const SPEC_ANIM_DRAGON_DAGGER = 1062; // AnimationID.PUNCTURE
-const SPEC_SPOT_DRAGON_DAGGER = 252; // SpotanimID.SP_ATTACK_PUNCTURE_SPOTANIM
-const SPEC_ANIM_DRAGON_SCIMITAR = 1872; // AnimationID.SP_ATTACK_DRAGON_SCIMITAR
-const SPEC_SPOT_DRAGON_SCIMITAR_TRAIL = 347; // SpotanimID.SP_ATTACK_DRAGON_SCIMITAR_TRAIL_SPOTANIM
-const SPEC_ANIM_GODSWORD = 7004; // AnimationID.GODWARS_GODSWORD_ZAMORAK_PLAYER (shared)
-const SPEC_SPOT_GODSWORD_ZAMORAK = 1205; // SpotanimID.GODWARS_GODSWORD_ZAMORAK_SPOT
-const SPEC_SPOT_GODSWORD_ARMADYL = 1206; // SpotanimID.GODWARS_GODSWORD_ARMADYL_SPOT
-const SPEC_SPOT_GODSWORD_SARADOMIN = 1207; // SpotanimID.GODWARS_GODSWORD_SARADOMIN_SPOT
-const SPEC_SPOT_GODSWORD_BANDOS = 1208; // SpotanimID.GODWARS_GODSWORD_BANDOS_SPOT
-
-export const COMBAT_SOUND_DELAY_MS = 50; // Small delay to ensure hitsplat renders before sound plays
-export const PLAYER_TAKE_DAMAGE_SOUND = 510;
-export const PLAYER_ZERO_DAMAGE_SOUND = 511;
+import type {
+    NpcViewSnapshot,
+    NpcUpdatePayload,
+    TickFrame,
+} from "./wsServerTypes";
+import {
+    DEFAULT_AUTOSAVE_SECONDS,
+    GROUND_ITEM_PRIVATE_TICKS,
+    GROUND_ITEM_DESPAWN_TICKS,
+    DEBUG_LOG_ITEM_ID,
+    DEBUG_LOG_TILE,
+    DEBUG_LOG_STACK_QTY,
+} from "./wsServerTypes";
+import { pickSpecialAttackVisualOverride } from "../game/combat/SpecialAttackVisuals";
+import { testRandFloat, TEST_HIT_FORCE } from "../game/testing/TestRng";
 
 
-// OSRS: Items are private for 60 seconds (100 ticks) before becoming visible to others
-const GROUND_ITEM_PRIVATE_TICKS = 100;
-// OSRS: Items despawn after 3 minutes total (300 ticks = 180 seconds)
-// Note: Some items like untradeable drops may have different timers
-const GROUND_ITEM_DESPAWN_TICKS = 300;
-const DEBUG_LOG_ITEM_ID = 1511; // Normal logs
-const DEBUG_LOG_TILE = Object.freeze({ x: 3167, y: 3472, level: 0 });
-const DEBUG_LOG_STACK_QTY = 28;
-
-// Binary player sync uses OSRS-style update masks:
-// - bit 0x80 in the first byte indicates a second mask byte follows
-// - bit 0x4000 (bit 14) indicates a third mask byte follows
-
-// Test-only deterministic RNG (optional)
-const TEST_RNG_SEED_RAW = process.env.TEST_RNG_SEED?.trim() ?? "";
-const TEST_RNG_SEED = TEST_RNG_SEED_RAW ? parseFloat(TEST_RNG_SEED_RAW) : undefined;
-const TEST_HIT_FORCE_RAW = process.env.TEST_HIT_FORCE?.trim() ?? "";
-export const TEST_HIT_FORCE = TEST_HIT_FORCE_RAW ? parseFloat(TEST_HIT_FORCE_RAW) : undefined;
-const testRng: JavaRandom | null =
-    TEST_RNG_SEED !== undefined && Number.isFinite(TEST_RNG_SEED)
-        ? new JavaRandom(TEST_RNG_SEED)
-        : null;
-export function testRandFloat(): number {
-    if (TEST_HIT_FORCE !== undefined && TEST_HIT_FORCE >= 0) return 0; // will be overridden by force damage
-    if (testRng?.nextFloat) {
-        try {
-            return testRng.nextFloat();
-        } catch (err) { logger.warn("[testRng] nextFloat failed", err); }
-    }
-    return Math.random();
-}
-
-type StepRecord = {
-    x: number;
-    y: number;
-    level: number;
-    rot: number;
-    running: boolean;
-    traversal?: number;
-    seq?: number;
-    orientation?: number;
-    direction?: number;
-};
-
-
-interface PlayerViewSnapshot {
-    id: number;
-    x: number;
-    y: number;
-    level: number;
-    rot: number;
-    orientation: number;
-    running: boolean;
-    name?: string;
-    appearance?: any;
-    interactionIndex?: number;
-    seq?: number;
-    moved: boolean;
-    turned: boolean;
-    snap: boolean;
-    directions?: number[];
-    traversals?: number[];
-    anim?: PlayerAnimSet;
-    shouldSendPos: boolean;
-    worldViewId?: number;
-}
-
-type HealthBarUpdatePayload = {
-    id: number;
-    /** Absolute server loopCycle when this update becomes active (Client.cycle in OSRS). */
-    cycle: number;
-    /** Start value (0..width in the referenced HealthBarDefinition). */
-    health: number;
-    /** Target value (0..width in the referenced HealthBarDefinition). */
-    health2: number;
-    /** Interpolation duration in cycles (0 means immediate). */
-    cycleOffset: number;
-    /** True when the server requested removal (value=32767 sentinel). */
-    removed?: boolean;
-};
-
-interface NpcViewSnapshot {
-    id: number;
-    typeId: number;
-    x: number;
-    y: number;
-    level: number;
-    rot: number;
-    orientation: number;
-    size: number;
-    spawnX: number;
-    spawnY: number;
-    spawnLevel: number;
-    name?: string;
-    interactingIndex?: number;
-    snap?: boolean;
-    healthBars?: HealthBarUpdatePayload[];
-}
-
-interface NpcUpdatePayload {
-    id: number;
-    x?: number;
-    y?: number;
-    level?: number;
-    rot?: number;
-    orientation?: number;
-    moved?: boolean;
-    turned?: boolean;
-    seq?: number;
-    snap?: boolean;
-    typeId?: number;
-    size?: number;
-    spawnX?: number;
-    spawnY?: number;
-    spawnLevel?: number;
-    interactingIndex?: number;
-    healthBars?: HealthBarUpdatePayload[];
-}
-
-interface WidgetEvent {
-    playerId: number;
-    action: WidgetAction;
-}
-
-type LocChangePayload = {
-    oldId: number;
-    newId: number;
-    tile: { x: number; y: number };
-    level: number;
-    oldTile: { x: number; y: number };
-    newTile: { x: number; y: number };
-    oldRotation?: number;
-    newRotation?: number;
-    newShape?: number;
-};
-
-interface TickFrame {
-    tick: number;
-    time: number;
-    npcUpdates: NpcUpdateDelta[];
-    npcEffectEvents: NpcStatusEvent[];
-    playerSteps: Map<number, StepRecord[]>;
-    hitsplats: HitsplatBroadcast[];
-    forcedChats: ForcedChatBroadcast[];
-    forcedMovements: ForcedMovementBroadcast[];
-    pendingSequences: Map<number, { seqId: number; delay: number; startTick: number }>;
-    actionEffects: ActionEffect[];
-    interactionIndices: Map<number, number>;
-    pendingFaceDirs: Map<number, number>;
-    playerViews: Map<number, PlayerViewSnapshot>;
-    npcViews: Map<number, NpcViewSnapshot>;
-    widgetEvents: WidgetEvent[];
-    notifications: Array<{ playerId: number; payload: any }>;
-    keyedMessages: Map<string, Array<{ playerId: number; payload: any }>>;
-    locChanges: LocChangePayload[];
-    chatMessages: ChatMessageSnapshot[];
-    inventorySnapshots: Array<{
-        playerId: number;
-        slots?: Array<{ slot: number; itemId: number; quantity: number }>;
-    }>;
-    gamemodeSnapshots: Map<string, Array<{ playerId: number; payload: unknown }>>;
-    appearanceSnapshots: Array<{
-        playerId: number;
-        payload: {
-            x: number;
-            y: number;
-            level: number;
-            rot: number;
-            orientation: number;
-            running: boolean;
-            appearance: PlayerAppearanceState | undefined;
-            name?: string;
-            anim?: PlayerAnimSet;
-            moved: boolean;
-            turned: boolean;
-            snap: boolean;
-            directions?: number[];
-            worldViewId?: number;
-        };
-    }>;
-    skillSnapshots: Array<{ playerId: number; update: SkillSyncUpdate }>;
-    combatSnapshots: Array<{
-        playerId: number;
-        weaponCategory: number;
-        weaponItemId: number;
-        autoRetaliate: boolean;
-        activeStyle?: number;
-        activePrayers?: string[];
-        activeSpellId?: number;
-        specialEnergy?: number;
-        specialActivated?: boolean;
-        quickPrayers?: string[];
-        quickPrayersEnabled?: boolean;
-    }>;
-    runEnergySnapshots: Array<{
-        playerId: number;
-        percent: number;
-        units: number;
-        running: boolean;
-    }>;
-    animSnapshots: Array<{ playerId: number; anim: PlayerAnimSet }>;
-    npcPackets: Map<
-        number,
-        { snapshots: NpcViewSnapshot[]; updates: NpcUpdatePayload[]; despawns: number[] }
-    >;
-    spotAnimations: PendingSpotAnimation[];
-    spellResults: Array<{ playerId: number; payload: SpellResultPayload }>;
-    projectilePackets?: Map<number, ProjectileLaunch[]>;
-    varps?: Array<{ playerId: number; varpId: number; value: number }>;
-    varbits?: Array<{ playerId: number; varbitId: number; value: number }>;
-    clientScripts?: Array<{ playerId: number; scriptId: number; args: (number | string)[] }>;
-    colorOverrides: Map<
-        number,
-        { hue: number; sat: number; lum: number; amount: number; durationTicks: number }
-    >;
-    npcColorOverrides: Map<
-        number,
-        { hue: number; sat: number; lum: number; amount: number; durationTicks: number }
-    >;
-}
-
-export function pickSpecialAttackVisualOverride(
-    weaponItemId: number,
-): { seqId?: number; spotId?: number; spotHeight?: number } | undefined {
-    if (!(weaponItemId > 0)) return undefined;
-    const def = getItemDefinition(weaponItemId);
-    const name = (def?.name ?? "").toString().toLowerCase();
-
-    if (name.includes("dragon dagger")) {
-        return { seqId: SPEC_ANIM_DRAGON_DAGGER, spotId: SPEC_SPOT_DRAGON_DAGGER };
-    }
-
-    if (name.includes("dragon scimitar")) {
-        return {
-            seqId: SPEC_ANIM_DRAGON_SCIMITAR,
-            spotId: SPEC_SPOT_DRAGON_SCIMITAR_TRAIL,
-        };
-    }
-
-    if (name.includes("godsword")) {
-        if (name.includes("zamorak godsword")) {
-            return { seqId: SPEC_ANIM_GODSWORD, spotId: SPEC_SPOT_GODSWORD_ZAMORAK };
-        }
-        if (name.includes("armadyl godsword")) {
-            return { seqId: SPEC_ANIM_GODSWORD, spotId: SPEC_SPOT_GODSWORD_ARMADYL };
-        }
-        if (name.includes("saradomin godsword")) {
-            return { seqId: SPEC_ANIM_GODSWORD, spotId: SPEC_SPOT_GODSWORD_SARADOMIN };
-        }
-        if (name.includes("bandos godsword")) {
-            return { seqId: SPEC_ANIM_GODSWORD, spotId: SPEC_SPOT_GODSWORD_BANDOS };
-        }
-    }
-
-    return undefined;
-}
 
 export interface WSServerOptions {
     host: string;
@@ -1627,16 +1357,16 @@ export class WSServer {
         const player = this.players?.getById(playerId);
         if (player) {
             try {
-                specialEnergy = player.getSpecialEnergyPercent();
-                specialActivated = player.isSpecialActivated();
-                player.markSpecialEnergySynced();
-                const quickSet = player.getQuickPrayers();
+                specialEnergy = player.specEnergy.getPercent();
+                specialActivated = player.specEnergy.isActivated();
+                player.specEnergy.markSynced();
+                const quickSet = player.prayer.getQuickPrayers();
                 if (quickSet.size > 0) {
                     quickPrayers = Array.from(quickSet);
                 } else if (quickSet.size === 0) {
                     quickPrayers = [];
                 }
-                quickPrayersEnabled = player.areQuickPrayersEnabled();
+                quickPrayersEnabled = player.prayer.areQuickPrayersEnabled();
             } catch (err) { logger.warn("[combat] player state snapshot failed", err); }
         }
         const snapshot = {
@@ -1662,12 +1392,12 @@ export class WSServer {
     private queueCombatState(player: PlayerState): void {
         this.queueCombatSnapshot(
             player.id,
-            player.combatWeaponCategory,
-            player.combatWeaponItemId,
-            player.autoRetaliate,
-            player.combatStyleSlot,
-            Array.from(player.activePrayers ?? []),
-            player.combatSpellId > 0 ? player.combatSpellId : undefined,
+            player.combat.weaponCategory,
+            player.combat.weaponItemId,
+            player.combat.autoRetaliate,
+            player.combat.styleSlot,
+            Array.from(player.prayer.activePrayers ?? []),
+            player.combat.spellId > 0 ? player.combat.spellId : undefined,
         );
     }
     private createMessageRouter(): MessageRouter {
