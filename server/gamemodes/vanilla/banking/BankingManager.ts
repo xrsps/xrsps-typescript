@@ -98,7 +98,7 @@ export class BankingManager implements BankingProvider {
     /**
      * Build slot mapping from reorganized (client) slots to original (server) array indices.
      *
-     * OSRS PARITY: The client sees items in contiguous order by tab (tabs 1-9, then tab 0).
+     * The client sees items in contiguous order by tab (tabs 1-9, then tab 0).
      * The server stores items in a flat array with a `tab` property.
      * This mapping allows us to translate client slot indices to server array indices.
      *
@@ -316,7 +316,7 @@ export class BankingManager implements BankingProvider {
         if (bank.length === 0) return false;
         if (!Number.isFinite(fromRaw) || !Number.isFinite(toRaw)) return false;
 
-        // OSRS PARITY: Translate client slots to server array indices
+        // Translate client slots to server array indices
         const fromClient = fromRaw;
         const toClient = toRaw;
         const fromServer = this.clientSlotToServerIndex(player, fromClient);
@@ -429,7 +429,7 @@ export class BankingManager implements BankingProvider {
     /**
      * Build bank payload for sending to client.
      *
-     * OSRS PARITY: Items must be sent in contiguous order by tab.
+     * Items must be sent in contiguous order by tab.
      * The CS2 scripts (bank_gettabrange, bank_tabforslot) determine which
      * slots belong to which tab based on cumulative varbit sizes:
      *   - Tab 1: slots 0 to (bank_tab_1 - 1)
@@ -741,7 +741,7 @@ export class BankingManager implements BankingProvider {
             return;
         }
 
-        // OSRS PARITY: Translate client slot to server array index
+        // Translate client slot to server array index
         let serverSlot = this.clientSlotToServerIndex(player, bankSlot);
         if (serverSlot < 0) {
             // Client slot is empty - find first available empty slot in server array
@@ -931,7 +931,7 @@ export class BankingManager implements BankingProvider {
         const quantity = Math.max(1, quantityRaw);
         const notedPref = opts.overrideNoted ?? player.getBankWithdrawNotes();
 
-        // OSRS PARITY: Translate client slot to server array index
+        // Translate client slot to server array index
         // Client sees items reorganized by tab; server stores in flat array
         const serverSlot = this.clientSlotToServerIndex(player, clientSlot);
         if (serverSlot < 0) {

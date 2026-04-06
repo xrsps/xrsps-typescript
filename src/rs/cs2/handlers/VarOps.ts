@@ -60,7 +60,7 @@ export function registerVarOps(handlers: HandlerMap): void {
     });
 
     // GET_VARCLAN (opcode 76): Retrieves clan profile/channel variables
-    // OSRS: Reads from a separate clan profile object (class470.field4835.vmethod9122)
+    // Reads from a separate clan profile object
     // We store these in ClanChannel.parameters for architectural simplicity
     // Returns -1 if the key doesn't exist (matching OSRS behavior)
     handlers.set(Opcodes.GET_VARCLAN, (ctx, intOp) => {

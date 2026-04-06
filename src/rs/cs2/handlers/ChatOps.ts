@@ -1,5 +1,5 @@
 /**
- * Chat operations - mirrors OSRS class184.java exactly
+ * Chat operations
  *
  * Stack behavior per opcode (from reference):
  * 5000 CHAT_GETFILTER_PUBLIC: pop 0, push 1 int (publicChatMode)

@@ -196,7 +196,7 @@ export class RealtimeMidiSynth {
             });
 
             // Create gain node at unity. OSRS MIDI volume is handled inside the synth
-            // (matches MidiPcmStream.field3470 usage). Avoid double-scaling here.
+            // Avoid double-scaling here.
             this.gainNode = this.context.createGain();
             this.gainNode.gain.value = 1.0;
 
@@ -410,24 +410,19 @@ class MusicWorkletProcessor extends AudioWorkletProcessor {
         }
 
         // Handle portamento - slide existing note's pitch to new note
-        // Java method6128: when portamento (field3481 & 2) is set, find any active note
+        // When portamento is set, find any active note
         // on this channel and slide its pitch to the new key instead of creating a new note
         if (ch.portamento) {
             // Find any active note on this channel (not just this key)
             for (const existingNote of this.activeNotes) {
                 if (existingNote.channel === msg.channel && existingNote.releaseProgress < 0) {
-                    // Remove old key mapping (Java: field3490[ch][oldKey] = null)
+                    // Remove old key mapping
                     const oldKey = msg.channel + ":" + existingNote.key;
                     if (this.noteMap.get(oldKey) === existingNote) {
                         this.noteMap.delete(oldKey);
                     }
 
-                    // Java formula from method6128:
-                    // int var8 = (var4.field3567 * var4.field3550 >> 12) + var4.field3549;  // current interpolated pitch
-                    // var4.field3549 += var2 - var4.field3568 << 8;  // basePitch += (newKey - oldKey) << 8
-                    // var4.field3567 = var8 - var4.field3549;  // slideTarget = currentPitch - newBasePitch
-                    // var4.field3550 = 4096;  // slideProgress = 4096 (full)
-                    // var4.field3568 = var2;  // update key
+                    // Java formula from 
 
                     // Calculate current interpolated pitch
                     const currentPitch = ((existingNote.pitchSlideProgress * existingNote.pitchSlideTarget) >> 12) + existingNote.basePitch;
@@ -441,7 +436,7 @@ class MusicWorkletProcessor extends AudioWorkletProcessor {
                     existingNote.pitchSlideProgress = 4096;
                     existingNote.key = msg.key;
 
-                    // Update key mapping (Java: field3490[ch][newKey] = note)
+                    // Update key mapping
                     this.noteMap.set(noteKey, existingNote);
                     return; // Don't create new note
                 }
@@ -591,14 +586,14 @@ class MusicWorkletProcessor extends AudioWorkletProcessor {
                 }
                 break;
             // Portamento (CC 65) - controls pitch slide behavior
-            // Java: field3481[ch] bit 1 = portamento flag
+            // Portamento flag
             case 65:
                 if (value >= 64) {
                     ch.portamento = true;
                 } else {
                     // When portamento is turned OFF, release any "orphan" notes
                     // that were pitch-slid away from their original key
-                    // Java method6107: if note's key is not in noteMap but note is still active, release it
+                    // Java  if note's key is not in noteMap but note is still active, release it
                     if (ch.portamento) {
                         for (const note of this.activeNotes) {
                             if (note.channel === channel && note.releaseProgress < 0) {
@@ -747,7 +742,7 @@ class MusicWorkletProcessor extends AudioWorkletProcessor {
     calculateVolume(note) {
         const ch = this.channels[note.channel];
 
-        // Reference formula from MidiPcmStream.method6186:
+        // Reference formula from MidiPcmStream.
         // var3 = volume * expression + 4096 >> 13
         // var3 = var3 * var3 + 16384 >> 15  (square for curve)
         // var3 = var3 * noteVolume + 16384 >> 15
@@ -767,7 +762,7 @@ class MusicWorkletProcessor extends AudioWorkletProcessor {
         // masterVolume is already in 0-256 range from setVolume message
         vol = ((vol * this.masterVolume + 128) >> 8);
 
-        // Apply decay (matches reference method6186)
+        // Apply decay
         // B5: Keep Math.pow here as OSRS also uses floating point for this specific calc
         if (note.decayRate > 0) {
             vol = ((vol * Math.pow(0.5, note.decayPosition * 1.953125e-5 * note.decayRate) + 0.5) | 0);
@@ -866,7 +861,7 @@ class MusicWorkletProcessor extends AudioWorkletProcessor {
         note.vibratoTicks++;
         note.vibratoPhase += note.vibratoRate;
 
-        // Pitch-based time scaling factor (matches reference method6106)
+        // Pitch-based time scaling factor
         // Reference: ((key - 60) << 8) + (pitchSlideTarget * pitchSlideProgress >> 12)) * 5.086263020833333E-6
         // The pitch slide component affects envelope rate based on current pitch offset
         const currentPitchOffset = ((note.pitchSlideTarget * note.pitchSlideProgress) >> 12);
@@ -899,7 +894,7 @@ class MusicWorkletProcessor extends AudioWorkletProcessor {
         }
 
         // Release envelope advancement - OSRS only advances when sustain is OFF
-        // Java: if (field3559 >= 0 && field3445 != null && (field3481[channel] & 1) == 0 && ...)
+        // Check drum channel and release envelope conditions
         const sustainHeld = ch.sustain || (ch.sostenuto && ch.sostenutoNotes.has(note.noteId));
         if (note.releaseProgress >= 0 && !sustainHeld) {
             if (note.releaseEnvelope && note.releaseEnvelope.length >= 2) {
@@ -1571,7 +1566,7 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
         if (!this.workletNode) return;
 
         for (let key = 0; key < 128; key++) {
-            const sampleId = patch.field3529[key];
+            const sampleId = patch.sampleIds[key];
             if (sampleId === 0) continue;
 
             // Decrement first, then compute index and type (matches Java: var9--; sid = var9 >> 2)
@@ -1623,7 +1618,7 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
         // Find all unique sample IDs used and track their type
         const sampleInfo = new Map<number, { sid: number; isMusicSample: boolean }>();
         for (let key = 0; key < 128; key++) {
-            const sampleId = patch.field3529[key];
+            const sampleId = patch.sampleIds[key];
             if (sampleId !== 0) {
                 // Decrement first, then compute index and type (matches Java: var9--; sid = var9 >> 2)
                 const decremented = sampleId - 1;
@@ -1765,7 +1760,7 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
     setVolume(volume: number): void {
         const clamped = Math.max(0, Math.min(1, volume));
         // Send master volume to worklet in 0-256 range (256 = full volume).
-        // Java: MidiPcmStream.setPcmStreamVolume(int) where field3470 defaults to 256.
+        // Default master volume is 256.
         this.workletNode?.port.postMessage({
             type: "setVolume",
             volume: Math.max(0, Math.min(256, Math.round(clamped * 256))),
@@ -2108,7 +2103,7 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
             return;
         }
 
-        const sampleId = patch.field3529[event.key];
+        const sampleId = patch.sampleIds[event.key];
         if (sampleId === 0) {
             this.noteStats.noSampleId++;
             chStats.noSampleId++;
@@ -2128,11 +2123,11 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
         chStats.played++;
 
         // Get patch data for this note
-        const pitchOffset = patch.field3522[event.key];
-        const volume = patch.field3524[event.key];
-        const pan = patch.field3525[event.key];
-        const exclusiveClass = patch.field3523[event.key];
-        const globalVolume = patch.field3531;
+        const pitchOffset = patch.pitchOffsets[event.key];
+        const volume = patch.volumes[event.key];
+        const pan = patch.pans[event.key];
+        const exclusiveClass = patch.exclusiveClasses[event.key];
+        const globalVolume = patch.globalVolume;
         // In OSRS, if the high bit of pitchOffset is set (negative value), the note loops
         const looped = pitchOffset < 0;
 
@@ -2143,7 +2138,7 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
         const patchVolume = (event.velocity * event.velocity * volume * globalVolume + 1024) >> 11;
 
         // Get envelope data from MusicPatchNode2
-        const node2 = patch.field3526[event.key];
+        const node2 = patch.envelopes[event.key];
         let volumeEnvelope: number[] | null = null;
         let releaseEnvelope: number[] | null = null;
         let decayRate = 0;
@@ -2155,15 +2150,15 @@ registerProcessor("music-worklet-processor", MusicWorkletProcessor);
         let vibratoDelay = 0;
 
         if (node2) {
-            volumeEnvelope = node2.field3446 ? Array.from(node2.field3446) : null;
-            releaseEnvelope = node2.field3445 ? Array.from(node2.field3445) : null;
-            decayRate = node2.field3453;
-            volumeEnvRate = node2.field3448;
-            releaseEnvRate = node2.field3447;
-            decayModifier = node2.field3450;
-            vibratoDepth = node2.field3451;
-            vibratoRate = node2.field3452;
-            vibratoDelay = node2.field3449;
+            volumeEnvelope = node2.volumeEnvelope ? Array.from(node2.volumeEnvelope) : null;
+            releaseEnvelope = node2.releaseEnvelope ? Array.from(node2.releaseEnvelope) : null;
+            decayRate = node2.decayRate;
+            volumeEnvRate = node2.volumeEnvelopeRate;
+            releaseEnvRate = node2.releaseEnvelopeRate;
+            decayModifier = node2.decayModifier;
+            vibratoDepth = node2.vibratoDepth;
+            vibratoRate = node2.vibratoRate;
+            vibratoDelay = node2.vibratoDelay;
         }
 
         this.workletNode.port.postMessage({

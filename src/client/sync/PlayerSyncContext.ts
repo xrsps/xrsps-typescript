@@ -11,14 +11,13 @@ export interface PlayerSyncState {
     rotation: number;
     hasKnownPosition: boolean;
     /**
-     * per-player traversal / movement type (Players.field1348[index]).
+     * Per-player traversal / movement type.
      * Movement type values: -1, 0, 1, 2 (default is 1 = walk).
      */
     movementType: number;
 
     /**
-     * deferred movement application when update blocks are present.
-     * Mirrors `Player.field1124` + `Player.tileX/tileY` target storage.
+     * Deferred movement application when update blocks are present.
      */
     pendingMove?: {
         tileX: number;
@@ -34,13 +33,12 @@ export interface PlayerSyncState {
 
     /**
      * Cached orientation for when player is removed from view.
-     * Reference: player-movement.md (readPlayerUpdate:144-146)
+
      */
     cachedOrientation?: number;
 
     /**
-     * Target index for interactions (field1208 in reference).
-     * Reference: player-movement.md (readPlayerUpdate:149)
+     * Target index for interactions.
      */
     targetIndex?: number;
 
@@ -200,7 +198,7 @@ export class PlayerSyncContext {
 
     /**
      * Updates the cached orientation for a player when removed from view.
-     * Reference: player-movement.md (readPlayerUpdate:144-146)
+
      *
      * @param index Player index
      * @param orientation Orientation to cache
@@ -212,7 +210,7 @@ export class PlayerSyncContext {
 
     /**
      * Gets the cached orientation for a player, or current if no cache.
-     * Reference: player-movement.md (readPlayerUpdate:144-146)
+
      *
      * @param index Player index
      * @returns Cached or current orientation

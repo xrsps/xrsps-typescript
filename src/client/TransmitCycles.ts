@@ -1,22 +1,12 @@
 /**
- * TransmitCycles -  for widget event transmit system.
+ * TransmitCycles - widget event transmit system.
  *
- * In OSRS, the engine gates transmit handlers (onChatTransmit, onStatTransmit, etc.)
- * at the engine level by comparing global "event cycles" to per-widget timestamps.
+ * The engine gates transmit handlers (onChatTransmit, onStatTransmit, etc.)
+ * by comparing global "event cycles" to per-widget timestamps.
  *
- * Reference: Client.java, WorldMapRegion.java (updateRootInterface)
- *
- * Key fields from OSRS:
- * - Client.cycleCntr: Main game cycle, increments every ~20ms
- * - Client.chatCycle: Set to cycleCntr when chat message added
- * - Client.field704: friendCycle - friend list updates
- * - Client.field705: clanCycle - clan updates
- * - Client.field706: clanSettingsCycle - clan settings updates
- * - Client.field707: clanChannelCycle - clan channel/profile updates
- * - Client.field590: stockCycle - Grand Exchange offers updates (onStockTransmit)
- * - Client.field592: miscTransmitCycle - miscellaneous UI state (run energy, weight, reboot, etc.)
- * - Client.changedSkillsCount: stat transmit tracking
- * - Widget.field3836: Per-widget last processed cycle
+ * Tracked cycles: cycleCntr, chatCycle, friendCycle, clanCycle, clanSettingsCycle,
+ * clanChannelCycle, stockCycle, miscTransmitCycle, changedSkillsCount, and
+ * per-widget lastTransmitCycle.
  *
  * Flow:
  * 1. Event occurs (chat message, skill update, etc.)
@@ -50,42 +40,36 @@ export interface TransmitCycles {
     /**
      * Friend list transmit cycle. Set to cycleCntr when friend list updates.
      * Triggers onFriendTransmit handlers.
-     * OSRS: Client.field704
      */
     friendCycle: number;
 
     /**
      * Clan transmit cycle. Set to cycleCntr when clan state updates.
      * Triggers onClanTransmit handlers.
-     * OSRS: Client.field705
      */
     clanCycle: number;
 
     /**
      * Clan settings transmit cycle. Set to cycleCntr when clan settings update.
      * Triggers onClanSettingsTransmit handlers.
-     * OSRS: Client.field706
      */
     clanSettingsCycle: number;
 
     /**
      * Clan channel transmit cycle. Set to cycleCntr when clan channel/profile updates.
      * Triggers onClanChannelTransmit handlers.
-     * OSRS: Client.field707
      */
     clanChannelCycle: number;
 
     /**
      * Stock transmit cycle. Set to cycleCntr when Grand Exchange offers update.
      * Triggers onStockTransmit handlers.
-     * OSRS: Client.field590
      */
     stockCycle: number;
 
     /**
      * Misc transmit cycle. Set to cycleCntr when miscellaneous UI state changes.
      * Triggers onMiscTransmit handlers.
-     * OSRS: Client.field592
      */
     miscCycle: number;
 
@@ -116,7 +100,7 @@ export interface TransmitCycles {
     lastTransmitProcessCycle: number;
 
     /**
-     * OSRS PARITY: Monotonically increasing counter for varp changes.
+     * Monotonically increasing counter for varp changes.
      * Increments every time a varp changes. Never reset.
      * Widgets track their last seen changedVarpCount to detect new changes.
      * OSRS: Client.changedVarpCount
@@ -124,7 +108,7 @@ export interface TransmitCycles {
     changedVarpCount: number;
 
     /**
-     * OSRS PARITY: Circular buffer of last 32 changed varp IDs.
+     * Circular buffer of last 32 changed varp IDs.
      * Index = (changedVarpCount - 1) & 31
      * Used for trigger matching optimization.
      * OSRS: Client.changedVarps[32]
@@ -132,21 +116,21 @@ export interface TransmitCycles {
     changedVarps: Int32Array;
 
     /**
-     * OSRS PARITY: Monotonically increasing counter for inventory changes.
+     * Monotonically increasing counter for inventory changes.
      * Increments every time an inventory changes. Never reset.
      * Widgets track their last seen changedInvCount to detect new changes.
      */
     changedInvCount: number;
 
     /**
-     * OSRS PARITY: Circular buffer of last 32 changed inventory IDs.
+     * Circular buffer of last 32 changed inventory IDs.
      * Index = (changedInvCount - 1) & 31
      * Used for trigger matching optimization.
      */
     changedInvsBuffer: Int32Array;
 
     /**
-     * OSRS PARITY: Monotonically increasing counter for stat/skill changes.
+     * Monotonically increasing counter for stat/skill changes.
      * Increments every time a stat changes. Never reset.
      * Widgets track their last seen changedStatCount to detect new changes.
      * OSRS: Client.changedSkillsCount
@@ -154,7 +138,7 @@ export interface TransmitCycles {
     changedStatCount: number;
 
     /**
-     * OSRS PARITY: Circular buffer of last 32 changed stat IDs.
+     * Circular buffer of last 32 changed stat IDs.
      * Index = (changedStatCount - 1) & 31
      * Used for trigger matching optimization.
      * OSRS: Client.changedSkills[32]
@@ -204,13 +188,13 @@ export function createTransmitCycles(): TransmitCycles {
         timerCycle: -1,
         invCycle: -1,
         lastTransmitProcessCycle: -1,
-        // OSRS PARITY: Counter-based varp change tracking
+        // Counter-based varp change tracking
         changedVarpCount: 0,
         changedVarps: new Int32Array(32),
-        // OSRS PARITY: Counter-based inventory change tracking
+        // Counter-based inventory change tracking
         changedInvCount: 0,
         changedInvsBuffer: new Int32Array(32),
-        // OSRS PARITY: Counter-based stat change tracking
+        // Counter-based stat change tracking
         changedStatCount: 0,
         changedStatsBuffer: new Int32Array(32),
         // Performance optimization flags
@@ -270,7 +254,7 @@ export function markChatTransmit(): void {
  * Mark that stats/skills were updated.
  * Sets statCycle = cycleCntr so widgets with onStatTransmit will be triggered.
  *
- * OSRS PARITY: Also increments changedStatCount and stores stat ID in circular buffer.
+ * Also increments changedStatCount and stores stat ID in circular buffer.
  * This allows widgets to detect changes even after being closed and reopened.
  *
  * @param statId - Optional specific stat ID that changed.
@@ -280,7 +264,7 @@ export function markStatTransmit(statId?: number): void {
     cycles.statCycle = getEventCycle(cycles);
     cycles.transmitDirty = true;
     if (statId !== undefined) {
-        // OSRS PARITY: Counter-based tracking
+        // Counter-based tracking
         cycles.changedStatsBuffer[cycles.changedStatCount & 31] = statId;
         cycles.changedStatCount++;
     }
@@ -290,7 +274,7 @@ export function markStatTransmit(statId?: number): void {
  * Mark that Grand Exchange offers were updated.
  * Sets stockCycle = cycleCntr so widgets with onStockTransmit will be triggered.
  *
- * OSRS: Client.field590 = cycleCntr on GrandExchangeOffer updates.
+ * stockCycle = cycleCntr on GrandExchangeOffer updates.
  */
 export function markStockTransmit(): void {
     const cycles = getTransmitCycles();
@@ -302,7 +286,7 @@ export function markStockTransmit(): void {
  * Mark that an inventory was updated (alias for inv-specific transmit).
  * Sets invCycle = cycleCntr so widgets with onInvTransmit will be triggered.
  *
- * OSRS PARITY: Also increments changedInvCount and stores inv ID in circular buffer.
+ * Also increments changedInvCount and stores inv ID in circular buffer.
  * This allows widgets to detect changes even after being closed and reopened.
  *
  * @param invId - Optional specific inventory ID that changed.
@@ -312,7 +296,7 @@ export function markInvTransmit(invId?: number): void {
     cycles.invCycle = getEventCycle(cycles);
     cycles.transmitDirty = true;
     if (invId !== undefined) {
-        // OSRS PARITY: Counter-based tracking
+        // Counter-based tracking
         cycles.changedInvsBuffer[cycles.changedInvCount & 31] = invId;
         cycles.changedInvCount++;
     }
@@ -332,7 +316,7 @@ export function markMiscTransmit(): void {
  * Mark that a varp changed.
  * Sets varCycle = cycleCntr so widgets with onVarTransmit will be triggered.
  *
- * OSRS PARITY: Also increments changedVarpCount and stores varp ID in circular buffer.
+ * Also increments changedVarpCount and stores varp ID in circular buffer.
  * This allows widgets to detect changes even after being closed and reopened.
  *
  * @param varId - Optional specific varp ID that changed. If provided, adds to circular buffer.
@@ -342,7 +326,7 @@ export function markVarTransmit(varId?: number): void {
     cycles.varCycle = getEventCycle(cycles);
     cycles.transmitDirty = true;
     if (varId !== undefined) {
-        // OSRS PARITY: Counter-based tracking
+        // Counter-based tracking
         // Store varp ID in circular buffer at current index
         cycles.changedVarps[cycles.changedVarpCount & 31] = varId;
         cycles.changedVarpCount++;

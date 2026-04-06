@@ -48,7 +48,7 @@ function toTitleCaseOsrs(ch: string): string {
     return upper.length === 1 ? upper : ch;
 }
 
-// Port of `class167.method3535` (sentence-case transform).
+// Port of `` (sentence-case transform).
 export function sentenceCaseOsrs(input: string): string {
     const len = input.length;
     if (len === 0) return input;

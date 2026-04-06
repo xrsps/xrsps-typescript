@@ -180,7 +180,7 @@ export class WidgetLoader {
             cachedHidden: false, // IF1 non-container widgets default to visible
             opacity,
             mouseOverRedirect,
-            // OSRS PARITY: Initialize runtime state fields
+            // Initialize runtime state fields
             rootIndex: -1,
             cycle: -1,
             modelFrame: 0,
@@ -382,7 +382,7 @@ export class WidgetLoader {
             hidden,
             isHidden: hidden, // BUGFIX: Sync isHidden for render visibility checks
             cachedHidden: hidden, // Store original for fallback when scripts change it
-            // OSRS PARITY: Initialize runtime state fields
+            // Initialize runtime state fields
             rootIndex: -1,
             cycle: -1,
             modelFrame: 0,

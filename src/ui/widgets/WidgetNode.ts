@@ -199,9 +199,9 @@ export interface WidgetNode {
     targetVerb?: string; // spellActionName in Java - action text for spell targeting
     targetMask?: number; // Bits 11-16 of flags - determines targeting behavior
     hasListener?: boolean;
-    prioritizeMenuEntry?: boolean; // OSRS PARITY: If true, this widget's menu entry appears first
-    isScrollBar?: boolean; // OSRS PARITY: If true, widget is a scrollbar component
-    dataText?: string; // OSRS PARITY: Extra text data (used by some widgets)
+    prioritizeMenuEntry?: boolean; // If true, this widget's menu entry appears first
+    isScrollBar?: boolean; // If true, widget is a scrollbar component
+    dataText?: string; // Extra text data (used by some widgets)
 
     // Dragging
     isDraggable?: boolean;
@@ -292,7 +292,7 @@ export interface WidgetNode {
 
     // Standard fields
     contentType?: number;
-    flags?: number; // OSRS PARITY: Widget flags bitfield (targetMask is bits 11-16)
+    flags?: number; // Widget flags bitfield (targetMask is bits 11-16)
 
     // CS1 (ClientScript 1) fields for IF1 widgets
     // Used for conditional display of color/text variants (e.g., skill level checks)
@@ -331,13 +331,13 @@ export interface WidgetNode {
     // onVarTransmit fires when (changedVarpCount > lastChangedVarpCount).
     lastChangedVarpCount?: number;
 
-    // OSRS PARITY: Last changedInvCount value when this widget's onInvTransmit handler
+    // Last changedInvCount value when this widget's onInvTransmit handler
     // was processed. Used for counter-based inventory transmit tracking.
     // Initial value is 0 (or undefined), updated to changedInvCount after onInvTransmit check.
     // onInvTransmit fires when (changedInvCount > lastChangedInvCount).
     lastChangedInvCount?: number;
 
-    // OSRS PARITY: Last changedStatCount value when this widget's onStatTransmit handler
+    // Last changedStatCount value when this widget's onStatTransmit handler
     // was processed. Used for counter-based stat transmit tracking.
     // Initial value is 0 (or undefined), updated to changedStatCount after onStatTransmit check.
     // onStatTransmit fires when (changedStatCount > lastChangedStatCount).

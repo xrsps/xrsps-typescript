@@ -12,7 +12,7 @@ export class MusicPatchNode {
     // Note velocity (0-127)
     velocity: number = 0;
 
-    // Base pitch offset = (key << 8) - (field3522 & 32767)
+    // Base pitch offset
     basePitch: number = 0;
 
     // Pitch slide target and progress
@@ -43,7 +43,7 @@ export class MusicPatchNode {
     vibratoPhase: number = 0;
     vibratoTicks: number = 0;
 
-    // Decay state for field3453
+    // Decay state
     decayPosition: number = 0;
 
     // Exclusive class (for monophonic instruments)
@@ -67,13 +67,13 @@ export class MusicPatchNode {
     releaseEnvelope: Uint8Array | null = null;
 
     // MusicPatchNode2 parameters
-    decayRate: number = 0; // field3453
-    volumeEnvRate: number = 0; // field3448
-    releaseEnvRate: number = 0; // field3447
-    decayModifier: number = 0; // field3450
-    vibratoDepth: number = 0; // field3451
-    vibratoRate: number = 0; // field3452
-    vibratoDelay: number = 0; // field3449
+    decayRate: number = 0;
+    volumeEnvRate: number = 0;
+    releaseEnvRate: number = 0;
+    decayModifier: number = 0;
+    vibratoDepth: number = 0;
+    vibratoRate: number = 0;
+    vibratoDelay: number = 0;
 
     // Active flag
     active: boolean = true;
@@ -123,11 +123,11 @@ export interface SampleData {
  */
 export interface PatchNoteData {
     sampleId: number;
-    pitchOffset: number; // field3522
-    volume: number; // field3524
-    pan: number; // field3525
-    exclusiveClass: number; // field3523
-    globalVolume: number; // field3531
+    pitchOffset: number;
+    volume: number;
+    pan: number;
+    exclusiveClass: number;
+    globalVolume: number;
 
     // MusicPatchNode2 envelope data
     volumeEnvelope: Uint8Array | null;

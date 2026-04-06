@@ -2,7 +2,7 @@ export type CollisionFlagAtFn = (plane: number, tileX: number, tileY: number) =>
 
 /**
  * 32×32 local route finder used by the legacy client for short-range
- * path reconstruction (e.g. Player.method2429 -> GraphicsObject.method2132).
+ * path reconstruction.
  *
  */
 export class OsrsRouteFinder32 {
@@ -39,7 +39,7 @@ export class OsrsRouteFinder32 {
     private readonly qy = new Int32Array(256);
     private readonly qMask = 255;
 
-    // Scratch used for backtracking + output. Mirrors Client.field802/field803 sizing (50).
+    // Scratch used for backtracking + output (max 50 route points).
     private readonly scratchX = new Int32Array(OsrsRouteFinder32.MAX_ROUTE_POINTS);
     private readonly scratchY = new Int32Array(OsrsRouteFinder32.MAX_ROUTE_POINTS);
     readonly outX = new Int32Array(OsrsRouteFinder32.MAX_ROUTE_POINTS);
@@ -58,7 +58,7 @@ export class OsrsRouteFinder32 {
      * Finds a route from (startX,startY) to (destX,destY) for a mover of `size` tiles.
      *
      * Returns the number of points written into {@link outX}/{@link outY}, ordered
-     * from start→dest and matching class232.method4556 output.
+     * from start→dest and matching  output.
      */
     findRoute(
         startX: number,
@@ -122,7 +122,7 @@ export class OsrsRouteFinder32 {
             const baseDist = (this.dists[this.idx(localX, localY)] + 1) | 0;
 
             if (size === 1) {
-                // class232.method4563 (size=1)
+                //  (size=1)
                 if (
                     localX > 0 &&
                     this.dirs[this.idx(localX - 1, localY)] === 0 &&
@@ -249,7 +249,7 @@ export class OsrsRouteFinder32 {
                     this.dists[this.idx(localX + 1, localY + 1)] = baseDist;
                 }
             } else if (size === 2) {
-                // class232.method4559 (size=2)
+                //  (size=2)
                 if (
                     localX > 0 &&
                     this.dirs[this.idx(localX - 1, localY)] === 0 &&
@@ -402,7 +402,7 @@ export class OsrsRouteFinder32 {
                     this.dists[this.idx(localX + 1, localY + 1)] = baseDist;
                 }
             } else {
-                // class232.method4560 (size>=3)
+                //  (size>=3)
                 if (
                     localX > 0 &&
                     this.dirs[this.idx(localX - 1, localY)] === 0 &&
@@ -693,7 +693,7 @@ export class OsrsRouteFinder32 {
             if (bestDist2 === 0x7fffffff) return -1;
         }
 
-        // Reconstruct path in the same compressed format as class232.method4566.
+        // Reconstruct path in the same compressed format as .
         if (foundX === startX && foundY === startY) {
             this.outX[0] = foundX;
             this.outY[0] = foundY;

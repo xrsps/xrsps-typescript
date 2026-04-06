@@ -23,8 +23,8 @@ export const ContentType = {
 } as const;
 
 /**
- * OSRS PARITY: Tracks a mounted sub-interface
- * Reference: InterfaceParent.java
+ * Tracks a mounted sub-interface
+
  */
 export interface InterfaceParent {
     group: number; // The interface group ID that's mounted
@@ -88,13 +88,13 @@ export class WidgetManager {
     compassWidget: WidgetNode | null = null;
 
     /**
-     * OSRS PARITY: Sprite ID for the compass graphic from GraphicsDefaults.
+     * Sprite ID for the compass graphic from GraphicsDefaults.
      * Set this from GraphicsDefaults.compass when initializing the cache.
      */
     compassSpriteId: number = -1;
 
     /**
-     * OSRS PARITY: Sprite archive ID for IF1 scrollbar arrows from GraphicsDefaults.
+     * Sprite archive ID for IF1 scrollbar arrows from GraphicsDefaults.
      * Reference: GraphicsDefaults.scrollBarSpritesId -> WorldMapArchiveLoader.scrollBarSprites[0/1].
      */
     scrollbarSpriteArchiveId: number = -1;
@@ -133,8 +133,8 @@ export class WidgetManager {
     /** Reference to the main client */
     osrsClient: any = null;
 
-    // ========== OSRS PARITY: Root Widget Dirty Tracking ==========
-    // Reference: Client.java validRootWidgets[], rootWidgetXs/Ys/Widths/Heights[]
+    // ========== Root Widget Dirty Tracking ==========
+    // Root widget layout arrays
     // This enables partial redraws - only re-render regions that changed
 
     /** Number of active root widget regions this frame */
@@ -200,7 +200,7 @@ export class WidgetManager {
             if (++hops > 50) break; // Safety: avoid pathological cycles
         }
 
-        // OSRS PARITY: InterfaceParent-mounted interfaces are separate widget trees, so widgets
+        // InterfaceParent-mounted interfaces are separate widget trees, so widgets
         // inside a mounted group won't have a parent chain leading to a registered root.
         // In that case, resolve the container widget and invalidate its root region instead.
         const groupId =
@@ -219,8 +219,8 @@ export class WidgetManager {
     // ========== Dirty Tracking Methods ==========
 
     /**
-     * OSRS PARITY: Called at start of each frame to reset dirty tracking.
-     * Reference: Client.java draw() method before drawWidgets()
+     * Called at start of each frame to reset dirty tracking.
+
      */
     beginFrame(): void {
         const prevRootCount = this.rootWidgetCount | 0;
@@ -263,7 +263,7 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS PARITY: Register a root widget region and assign it an index.
+     * Register a root widget region and assign it an index.
      * Called during widget tree traversal for each root widget.
      * @returns The assigned root index
      */
@@ -286,7 +286,7 @@ export class WidgetManager {
     private _invalidateSources: Map<string, number> = new Map();
 
     /**
-     * OSRS PARITY: Mark a widget's root region as needing redraw.
+     * Mark a widget's root region as needing redraw.
      */
     invalidateWidgetRender(w: WidgetNode | null | undefined, source?: string): void {
         if (!w) return;
@@ -314,7 +314,7 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS PARITY: Advance type-6 widget model animations (modelFrame/modelFrameCycle).
+     * Advance type-6 widget model animations (modelFrame/modelFrameCycle).
      *
      * This must run on the 20ms client tick, not the render frame.
      */
@@ -587,7 +587,7 @@ export class WidgetManager {
     ensureLayout(w: WidgetNode): void {
         if (!w) return;
 
-        // OSRS PARITY: During CS2 execution we batch invalidations for performance, but scripts
+        // During CS2 execution we batch invalidations for performance, but scripts
         // frequently read widget dimensions immediately after mutating layout (if_setsize,
         // if_setposition, etc.). In the Java client these setters call alignWidget and, for
         // containers, revalidateWidgetScroll in the same tick.
@@ -633,7 +633,7 @@ export class WidgetManager {
             const parent = this.getWidgetByUid(w.parentUid);
             if (parent) {
                 this.ensureLayout(parent);
-                // OSRS PARITY: When a parent has a scroll area, child alignment uses
+                // When a parent has a scroll area, child alignment uses
                 // parent.scrollWidth/scrollHeight if non-zero, else parent.width/height.
                 // Child alignment uses scroll area when present.
                 const pw = parent.width || 0;
@@ -644,7 +644,7 @@ export class WidgetManager {
                 parentH = sh !== 0 ? sh : ph;
             }
         } else {
-            // OSRS PARITY: Mounted interfaces (InterfaceParent) keep their own widget trees
+            // Mounted interfaces (InterfaceParent) keep their own widget trees
             // (roots stay parentUid=-1), but are laid out relative to the mount container's
             // scroll area (scrollWidth/scrollHeight or width/height).
             //
@@ -1034,7 +1034,7 @@ export class WidgetManager {
 
     /**
      * Clear ALL widget data. This is a full reset, NOT called during normal gameplay.
-     * In OSRS, widgets persist until explicitly unloaded via method6346.
+     * In OSRS, widgets persist until explicitly unloaded via unloadInterface.
      * Only use this for complete client reset (e.g., logout, reconnect).
      */
     clear(): void {
@@ -1093,7 +1093,7 @@ export class WidgetManager {
     }
 
     /**
-     * Matches method6349() in WidgetDefinition.java
+
      * Clears resource caches (sprites, models, fonts) but NOT widget definitions.
      * This is safe to call without affecting loaded widgets.
      */
@@ -1103,7 +1103,7 @@ export class WidgetManager {
     }
 
     /**
-     * Matches loadInterface(int var1) in WidgetDefinition.java
+
      * Only loads if not already loaded (checks loadedGroups array)
      */
     loadGroup(groupId: number): WidgetGroupInstance | undefined {
@@ -1129,7 +1129,7 @@ export class WidgetManager {
     }
 
     /**
-     * Matches method6346(int var1) in WidgetDefinition.java
+
      * Explicitly unloads a widget group from memory, allowing it to be reloaded later
      */
     unloadGroup(groupId: number): void {
@@ -1312,7 +1312,7 @@ export class WidgetManager {
             }
         }
 
-        // OSRS PARITY: Sort static children by fileId for correct layering
+        // Sort static children by fileId for correct layering
         // In OSRS, updateInterface iterates Widget[] by index (which IS the fileId).
         // Lower fileId = rendered first = background, Higher fileId = rendered later = foreground.
         // Lower fileId = rendered first = background, Higher fileId = rendered later = foreground.
@@ -1369,7 +1369,7 @@ export class WidgetManager {
         this.interfaceParents.clear();
         this.groupToContainerUid.clear();
         // Clear runtime widget flags overrides on major interface changes.
-        // Reference: Client.java reinitializes widgetFlags when interface parents are refreshed.
+        // Reinitialize widgetFlags when interface parents are refreshed.
         this.widgetFlagsOverrides.clear();
         this.widgetFlagsVersion++;
 
@@ -1468,7 +1468,7 @@ export class WidgetManager {
         this.ensureLayout(targetWidget);
 
         // Layout dimensions to use for the sub-interface
-        // OSRS PARITY: Use the container's scroll area when present, otherwise its visible size.
+        // Use the container's scroll area when present, otherwise its visible size.
         // scrollWidth/scrollHeight (falling back to width/height) as the host size when resizing the mounted group.
         const targetHostW =
             (targetWidget.scrollWidth && targetWidget.scrollWidth > 0
@@ -1485,7 +1485,7 @@ export class WidgetManager {
         const getStaticChildren = (uid: number) => this.getStaticChildrenByParentUid(uid);
 
         for (const root of allRoots) {
-            // OSRS PARITY: Preserve cache-defined rawX/rawY positions for mounted interfaces.
+            // Preserve cache-defined rawX/rawY positions for mounted interfaces.
             // Position modes are preserved so interfaces can self-center within containers.
             // E.g., level up dialog (233) has xPosMode=1, yPosMode=1 with rawPos=(0,0) for centering.
             // Dialog options (219) has rawPos=(20,12) with absolute mode for proper offset.
@@ -1513,7 +1513,7 @@ export class WidgetManager {
             }
         }
 
-        // OSRS PARITY: Many modal interfaces do their initial draw via onResize handlers that
+        // Many modal interfaces do their initial draw via onResize handlers that
         // are installed during onLoad (e.g., league_areas_draw_interface, league_tasks_draw_list).
         // Root-interface resize is triggered by OsrsClient.updateWidgets() when the root changes or
         // the canvas resizes, but opening a sub-interface does not change either, so we must invoke
@@ -1590,7 +1590,7 @@ export class WidgetManager {
     triggerOnSubChange(): void {
         if (!this.onSubChangeInvoker && !this.onSubChangeListener) return;
 
-        // OSRS PARITY: Trigger onSubChange on the full widget tree for every loaded interface.
+        // Trigger onSubChange on the full widget tree for every loaded interface.
         // Reference: VertexNormal.runComponentCloseListeners(var0, 1) walks all descendants,
         // not just roots. This is important for:
         // - Root interface (161): toplevel_subchange - shows/hides tab icons
@@ -1835,7 +1835,7 @@ export class WidgetManager {
     }
 
     /**
-     * OSRS PARITY: Update the compass widget's spriteAngle based on camera yaw.
+     * Update the compass widget's spriteAngle based on camera yaw.
      * In OSRS, the compass is drawn natively using the camera yaw directly.
      * Here we update the widget's spriteAngle property before rendering.
      *

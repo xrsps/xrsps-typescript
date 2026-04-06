@@ -22,7 +22,7 @@ export function isFullyCulled(clip: ClipRect, x: number, y: number, w: number, h
 }
 
 /**
- * OSRS PARITY: Calculate widget clip bounds for Type 9 (Line) widgets.
+ * Calculate widget clip bounds for Type 9 (Line) widgets.
  * Lines can have negative dimensions (drawn from right-to-left or bottom-to-top).
  *
  * @param parentClip The parent's clip bounds
@@ -104,7 +104,7 @@ export function calculateType9ClipInPlace(
 }
 
 /**
- * OSRS PARITY: Calculate widget clip bounds for standard widgets (non-Type 9).
+ * Calculate widget clip bounds for standard widgets (non-Type 9).
  *
  * @param parentClip The parent's clip bounds
  * @param x Widget X position
@@ -335,7 +335,7 @@ export class ScissorStack {
     }
 
     /**
-     * OSRS PARITY: Expand (tighten) the current clip bounds.
+     * Expand (tighten) the current clip bounds.
      *
      * In OSRS, expandClip modifies clip globals in-place and setClip is used to restore.
      * Our implementation uses a stack for easier state management - push the expanded

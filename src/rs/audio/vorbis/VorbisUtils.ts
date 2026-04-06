@@ -4,7 +4,7 @@
 
 /**
  * Integer log2 (number of bits needed to represent a value)
- * Port of class191.iLog
+ * Integer log2
  */
 export function iLog(value: number): number {
     let bits = 0;
@@ -43,7 +43,7 @@ export function iLog(value: number): number {
 
 /**
  * Reverse bits in an integer
- * Port of class85.method2351
+ * Port of 
  */
 export function bitReverse(value: number, bits: number): number {
     let result = 0;

@@ -30,8 +30,7 @@ export interface PlayerMovementEvent {
     /** Optional raw rotation value when provided (pre-turn smoothing). */
     rotation?: number;
     /**
-     * some movement updates are only applied after update blocks are decoded
-     * (see `Player.field1124` + `SoundSystem.method877`).
+     * Some movement updates are only applied after update blocks are decoded.
      */
     applyAfterBlocks?: boolean;
 }
@@ -55,8 +54,7 @@ export interface ForcedMovementUpdate {
     endDeltaX: number;
     endDeltaY: number;
     /**
-     * absolute tiles after applying the base tile adjustment
-     * (uses `tileX/tileY` when `field1124`, otherwise `pathX[0]/pathY[0]`).
+     * Absolute tiles after applying the base tile adjustment.
      */
     startTileX?: number;
     startTileY?: number;
@@ -112,7 +110,7 @@ export interface AppearanceUpdate {
 
 export interface PlayerUpdateBlock {
     animation?: AnimationUpdate;
-    /** OSRS spot animations by slot (SoundSystem.method877: 0x10000). */
+    /** OSRS spot animations by slot (SoundSystem. 0x10000). */
     spotAnimations?: SpotAnimationUpdate[];
     /** Legacy convenience: slot 0 spot animation (if present). */
     spotAnimation?: SpotAnimationUpdate;
@@ -187,7 +185,7 @@ export interface PlayerSpotAnimationEvent {
 export const enum PlayerUpdateMask {
     // Bitmask values for player update blocks.
     ForcedChat = 0x01,
-    // Actor.field1208 (face direction), read via readUnsignedShortLE.
+    // Face direction, read via readUnsignedShortLE.
     FaceDirection = 0x02,
     Appearance = 0x04,
     Animation = 0x08,

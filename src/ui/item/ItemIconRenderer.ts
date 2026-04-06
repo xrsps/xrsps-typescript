@@ -60,7 +60,7 @@ export class ItemIconRenderer {
         quantity: number = 1,
         options: ItemIconRenderOptions = {},
     ): HTMLCanvasElement | undefined {
-        // OSRS PARITY: Mirror UserComparator7.getItemSprite (36x32, baked outline/shadow + stack text).
+        // Mirror UserComparator7.getItemSprite (36x32, baked outline/shadow + stack text).
         const qty = quantity | 0;
         const outline = (options.outline ?? 0) | 0;
         const shadow = (options.shadow ?? 0) | 0;

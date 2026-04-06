@@ -3239,7 +3239,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
                                     continue;
                                 }
 
-                                // OSRS PARITY: Register root widget for dirty tracking
+                                // Register root widget for dirty tracking
                                 const rootAny = viewportRoot as any;
                                 rootAny.__widgetRenderScale = widgetRenderScaleX;
                                 rootAny.__widgetRenderScaleX = widgetRenderScaleX;

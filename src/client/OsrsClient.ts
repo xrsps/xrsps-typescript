@@ -495,7 +495,7 @@ export class OsrsClient {
         this.writeVarcs();
     };
 
-    // OSRS PARITY: Transmit cycles for engine-level event gating
+    // Transmit cycles for engine-level event gating
     // See TransmitCycles.ts for documentation on how OSRS gates transmit handlers
     // IMPORTANT: Use getTransmitCycles() to get the global singleton, not createTransmitCycles()!
     // This ensures CLIENTCLOCK opcode and OsrsClient use the same cycleCntr.
@@ -1543,7 +1543,7 @@ export class OsrsClient {
                     self.inputManager.wasKeyPressed(osrsKeyCode),
             },
             // Audio playback for CS2 SOUND_SONG opcode
-            // Skills.method6928([trackId], outDelay, outDur, inDelay, inDur)
+            // Music fade params: trackId, outDelay, outDur, inDelay, inDur
             playSong: (
                 songId: number,
                 fadeOutDelay: number,
@@ -1833,7 +1833,7 @@ export class OsrsClient {
 
         // Wire up the deferred callbacks - triggers queued var changes after script execution
         this.cs2Vm.onVarpChange = (varpId) => {
-            // OSRS PARITY: Mark var cycle with specific varp ID - handlers fire during processWidgetTransmits()
+            // Mark var cycle with specific varp ID - handlers fire during processWidgetTransmits()
             markVarTransmit(varpId);
         };
         // Varc changes do not directly drive onMiscTransmit.
@@ -2080,7 +2080,7 @@ export class OsrsClient {
                     // public chat (player sync block) populates chat history so
                     // `onChatTransmit` listeners (chatbox scripts) behave correctly.
                     chatHistory.addMessage(messageType, text, sender, "");
-                    // OSRS PARITY: Mark chat cycle instead of directly triggering handlers.
+                    // Mark chat cycle instead of directly triggering handlers.
                     // Use markChatTransmit() which handles timing when async events arrive
                     // after processWidgetTransmits has already run this tick.
                     markChatTransmit();
@@ -2806,7 +2806,7 @@ export class OsrsClient {
             });
             // Set up callback to mark chat cycle when ANY message is added (including from CS2 MES opcode)
             chatHistory.onMessageAdded = () => {
-                // OSRS PARITY: Mark chat cycle - handlers fire during processWidgetTransmits()
+                // Mark chat cycle - handlers fire during processWidgetTransmits()
                 // Use markChatTransmit() which handles the timing correctly when
                 // async events arrive after processWidgetTransmits has already run
                 markChatTransmit();
@@ -2820,7 +2820,7 @@ export class OsrsClient {
                 console.log("[Chat Test] Added with uid:", uid);
                 console.log("[Chat Test] Public chat length:", chatHistory.getLength(2));
                 console.log("[Chat Test] Latest message:", chatHistory.getFullByTypeAndLine(2, 0));
-                // OSRS PARITY: Mark chat cycle (uses markChatTransmit for proper timing)
+                // Mark chat cycle (uses markChatTransmit for proper timing)
                 markChatTransmit();
                 console.log("[Chat Test] Marked chatCycle for transmit");
             };
@@ -2875,7 +2875,7 @@ export class OsrsClient {
                         baseLevel: entry.baseLevel ?? 1,
                         xp: entry.xp ?? 0,
                     });
-                    // OSRS PARITY: Mark each changed stat ID for trigger checking
+                    // Mark each changed stat ID for trigger checking
                     markStatTransmit(entry.id);
                 }
 
@@ -2929,7 +2929,7 @@ export class OsrsClient {
                         this._serverVarpSync = false;
                     }
                 }
-                // OSRS PARITY: Set varbit 25 (stamina_active) for CS2 orb scripts
+                // Set varbit 25 (stamina_active) for CS2 orb scripts
                 // This allows orbs_update_runmode to show the correct run icon when stamina is active
                 const staminaActive = state.stamina && state.stamina.ticks > 0 ? 1 : 0;
                 const currentStamina = this.varManager?.getVarbit(VARBIT_STAMINA_ACTIVE) ?? 0;
@@ -2941,7 +2941,7 @@ export class OsrsClient {
                         this._serverVarpSync = false;
                     }
                 }
-                // OSRS PARITY: Mark misc cycle to update run orb display
+                // Mark misc cycle to update run orb display
                 // The orbs_update_runenergy script uses if_setonmisctransmit to refresh when energy changes
                 markMiscTransmit();
             });
@@ -5164,7 +5164,7 @@ export class OsrsClient {
         const stack: any[] = [];
         for (const r of allRoots) if (r) stack.push(r);
 
-        // OSRS PARITY: Also process timers for InterfaceParent-mounted sub-interfaces.
+        // Also process timers for InterfaceParent-mounted sub-interfaces.
         // In the official client these are traversed via the InterfaceParent draw/update path.
         for (const [containerUid, parent] of this.widgetManager.interfaceParents) {
             if (!parent) continue;
@@ -5233,7 +5233,7 @@ export class OsrsClient {
     }
 
     /**
-     * OSRS PARITY: Process transmit handlers at the engine level.
+     * Process transmit handlers at the engine level.
      *
      * Instead of calling triggerChatTransmit/triggerMiscTransmit directly when events occur,
      * OSRS gates transmit handlers during widget tree updates by comparing global "event cycles"
@@ -5247,7 +5247,7 @@ export class OsrsClient {
      * 3. (repeat for all transmit types)
      * 4. Set widget.lastTransmitCycle = cycleCntr
      *
-     * OSRS PARITY: All transmit handlers are QUEUED, not executed immediately.
+     * All transmit handlers are QUEUED, not executed immediately.
      * This ensures cycleCntr++ happens before scripts run.
      */
     private processWidgetTransmits(): void {
@@ -5259,7 +5259,7 @@ export class OsrsClient {
         }
 
         const cycles = this.transmitCycles;
-        // OSRS PARITY: All transmit types with triggers (var, inv, stat) now use counter-based
+        // All transmit types with triggers (var, inv, stat) now use counter-based
         // tracking. No snapshots needed - counters are monotonically increasing and never cleared.
         const allRoots = this.widgetManager.getAllGroupRoots(this.widgetManager.rootInterface);
         if (!allRoots || allRoots.length === 0) {
@@ -5271,7 +5271,7 @@ export class OsrsClient {
         const stack: any[] = [];
         for (const r of allRoots) if (r) stack.push(r);
 
-        // OSRS PARITY: Also traverse InterfaceParent-mounted sub-interfaces so their transmit
+        // Also traverse InterfaceParent-mounted sub-interfaces so their transmit
         // handlers (var/inv/stat/chat/etc.) fire while the interface is open.
         for (const [containerUid, parent] of this.widgetManager.interfaceParents) {
             if (!parent) continue;
@@ -5305,7 +5305,7 @@ export class OsrsClient {
         };
 
         // Helper to check if transmit should fire
-        // OSRS PARITY: Fire if (eventCycle > lastCycle) OR (newly loaded widget AND event pending)
+        // Fire if (eventCycle > lastCycle) OR (newly loaded widget AND event pending)
         const shouldFire = (eventCycle: number, lastCycle: number): boolean => {
             return eventCycle > -1 && (lastCycle === -1 || eventCycle > lastCycle);
         };
@@ -5332,7 +5332,7 @@ export class OsrsClient {
             }
 
             // onStatTransmit - check statTransmitTriggers if defined
-            // OSRS PARITY: Use counter-based approach instead of cycle-based
+            // Use counter-based approach instead of cycle-based
             // - changedStatCount is monotonically increasing (never cleared)
             // - Widget tracks lastChangedStatCount - the count when handler last fired
             // - Fire if changedStatCount > lastChangedStatCount
@@ -5376,7 +5376,7 @@ export class OsrsClient {
             }
 
             // onVarTransmit - check varTransmitTriggers if defined
-            // OSRS PARITY: Use counter-based approach instead of cycle-based.
+            // Use counter-based approach instead of cycle-based.
             // - changedVarpCount is monotonically increasing (never cleared)
             // - Widget tracks lastChangedVarpCount - the count when handler last fired
             // - Fire if changedVarpCount > lastChangedVarpCount
@@ -5417,7 +5417,7 @@ export class OsrsClient {
             }
 
             // onInvTransmit - check invTransmitTriggers if defined
-            // OSRS PARITY: Use counter-based approach instead of cycle-based
+            // Use counter-based approach instead of cycle-based
             // - changedInvCount is monotonically increasing (never cleared)
             // - Widget tracks lastChangedInvCount - the count when handler last fired
             // - Fire if changedInvCount > lastChangedInvCount
@@ -5826,7 +5826,7 @@ export class OsrsClient {
         // Input picking treats widgets as visible unless explicitly hidden.
         const visibleMap = new Map<number, boolean>();
 
-        // OSRS PARITY: While a widget is clicked/held, it is invalidated every frame so it can be
+        // While a widget is clicked/held, it is invalidated every frame so it can be
         // rendered semi-transparent (and to support drag visuals).
         // The clicked widget is invalidated so it can be re-rendered semi-transparent.
         if (this.clickedWidget) {
@@ -6048,7 +6048,7 @@ export class OsrsClient {
                 // mouse listener dispatch is in the IF3 event branch.
                 if (!w || w.isIf3 === false) return false;
                 // If the cache/runtime explicitly marked this widget as "no listeners", skip.
-                if (w.field4517 === false) return false;
+                if (w.hasListeners === false) return false;
                 return !!(
                     w.eventHandlers?.onMouseOver ||
                     w.eventHandlers?.onMouseLeave ||
@@ -6351,7 +6351,7 @@ export class OsrsClient {
                 for (let i = clickHits.length - 1; i >= 0; i--) {
                     const w = clickHits[i];
                     const hasItem = typeof (w as any).itemId === "number" && (w as any).itemId > 0;
-                    // OSRS PARITY: Check for actual handlers, not just empty arrays
+                    // Check for actual handlers, not just empty arrays
                     // Empty arrays are truthy but shouldn't count as having handlers
                     const hasActions = Array.isArray(w.actions) && w.actions.length > 0;
                     const getWidgetByUid = (uid: number) => this.widgetManager?.getWidgetByUid(uid);
@@ -6865,7 +6865,7 @@ export class OsrsClient {
                 // Store visual position in LOGICAL (widget-layout) coordinates so it uses
                 // the same coordinate space as CS2 script positions (event_mousey, cc_setposition).
                 //
-                // OSRS PARITY: When the drag parent differs from the actual parent (e.g.,
+                // When the drag parent differs from the actual parent (e.g.,
                 // scrollbar dragger clamped to track but parented to container), scriptY and
                 // the naive logicalVisualY are truncated independently from different reference
                 // points. At fractional pixel offsets this causes ±1 logical pixel misalignment
@@ -7297,7 +7297,7 @@ export class OsrsClient {
                     if (uid !== 0) keyWidgetsByUid.set(uid, w);
                 }
             }
-            // OSRS PARITY: Also dispatch keys to InterfaceParent-mounted sub-interfaces
+            // Also dispatch keys to InterfaceParent-mounted sub-interfaces
             // (e.g., chatbox input handlers). Mounted interfaces are separate widget trees.
             for (const [containerUid, parent] of this.widgetManager.interfaceParents) {
                 if (!parent) continue;
@@ -8080,7 +8080,7 @@ export class OsrsClient {
             }
         }
         this.equipment.setSnapshot(slots);
-        // OSRS PARITY: Mark inv cycle for equipment (94) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for equipment (94) - handlers fire during processWidgetTransmits()
         markInvTransmit(94);
     }
 
@@ -9998,7 +9998,7 @@ export class OsrsClient {
             console.log("[inventory] snapshot post-update", this.inventory.getSlots());
         } catch {}
 
-        // OSRS PARITY: Mark inv cycle with specific inventory ID - handlers fire during processWidgetTransmits()
+        // Mark inv cycle with specific inventory ID - handlers fire during processWidgetTransmits()
         // Inventory ID 93 is the player inventory in OSRS
         markInvTransmit(93);
     }
@@ -10044,7 +10044,7 @@ export class OsrsClient {
             }
         }
 
-        // OSRS PARITY: Mark inv cycle for bank (95) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for bank (95) - handlers fire during processWidgetTransmits()
         markInvTransmit(95);
 
         // Bank main item rendering is driven by onInvTransmit(bank) on group 12.
@@ -10083,7 +10083,7 @@ export class OsrsClient {
             }
         }
 
-        // OSRS PARITY: Mark inv cycle for collection_transmit (620) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for collection_transmit (620) - handlers fire during processWidgetTransmits()
         markInvTransmit(620);
     }
 
@@ -10114,7 +10114,7 @@ export class OsrsClient {
             }
         }
 
-        // OSRS PARITY: Mark inv cycle for shop (516) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for shop (516) - handlers fire during processWidgetTransmits()
         markInvTransmit(516);
     }
 
@@ -10981,7 +10981,7 @@ export class OsrsClient {
         this.inventory.swapSlots(src, dst);
         sendInventoryMove(src, dst);
 
-        // OSRS PARITY: Mark inv cycle for inventory (93) - handlers fire during processWidgetTransmits()
+        // Mark inv cycle for inventory (93) - handlers fire during processWidgetTransmits()
         markInvTransmit(93);
         try {
             this.widgetManager.invalidateAll();

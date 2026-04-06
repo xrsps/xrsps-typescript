@@ -531,7 +531,7 @@ export class WidgetsOverlay implements Overlay {
             let anyDirty = true; // Default to dirty if no manager
 
             if (widgetManager) {
-                // OSRS PARITY: Update compass angle from camera yaw before rendering
+                // Update compass angle from camera yaw before rendering
                 const gameCtx = this.ctx.getGameContext?.();
                 const cameraYaw = gameCtx?.osrsClient?.camera?.yaw ?? 0;
                 widgetManager.updateCompassAngle(cameraYaw);

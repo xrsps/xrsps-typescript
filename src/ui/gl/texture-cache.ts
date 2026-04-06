@@ -314,7 +314,7 @@ export class TextureCache {
         shadow: number = 0,
         quantityMode: number = 2,
     ) {
-        // OSRS PARITY: key matches UserComparator7.getItemSprite var6 packing.
+        // key matches UserComparator7.getItemSprite var6 packing.
         let mode = quantityMode | 0;
         const qty = quantity | 0;
         if (qty === -1) mode = 0;

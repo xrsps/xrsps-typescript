@@ -142,7 +142,7 @@ export function computeTextureCoords(
                 const speed = model.textureSpeed[texCoord] / 256.0;
                 if (type === 1) {
                     const scaleZ = model.textureScaleZ[texCoord] / 1024.0;
-                    method2431(
+                    projectCylindrical(
                         model.verticesX[index0],
                         model.verticesY[index0],
                         model.verticesZ[index0],
@@ -157,7 +157,7 @@ export function computeTextureCoords(
                     );
                     u0 = uvTemp[0];
                     v0 = uvTemp[1];
-                    method2431(
+                    projectCylindrical(
                         model.verticesX[index1],
                         model.verticesY[index1],
                         model.verticesZ[index1],
@@ -172,7 +172,7 @@ export function computeTextureCoords(
                     );
                     u1 = uvTemp[0];
                     v1 = uvTemp[1];
-                    method2431(
+                    projectCylindrical(
                         model.verticesX[index2],
                         model.verticesY[index2],
                         model.verticesZ[index2],
@@ -239,9 +239,9 @@ export function computeTextureCoords(
                     const f_830_ = (vx * scales[3] + vy * scales[4] + vz * scales[5]) / scaleY;
                     const f_831_ = (vx * scales[6] + vy * scales[7] + vz * scales[8]) / scaleZ;
 
-                    const scaleType = method2437(f_829_, f_830_, f_831_);
+                    const scaleType = getDominantAxis(f_829_, f_830_, f_831_);
 
-                    method2416(
+                    projectPlanar(
                         model.verticesX[index0],
                         model.verticesY[index0],
                         model.verticesZ[index0],
@@ -258,7 +258,7 @@ export function computeTextureCoords(
                     );
                     u0 = uvTemp[0];
                     v0 = uvTemp[1];
-                    method2416(
+                    projectPlanar(
                         model.verticesX[index1],
                         model.verticesY[index1],
                         model.verticesZ[index1],
@@ -275,7 +275,7 @@ export function computeTextureCoords(
                     );
                     u1 = uvTemp[0];
                     v1 = uvTemp[1];
-                    method2416(
+                    projectPlanar(
                         model.verticesX[index2],
                         model.verticesY[index2],
                         model.verticesZ[index2],
@@ -293,7 +293,7 @@ export function computeTextureCoords(
                     u2 = uvTemp[0];
                     v2 = uvTemp[1];
                 } else if (type === 3) {
-                    method2434(
+                    projectSpherical(
                         model.verticesX[index0],
                         model.verticesY[index0],
                         model.verticesZ[index0],
@@ -307,7 +307,7 @@ export function computeTextureCoords(
                     );
                     u0 = uvTemp[0];
                     v0 = uvTemp[1];
-                    method2434(
+                    projectSpherical(
                         model.verticesX[index1],
                         model.verticesY[index1],
                         model.verticesZ[index1],
@@ -321,7 +321,7 @@ export function computeTextureCoords(
                     );
                     u1 = uvTemp[0];
                     v1 = uvTemp[1];
-                    method2434(
+                    projectSpherical(
                         model.verticesX[index2],
                         model.verticesY[index2],
                         model.verticesZ[index2],
@@ -395,7 +395,7 @@ export function computeTextureCoords(
     return uvs;
 }
 
-function method2431(
+function projectCylindrical(
     vx: number,
     vy: number,
     vz: number,
@@ -435,7 +435,7 @@ function method2431(
     out[1] = v;
 }
 
-function method2437(f: number, f_715_: number, f_716_: number): number {
+function getDominantAxis(f: number, f_715_: number, f_716_: number): number {
     const f_717_ = f < 0.0 ? -f : f;
     const f_718_ = f_715_ < 0.0 ? -f_715_ : f_715_;
     const f_719_ = f_716_ < 0.0 ? -f_716_ : f_716_;
@@ -457,7 +457,7 @@ function method2437(f: number, f_715_: number, f_716_: number): number {
     return 5;
 }
 
-function method2416(
+function projectPlanar(
     vx: number,
     vy: number,
     vz: number,
@@ -515,7 +515,7 @@ function method2416(
     out[1] = v;
 }
 
-function method2434(
+function projectSpherical(
     vx: number,
     vy: number,
     vz: number,
@@ -656,7 +656,7 @@ export function calculateTextureScales(model: ModelData): TextureScales {
                     scaleY = model.textureScaleY[i] / 1024.0;
                     scaleZ = model.textureScaleZ[i] / 1024.0;
                 }
-                fs[i] = method2424(
+                fs[i] = buildRotationScaleMatrix(
                     model.textureMappingP[i],
                     model.textureMappingM[i],
                     model.textureMappingN[i],
@@ -671,7 +671,7 @@ export function calculateTextureScales(model: ModelData): TextureScales {
     return new TextureScales(centerXs, centerYs, centerZs, fs);
 }
 
-function method2424(
+function buildRotationScaleMatrix(
     p: number,
     m: number,
     n: number,

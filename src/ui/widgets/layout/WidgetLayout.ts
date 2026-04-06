@@ -174,7 +174,7 @@ export function layoutWidgets(
 
         const baseChildW = (w.width as number) | 0;
         const baseChildH = (w.height as number) | 0;
-        // OSRS PARITY: Children of scroll containers are aligned relative to the scroll area,
+        // Children of scroll containers are aligned relative to the scroll area,
         // not just the visible viewport.
         const sw = ((w.scrollWidth as number) ?? 0) | 0;
         const sh = ((w.scrollHeight as number) ?? 0) | 0;

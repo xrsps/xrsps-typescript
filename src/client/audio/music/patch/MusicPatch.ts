@@ -5,17 +5,17 @@ import { MusicPatchNode2 } from "./MusicPatchNode2";
 
 /**
  * Port of RuneLite MusicPatch parser.
- * Holds per-note metadata and sample ids (field3529).
+ * Holds per-note metadata and sample ids.
  */
 export class MusicPatch {
     rawSounds: (null | number)[] = new Array(128).fill(null); // placeholder for resolved sound ids
-    field3522: Int16Array = new Int16Array(128);
-    field3524: Uint8Array = new Uint8Array(128);
-    field3525: Uint8Array = new Uint8Array(128);
-    field3526: MusicPatchNode2[] = new Array(128);
-    field3523: Int16Array = new Int16Array(128); // Signed to allow -1 (no exclusive class)
-    field3529: Int32Array = new Int32Array(128);
-    field3531 = 0;
+    pitchOffsets: Int16Array = new Int16Array(128);
+    volumes: Uint8Array = new Uint8Array(128);
+    pans: Uint8Array = new Uint8Array(128);
+    envelopes: MusicPatchNode2[] = new Array(128);
+    exclusiveClasses: Int16Array = new Int16Array(128); // Signed to allow -1 (no exclusive class)
+    sampleIds: Int32Array = new Int32Array(128);
+    globalVolume = 0;
 
     constructor(data: Uint8Array | Int8Array) {
         const bytes =
@@ -73,11 +73,11 @@ export class MusicPatch {
         for (let i = 0; i < var12; i++) {
             const node = new MusicPatchNode2();
             let len = buf.readUnsignedByte();
-            if (len > 0) node.field3446 = new Uint8Array(len * 2);
+            if (len > 0) node.volumeEnvelope = new Uint8Array(len * 2);
             len = buf.readUnsignedByte();
             if (len > 0) {
-                node.field3445 = new Uint8Array(len * 2 + 2);
-                node.field3445[1] = 64;
+                node.releaseEnvelope = new Uint8Array(len * 2 + 2);
+                node.releaseEnvelope[1] = 64;
             }
             var37[i] = node;
         }
@@ -96,12 +96,12 @@ export class MusicPatch {
         let var19 = 0;
         for (let var20 = 0; var20 < 128; var20++) {
             var19 += buf.readUnsignedByte();
-            this.field3522[var20] = var19;
+            this.pitchOffsets[var20] = var19;
         }
         var19 = 0;
         for (let var20 = 0; var20 < 128; var20++) {
             var19 += buf.readUnsignedByte();
-            this.field3522[var20] = this.field3522[var20] + (var19 << 8);
+            this.pitchOffsets[var20] = this.pitchOffsets[var20] + (var19 << 8);
         }
         let var20 = 0;
         let var21 = 0;
@@ -115,8 +115,8 @@ export class MusicPatch {
                 }
                 var22 = buf.readVarInt();
             }
-            this.field3522[var23] = this.field3522[var23] + (((var22 - 1) & 2) << 14);
-            this.field3529[var23] = var22;
+            this.pitchOffsets[var23] = this.pitchOffsets[var23] + (((var22 - 1) & 2) << 14);
+            this.sampleIds[var23] = var22;
             --var20;
         }
 
@@ -124,7 +124,7 @@ export class MusicPatch {
         var21 = 0;
         var22 = 0;
         for (let var23 = 0; var23 < 128; var23++) {
-            if (this.field3529[var23] !== 0) {
+            if (this.sampleIds[var23] !== 0) {
                 if (var20 === 0) {
                     if (var21 < var4.length) {
                         var20 = var4[var21++];
@@ -133,7 +133,7 @@ export class MusicPatch {
                     }
                     var22 = buf._data[var5++] - 1;
                 }
-                this.field3523[var23] = var22;
+                this.exclusiveClasses[var23] = var22;
                 --var20;
             }
         }
@@ -142,7 +142,7 @@ export class MusicPatch {
         var21 = 0;
         let var24 = 0;
         for (let var25 = 0; var25 < 128; var25++) {
-            if (this.field3529[var25] !== 0) {
+            if (this.sampleIds[var25] !== 0) {
                 if (var20 === 0) {
                     if (var21 < var7.length) {
                         var20 = var7[var21++];
@@ -152,7 +152,7 @@ export class MusicPatch {
                     // In the original client, attenuation values live in the bytes we skipped at `var8`.
                     var24 = buf._data[var8++] + 16;
                 }
-                this.field3525[var25] = var24 << 2;
+                this.pans[var25] = var24 << 2;
                 --var20;
             }
         }
@@ -161,7 +161,7 @@ export class MusicPatch {
         var21 = 0;
         let var26 = var37[0];
         for (let var27 = 0; var27 < 128; var27++) {
-            if (this.field3529[var27] !== 0) {
+            if (this.sampleIds[var27] !== 0) {
                 if (var20 === 0) {
                     var26 = var37[var36[var21]];
                     if (var21 < var10.length) {
@@ -170,7 +170,7 @@ export class MusicPatch {
                         var20 = -1;
                     }
                 }
-                this.field3526[var27] = var26;
+                this.envelopes[var27] = var26;
                 --var20;
             }
         }
@@ -187,28 +187,28 @@ export class MusicPatch {
                 }
 
                 // Only consume a new volume byte when this note actually references a sample.
-                if (this.field3529[var27] > 0) {
+                if (this.sampleIds[var27] > 0) {
                     var26Volume = buf.readUnsignedByte() + 1;
                 }
             }
 
-            this.field3524[var27] = var26Volume;
+            this.volumes[var27] = var26Volume;
             --var20;
         }
 
-        this.field3531 = buf.readUnsignedByte() + 1;
+        this.globalVolume = buf.readUnsignedByte() + 1;
 
         // Read envelope amplitude values (odd indices)
         for (let var27 = 0; var27 < var12; var27++) {
             const node = var37[var27];
-            if (node.field3446) {
-                for (let var29 = 1; var29 < node.field3446.length; var29 += 2) {
-                    node.field3446[var29] = buf.readByte();
+            if (node.volumeEnvelope) {
+                for (let var29 = 1; var29 < node.volumeEnvelope.length; var29 += 2) {
+                    node.volumeEnvelope[var29] = buf.readByte();
                 }
             }
-            if (node.field3445) {
-                for (let var29 = 3; var29 < node.field3445.length - 2; var29 += 2) {
-                    node.field3445[var29] = buf.readByte();
+            if (node.releaseEnvelope) {
+                for (let var29 = 3; var29 < node.releaseEnvelope.length - 2; var29 += 2) {
+                    node.releaseEnvelope[var29] = buf.readByte();
                 }
             }
         }
@@ -227,11 +227,11 @@ export class MusicPatch {
         // Read release envelope time values (even indices, cumulative)
         for (let var27 = 0; var27 < var12; var27++) {
             const node = var37[var27];
-            if (node.field3445) {
+            if (node.releaseEnvelope) {
                 let var19 = 0;
-                for (let var29 = 2; var29 < node.field3445.length; var29 += 2) {
+                for (let var29 = 2; var29 < node.releaseEnvelope.length; var29 += 2) {
                     var19 = 1 + var19 + buf.readUnsignedByte();
-                    node.field3445[var29] = var19;
+                    node.releaseEnvelope[var29] = var19;
                 }
             }
         }
@@ -239,11 +239,11 @@ export class MusicPatch {
         // Read volume envelope time values (even indices, cumulative)
         for (let var27 = 0; var27 < var12; var27++) {
             const node = var37[var27];
-            if (node.field3446) {
+            if (node.volumeEnvelope) {
                 let var19 = 0;
-                for (let var29 = 2; var29 < node.field3446.length; var29 += 2) {
+                for (let var29 = 2; var29 < node.volumeEnvelope.length; var29 += 2) {
                     var19 = 1 + var19 + buf.readUnsignedByte();
-                    node.field3446[var29] = var19;
+                    node.volumeEnvelope[var29] = var19;
                 }
             }
         }
@@ -262,7 +262,7 @@ export class MusicPatch {
             let var28 = var42[1];
 
             for (let var29 = 0; var29 < var47; var29++) {
-                this.field3524[var29] = ((var28 * this.field3524[var29] + 32) >> 6) & 0xff;
+                this.volumes[var29] = ((var28 * this.volumes[var29] + 32) >> 6) & 0xff;
             }
 
             for (let var29 = 2; var29 < var42.length; var29 += 2) {
@@ -272,7 +272,7 @@ export class MusicPatch {
 
                 for (let var33 = var47; var33 < var30; var33++) {
                     const var34 = Math.floor(var32 / (var30 - var47));
-                    this.field3524[var33] = ((var34 * this.field3524[var33] + 32) >> 6) & 0xff;
+                    this.volumes[var33] = ((var34 * this.volumes[var33] + 32) >> 6) & 0xff;
                     var32 += var31 - var28;
                 }
 
@@ -281,7 +281,7 @@ export class MusicPatch {
             }
 
             for (let var45 = var47; var45 < 128; var45++) {
-                this.field3524[var45] = ((var28 * this.field3524[var45] + 32) >> 6) & 0xff;
+                this.volumes[var45] = ((var28 * this.volumes[var45] + 32) >> 6) & 0xff;
             }
         }
 
@@ -299,10 +299,10 @@ export class MusicPatch {
             let var44 = ((var16[1] << 24) >> 24) << 1; // sign-extend and multiply
 
             for (let var29 = 0; var29 < var47; var29++) {
-                let var45 = var44 + (this.field3525[var29] & 255);
+                let var45 = var44 + (this.pans[var29] & 255);
                 if (var45 < 0) var45 = 0;
                 if (var45 > 128) var45 = 128;
-                this.field3525[var29] = var45;
+                this.pans[var29] = var45;
             }
 
             for (let var29 = 2; var29 < var16.length; var29 += 2) {
@@ -312,10 +312,10 @@ export class MusicPatch {
 
                 for (let var33 = var47; var33 < var30; var33++) {
                     const var34 = Math.floor(var32 / (var30 - var47));
-                    let var35 = var34 + (this.field3525[var33] & 255);
+                    let var35 = var34 + (this.pans[var33] & 255);
                     if (var35 < 0) var35 = 0;
                     if (var35 > 128) var35 = 128;
-                    this.field3525[var33] = var35;
+                    this.pans[var33] = var35;
                     var32 += var46 - var44;
                 }
 
@@ -324,51 +324,51 @@ export class MusicPatch {
             }
 
             for (let var45 = var47; var45 < 128; var45++) {
-                let var46 = var44 + (this.field3525[var45] & 255);
+                let var46 = var44 + (this.pans[var45] & 255);
                 if (var46 < 0) var46 = 0;
                 if (var46 > 128) var46 = 128;
-                this.field3525[var45] = var46;
+                this.pans[var45] = var46;
             }
         }
 
         // Read MusicPatchNode2 additional fields
-        // field3453 (decay rate)
+        // Decay rate
         for (let var27 = 0; var27 < var12; var27++) {
-            var37[var27].field3453 = buf.readUnsignedByte();
+            var37[var27].decayRate = buf.readUnsignedByte();
         }
 
-        // field3448 (volume envelope rate) and field3447 (release envelope rate) and field3450 (decay modifier)
+        // Volume envelope rate, release envelope rate, and decay modifier
         for (let var27 = 0; var27 < var12; var27++) {
             const node = var37[var27];
-            if (node.field3446) {
-                node.field3448 = buf.readUnsignedByte();
+            if (node.volumeEnvelope) {
+                node.volumeEnvelopeRate = buf.readUnsignedByte();
             }
-            if (node.field3445) {
-                node.field3447 = buf.readUnsignedByte();
+            if (node.releaseEnvelope) {
+                node.releaseEnvelopeRate = buf.readUnsignedByte();
             }
-            if (node.field3453 > 0) {
-                node.field3450 = buf.readUnsignedByte();
+            if (node.decayRate > 0) {
+                node.decayModifier = buf.readUnsignedByte();
             }
         }
 
-        // field3452 (vibrato rate)
+        // Vibrato rate
         for (let var27 = 0; var27 < var12; var27++) {
-            var37[var27].field3452 = buf.readUnsignedByte();
+            var37[var27].vibratoRate = buf.readUnsignedByte();
         }
 
-        // field3451 (vibrato depth)
-        for (let var27 = 0; var27 < var12; var27++) {
-            const node = var37[var27];
-            if (node.field3452 > 0) {
-                node.field3451 = buf.readUnsignedByte();
-            }
-        }
-
-        // field3449 (vibrato delay)
+        // Vibrato depth
         for (let var27 = 0; var27 < var12; var27++) {
             const node = var37[var27];
-            if (node.field3451 > 0) {
-                node.field3449 = buf.readUnsignedByte();
+            if (node.vibratoRate > 0) {
+                node.vibratoDepth = buf.readUnsignedByte();
+            }
+        }
+
+        // Vibrato delay
+        for (let var27 = 0; var27 < var12; var27++) {
+            const node = var37[var27];
+            if (node.vibratoDepth > 0) {
+                node.vibratoDelay = buf.readUnsignedByte();
             }
         }
     }

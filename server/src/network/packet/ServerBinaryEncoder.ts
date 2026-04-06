@@ -743,7 +743,7 @@ export class ServerBinaryEncoder {
     ): Uint8Array {
         this.buffer.reset();
         this.buffer.writeShort(trackId);
-        //  default (see Coord.playSong -> WorldMapRectangle.method5019(0,100,100,0))
+        //  default 
         this.buffer.writeShort(fadeOutDelay ?? 0);
         this.buffer.writeShort(fadeOutDuration ?? 100);
         this.buffer.writeShort(fadeInDelay ?? 100);

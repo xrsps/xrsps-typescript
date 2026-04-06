@@ -4,7 +4,7 @@
  * Encodes OSRS-style binary player sync packets.
  * Extracted from wsServer.ts buildPlayerSyncPacket method.
  *
- * Reference: `class388.updatePlayers` + `class467.method2621`
+ * Player sync packet encoder.
  */
 import {
     MovementDirection,

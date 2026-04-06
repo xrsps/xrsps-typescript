@@ -92,11 +92,11 @@ precision mediump float;
 in vec4 vColor;
 out vec4 o;
 void main(){ o = vColor; }`;
-        // OSRS PARITY: Vertical gradient shader for fillMode=1 (GRADIENT_VERTICAL)
+        // Vertical gradient shader for fillMode=1 (GRADIENT_VERTICAL)
         // Reference: Rasterizer2D.Rasterizer2D_fillRectangleGradient
         const vsGrad = `#version 300 es\nprecision mediump float; layout(location=0) in vec2 aPos; layout(location=1) in float aT; uniform mat4 uProj; out float vT; void main(){ vT=aT; gl_Position=uProj*vec4(aPos,0.0,1.0);} `;
         const fsGrad = `#version 300 es\nprecision mediump float; in float vT; uniform vec4 uColorTop; uniform vec4 uColorBot; out vec4 o; void main(){ o = mix(uColorTop, uColorBot, vT); }`;
-        // OSRS PARITY: Masked texture shader for compass (contentType 1339)
+        // Masked texture shader for compass (contentType 1339)
         // Reference: SpritePixels.drawRotatedMaskedCenteredAround
         // Content is sampled with rotated UVs, mask is sampled based on screen position
         const vsMasked = `#version 300 es
@@ -248,7 +248,7 @@ void main(){
     }
 
     /**
-     * OSRS PARITY: Draw a vertical gradient rectangle
+     * Draw a vertical gradient rectangle
      * Reference: Rasterizer2D.Rasterizer2D_fillRectangleGradient (fillMode=1)
      * Interpolates color from top to bottom
      */
@@ -294,7 +294,7 @@ void main(){
     }
 
     /**
-     * OSRS PARITY: Draw a vertical gradient rectangle with separate alpha values
+     * Draw a vertical gradient rectangle with separate alpha values
      * Reference: Rasterizer2D.Rasterizer2D_fillRectangleGradientAlpha (fillMode=2)
      * Interpolates both color AND alpha from top to bottom
      */
@@ -368,8 +368,8 @@ void main(){
     }
 
     /**
-     * OSRS PARITY: Draw a texture rotated around its center
-     * Reference: SpritePixels.method9857() and method9855()
+     * Draw a texture rotated around its center
+     * Sprite outline rendering
      * Used for compass rotation and widgets with spriteAngle
      *
      * @param tex The texture to draw
@@ -462,7 +462,7 @@ void main(){
     }
 
     /**
-     * OSRS PARITY: Draw a texture rotated with a mask applied
+     * Draw a texture rotated with a mask applied
      * Reference: SpritePixels.drawRotatedMaskedCenteredAround()
      * Used for compass (contentType 1339) which needs circular masking
      *

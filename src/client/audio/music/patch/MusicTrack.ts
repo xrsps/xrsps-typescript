@@ -297,7 +297,7 @@ export class MusicTrack {
                             writeByte(var74);
                             writeByte(var71);
                             if (var71 > 0) {
-                                // field3543 bookkeeping skipped
+                                // bookkeeping skipped
                             }
                         } else if (var66 === 1) {
                             if (var69) {

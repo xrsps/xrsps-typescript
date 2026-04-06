@@ -389,7 +389,7 @@ export class SoundManager {
             type: "play_song",
             payload: {
                 trackId: trackId,
-                //  default (see Coord.playSong -> WorldMapRectangle.method5019(0,100,100,0))
+                //  default 
                 fadeOutDelay: 0,
                 fadeOutDuration: 100,
                 fadeInDelay: 100,

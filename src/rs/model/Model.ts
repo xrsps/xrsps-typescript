@@ -11,7 +11,7 @@ import { SkeletalSeq } from "./skeletal/SkeletalSeq";
 
 type SkeletalAnimationOptions = {
     /**
-     * Optional per-bone mask (mirrors OSRS SequenceDefinition.field2223). When provided,
+     * Optional per-bone mask. When provided,
      * only bones whose mask entry matches `maskMatch` will be updated by this pass.
      */
     masks?: boolean[];
@@ -142,11 +142,6 @@ export class Model extends Entity {
     xMidOffset: number;
     yMidOffset: number;
     zMidOffset: number;
-
-    field2494!: number;
-    field2495!: number;
-    field2479!: number;
-    field2474!: number;
 
     contourHeight: number = 0;
 
@@ -936,7 +931,7 @@ export class Model extends Entity {
 
     /**
      * Apply a single frame-based sequence using an interleave array.
-     * Mirrors OSRS `Model.method5652` and is used by `SequenceDefinition.applyTransformations`
+     * Used by animation system for interleaved transforms
      * when combining cached and non-cached sequences.
      */
     animateInterleavedFrame(
@@ -955,8 +950,7 @@ export class Model extends Entity {
     }
 
     /**
-     * Apply two frame-based sequences using the action sequence's interleave array (SequenceDefinition.field2236).
-     * Mirrors OSRS `Model.method5652` called twice by `SequenceDefinition.applyTransformations`.
+     * Apply two frame-based sequences using the action sequence's interleave array.
      */
     animateInterleavedFrames(
         baseFrame: SeqFrame,

@@ -111,7 +111,7 @@ export abstract class Actor {
     followZ: number;
 
     // Path queue sized to hold full routes returned by the server pathfinder.
-    // Reference: player-movement.md (method2415:60-73, resetPath:43-52)
+    // Reference: player-movement.md 
     // The buffer stores steps in reverse order:
     // - Index 0: Most recently added step (newest)
     // - Index pathLength-1: Next step to consume (oldest)

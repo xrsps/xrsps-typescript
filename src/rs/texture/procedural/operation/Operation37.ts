@@ -33,7 +33,7 @@ export class Operation37 extends TextureOperation {
         }
     }
 
-    method3687(x: number, y: number) {
+    checkDiagonalA(x: number, y: number) {
         const local9 = ((y - x) * this.field4) >> 12;
         let local24 = TextureGenerator.COSINE[((local9 * 255) >> 12) & 0xff];
         local24 = ((local24 << 12) / this.field4) | 0;
@@ -42,7 +42,7 @@ export class Operation37 extends TextureOperation {
         return local24 > x + y && -local24 < x + y;
     }
 
-    method3690(x: number, y: number) {
+    checkDiagonalB(x: number, y: number) {
         const local13 = ((y + x) * this.field4) >> 12;
         let local23 = TextureGenerator.COSINE[((local13 * 255) >> 12) & 0xff];
         local23 = ((local23 << 12) / this.field4) | 0;
@@ -73,7 +73,7 @@ export class Operation37 extends TextureOperation {
                 local92 = local92 >= -2048 ? local92 : local92 + 4096;
                 local92 = local92 <= 2048 ? local92 : local92 - 4096;
                 output[x] =
-                    this.method3687(local38, local53) || this.method3690(local87, local92)
+                    this.checkDiagonalA(local38, local53) || this.checkDiagonalB(local87, local92)
                         ? 4096
                         : 0;
             }

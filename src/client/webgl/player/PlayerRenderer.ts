@@ -172,7 +172,7 @@ export class PlayerRenderer {
             const cached = this.skeletalDurationCache.get(seqId | 0);
             if (cached && cached > 0) return cached | 0;
 
-            // cached-seq duration is `SequenceDefinition.method4106()` (end-start).
+            // cached-seq duration is (end-start).
             let duration = Number(seqType?.getSkeletalDuration?.() ?? 0) | 0;
 
             if (!(duration > 0)) duration = 1;

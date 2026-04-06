@@ -2038,8 +2038,8 @@ export class PlayerEcs {
 
                             const rot = (this.rotation[i] | 0) & 2047;
                             const isInteracting = this.getInteractionIndex(i) !== NO_INTERACTION;
-                            // OSRS: `method2141` writes `orientation` from movement when within256; later
-                            // `method2449` may override it to face `targetIndex` (interactions).
+                            // OSRS:  writes `orientation` from movement when within256; later
+                            //  may override it to face `targetIndex` (interactions).
                             if (
                                 within256 &&
                                 !isInteracting &&

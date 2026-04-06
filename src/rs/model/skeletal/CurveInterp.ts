@@ -68,7 +68,7 @@ export function interpolateCurve(curve: Curve, t: number): number {
                 }
 
                 if (var29[0] > 1.0 || var29[1] < -1.0) {
-                    method3282(var29);
+                    clampBezierControlPoints(var29);
                 }
 
                 if (var29[0] !== var21) {
@@ -141,7 +141,7 @@ export function interpolateCurve(curve: Curve, t: number): number {
             return point.y;
         }
     } else if (curve.bool) {
-        return method8290(curve, t);
+        return evaluateCurveAtT(curve, t);
     } else {
         const var6 = t - curve.interpV0;
         const var5 =
@@ -233,7 +233,7 @@ export function extrapolateCurve(curve: Curve, t: number, isStart: boolean): num
     return output;
 }
 
-function method3282(v: vec2): void {
+function clampBezierControlPoints(v: vec2): void {
     v[1] = 1.0 - v[1];
     if (v[0] < 0.0) {
         v[0] = 0.0;
@@ -269,10 +269,10 @@ function method3282(v: vec2): void {
     v[1] = 1.0 - v[1];
 }
 
-const method5023Input = new Float32Array(4);
-const method5023Output = new Float32Array(5);
+const rootFinderInput = new Float32Array(4);
+const rootFinderOutput = new Float32Array(5);
 
-function method8290(curve: Curve, t: number): number {
+function evaluateCurveAtT(curve: Curve, t: number): number {
     if (!curve) {
         return 0;
     }
@@ -289,18 +289,18 @@ function method8290(curve: Curve, t: number): number {
     if (curve.interpBool) {
         v1 = v0;
     } else {
-        method5023Input[3] = curve.interpV5;
-        method5023Input[2] = curve.interpV4;
-        method5023Input[1] = curve.interpV3;
-        method5023Input[0] = curve.interpV2 - v0;
-        method5023Output[0] = 0.0;
-        method5023Output[1] = 0.0;
-        method5023Output[2] = 0.0;
-        method5023Output[3] = 0.0;
-        method5023Output[4] = 0.0;
-        const var4 = method5023(method5023Input, 3, 0.0, true, 1.0, true, method5023Output);
+        rootFinderInput[3] = curve.interpV5;
+        rootFinderInput[2] = curve.interpV4;
+        rootFinderInput[1] = curve.interpV3;
+        rootFinderInput[0] = curve.interpV2 - v0;
+        rootFinderOutput[0] = 0.0;
+        rootFinderOutput[1] = 0.0;
+        rootFinderOutput[2] = 0.0;
+        rootFinderOutput[3] = 0.0;
+        rootFinderOutput[4] = 0.0;
+        const var4 = findPolynomialRoots;
         if (var4 === 1) {
-            v1 = method5023Output[0];
+            v1 = rootFinderOutput[0];
         } else {
             v1 = 0.0;
         }
@@ -309,7 +309,7 @@ function method8290(curve: Curve, t: number): number {
     return v1 * (curve.interpV7 + v1 * (v1 * curve.interpV9 + curve.interpV8)) + curve.interpV6;
 }
 
-function method6869(values: Float32Array, lastIndex: number, var2: number): number {
+function evaluatePolynomial(values: Float32Array, lastIndex: number, var2: number): number {
     let output = values[lastIndex];
 
     for (let i = lastIndex - 1; i >= 0; i--) {
@@ -319,7 +319,7 @@ function method6869(values: Float32Array, lastIndex: number, var2: number): numb
     return output;
 }
 
-function method5023(
+function findPolynomialRoots(
     var0: Float32Array,
     var1: number,
     var2: number,
@@ -366,8 +366,8 @@ function method5023(
 
         return status;
     } else {
-        const field4756 = var9;
-        const field4757 = var1;
+        const polyCoeffs = var9;
+        const polyDegree = var1;
 
         const var12 = new Float32Array(var1 + 1);
 
@@ -376,7 +376,7 @@ function method5023(
         }
 
         const var41 = new Float32Array(var1 + 1);
-        const recursiveStatus = method5023(var12, var1 - 1, var2, false, var4, false, var41);
+        const recursiveStatus = findPolynomialRoots(var12, var1 - 1, var2, false, var4, false, var41);
         if (recursiveStatus === -1) {
             return 0;
         }
@@ -394,7 +394,7 @@ function method5023(
             let var16: number;
             if (s === 0) {
                 var16 = var2;
-                var18 = method6869(var9, var1, var2);
+                var18 = evaluatePolynomial(var9, var1, var2);
                 if (Math.abs(var18) <= var44 && var3) {
                     var6[status++] = var2;
                 }
@@ -410,7 +410,7 @@ function method5023(
                 var19 = var41[s];
             }
 
-            var17 = method6869(var9, var1, var19);
+            var17 = evaluatePolynomial(var9, var1, var19);
             if (var15) {
                 var15 = false;
             } else if (Math.abs(var17) < var44) {
@@ -422,12 +422,12 @@ function method5023(
                 let var22 = status++;
                 let var24 = var16;
                 let var25 = var19;
-                let var26 = method6869(field4756, field4757, var16);
+                let var26 = evaluatePolynomial(polyCoeffs, polyDegree, var16);
                 let var23: number;
                 if (Math.abs(var26) < ULP) {
                     var23 = var16;
                 } else {
-                    let var27 = method6869(field4756, field4757, var19);
+                    let var27 = evaluatePolynomial(polyCoeffs, polyDegree, var19);
                     if (Math.abs(var27) < ULP) {
                         var23 = var19;
                     } else {
@@ -511,7 +511,7 @@ function method5023(
                                     var25 -= var38;
                                 }
 
-                                var27 = method6869(field4756, field4757, var25);
+                                var27 = evaluatePolynomial(polyCoeffs, polyDegree, var25);
                                 if (var27 * (var35 / Math.abs(var35)) > 0.0) {
                                     var36 = true;
                                     var37 = true;

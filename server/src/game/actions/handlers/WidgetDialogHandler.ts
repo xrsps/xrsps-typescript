@@ -623,7 +623,7 @@ export class WidgetDialogHandler {
         this.interfaceService.closeChatboxModal(player);
 
         // Call the handler with the selected option index
-        // OSRS PARITY: childIndex from CS2 scripts (script 58/59) is 1-based:
+        // childIndex from CS2 scripts (script 58/59) is 1-based:
         // - Option 1 has childIndex 1
         // - Option 2 has childIndex 2, etc.
         // Convert to 0-based for handler callbacks.

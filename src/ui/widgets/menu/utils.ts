@@ -150,8 +150,8 @@ function getWidgetTargetVerb(w: any, targetMask: number): string | undefined {
 
 // "pause button" widgets (e.g., "Click here to continue") are clickable even when they have
 // no explicit actions/handlers in the widget definition. In the official client these send RESUME_PAUSEBUTTON.
-// Reference: class304.method5978 - (flags & 1) != 0
-// Reference: WorldMapSprite.java line 128 - only checks flags, no text-based fallback
+//
+// Only checks flags, no text-based fallback
 // Note: In OSRS, IF_SETEVENTS sets flags directly on each childIndex via Client.widgetFlags.
 // Dynamic children look up their own flags using key (id << 32) | childIndex.
 export function isPauseButtonWidget(
@@ -173,7 +173,6 @@ export function isPauseButtonWidget(
 // Menu options are only shown if:
 // 1. The transmit flag for that action is set (bits 1-10), OR
 // 2. The widget has an onOp handler
-// Reference: HealthBarUpdate.java method2496
 export function deriveMenuEntriesForWidget(
     w: any,
     onlyBasic?: boolean,
@@ -213,7 +212,7 @@ export function deriveMenuEntriesForWidget(
         for (let i = 0; i < actions.length; i++) {
             const p = sanitizeText(actions[i]);
             // Only include action if transmit flag is set OR widget has onOp handler
-            // Reference: HealthBarUpdate.java method2496 - (flags >> (actionIndex + 1) & 1) != 0 || onOp != null
+            // Action flag and onOp check
             if (p && shouldShowMenuOption(flags, i, hasOnOpHandler)) {
                 ops.push({ text: p, index: i });
             }
@@ -256,7 +255,7 @@ export function deriveMenuEntriesForWidget(
     // widget menus use configured ops (actions + flags + handlers).
     // Do not synthesize fallback Examine options for item widgets here.
     // Pause button widgets (flags & 1) show "Continue" with empty target
-    // Reference: WorldMapSprite.java line 128-129
+    
     // This is added after ops are checked, only if no other actionable entries exist
     const hasActionableEntry = entries.some(
         (e) =>
@@ -424,7 +423,7 @@ export function findDropTarget(
                 }
             }
 
-            // OSRS PARITY: Visit InterfaceParent (mounted) interface roots LAST (topmost)
+            // Visit InterfaceParent (mounted) interface roots LAST (topmost)
             // and WITHOUT applying container scroll offsets.
             if (t === 0 && typeof getInterfaceParentRoots === "function") {
                 const mountRoots = getInterfaceParentRoots(uid);
@@ -498,7 +497,7 @@ export function findDropTarget(
 // getStaticChildren callback for parentUid filtering
 // noClickThrough flag blocks widgets behind from receiving click events
 // getInterfaceParentRoots callback for traversing InterfaceParent mounted sub-interfaces
-// Reference: WorldMapRegion.java lines 1451-1468
+// Widget menu entry builder
 export function collectWidgetsAtPoint(
     root: any,
     px: number,
@@ -542,12 +541,12 @@ export function collectWidgetsAtPoint(
         const height = Math.max(1, (w.height as number) | 0 || 0);
 
         // Calculate clip for this widget's children
-        // OSRS PARITY: Type 0/11 containers always clip their children to their bounds.
+        // Type 0/11 containers always clip their children to their bounds.
         const t = ((w.type as number) ?? 0) | 0;
         const isContainer = t === 0 || t === 11;
         const childClip = isContainer ? intersectClip(clip, x, y, width, height) : clip;
 
-        // OSRS PARITY: Record hit BEFORE traversing children so children end up later in `hits`
+        // Record hit BEFORE traversing children so children end up later in `hits`
         // and win when callers scan from the end (top-most).
         // This matches rendering order where a widget is drawn before its children.
         if (inRect(x, y, width, height) && inClip(clip)) {
@@ -555,8 +554,8 @@ export function collectWidgetsAtPoint(
             w._absX = x;
             w._absY = y;
             hits.push(w);
-            // OSRS PARITY: Check noClickThrough flag
-            // Reference: WorldMapRegion.java line 1451
+            // Check noClickThrough flag
+            
             // When noClickThrough is true on an IF3 widget, widgets behind it are blocked.
             // In OSRS, this clears pending script events for all widgets processed earlier.
             // We track the index so we can filter them out after traversal.
@@ -571,7 +570,7 @@ export function collectWidgetsAtPoint(
 
         // Traverse children after recording self so top-most child wins (children are later in `hits`).
         // Gate by container bounds.
-        // OSRS PARITY: Content containers (with children but scrollHeight=0) are transparent
+        // Content containers (with children but scrollHeight=0) are transparent
         // to hit testing - their children should be tested even if the container itself
         // is outside the visible area (due to scroll offset adjusting its position).
         // Only scroll containers (scrollHeight > 0) should gate their children.
@@ -595,7 +594,7 @@ export function collectWidgetsAtPoint(
                 }
             }
 
-            // OSRS PARITY: Traverse InterfaceParent (mounted) interface roots LAST and
+            // Traverse InterfaceParent (mounted) interface roots LAST and
             // WITHOUT applying container scroll offsets.
             if (t === 0 && typeof getInterfaceParentRoots === "function") {
                 const mountRoots = getInterfaceParentRoots(uid);
@@ -610,7 +609,7 @@ export function collectWidgetsAtPoint(
     const fullClip: HitClip = { x0: -Infinity, y0: -Infinity, x1: Infinity, y1: Infinity };
     visit(root, 0, 0, fullClip);
 
-    // OSRS PARITY: If a noClickThrough widget was hit, remove widgets behind it
+    // If a noClickThrough widget was hit, remove widgets behind it
     // Keep only the noClickThrough widget and widgets after it (children rendered on top)
     if (noClickThroughIndex >= 0) {
         return hits.slice(noClickThroughIndex);
@@ -732,8 +731,8 @@ export function findBlockingWidgetInHits(
     return null;
 }
 
-// OSRS PARITY: Check if a widget at a point should block scroll events from reaching widgets behind it
-// Reference: WorldMapRegion.java lines 1470-1476
+// Check if a widget at a point should block scroll events from reaching widgets behind it
+// Tooltip menu entry builder
 // Used to implement noScrollThrough behavior - when a widget with this flag is under the cursor,
 // onScroll events should not propagate to parent/sibling widgets.
 export function shouldBlockScrollThrough(

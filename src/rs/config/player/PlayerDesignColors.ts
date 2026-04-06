@@ -1,7 +1,7 @@
 // OSRS PlayerDesign / PlayerComposition body color palettes + recolor sources.
 // Used by:
 // - PlayerComposition.getModel recolors (hair/torso/legs/feet/skin)
-// - PlayerComposition.method6388 cycling bounds (palette lengths)
+// Cycling bounds (palette lengths)
 
 export const PLAYER_BODY_RECOLOR_FROM_1: readonly number[] = [6798, 8741, 25238, 4626, 4550];
 

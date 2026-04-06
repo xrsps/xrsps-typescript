@@ -4,7 +4,7 @@
  * Encodes OSRS-style binary NPC sync packets.
  * Extracted from wsServer.ts for better modularity.
  *
- * Reference: `class353.updateNpcs` + `PcmPlayer.method846` + `UrlRequester.method2903`
+ * NPC sync packet encoder.
  */
 import { logger } from "../../utils/logger";
 import {

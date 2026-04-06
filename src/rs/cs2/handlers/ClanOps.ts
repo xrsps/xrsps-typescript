@@ -176,7 +176,7 @@ export function registerClanOps(handlers: HandlerMap): void {
     // Find affined member slot by name
     // Pops: playerName (string)
     // Returns slot index or -1 if not found
-    // OSRS: ClanSettings.method3389(string) - iterates memberNames[] with equals()
+    // Iterates memberNames[] with equals()
     handlers.set(Opcodes.ACTIVECLANSETTINGS_GETAFFINEDSLOT, (ctx) => {
         const name = ctx.stringStack[--ctx.stringStackSize];
         const settings = getSettings(ctx);
@@ -338,7 +338,7 @@ export function registerClanOps(handlers: HandlerMap): void {
     // Find online user slot by name
     // Pops: playerName (string)
     // Returns slot index or -1 if not found
-    // OSRS: ClanChannel.method3495(string) - iterates members with equalsIgnoreCase()
+    // Iterates members with equalsIgnoreCase()
     handlers.set(Opcodes.ACTIVECLANCHANNEL_GETUSERSLOT, (ctx) => {
         const name = ctx.stringStack[--ctx.stringStackSize];
         const channel = getChannel(ctx);

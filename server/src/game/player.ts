@@ -1855,7 +1855,7 @@ export class PlayerState extends Actor {
     /**
      * Get the starting slot for a bank tab based on cumulative sizes.
      *
-     * OSRS PARITY: In OSRS, bank items are stored contiguously by tab.
+     * In OSRS, bank items are stored contiguously by tab.
      * Tab 1 items occupy slots 0 to (tab1_size - 1), Tab 2 items occupy
      * slots tab1_size to (tab1_size + tab2_size - 1), etc.
      * Tab 0 (untabbed/"All items") items are stored after all tabbed items.

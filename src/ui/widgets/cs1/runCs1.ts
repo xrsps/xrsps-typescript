@@ -158,8 +158,8 @@ function getPlayerWorldTileY(ctx: Cs1Context | undefined): number {
 }
 
 /**
- * OSRS PARITY: CS1 comparison execution for IF1 widgets.
- * Reference: class345.runCs1() and SecureRandomCallable.method2318().
+ * CS1 comparison execution for IF1 widgets.
+ * CS1 script runner.
  */
 export function runCs1(widget: WidgetNode, ctx?: Cs1Context): boolean {
     const comparisons = widget.cs1Comparisons;
@@ -186,7 +186,7 @@ export function runCs1(widget: WidgetNode, ctx?: Cs1Context): boolean {
 }
 
 /**
- * OSRS PARITY: Evaluate CS1 instruction list (SecureRandomCallable.method2318).
+ * Evaluate CS1 instruction list.
  */
 export function evalCs1Instruction(widget: WidgetNode, index: number, ctx?: Cs1Context): number {
     const all = widget.cs1Instructions;

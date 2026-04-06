@@ -2518,7 +2518,7 @@ export function getClientCycle(): number {
         try {
             const value = clientCycleProvider();
             if (Number.isFinite(value)) {
-                // OSRS PARITY: Never return 0. CS2 scripts use varcint vars that default to 0
+                // Never return 0. CS2 scripts use varcint vars that default to 0
                 // for dedup checks (e.g., rebuildchatbox checks `if (%varcint1112 = clientclock)`).
                 // If clientclock returns 0 and varcint1112 defaults to 0, the script returns early.
                 return Math.max(1, (value as number) | 0);
@@ -2534,11 +2534,11 @@ export function getClientCycle(): number {
     if (clientCycleFallbackStartMs === 0) {
         clientCycleFallbackStartMs = now;
         const cyclesPerTick = Math.max(1, Math.round((serverTickMs || 600) / CLIENT_TICK_MS));
-        // OSRS PARITY: Start at 1, not 0, to avoid dedup collisions with default varcint values
+        // Start at 1, not 0, to avoid dedup collisions with default varcint values
         clientCycleFallbackBaseCycle = Math.max(1, (currentTick | 0) * cyclesPerTick);
     }
     const elapsedMs = Math.max(0, now - clientCycleFallbackStartMs);
-    // OSRS PARITY: Never return 0 to avoid dedup collisions with default varcint values
+    // Never return 0 to avoid dedup collisions with default varcint values
     return Math.max(1, clientCycleFallbackBaseCycle + Math.floor(elapsedMs / CLIENT_TICK_MS));
 }
 
@@ -2947,7 +2947,7 @@ export function sendItemSpawnerSearchQuery(query: string): void {
 
 /**
  * IF_TRIGGEROPLOCAL (2929) forwarding packet.
- * Payload format mirrors class7.method121 (ClientPacket id 30, var-short).
+ * Payload format mirrors  (ClientPacket id 30, var-short).
  */
 export function sendIfTriggerOpLocal(
     widgetUid: number,
@@ -2980,7 +2980,7 @@ export function sendIfTriggerOpLocal(
     for (let i = 0; i < objectArgs.length; i++) {
         const arg = objectArgs[i];
         if (typeof arg === "number" && Number.isFinite(arg)) {
-            // method12408 parity: zigzag + LEB128-style varint.
+// zigzag + LEB128-style varint.
             let v = (((arg | 0) << 1) ^ ((arg | 0) >> 31)) >>> 0;
             while ((v & ~0x7f) !== 0) {
                 buf.writeByte((v & 0x7f) | 0x80);

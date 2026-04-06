@@ -128,7 +128,7 @@ export interface EventContext {
     mouseX: number;
     mouseY: number;
     opIndex: number;
-    field526: number;
+    opSubIndex: number;
     dragTarget: WidgetNode | null;
     keyTyped: number;
     keyPressed: number;
@@ -313,7 +313,7 @@ export interface HandlerContext {
     invokeEventHandler(
         widget: WidgetNode,
         eventType: WidgetEventType,
-        event?: { ints?: number[]; strings?: string[]; opIndex?: number; field526?: number },
+        event?: { ints?: number[]; strings?: string[]; opIndex?: number; opSubIndex?: number },
     ): boolean;
 
     // Event handler setting

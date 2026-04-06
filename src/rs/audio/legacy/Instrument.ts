@@ -123,7 +123,7 @@ export class Instrument {
         instrument.offset = buffer.readUnsignedShort();
         instrument.filter = new AudioFilter();
         instrument.filterEnvelope = new SoundEnvelope();
-        instrument.filter.method1151(buffer, instrument.filterEnvelope);
+        instrument.filter.decode(buffer, instrument.filterEnvelope);
 
         return instrument;
     }

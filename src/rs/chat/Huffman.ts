@@ -245,7 +245,7 @@ export function tryLoadOsrsHuffman(cacheSystem: CacheSystem | undefined): Huffma
         // OSRS still ships the Huffman bit-length table (used for public chat) in this index,
         // so fall back to a small heuristic scan rather than failing silently.
         //
-        // Reference: `class189.archive10.takeFileByNames("huffman", "")` in the vanilla client.
+        //
         // ASCII sample string, avoids relying on TextEncoder/Buffer availability.
         const sample = new Uint8Array([104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]);
         const tmp = new Uint8Array(2048);

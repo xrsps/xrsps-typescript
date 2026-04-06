@@ -4,20 +4,20 @@ import type { SeqFrameLoader } from "../rs/model/seq/SeqFrameLoader";
 import { PlayerEcs } from "./ecs/PlayerEcs";
 
 type PlayerSeqState = {
-    seqId: number; // Actor.sequence
-    frame: number; // Actor.sequenceFrame
-    frameCycle: number; // Actor.sequenceFrameCycle
-    delay: number; // Actor.sequenceDelay
-    loopCounter: number; // Actor.field1220
+    seqId: number;
+    frame: number;
+    frameCycle: number;
+    delay: number;
+    loopCounter: number;
 };
 
 export type SequenceStateView = Readonly<PlayerSeqState>;
 
 type PlayerMovementSeqState = {
-    seqId: number; // Actor.movementSequence
-    frame: number; // Actor.movementFrame
-    frameCycle: number; // Actor.movementFrameCycle
-    loopCounter: number; // Actor.field1196
+    seqId: number;
+    frame: number;
+    frameCycle: number;
+    loopCounter: number;
 };
 
 export type MovementSequenceStateView = Readonly<PlayerMovementSeqState>;
@@ -39,7 +39,7 @@ export class PlayerAnimController {
 
     /**
      * Apply an action sequence update from the server.
-     * Mirrors OSRS `class358.performPlayerAnimation`.
+     * Apply server animation update.
      */
     handleServerSequence(
         serverId: number,
@@ -57,14 +57,14 @@ export class PlayerAnimController {
         if (currentSeq === nextSeq && nextSeq !== -1) {
             const restartMode = this.getRestartMode(nextSeq);
             if (restartMode === 1) {
-                // Full restart (sequenceFrame=0, sequenceFrameCycle=0, sequenceDelay=delay, field1220=0)
+                // Full restart
                 state.frame = 0;
                 state.frameCycle = 0;
                 state.delay = delay;
                 state.loopCounter = 0;
                 this.writeEcsDelayAndLoop(serverId, state);
             } else if (restartMode === 2) {
-                // Reset loop counter only (field1220=0), keep frame/cycle/delay
+                // Reset loop counter only, keep frame/cycle/delay
                 state.loopCounter = 0;
                 this.writeEcsLoop(serverId, state);
             }
@@ -93,9 +93,8 @@ export class PlayerAnimController {
     }
 
     /**
-     * OSRS movement cancel: when a new step is queued, cancel the current action sequence
-     * iff `SequenceDefinition.field2226 == 1` (ours: `SeqType.priority == 1`).
-     * Reference: `Player.method2429`.
+     * Movement cancel: when a new step is queued, cancel the current action sequence
+     * if `SeqType.priority == 1`.
      */
     cancelSequenceOnMove(serverId: number): void {
         if (!(serverId >= 0)) return;
@@ -111,7 +110,7 @@ export class PlayerAnimController {
 
     /**
      * Advance sequences by the given number of client ticks (20ms each).
-     * Mirrors OSRS `ParamComposition.method3891` action-sequence stepping.
+     * Action-sequence stepping.
      */
     tick(clientTicks: number): void {
         const total = Math.max(0, clientTicks | 0);
@@ -127,9 +126,8 @@ export class PlayerAnimController {
                 const seqId = state.seqId | 0;
                 if (seqId >= 0) {
                     let pauseAtDelayOne = false;
-                    // When moving at the moment an animation starts (field1215 > 0) and
-                    // the sequence allows movement (`field2244 == 1`), the client holds sequenceDelay
-                    // at 1 until those pending steps are consumed.
+                    // When moving at the moment an animation starts and the sequence allows
+                    // movement, the client holds sequenceDelay at 1 until pending steps are consumed.
                     if ((state.delay | 0) <= 1) {
                         const seqType = this.safeLoadSeqType(seqId);
                         const precedenceAnimating =
@@ -256,7 +254,7 @@ export class PlayerAnimController {
 
     private getForcedPriority(seqId: number): number {
         const seqType = this.safeLoadSeqType(seqId);
-        // OSRS: SequenceDefinition.field2220 (opcode 5). Default 5.
+        // Default forced priority is 5.
         const forcedPriority =
             typeof seqType?.forcedPriority === "number" ? seqType.forcedPriority : 5;
         return Math.max(0, forcedPriority | 0);

@@ -106,7 +106,7 @@ function getWidgetScriptHeight(ctx: HandlerContext, w: WidgetNode | null | undef
 }
 
 // Helper to get current clientclock (game ticks)
-// OSRS PARITY: Use getClientClock() to match CLIENTCLOCK opcode
+// Use getClientClock() to match CLIENTCLOCK opcode
 function getClientClock(): number {
     return getClientClockFromCycles() | 0;
 }
@@ -334,7 +334,7 @@ function getSetObjectQuantityMode(ctx: HandlerContext, itemId: number): 1 | 2 {
 }
 
 function getCurrentWidgetGroupId(ctx: HandlerContext): number {
-    // OSRS PARITY: Prefer the event source widget (event_com) as the script's "current"
+    // Prefer the event source widget (event_com) as the script's "current"
     // interface context. This is the most reliable indicator of which interface group is
     // executing, even for timer/resize handlers where activeWidget may not be set.
     const eventCom = (ctx.eventContext?.componentId ?? -1) | 0;
@@ -591,7 +591,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             itemQuantity: 0,
             isDraggable: false,
             actions: [],
-            // OSRS PARITY: Initialize runtime state fields
+            // Initialize runtime state fields
             rootIndex: -1,
             cycle: -1,
             modelFrame: 0,
@@ -599,12 +599,12 @@ export function registerWidgetOps(handlers: HandlerMap): void {
             aspectWidth: 1,
             aspectHeight: 1,
             isLayoutValid: false,
-            // OSRS PARITY: Type 3 (rectangle) defaults
+            // Type 3 (rectangle) defaults
             color: 0, // Default to black (not white 0xffffff)
             textColor: 0,
             filled: false,
             transparency: 0,
-            // OSRS PARITY: Type 5 (sprite) defaults
+            // Type 5 (sprite) defaults
             spriteId: -1,
             spriteId2: -1,
             // params hash table (IterableNodeHashTable).
@@ -1008,8 +1008,8 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         if (!w) {
             throw new Error("RuntimeException");
         }
-        // OSRS PARITY: CC_GETID returns Widget.childIndex (aka comsubid), NOT Widget.id.
-        // Reference: class402.method7522 (ScriptOpcodes.CC_GETID).
+        // CC_GETID returns Widget.childIndex (aka comsubid), NOT Widget.id.
+        //
         ctx.pushInt((w as any).childIndex ?? -1);
     });
 
@@ -1170,7 +1170,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
 
     // === Position/Size Getters ===
     // PARITY: All getters call ensureLayout() for JIT layout validation
-    // OSRS PARITY: CC_GETX/IF_GETX return Widget.x (computed position relative to parent),
+    // CC_GETX/IF_GETX return Widget.x (computed position relative to parent),
     // not rawX. Scripts like [proc,script8459] accumulate if_getx/if_gety up the parent chain
     // to compute absolute screen position.
     handlers.set(Opcodes.CC_GETX, (ctx, intOp) => {
@@ -1179,7 +1179,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         // cc_getx always returns the widget's layout-computed x position,
         // even during drag. The drag visual position is separate from the stored position.
         let x = w?.x ?? 0;
-        // OSRS PARITY: When running scripts for a mounted (InterfaceParent) sub-interface,
+        // When running scripts for a mounted (InterfaceParent) sub-interface,
         // the mount container acts as the local origin (0,0) for those scripts.
         //
         // Example: collection_init (2240) looks up the current toplevel mainmodal component via
@@ -1279,7 +1279,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
                 parentUid = -1;
             }
         } else if (w && (parentUid | 0) === -1) {
-            // OSRS PARITY: Mounted interface roots have parentId=-1, but scripts executing
+            // Mounted interface roots have parentId=-1, but scripts executing
             // outside the mounted group (e.g., ui_highlights) need to be able to walk the
             // interface hierarchy to compute absolute coordinates. In that case, expose the
             // InterfaceParent container as the logical parent layer.
@@ -1815,7 +1815,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // === Model ===
-    // Reference: class131.java - model ops call FaceNormal.invalidateWidget()
+    // Model ops call invalidateWidget()
     handlers.set(Opcodes.CC_SETMODEL, (ctx, intOp) => {
         const modelId = ctx.intStack[--ctx.intStackSize];
         const w = getTargetWidget(ctx, intOp);
@@ -1840,7 +1840,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.CC_SETMODELANGLE, (ctx, intOp) => {
-        // Reference: class131.java - 6 args read as array
+        // 6 args read as array
         ctx.intStackSize -= 6;
         const offsetX = ctx.intStack[ctx.intStackSize];
         const offsetY = ctx.intStack[ctx.intStackSize + 1];
@@ -1867,7 +1867,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETMODELANGLE, (ctx) => {
-        // Reference: class131.java - uid is popped first, then 6 args are read as array
+        // uid is popped first, then 6 args are read as array
         // Stack (bottom to top): [offsetX, offsetY, angleX, angleY, angleZ, zoom, uid]
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 6;
@@ -1898,7 +1898,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         const w = getTargetWidget(ctx, intOp);
         if (w) {
             // Only invalidate if sequence actually changed
-            // Reference: class131.java lines 342-349 - checks var16 != var3.sequenceId
+            // Checks if sequence changed
             if (seq !== w.sequenceId) {
                 w.sequenceId = seq;
                 w.modelFrame = 0;
@@ -2054,7 +2054,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // cc_setplayermodel_self(keepEquipment)
-    // Reference: MouseHandler.method721 opcode 1207 -> NPC.method2717(widget, localPlayer.appearance, keepEquipment)
+    //
     handlers.set(Opcodes.CC_SETPLAYERMODEL_SELF, (ctx, intOp) => {
         const keepEquipment = ctx.intStack[--ctx.intStackSize] === 1;
         const w = getTargetWidget(ctx, intOp);
@@ -2119,7 +2119,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
 
     // === Scroll ===
     // cc_setscrollpos(scrollX, scrollY) - sets both scroll positions on target widget
-    // Reference: class131.java - 2 args read as array
+    // 2 args read as array
     handlers.set(Opcodes.CC_SETSCROLLPOS, (ctx, intOp) => {
         ctx.intStackSize -= 2;
         const scrollX = ctx.intStack[ctx.intStackSize];
@@ -2138,7 +2138,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // if_setscrollpos(scrollX, scrollY, widget) - sets both scroll positions on specified widget
-    // Reference: class131.java - uid is popped first, then 2 args are read as array
+    // uid is popped first, then 2 args are read as array
     handlers.set(Opcodes.IF_SETSCROLLPOS, (ctx) => {
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 2;
@@ -2157,7 +2157,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.CC_SETSCROLLSIZE, (ctx, intOp) => {
-        // Reference: class131.java - 2 args read as array
+        // 2 args read as array
         ctx.intStackSize -= 2;
         const width = ctx.intStack[ctx.intStackSize];
         const height = ctx.intStack[ctx.intStackSize + 1];
@@ -2182,7 +2182,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETSCROLLSIZE, (ctx) => {
-        // Reference: class131.java - uid is popped first, then 2 args are read as array
+        // uid is popped first, then 2 args are read as array
         // Stack (bottom to top): [width, height, uid]
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 2;
@@ -2291,7 +2291,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
 
     // === Object/Item ===
     handlers.set(Opcodes.CC_SETOBJECT, (ctx, intOp) => {
-        // Reference: MouseHandler.java - 2 args read as array
+        // 2 args read as array
         ctx.intStackSize -= 2;
         const itemId = ctx.intStack[ctx.intStackSize];
         const amount = ctx.intStack[ctx.intStackSize + 1];
@@ -2309,7 +2309,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETOBJECT, (ctx) => {
-        // Reference: MouseHandler.java - uid is popped first, then 2 args read as array
+        // uid is popped first, then 2 args read as array
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 2;
         const itemId = ctx.intStack[ctx.intStackSize];
@@ -2327,7 +2327,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.CC_SETOBJECT_NONUM, (ctx, intOp) => {
-        // Reference: MouseHandler.java - 2 args read as array
+        // 2 args read as array
         ctx.intStackSize -= 2;
         const itemId = ctx.intStack[ctx.intStackSize];
         const amount = ctx.intStack[ctx.intStackSize + 1];
@@ -2344,7 +2344,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETOBJECT_NONUM, (ctx) => {
-        // Reference: MouseHandler.java - uid is popped first, then 2 args read as array
+        // uid is popped first, then 2 args read as array
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 2;
         const itemId = ctx.intStack[ctx.intStackSize];
@@ -2362,7 +2362,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.CC_SETOBJECT_ALWAYS_NUM, (ctx, intOp) => {
-        // Reference: MouseHandler.java - 2 args read as array
+        // 2 args read as array
         ctx.intStackSize -= 2;
         const itemId = ctx.intStack[ctx.intStackSize];
         const amount = ctx.intStack[ctx.intStackSize + 1];
@@ -2379,7 +2379,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETOBJECT_ALWAYS_NUM, (ctx) => {
-        // Reference: MouseHandler.java - uid is popped first, then 2 args read as array
+        // uid is popped first, then 2 args read as array
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 2;
         const itemId = ctx.intStack[ctx.intStackSize];
@@ -2740,8 +2740,8 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // === Keyboard shortcuts ===
-    // Reference: GrandExchangeOfferOwnWorldComparator.java lines 324-355
-    // Reference: class28.java Widget_setKey for hasKeyBindings flag handling
+    // Key binding ops
+    // hasKeyBindings flag handling
     // CC_SETOPKEY (var3=true): Pop 10 ints as array (5 key pairs), then opIndex
     handlers.set(Opcodes.CC_SETOPKEY, (ctx, intOp) => {
         ctx.intStackSize -= 10;
@@ -2763,7 +2763,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
                     keyCodes,
                     opIndex: opIndex + 1,
                 };
-                // OSRS PARITY: Set hasKeyBindings flag (field3776)
+                // Set hasKeyBindings flag
                 w.hasKeyBindings = true;
             } else {
                 w.opKeys[opIndex] = null;
@@ -2845,7 +2845,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.CC_SETOPKEYRATE, (ctx, intOp) => {
-        // Reference: GrandExchangeOfferOwnWorldComparator.java - 3 args read as array
+        // 3 args read as array
         ctx.intStackSize -= 3;
         const opIndex = ctx.intStack[ctx.intStackSize] - 1;
         const keyRate = ctx.intStack[ctx.intStackSize + 1];
@@ -2879,7 +2879,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         }
     });
 
-    // Reference: GrandExchangeOfferOwnWorldComparator.java - CC_SETOPTKEYRATE pops 2 ints sequentially
+    // CC_SETOPTKEYRATE pops 2 ints sequentially
     // var5 = 10 (hardcoded opIndex for typed key)
     // var6 = pop keyRate, var7 = pop tickRate
     handlers.set(Opcodes.CC_SETOPTKEYRATE, (ctx, intOp) => {
@@ -2906,7 +2906,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         }
     });
 
-    // Reference: GrandExchangeOfferOwnWorldComparator.java - CC_SETOPKEYIGNOREHELD pops only 1 arg (opIndex)
+    // CC_SETOPKEYIGNOREHELD pops only 1 arg (opIndex)
     // Sets ignore held = true (no enabled flag from stack)
     handlers.set(Opcodes.CC_SETOPKEYIGNOREHELD, (ctx, intOp) => {
         const opIndex = ctx.intStack[--ctx.intStackSize] - 1;
@@ -2928,7 +2928,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
         }
     });
 
-    // Reference: GrandExchangeOfferOwnWorldComparator.java - CC_SETOPTKEYIGNOREHELD takes NO args
+    // CC_SETOPTKEYIGNOREHELD takes NO args
     // opIndex is hardcoded to 10 (typed key slot)
     handlers.set(Opcodes.CC_SETOPTKEYIGNOREHELD, (ctx, intOp) => {
         const opIndex = 10; // Hardcoded for typed key slot
@@ -2954,7 +2954,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     // cc_setdraggable(parentComponent, childIndex) - sets widget as draggable with coordinate space
     // parentComponent = parent container widget UID
     // childIndex = index of child within parent to use as drag render area (e.g., 0 = track in scrollbar)
-    // Reference: GrandExchangeOfferOwnWorldComparator.java - 2 args read as array [parentUid, childIndex]
+    // 2 args read as array [parentUid, childIndex]
     handlers.set(Opcodes.CC_SETDRAGGABLE, (ctx, intOp) => {
         ctx.intStackSize -= 2;
         const parentUid = ctx.intStack[ctx.intStackSize];
@@ -2982,7 +2982,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // if_setdraggable(parentComponent, childIndex, widget) - IF variant
-    // Reference: GrandExchangeOfferOwnWorldComparator.java - uid first, then 2 args as array [parentUid, childIndex]
+    // uid first, then 2 args as array [parentUid, childIndex]
     handlers.set(Opcodes.IF_SETDRAGGABLE, (ctx) => {
         const uid = ctx.intStack[--ctx.intStackSize];
         ctx.intStackSize -= 2;
@@ -3010,7 +3010,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     // cc_setdraggablebehavior(behavior) - controls how widget is rendered during drag
-    // Reference: GrandExchangeOfferOwnWorldComparator.java line 256
+    // CC_SETSCROLLPOS
     // In OSRS, this sets widget.isScrollBar = (behavior == 1)
     // isScrollBar controls whether the widget gets transparency when clicked/dragged
     // (scrollbar widgets don't get dimmed, regular dragged items do)
@@ -3154,7 +3154,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     handlers.set(Opcodes.CC_RESUME_PAUSEBUTTON, (ctx) => {
         // Resume paused button - signals that a dialog continue button was clicked.
         // Uses activeWidget.id (parent UID), not activeWidget.uid.
-        // Reference: class131.java -> resumePauseWidget(var3.id, var3.childIndex)
+        // resumePauseWidget
         const w = ctx.activeWidget;
         if (w && ctx.sendResumePauseButton) {
             const widgetUid = (typeof (w as any).id === "number" ? (w as any).id : w.uid ?? 0) | 0;
@@ -3175,7 +3175,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
 
     handlers.set(Opcodes.IF_SETCLICKMASK, (ctx) => {
         // sets a runtime widget flags override stored in Client.widgetFlags.
-        // Reference: class405.getWidgetFlags (lookup) and server packets that populate widgetFlags ranges.
+        // Widget flags lookup and server packets that populate widgetFlags ranges.
         const w = getWidgetFromStack(ctx);
         const mask = ctx.intStack[--ctx.intStackSize];
         if (w) {
@@ -3239,7 +3239,7 @@ export function registerWidgetOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_GETTOP, (ctx) => {
-        // OSRS PARITY: IF_GETTOP always returns rootInterface (verified from decompiled client)
+        // IF_GETTOP always returns rootInterface
         ctx.pushInt(ctx.widgetManager.rootInterface);
     });
 

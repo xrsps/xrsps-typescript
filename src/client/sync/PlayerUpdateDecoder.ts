@@ -296,7 +296,7 @@ export class PlayerUpdateDecoder {
                 };
             } else {
                 // movementType (-1/0/1/2): -1 means
-                // "use default" (field2458 = 1) and must not leak into per-step traversal.
+                // "use default" and must not leak into per-step traversal.
                 const rawTraversal = clampTraversal(state.movementType);
                 const traversal =
                     rawTraversal === undefined || (rawTraversal | 0) < 0 ? 1 : rawTraversal | 0;
@@ -531,7 +531,7 @@ export class PlayerUpdateDecoder {
                     update.forcedChat = stream.readStringCp1252NullTerminated();
                 }
                 if ((mask & PlayerUpdateMask.FaceDirection) !== 0) {
-                    // Player update: face direction (Actor.field1208).
+                    // Player update: face direction.
                     update.faceDir = (stream.readUnsignedShortLE() | 0) & 2047;
                 }
 

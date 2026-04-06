@@ -76,7 +76,7 @@ export class NpcEcs {
     private targetRot: Uint16Array; // desired orientation (0..2047)
     private baseSpeed: Uint8Array; // sub-tile units per client tick
     private animTick: Uint16Array; // accumulator for frame stepping
-    private loopCount: Uint16Array; // loop counter for current animation (OSRS field1196/field1220)
+    private loopCount: Uint16Array; // loop counter for current animation
     private stepQueueX: Int16Array;
     private stepQueueY: Int16Array;
     private stepQueueSpeed: Uint8Array;

@@ -22,12 +22,12 @@ export type TargetLabelOptions = {
     localPlayerCombatLevel?: number;
 };
 
-// class208.colorStartTag(int)
+// Color start tag helper
 function colorStartTag(rgb: number): string {
     return `<col=${(rgb >>> 0).toString(16)}>`;
 }
 
-// MusicPatchNode2.method6038(npcLevel, playerLevel)
+// Combat level coloring (npcLevel, playerLevel)
 function combatLevelColorTag(npcLevel: number, localPlayerLevel: number): string {
     const diff = (localPlayerLevel | 0) - (npcLevel | 0);
     if (diff < -9) return colorStartTag(16711680);

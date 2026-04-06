@@ -52,7 +52,7 @@ export class Pathfinder {
         }
 
         // Mirrors client: queue size is nextPow2((graphSize*graphSize)/4)
-        // (see ItemContainer.method2347 usage in class230 ctor).
+        // 
         const baseQueueSize = (graphSize * graphSize) / 4;
         this.queueSize = nextPow2(baseQueueSize);
 
@@ -209,7 +209,7 @@ export class Pathfinder {
                         continue; // we are out of graph's bounds or too much steps.
                     }
 
-                    // Client parity: compute distance-to-rectangle (var32/var33 in class232.method4566).
+                    // Client parity: compute distance-to-rectangle (var32/var33 in ).
                     let deltaX = 0;
                     if (checkX < approxDestX) {
                         deltaX = approxDestX - checkX;

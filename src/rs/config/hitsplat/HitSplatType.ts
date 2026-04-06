@@ -22,7 +22,7 @@ export class HitSplatType extends Type {
     textOffsetY: number = 0; // opcode 13
     displayCycles: number = 70; // opcode 9 (lifetime)
     fadeStartCycle: number = -1; // opcodes 11/14 (0 or ushort)
-    /** OSRS `HitSplatDefinition.field2071`: selection priority when all 4 slots are active. */
+    /** Selection priority when all 4 slots are active. */
     compareType: number = -1; // opcode 12
 
     // Transforms (varbit/varp-based multihitsplat chain)

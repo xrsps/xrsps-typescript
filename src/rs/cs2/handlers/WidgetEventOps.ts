@@ -81,9 +81,9 @@ export function registerWidgetEventOps(handlers: HandlerMap): void {
         ctx.setEventHandler(getTargetWidget(ctx, intOp), "onTargetEnter");
     });
 
-    // OSRS PARITY: CC_SETONSCROLLWHEEL sets onScroll handler (not onScrollWheel)
+    // CC_SETONSCROLLWHEEL sets onScroll handler (not onScrollWheel)
     // The "wheel" in the opcode name refers to the trigger (mouse wheel), but
-    // internally OSRS stores this as "onScroll" - see Widget.java line 1077
+    // internally OSRS stores this as "onScroll"
     handlers.set(Opcodes.CC_SETONSCROLLWHEEL, (ctx, intOp) => {
         ctx.setEventHandler(getTargetWidget(ctx, intOp), "onScroll");
     });
@@ -227,7 +227,7 @@ export function registerWidgetEventOps(handlers: HandlerMap): void {
         ctx.setEventHandlerByUid("onTargetEnter");
     });
 
-    // OSRS PARITY: IF_SETONSCROLLWHEEL sets onScroll handler (not onScrollWheel)
+    // IF_SETONSCROLLWHEEL sets onScroll handler (not onScrollWheel)
     handlers.set(Opcodes.IF_SETONSCROLLWHEEL, (ctx) => {
         ctx.setEventHandlerByUid("onScroll");
     });

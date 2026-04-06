@@ -35,7 +35,7 @@ export class PerlinNoiseOperation extends TextureOperation {
         return x * invert[0] + y * invert[1];
     }
 
-    static method1047(n: number): number {
+    static smoothStep(n: number): number {
         const i = (((n * n) >> 12) * n) >> 12;
         const j = 6 * n - 61440;
         const k = 40960 + ((j * n) >> 12);
@@ -341,8 +341,8 @@ export class PerlinNoiseOperation extends TextureOperation {
             y - 4096,
             PerlinNoiseOperation.invertTable[j2],
         );
-        const k3 = PerlinNoiseOperation.method1047(x);
-        const l3 = PerlinNoiseOperation.method1047(y);
+        const k3 = PerlinNoiseOperation.smoothStep(x);
+        const l3 = PerlinNoiseOperation.smoothStep(y);
         const i4 = PerlinNoiseOperation.lerp(k2, l2, k3);
         const j4 = PerlinNoiseOperation.lerp(i3, j3, k3);
         return PerlinNoiseOperation.lerp(i4, j4, l3);

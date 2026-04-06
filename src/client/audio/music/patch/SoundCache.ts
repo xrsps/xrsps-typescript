@@ -45,7 +45,7 @@ export class SoundCache {
     async method883(id: number): Promise<RawSoundData | null> {
         const index = this.cache.getIndex(this.musicSampleIndexId);
         if (!index) {
-            console.warn(`[SoundCache] method883: musicSamples index not available`);
+            console.warn(`[SoundCache]  musicSamples index not available`);
             return null;
         }
         const archiveCount = index.getArchiveCount();

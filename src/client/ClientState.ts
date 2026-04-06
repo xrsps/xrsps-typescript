@@ -130,7 +130,7 @@ export class ClientState {
     static selectedSpellSourceWidget: any = null;
 
     /**
-     * Selected spell/item target mask (unpacked 6-bit mask, class155.Widget_unpackTargetMask)
+     * Selected spell/item target mask (unpacked 6-bit mask, Widget_unpackTargetMask)
      * Indicates what types of targets this spell/item can be used on:
      * - Bit 0 (0x1): Ground items
      * - Bit 1 (0x2): NPCs

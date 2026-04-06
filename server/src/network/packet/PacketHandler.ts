@@ -788,7 +788,7 @@ export function decodePacket(opcode: number, data: Uint8Array): DecodedPacket {
         }
 
         // IF_TRIGGEROPLOCAL (30) - forwarded Object[] trigger-op local payload
-        // Payload layout (class7.method121):
+        // Payload layout :
         //   short blockLen,
         //   intLE opcodeParam,
         //   shortLE childIndex,

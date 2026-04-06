@@ -463,7 +463,7 @@ type Widget = WidgetNode;
 const EMPTY_WIDGETS: Widget[] = [];
 
 /**
- * OSRS PARITY: Draw a single-pixel line using Bresenham's algorithm
+ * Draw a single-pixel line using Bresenham's algorithm
  * Reference: Rasterizer2D.Rasterizer2D_drawLine
  */
 function drawLine(
@@ -505,8 +505,8 @@ function drawLine(
 }
 
 /**
- * OSRS PARITY: Draw a thick line
- * Reference: WorldMapSection0.method4978 - draws thick lines using perpendicular expansion
+ * Draw a thick line
+ * Draws thick lines using perpendicular expansion
  */
 function drawThickLine(
     glr: GLRenderer,
@@ -560,7 +560,7 @@ function scaleLogicalPixels(scale: number, logicalPixels: number): number {
 }
 
 /**
- * OSRS PARITY: Draw IF1 scrollbar
+ * Draw IF1 scrollbar
  * Reference: UserComparator9.drawScrollBar()
  * Draws a 16px wide scrollbar with up/down arrows and a draggable thumb
  * @param x X position (right edge of container)
@@ -902,7 +902,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
     const rootScaleX = Number.isFinite(rootScaleXRaw) && rootScaleXRaw > 0 ? rootScaleXRaw : 1.0;
     const rootScaleY = Number.isFinite(rootScaleYRaw) && rootScaleYRaw > 0 ? rootScaleYRaw : 1.0;
 
-    // OSRS PARITY: The widget currently being clicked (Client.clickedWidget) is drawn semi-transparent.
+    // The widget currently being clicked (Client.clickedWidget) is drawn semi-transparent.
     // Reference: UserComparator5.drawInterface: if (var10 == Client.clickedWidget && !var10.isScrollBar) { var14 = 128; }
     // Note: `clickedWidget` is a private TS field on OsrsClient but exists at runtime; read via `any`.
     const osrsClient = (opts.game as any)?.osrsClient as any;
@@ -1784,18 +1784,18 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
     }
 
     /**
-     * OSRS PARITY: Check if widget is hidden.
+     * Check if widget is hidden.
      *
      * Note: Parent visibility propagates naturally through the recursive rendering -
      * if a parent is hidden, drawNode returns early and children are never visited.
      * This matches OSRS behavior where isComponentHidden doesn't recurse.
      */
     function isComponentHidden(w: Widget): boolean {
-        // OSRS PARITY: Only check this widget's visibility, not parents
+        // Only check this widget's visibility, not parents
         if (opts.visible.get(w.uid) === false) return true;
         if (w.hidden) return true;
 
-        // OSRS PARITY: Auto-hide CS2 scrollbars when their linked scroll target
+        // Auto-hide CS2 scrollbars when their linked scroll target
         // has no scrollable range (maxScroll <= 0).
         const scrollbarLink = widgetManager ? resolveScrollbarLink(w) : null;
         if (scrollbarLink && widgetManager) {
@@ -1823,14 +1823,14 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         deferDragged: boolean = true,
     ) {
         const prepStartMs = profileWidgetRender ? performance.now() : 0;
-        // OSRS PARITY: contentType-driven widget mutations applied during draw.
-        // Reference: class326.method6261 (called from UserComparator5.drawInterface when contentType > 0).
+        // contentType-driven widget mutations applied during draw.
+        //
         const prepContentTypeStartMs = profileWidgetRender ? performance.now() : 0;
         try {
             const ct = ((w.contentType ?? 0) | 0) as number;
             if (ct === 324 || ct === 325) {
                 // gender toggle sprites depend on Client.playerAppearance.gender.
-                // Reference: class326.method6261 for contentType 324/325.
+                //
                 // PlayerDesign can be shown before a world player exists; use the CS2 varbit mirror.
                 // varbit 14021 (player_design_bodytype) is set to gender (0/1) by the client.
                 let gender = 0;
@@ -1875,7 +1875,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 }
             }
             if (ct === 327 || ct === 328) {
-                // Reference: class326.method6261
+                // Reference: 
                 const cycleCntr = ((osrsClient?.transmitCycles?.cycleCntr ?? 0) | 0) as number;
                 const angleX = 150;
                 const angleY = ((Math.sin(cycleCntr / 40.0) * 256.0) | 0) & 2047;
@@ -1895,11 +1895,11 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             prepContentTypeMs += performance.now() - prepContentTypeStartMs;
         }
 
-        // OSRS PARITY: Determine if this is an IF3 widget
+        // Determine if this is an IF3 widget
         // Default to IF3 (modern) if not specified
         const isIf3 = w.isIf3 !== false;
 
-        // OSRS PARITY: Check widget visibility
+        // Check widget visibility
         // IF1 widgets: Always enter the render block (visibility checked later for containers)
         // IF3 widgets: Skip if hidden
         const prepVisibilityStartMs = profileWidgetRender ? performance.now() : 0;
@@ -1930,7 +1930,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         // PERF: Count widgets being rendered
         _widgetRenderCount++;
 
-        // OSRS PARITY: Ensure layout is valid before reading computed dimensions
+        // Ensure layout is valid before reading computed dimensions
         // CS2 scripts (like quest tab) may have modified rawWidth/rawHeight via CC_SETSIZE,
         // invalidating the widget. This JIT validation ensures width/height are up-to-date.
         // Check for falsy (false or undefined) since initial state may be undefined
@@ -1973,7 +1973,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
         const hasStaticChildren = staticChildren.length > 0;
         const hasChildren = dynamicChildren.length > 0;
 
-        // OSRS PARITY: Calculate widget clip bounds based on widget type
+        // Calculate widget clip bounds based on widget type
         // Reference: UserComparator5.drawInterface lines 142-170
         // Type 9 (Line) widgets have special clip calculation for negative dimensions
         let widgetClip: ClipRect;
@@ -1984,7 +1984,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             widgetClip = calculateStandardClip(clip, x, y, width, height);
         }
 
-        // OSRS PARITY: Early cull check based on clip validity
+        // Early cull check based on clip validity
         // Reference: UserComparator5.drawInterface line 172: if (!var10.isIf3 || var15 < var17 && var16 < var18)
         // IF3 widgets: only render if clip has positive area (var15 < var17 && var16 < var18)
         // IF1 widgets: always render (legacy behavior, even with invalid clip - clipping handled by scissor)
@@ -2347,8 +2347,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             clickRegistrationMs += performance.now() - clickRegistrationStartMs;
         }
 
-        // OSRS PARITY: Auto-scroll clamping for IF1 containers only
-        // Reference: UserComparator5.java lines 231-238
+        // Auto-scroll clamping for IF1 containers only
+        // Scrollbar rendering
         // IF3 widgets handle scroll bounds via CS2 scripts, IF1 clamps automatically
         if (w.type === 0 && !isIf3) {
             const scrollClampStartMs = profileWidgetRender ? performance.now() : 0;
@@ -2365,8 +2365,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             }
         }
 
-        // OSRS PARITY: IF1 type 0 containers draw scrollbar when scrollHeight > height
-        // Reference: UserComparator5.java lines 267-269
+        // IF1 type 0 containers draw scrollbar when scrollHeight > height
+        // Widget border rendering
         // Scrollbar is drawn on the right edge of the container
         if (w.type === 0 && !isIf3 && (w.scrollHeight ?? 0) > logicalHeight) {
             const scrollbarStartMs = profileWidgetRender ? performance.now() : 0;
@@ -2403,9 +2403,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             hoverMs += performance.now() - hoverStartMs;
         }
 
-        // OSRS PARITY: Special handling for compass widget (contentType 1339)
-        // Reference: UserComparator5.java - compass is rendered before type-based logic
-        // class520.method9265 draws WallDecoration.compass with camera yaw rotation and circular mask
+        // Special handling for compass widget (contentType 1339)
+        // Compass is rendered before type-based logic
+        //  draws WallDecoration.compass with camera yaw rotation and circular mask
         const contentType = (w as any).contentType ?? 0;
         if (contentType === 1339) {
             const compassStartMs = profileWidgetRender ? performance.now() : 0;
@@ -2417,13 +2417,13 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     // spriteAngle is in 16-bit format (0-65536 = 360 degrees)
                     const spriteAngle = w.spriteAngle ?? 0;
 
-                    // OSRS PARITY: The widget's primary sprite defines the circular mask.
+                    // The widget's primary sprite defines the circular mask.
                     // Reference: Widget.ac(..., false) uses spriteId.
                     const maskSpriteId = w.spriteId ?? -1;
                     const maskTex = maskSpriteId >= 0 ? tc.getSpriteById(maskSpriteId) : null;
 
                     if (maskTex) {
-                        // OSRS PARITY: draw at mask sprite's natural dimensions, not widget bounds.
+                        // draw at mask sprite's natural dimensions, not widget bounds.
                         // Reference: MinimapUtils.drawCompass uses spriteMask.width/height, not widget.width/height.
                         // The compass content sprite (compassTex) is larger than the display area (maskTex)
                         // because it includes transparent padding to avoid rotation seams. We center-crop
@@ -2474,8 +2474,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             // But still need to traverse children, so don't return here
         }
 
-        // OSRS PARITY: Special handling for minimap widget (contentType 1338)
-        // Reference: SecureUrlRequester.java drawMinimap() - uses localPlayer position, NOT camera
+        // Special handling for minimap widget (contentType 1338)
+        // Uses localPlayer position, NOT camera
         // WebGL-based rendering for better mobile performance
         if (contentType === 1338) {
             const minimapStartMs = profileWidgetRender ? performance.now() : 0;
@@ -2727,7 +2727,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                         }
                     }
 
-                    // OSRS PARITY: Register click handler for minimap click-to-walk
+                    // Register click handler for minimap click-to-walk
                     // Reference: Clicking on minimap sends MOVE_GAMECLICK to walk to that tile
                     // Capture values needed for click handler closure (use worldX/Y for sub-tile precision)
                     const capturedWorldX = worldX;
@@ -2801,8 +2801,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
         if (w.type === 3) {
             const rectStartMs = profileWidgetRender ? performance.now() : 0;
-            // OSRS PARITY: Type 3 rectangle rendering
-            // Reference: UserComparator5.java lines 272-304
+            // Type 3 rectangle rendering
+            // Rectangle widget rendering
             // For IF1 widgets, runCs1() determines which color set to use
             // For IF3 widgets, there's no CS1 - just use base color/color2
 
@@ -2833,7 +2833,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             // Scripts set w.transparency via cc_settrans; cache sets w.opacity (same semantics)
             const trans = w.transparency ?? w.opacity ?? 0;
 
-            // OSRS PARITY: Skip rendering fully transparent rectangles
+            // Skip rendering fully transparent rectangles
             if (trans >= 255) {
                 // Widget is fully transparent, skip drawing
             } else if (w.filled) {
@@ -2953,7 +2953,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
             // OSRS transparency: 0 = fully opaque, 255 = fully transparent
             // Scripts set w.transparency via cc_settrans; cache sets w.opacity (same semantics)
-            // OSRS PARITY: Clicked/dragged widget is semi-transparent (var14 = 128), except scrollbars.
+            // Clicked/dragged widget is semi-transparent (var14 = 128), except scrollbars.
             // Reference: UserComparator5.drawInterface: if (!var10.isScrollBar) { var14 = 128; }
             let trans = w.transparency ?? w.opacity ?? 0;
             if ((isDragActive || isClickedWidget) && !w.isScrollBar) {
@@ -2972,8 +2972,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 });
                 if (tex) {
                     if (w.spriteTiling && tex.w > 0 && tex.h > 0) {
-                        // OSRS PARITY: Tile the sprite to fill the widget area
-                        // Reference: UserComparator5.java lines 391-407
+                        // Tile the sprite to fill the widget area
+                        // Item widget rendering
                         // Uses Rasterizer2D_expandClip to constrain drawing to widget bounds,
                         // then draws full sprites, letting the scissor handle edge clipping.
                         const sprLogicalW = Math.max(1, tex.w | 0);
@@ -3162,7 +3162,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             // No client-side bob if no sequence; rely on server/script-provided sequence/animationId.
 
             // If this widget is currently set to display an item, override angles/offsets/zoom
-            // from the item definition, like the client does in Client.java.
+            // from the item definition.
             try {
                 const itemId = w.itemId;
                 const qty = (w.itemQuantity ?? 0) | 0 || 1;
@@ -3368,7 +3368,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             }
         } else if (w.type === 9) {
             const lineStartMs = profileWidgetRender ? performance.now() : 0;
-            // OSRS PARITY: Type 9 = Line widget
+            // Type 9 = Line widget
             // Type 9 = Line widget
             // Lines are defined by start point (x, y) and end point (x+width, y+height)
             // lineDirection determines diagonal direction:
@@ -3420,8 +3420,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                 ? glr.getPerfCounters().textureDrawCalls
                 : 0;
             textWidgets++;
-            // OSRS PARITY: Type 4 text widget rendering
-            // Reference: UserComparator5.java lines 305-328
+            // Type 4 text widget rendering
+            // Model widget rendering
             // For IF1 widgets, runCs1() determines which text/color to use
             // For IF3 widgets, there's no CS1 - just use text/textColor
 
@@ -3459,7 +3459,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             }
 
             // Show "Please wait..." for the continue button being processed
-            // Reference: UserComparator5.java line 341-343
+            // NPC head widget rendering
             if (widgetManager?.meslayerContinueWidget === w) {
                 effectiveText = "Please wait...";
             }
@@ -3508,12 +3508,12 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
             }
         }
 
-        // OSRS PARITY: Only type 0 and 11 are containers that can have children
-        // Reference: UserComparator5.java lines 226-264
+        // Only type 0 and 11 are containers that can have children
+        // Widget draw dispatch
         // - Type 0 (layer): renders static children (via parentUid) AND dynamic children (w.children)
         // - Type 11 (layer): renders ONLY dynamic children (w.children)
         // Non-container types do NOT render children even if they somehow have them
-        // OSRS PARITY: Only containers can have children - skip children processing for non-containers
+        // Only containers can have children - skip children processing for non-containers
         if (!isContainer) {
             leafWidgets++;
             return; // Non-containers have finished rendering their content above
@@ -3521,7 +3521,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
         containerWidgets++;
         const containerScaffoldStartMs = profileWidgetRender ? performance.now() : 0;
-        // OSRS PARITY: InterfaceParent (mounted sub-interface) is rendered as an additional
+        // InterfaceParent (mounted sub-interface) is rendered as an additional
         // child interface layer for type 0 containers.
         const interfaceParentGroup =
             w.type === 0 && widgetManager
@@ -3531,8 +3531,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
         const hasAnyChildren = hasStaticChildren || hasChildren || hasInterfaceParent;
 
-        // OSRS PARITY: IF1 container hidden checks
-        // Reference: UserComparator5.java line 227 (type 0) and line 254 (type 11)
+        // IF1 container hidden checks
+        // Layer (type 0) and line/divider (type 11)
         // For IF1 containers, skip children rendering if hidden
         // (IF3 containers already returned early at line 542)
         if (
@@ -3560,30 +3560,24 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
         if (hasAnyChildren) {
             const containerStartMs = profileWidgetRender ? performance.now() : 0;
-            // OSRS PARITY: Calculate child clip bounds
+            // Calculate child clip bounds
             // Reference: UserComparator5.drawInterface lines 163-169
             // For containers, children are clipped to the intersection of:
             // 1. Parent's clip bounds (var2-var5)
             // 2. This container's visible bounds (var15-var18)
             //
-            // OSRS PARITY: ALL type 0/11 containers clip their children, not just scrollable ones
-            // Reference: UserComparator5.java line 241 - drawInterface passes intersection bounds
-            // Reference: UserComparator5.java line 251 - Rasterizer2D_setClip restores parent clip after
+            // ALL type 0/11 containers clip their children, not just scrollable ones
+            // drawInterface passes intersection bounds
+            // Restore parent clip after drawing children
 
-            // OSRS PARITY: For IF3 widgets, only render children if clip is valid.
+            // For IF3 widgets, only render children if clip is valid.
             // For IF1 widgets, always render children (scissor handles clipping).
-            // Reference: UserComparator5.java line 172
-            //
-            // OSRS PARITY: For IF3 containers, only render children if the container's
-            // intersection clip has positive area (var15 < var17 && var16 < var18).
-            // Reference: UserComparator5.java line 172
-            // IF1 containers are always traversed and rely on scissor clipping.
             const shouldRenderChildren = !isIf3 || isClipValid(widgetClip);
 
             if (shouldRenderChildren) {
-                // OSRS PARITY: Type 0/11 containers ALWAYS clip their children to the
+                // Type 0/11 containers ALWAYS clip their children to the
                 // intersection bounds (var15-var18) by calling drawInterface with those bounds.
-                // Reference: UserComparator5.java line 241 (type 0), line 258 (type 11).
+                // Type 0 and type 11 child rendering.
                 //
                 // OSRS clips strictly at container bounds - any visual overflow (item icons,
                 // selection outlines) that extends beyond the container will be clipped.
@@ -3602,9 +3596,9 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     containerScaffoldMs += performance.now() - containerScaffoldStartMs;
                 }
 
-                // OSRS PARITY: Type 0 renders BOTH static and dynamic children
+                // Type 0 renders BOTH static and dynamic children
                 // Type 11 renders ONLY dynamic children (w.children)
-                // Reference: UserComparator5.java lines 241-244 vs 258-259
+                // Child rendering bounds differ by type
                 if (w.type === 0 && hasStaticChildren) {
                     for (const child of staticChildren) {
                         if (child != null) {
@@ -3636,7 +3630,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     }
                 }
 
-                // OSRS PARITY: Render InterfaceParent (mounted) interface roots LAST, on top of
+                // Render InterfaceParent (mounted) interface roots LAST, on top of
                 // the container's own children.
                 if (interfaceParentGroup !== undefined && widgetManager) {
                     const roots = widgetManager.getAllGroupRoots(interfaceParentGroup);
@@ -3662,8 +3656,8 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
                     }
                 }
 
-                // OSRS PARITY: Restore scissor after drawing children
-                // Reference: UserComparator5.java line 251 - Rasterizer2D_setClip(var2, var3, var4, var5)
+                // Restore scissor after drawing children
+                // Restore clip after child rendering
                 sc.pop();
             } else if (profileWidgetRender) {
                 containerScaffoldMs += performance.now() - containerScaffoldStartMs;
@@ -3687,7 +3681,7 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
     drawNode(root, 0, 0, true, false);
 
     // Render deferred dragged widgets on top.
-    // OSRS PARITY: Only inventory-style widgets (dragRenderBehaviour >= 2) are deferred.
+    // Only inventory-style widgets (dragRenderBehaviour >= 2) are deferred.
     // Scrollbar widgets (dragRenderBehaviour=1) render inline to maintain z-order with siblings.
     for (const d of deferredDragged) {
         // Inventory item: full screen clip so it can be dragged anywhere

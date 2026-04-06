@@ -579,8 +579,7 @@ export class PlayerSyncManager {
         // the server provides absolute start/end cycles; do not clamp.
         const endCycle = Number.isFinite(update.endCycle) ? update.endCycle | 0 : startCycle;
 
-        // forced-move orientation comes from `field1173` (readUnsignedShortAddLE),
-        // which is already in RS rotation units (0..2047), not a 0..7 direction code.
+        // Forced-move orientation is already in RS rotation units (0..2047), not a 0..7 direction code.
         const orientation =
             typeof update.direction === "number" && Number.isFinite(update.direction)
                 ? (update.direction | 0) & 2047
@@ -596,7 +595,7 @@ export class PlayerSyncManager {
             endSubY,
             orientation,
         );
-        // forced movement resets pathLength and field1215; clear any queued movement.
+        // Forced movement resets pathLength; clear any queued movement.
         try {
             this.playerEcs.clearServerQueue(ecsIndex);
         } catch {}
@@ -706,7 +705,7 @@ export class PlayerSyncManager {
             isMoving = this.playerEcs.isMoving(ecsIndex);
         } catch {}
 
-        // Reference: SoundSystem.method740 (player update) assigns Actor.field1208 immediately when idle.
+        // Face direction is assigned immediately when idle.
         if (!isMoving) {
             this.playerEcs.setTargetRot(ecsIndex, orientation);
             if (state) state.lastOrientation = orientation;
@@ -801,7 +800,7 @@ export class PlayerSyncManager {
         const orientation = this.computeOrientation(selfX, selfY, targetX, targetY);
         if (orientation === undefined) return;
         const state = this.movementSync.getState(serverId);
-        // OSRS: targetIndex-facing is applied even while moving (PendingSpawn.method2449 runs every cycle).
+        // targetIndex-facing is applied even while moving.
         this.playerEcs.setTargetRot(ecsIndex, orientation);
         if (state) state.lastOrientation = orientation;
     }

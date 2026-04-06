@@ -648,7 +648,7 @@ export function menuAction(
                 : MODIFIER_FLAG_CTRL
             : 0;
 
-        // OSRS PARITY: Set destination marker for minimap flag
+        // Set destination marker for minimap flag
         ClientState.setDestination(localX, localY);
 
         // Send MOVE_GAMECLICK packet

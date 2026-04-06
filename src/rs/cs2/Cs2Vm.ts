@@ -71,7 +71,7 @@ export interface ScriptEvent {
     /** Event type ID */
     type: number;
     /** Additional op context used by opcode 2929 forwarding. */
-    field526: number;
+    opSubIndex: number;
     /** If true, this event should be removed if widget state changes */
     isInteractive: boolean;
 }
@@ -91,7 +91,7 @@ export function createScriptEvent(partial?: Partial<ScriptEvent>): ScriptEvent {
         keyPressed: 0,
         targetName: "",
         type: 76,
-        field526: 0,
+        opSubIndex: 0,
         isInteractive: false,
         ...partial,
     };
@@ -214,7 +214,7 @@ export interface Cs2Context {
     requestLogout?: () => void;
     /**
      * Send IF_CLOSE packet to the server.
-     * class47.method910() sends IF_CLOSE when deferred close executes.
+     * () sends IF_CLOSE when deferred close executes.
      */
     sendIfClose?: () => void;
 
@@ -350,7 +350,7 @@ export interface Cs2Context {
 
     /**
      * Optional callback for IF_TRIGGEROPLOCAL (2929) forwarding.
-     * Mirrors the client packet path (class7.method121 / ClientPacket id 30).
+     * Mirrors the client packet path .
      */
     onIfTriggerOpLocal?: (
         widgetUid: number,
@@ -420,7 +420,7 @@ export class Cs2Vm {
         targetName: "",
         componentId: -1,
         componentIndex: -1,
-        field526: 0,
+        opSubIndex: 0,
     };
 
     private resetEventContext(): void {
@@ -433,7 +433,7 @@ export class Cs2Vm {
         this.eventContext.targetName = "";
         this.eventContext.componentId = -1;
         this.eventContext.componentIndex = -1;
-        this.eventContext.field526 = 0;
+        this.eventContext.opSubIndex = 0;
     }
 
     private applyEventContextFromScriptEvent(event: ScriptEvent): void {
@@ -445,9 +445,9 @@ export class Cs2Vm {
         this.eventContext.keyTyped = event.keyTyped | 0;
         this.eventContext.keyPressed = event.keyPressed | 0;
         this.eventContext.targetName = event.targetName ?? "";
-        this.eventContext.field526 = event.field526 | 0;
+        this.eventContext.opSubIndex = event.opSubIndex | 0;
 
-        // OSRS PARITY: event_com / event_comsubid semantics.
+        // event_com / event_comsubid semantics.
         // Dynamic children (CC_CREATE) report the PARENT's UID for event_com; scripts
         // use event_comsubid (child index) to find the dynamic child via cc_find.
         if (w?.fileId === -1 && (w as any).parentUid != null) {
@@ -470,7 +470,7 @@ export class Cs2Vm {
     tradeChatMode: number = 0;
     messageFilter: string = "";
 
-    // Input dialog state (Client.field798, Client.field673)
+    // Input dialog state
     // Type 0 = no dialog active (all widgets can receive input)
     // Type 1 = default/reset state
     // Type 2 = interface-scoped (only widgets in inputDialogWidgetId interface)
@@ -1317,7 +1317,7 @@ export class Cs2Vm {
             const entry = this.pendingTriggerOpQueue.shift()!;
             this.invokeEventHandler(entry.widget, "onOp", {
                 opIndex: entry.opIndex,
-                field526: 0,
+                opSubIndex: 0,
             });
             if (this.executionState === ExecutionState.ABORTED) {
                 return;
@@ -1345,7 +1345,7 @@ export class Cs2Vm {
         const childIndex = this.intStack[this.intStackSize - 1] | 0;
         this.intStackSize -= 3;
 
-        //  (class366.method8291):
+        //  :
         // - resolve parent by widget UID
         // - if childIndex != -1, resolve child from parent.children[childIndex]
         const groupId = (widgetUid >>> 16) & 0xffff;
@@ -1850,7 +1850,7 @@ export class Cs2Vm {
 
     /**
      * Parse Object[] trigger args for IF_TRIGGEROPLOCAL (2929).
-     * Matches class189.method4727: signature-driven args only, no scriptId and no 'Y' suffix handling.
+     * Matches : signature-driven args only, no scriptId and no 'Y' suffix handling.
      */
     private parseTriggerOpLocalArgs(): any[] {
         if (this.stringStackSize <= 0) {
@@ -1944,7 +1944,7 @@ export class Cs2Vm {
         // Parse trigger args (pops signature, args, scriptId, and transmit triggers if 'Y' suffix)
         const parsed = this.parseTriggerArgs();
 
-        //  (WidgetDefinition.method8293): UID lookup attempts group load first.
+        //  - UID lookup attempts group load first.
         const groupId = (uid >>> 16) & 0xffff;
         this.context.widgetManager.getGroup(groupId);
         const widget = this.context.widgetManager.getWidgetByUid(uid);
@@ -2062,7 +2062,7 @@ export class Cs2Vm {
                         substitutedInts[i] = event.keyPressed;
                         break;
                     case ScriptArgMagic.OP_SUBINDEX:
-                        substitutedInts[i] = event.field526;
+                        substitutedInts[i] = event.opSubIndex;
                         break;
                     default:
                         substitutedInts[i] = value;
@@ -2151,7 +2151,7 @@ export class Cs2Vm {
                 const prevTargetName = this.eventContext.targetName;
                 const prevComponentId = this.eventContext.componentId;
                 const prevComponentIndex = this.eventContext.componentIndex;
-                const prevField526 = this.eventContext.field526;
+                const prevField526 = this.eventContext.opSubIndex;
                 this.applyEventContextFromScriptEvent(fullEvent);
                 // BUGFIX: Save execution state before nested call - nested script completion
                 // sets executionState=FINISHED which would prematurely terminate outer script
@@ -2176,7 +2176,7 @@ export class Cs2Vm {
                     this.eventContext.targetName = prevTargetName;
                     this.eventContext.componentId = prevComponentId;
                     this.eventContext.componentIndex = prevComponentIndex;
-                    this.eventContext.field526 = prevField526;
+                    this.eventContext.opSubIndex = prevField526;
                     // Restore RUNNING state if nested script finished normally
                     // (ABORTED state must propagate to abort the outer script too)
                     if (wasRunning && this.executionState === ExecutionState.FINISHED) {
@@ -2220,7 +2220,7 @@ export class Cs2Vm {
         const prevTargetName = this.eventContext.targetName;
         const prevComponentId = this.eventContext.componentId;
         const prevComponentIndex = this.eventContext.componentIndex;
-        const prevField526 = this.eventContext.field526;
+        const prevField526 = this.eventContext.opSubIndex;
         this.applyEventContextFromScriptEvent(fullEvent);
         // BUGFIX: Save execution state before nested call - nested script completion
         // sets executionState=FINISHED which would prematurely terminate outer script
@@ -2250,7 +2250,7 @@ export class Cs2Vm {
             this.eventContext.targetName = prevTargetName;
             this.eventContext.componentId = prevComponentId;
             this.eventContext.componentIndex = prevComponentIndex;
-            this.eventContext.field526 = prevField526;
+            this.eventContext.opSubIndex = prevField526;
             // Restore RUNNING state if nested script finished normally
             // (ABORTED state must propagate to abort the outer script too)
             if (wasRunning && this.executionState === ExecutionState.FINISHED) {
@@ -2294,7 +2294,7 @@ export class Cs2Vm {
         const substituted = this.substituteMagicArgs(intArgs, objectArgs, event);
 
         // Set active widget and dot widget for the script
-        // OSRS PARITY: Save previous widgets and restore after the event handler finishes
+        // Save previous widgets and restore after the event handler finishes
         // This prevents varTransmit handlers from polluting widget context for subsequent scripts
         const prevActiveWidget = this.activeWidget;
         const prevDotWidget = this.dotWidget;
@@ -2309,7 +2309,7 @@ export class Cs2Vm {
         const prevTargetName = this.eventContext.targetName;
         const prevComponentId = this.eventContext.componentId;
         const prevComponentIndex = this.eventContext.componentIndex;
-        const prevField526 = this.eventContext.field526;
+        const prevField526 = this.eventContext.opSubIndex;
         this.applyEventContextFromScriptEvent(event);
 
         try {
@@ -2319,7 +2319,7 @@ export class Cs2Vm {
             console.error(`[Cs2Vm] Script ${scriptId} crashed:`, err);
             return false;
         } finally {
-            // OSRS PARITY: Restore previous widget context after event handler completes
+            // Restore previous widget context after event handler completes
             this.activeWidget = prevActiveWidget;
             this.dotWidget = prevDotWidget;
             this.eventContext.mouseX = prevMouseX;
@@ -2331,7 +2331,7 @@ export class Cs2Vm {
             this.eventContext.targetName = prevTargetName;
             this.eventContext.componentId = prevComponentId;
             this.eventContext.componentIndex = prevComponentIndex;
-            this.eventContext.field526 = prevField526;
+            this.eventContext.opSubIndex = prevField526;
         }
     }
 
