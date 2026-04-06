@@ -102,7 +102,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
             options.push("Can I have another ring?");
         }
 
-        const hasEssence = player.hasItem(BRYOPHYTAS_ESSENCE);
+        const hasEssence = player.items.hasItem(BRYOPHYTAS_ESSENCE);
         if (hasEssence) {
             options.push("Can you make me a staff?");
         }
@@ -176,7 +176,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
             `${dialogBase}_ring_ask`,
             ["Can I have another ring?"],
             () => {
-                if (player.hasItem(BEACON_RING)) {
+                if (player.items.hasItem(BEACON_RING)) {
                     openNpcDialog(
                         player,
                         services,
@@ -192,7 +192,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
                         [`Go and get the one that's in your bank, ${playerName}!`],
                         () => { activeConvos.delete(pid); },
                     );
-                } else if (player.isInventoryFull()) {
+                } else if (player.items.isInventoryFull()) {
                     openNpcDialog(
                         player,
                         services,
@@ -211,7 +211,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
                             `Yes, of course, ${playerName}. Here you are. Please bear in mind that this ring has no charges left with which to summon me, however.`,
                         ],
                         () => {
-                            player.addItem(BEACON_RING, 1);
+                            player.items.addItem(BEACON_RING, 1);
                             services.snapshotInventory(player);
                             services.sendGameMessage(player, "Zaff gives you a beacon ring.");
                             activeConvos.delete(pid);
@@ -350,7 +350,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         const pid = player.id;
         const dialogBase = `zaff_${pid}`;
 
-        if (!player.hasItem(COINS, BRYOPHYTA_STAFF_COST)) {
+        if (!player.items.hasItem(COINS, BRYOPHYTA_STAFF_COST)) {
             openPlayerDialog(
                 player,
                 services,
@@ -361,7 +361,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
             return;
         }
 
-        if (!player.hasItem(BRYOPHYTAS_ESSENCE)) {
+        if (!player.items.hasItem(BRYOPHYTAS_ESSENCE)) {
             activeConvos.delete(pid);
             return;
         }
@@ -373,8 +373,8 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
             ["Yes, please."],
             () => {
                 // Remove materials
-                player.removeItem(BRYOPHYTAS_ESSENCE, 1, { assureFullRemoval: true });
-                player.removeItem(COINS, BRYOPHYTA_STAFF_COST, { assureFullRemoval: true });
+                player.items.removeItem(BRYOPHYTAS_ESSENCE, 1, { assureFullRemoval: true });
+                player.items.removeItem(COINS, BRYOPHYTA_STAFF_COST, { assureFullRemoval: true });
 
                 openNpcDialog(
                     player,
@@ -388,7 +388,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
                             `${dialogBase}_bryo_done`,
                             ["Thank you, here you go. I'm not sure what it does, but it feels pretty magical."],
                             () => {
-                                player.addItem(BRYOPHYTAS_STAFF, 1);
+                                player.items.addItem(BRYOPHYTAS_STAFF, 1);
                                 services.snapshotInventory(player);
                                 services.sendGameMessage(player, "Zaff hands you the new staff.");
 

@@ -76,7 +76,7 @@ export class VarpSyncService {
     }
 
     getCombatTargetPlayerVarpValue(player: PlayerState): number {
-        const target = player.getCombatTarget();
+        const target = player.combat.getCombatTarget();
         if (!target || !target.isPlayer) {
             return -1;
         }

@@ -324,9 +324,9 @@ export class PlayerInteractionSystem {
             // Clear RSMod-style attributes on the player
             const me = this.players.get(ws);
             if (me) {
-                me.removeCombatTarget();
-                me.setInteractingNpc(null);
-                me.setInteractingPlayer(null);
+                me.combat.removeCombatTarget();
+                me.combat.setInteractingNpc(null);
+                me.combat.setInteractingPlayer(null);
             }
 
             if (st.kind === "npcCombat") {
@@ -371,8 +371,8 @@ export class PlayerInteractionSystem {
             const player = this.players.get(ws);
             if (player) {
                 player.clearInteractionTarget();
-                player.removeCombatTarget();
-                player.setInteractingNpc(null);
+                player.combat.removeCombatTarget();
+                player.combat.setInteractingNpc(null);
             }
             this.interactions.delete(ws);
         }
@@ -673,7 +673,7 @@ export class PlayerInteractionSystem {
         // not when the player clicks "Attack" or starts pathing.
 
         // RSMod parity: Set combat target on player (COMBAT_TARGET_FOCUS_ATTR)
-        me.setCombatTarget(npc);
+        me.combat.setCombatTarget(npc);
 
         this.interactions.set(ws, state);
 
@@ -734,7 +734,7 @@ export class PlayerInteractionSystem {
         if (me) {
             this.onStopAutoAttack?.(me.id);
             // RSMod parity: Clear combat target (COMBAT_TARGET_FOCUS_ATTR)
-            me.removeCombatTarget();
+            me.combat.removeCombatTarget();
             me.clearPath();
             me.clearInteraction();
             me.stopAnimation();
@@ -769,13 +769,13 @@ export class PlayerInteractionSystem {
                 player.clearInteractionTarget();
             }
 
-            const combatTarget = player.getCombatTarget();
+            const combatTarget = player.combat.getCombatTarget();
             if (combatTarget && !combatTarget.isPlayer && combatTarget.id === state.npcId) {
-                player.removeCombatTarget();
+                player.combat.removeCombatTarget();
             }
 
-            if (player.getInteractingNpc()?.id === state.npcId) {
-                player.setInteractingNpc(null);
+            if (player.combat.getInteractingNpc()?.id === state.npcId) {
+                player.combat.setInteractingNpc(null);
             }
         }
     }
@@ -1260,8 +1260,8 @@ export class PlayerInteractionSystem {
             me.setInteraction("player", targetPlayerId);
         } catch (err) { logger.warn("[interaction] failed to set player interaction", err); }
         const target = this.players.getById(targetPlayerId);
-        me.setCombatTarget(target ?? null);
-        me.setInteractingPlayer(target ?? null);
+        me.combat.setCombatTarget(target ?? null);
+        me.combat.setInteractingPlayer(target ?? null);
     }
 
     stopPlayerCombat(ws: WebSocket): void {
@@ -1271,8 +1271,8 @@ export class PlayerInteractionSystem {
         const me = this.players.get(ws);
         if (me) {
             me.clearInteraction();
-            me.removeCombatTarget();
-            me.setInteractingPlayer(null);
+            me.combat.removeCombatTarget();
+            me.combat.setInteractingPlayer(null);
             me.stopAnimation();
         }
     }
@@ -1299,24 +1299,24 @@ export class PlayerInteractionSystem {
             const target = this.players.getById(interaction.playerId);
             if (!target) {
                 me.clearInteraction();
-                me.removeCombatTarget();
-                me.setInteractingPlayer(null);
+                me.combat.removeCombatTarget();
+                me.combat.setInteractingPlayer(null);
                 me.stopAnimation();
                 this.interactions.delete(ws);
                 return;
             }
             if (target.level !== me.level) {
                 me.clearInteraction();
-                me.removeCombatTarget();
-                me.setInteractingPlayer(null);
+                me.combat.removeCombatTarget();
+                me.combat.setInteractingPlayer(null);
                 me.stopAnimation();
                 this.interactions.delete(ws);
                 return;
             }
             if (target.skillSystem.getHitpointsCurrent() <= 0) {
                 me.clearInteraction();
-                me.removeCombatTarget();
-                me.setInteractingPlayer(null);
+                me.combat.removeCombatTarget();
+                me.combat.setInteractingPlayer(null);
                 me.stopAnimation();
                 this.interactions.delete(ws);
                 return;
@@ -1328,8 +1328,8 @@ export class PlayerInteractionSystem {
             );
             if (chebyshevDistance > PLAYER_CHASE_DISTANCE_TILES) {
                 me.clearInteraction();
-                me.removeCombatTarget();
-                me.setInteractingPlayer(null);
+                me.combat.removeCombatTarget();
+                me.combat.setInteractingPlayer(null);
                 me.stopAnimation();
                 this.interactions.delete(ws);
                 return;

@@ -934,7 +934,7 @@ export class PlayerCombatManager {
             ctx.onCannotReachTarget?.(player);
             player.clearPath();
             player.clearInteraction();
-            player.removeCombatTarget();
+            player.combat.removeCombatTarget();
             player.stopAnimation();
             this.endCombat(playerId, ctx.tick, "no_path");
             this.playerManager?.finishNpcCombatByPlayerId(playerId, state.engagement.npcId);

@@ -393,7 +393,7 @@ export class LoginHandshakeService {
                     this.server.actionScheduler.registerPlayer(p);
                 }
 
-                p.setItemDefResolver((id) => getItemDefinition(id));
+                p.items.setItemDefResolver((id) => getItemDefinition(id));
 
                 p.status.onDeath = () => {
                     if (this.server.playerDeathService) {

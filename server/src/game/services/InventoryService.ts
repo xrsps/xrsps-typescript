@@ -45,7 +45,7 @@ export class InventoryService {
         itemId: number,
         quantity: number,
     ): InventoryAddResult {
-        const result = p.addItem(itemId, quantity, { assureFullInsertion: true });
+        const result = p.items.addItem(itemId, quantity, { assureFullInsertion: true });
         if (result.completed === 0 || result.slots.length === 0) {
             return { slot: -1, added: 0 };
         }

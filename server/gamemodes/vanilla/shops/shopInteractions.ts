@@ -170,7 +170,7 @@ export function registerShopInteractionHandlers(registry: IScriptRegistry, servi
     for (const auburyNpcTypeId of AUBURY_NPC_TYPE_IDS) {
         const auburyHandler = ({ player, services }: { player: PlayerState; services: ScriptServices }) => {
             const auburyDialogNpcId = 2886; // actual Aubury head model for dialog
-            const hasVoucher = player.hasItem(COMBAT_PATH_VOUCHER_ITEM_ID);
+            const hasVoucher = player.items.hasItem(COMBAT_PATH_VOUCHER_ITEM_ID);
             const claims = player.varps.getVarpValue(COMBAT_PATH_REWARD_VARP);
             const claimedCombatRewards = claims >= 1;
             const hasRuneMysteries = player.varps.getVarpValue(RUNE_MYSTERIES_VARP) >= RUNE_MYSTERIES_COMPLETE_VALUE;
@@ -188,8 +188,8 @@ export function registerShopInteractionHandlers(registry: IScriptRegistry, servi
                     "Aubury",
                     ["Why yes, here are some air and mind runes."],
                     () => {
-                        const airResult = player.addItem(556, 200, { assureFullInsertion: false });
-                        const mindResult = player.addItem(558, 200, { assureFullInsertion: false });
+                        const airResult = player.items.addItem(556, 200, { assureFullInsertion: false });
+                        const mindResult = player.items.addItem(558, 200, { assureFullInsertion: false });
                         if (airResult.completed < 200 || mindResult.completed < 200) {
                             services.sendGameMessage(player, "Not enough inventory space for the reward items.");
                         }

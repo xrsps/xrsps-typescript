@@ -56,18 +56,18 @@ function replaceInventoryContents(
     player: PlayerState,
     entries: readonly InventoryLoadoutEntry[],
 ): boolean {
-    const slotCount = player.getInventoryEntries().length;
+    const slotCount = player.items.getInventoryEntries().length;
     if (entries.length > slotCount) {
         return false;
     }
 
-    player.clearInventory();
+    player.items.clearInventory();
     for (let slot = 0; slot < entries.length; slot++) {
         const entry = entries[slot];
         if (!(entry?.itemId > 0) || !(entry.quantity > 0)) {
             continue;
         }
-        player.setInventorySlot(slot, entry.itemId, entry.quantity);
+        player.items.setInventorySlot(slot, entry.itemId, entry.quantity);
     }
 
     return true;
@@ -262,7 +262,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         services.clearActionsInGroup(sender.id, "inventory");
                     } catch (err) { logger.warn("Failed to clear inventory actions on ::clear command", err); }
 
-                    sender.clearInventory();
+                    sender.items.clearInventory();
                     services.queueChatMessage({
                         messageType: "game",
                         text: "Your inventory has been cleared.",
@@ -326,7 +326,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         return;
                     }
 
-                    const addResult = sender.addItem(itemId, 1, { assureFullInsertion: true });
+                    const addResult = sender.items.addItem(itemId, 1, { assureFullInsertion: true });
                     if (addResult.completed !== 1) {
                         services.queueChatMessage({
                             messageType: "game",
@@ -391,12 +391,12 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     const added: Array<{ itemId: number; quantity: number }> = [];
 
                     for (const grant of grants) {
-                        const tx = sender.addItem(grant.itemId, grant.quantity, {
+                        const tx = sender.items.addItem(grant.itemId, grant.quantity, {
                             assureFullInsertion: true,
                         });
                         if (tx?.completed < grant.quantity) {
                             for (const prior of added) {
-                                sender.removeItem(prior.itemId, prior.quantity, {
+                                sender.items.removeItem(prior.itemId, prior.quantity, {
                                     assureFullRemoval: false,
                                 });
                             }
@@ -502,12 +502,12 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         );
                     }
                 } else if (cmd === "whip") {
-                    const tx = sender.addItem(4151, 1, { assureFullInsertion: true });
+                    const tx = sender.items.addItem(4151, 1, { assureFullInsertion: true });
                     if (tx.completed === 1) {
                         logger.info(`[cmd] ::whip - Gave player ${sender.id} an Abyssal whip`);
                     }
                 } else if (cmd === "bond") {
-                    const tx = sender.addItem(50000, 1, { assureFullInsertion: true });
+                    const tx = sender.items.addItem(50000, 1, { assureFullInsertion: true });
                     if (tx.completed === 1) {
                         logger.info(`[cmd] ::bond - Gave player ${sender.id} a $5 Bond`);
                     }
@@ -516,7 +516,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     const itemId = parseInt(parts[1], 10);
                     const quantity = parseInt(parts[2], 10) || 1;
                     if (Number.isFinite(itemId) && itemId > 0) {
-                        const tx = sender.addItem(itemId, quantity, {
+                        const tx = sender.items.addItem(itemId, quantity, {
                             assureFullInsertion: false,
                         });
                         if (tx.completed > 0) {

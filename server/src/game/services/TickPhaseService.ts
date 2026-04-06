@@ -300,7 +300,7 @@ export class TickPhaseService implements TickPhaseProvider {
                                 y: player.tileY,
                                 level: player.level,
                                 combatLevel: player.skillSystem.combatLevel,
-                                inCombat: player.isAttacking() || player.isBeingAttacked(),
+                                inCombat: player.combat.isAttacking() || player.isBeingAttacked(),
                                 aggressionState: player.aggression.getAggressionState(frame.tick, player.tileX, player.tileY),
                             });
                         });

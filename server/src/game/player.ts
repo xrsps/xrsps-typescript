@@ -72,7 +72,18 @@ export {
 /** @deprecated Use `SkillEntry` instead. */
 export type PlayerSkillState = SkillEntry;
 
-const MAX_ITEM_STACK_QUANTITY = 2_147_483_647;
+// Re-export inventory types from PlayerInventoryState for backward compatibility
+export {
+    INVENTORY_SLOT_COUNT,
+    type InventoryEntry,
+    type ItemDefResolver,
+    type ItemTransaction,
+} from "./state/PlayerInventoryState";
+import {
+    type InventoryEntry,
+    type ItemDefResolver,
+    type ItemTransaction,
+} from "./state/PlayerInventoryState";
 
 /**
  * Player appearance data for character rendering.
@@ -111,32 +122,12 @@ export type BankSnapshotEntry = {
     tab?: number;
     filler?: boolean;
 };
-export type InventoryEntry = { itemId: number; quantity: number };
 export type InventorySnapshotEntry = { slot: number; itemId: number; quantity: number };
 export type EquipmentSnapshotEntry = { slot: number; itemId: number; quantity?: number };
 export interface InventoryAddResult {
     slot: number;
     added: number;
 }
-
-/**
- * Result of an inventory transaction (add/remove).
- * Matches RSMod's ItemTransaction pattern.
- */
-export interface ItemTransaction {
-    /** Amount requested to add/remove */
-    requested: number;
-    /** Amount actually added/removed */
-    completed: number;
-    /** Slots affected by the transaction */
-    slots: Array<{ slot: number; itemId: number; quantity: number }>;
-}
-
-/**
- * Item definition resolver for determining stackability.
- * Matches RSMod's DefinitionSet pattern.
- */
-export type ItemDefResolver = (itemId: number) => { stackable: boolean } | undefined;
 
 export interface PlayerLocationSnapshot {
     x: number;
@@ -152,12 +143,6 @@ export interface PlayerFollowerPersistentEntry {
 }
 
 export type { CollectionLogUnlockEntry } from "./state/PlayerCollectionLogState";
-
-export const INVENTORY_SLOT_COUNT = 28;
-
-function createEmptyInventory(): InventoryEntry[] {
-    return Array.from({ length: INVENTORY_SLOT_COUNT }, () => ({ itemId: -1, quantity: 0 }));
-}
 
 const DEFAULT_MAX_COMBAT_STYLE_SLOT = 3;
 /**
@@ -250,8 +235,6 @@ export class PlayerState extends Actor {
     instanceNpcIds: Set<number> = new Set();
     /** WorldView this player belongs to (-1 = overworld, >=0 = entity index). */
     worldViewId: number = -1;
-    /** Item definition resolver for stackability lookups (RSMod parity) */
-    private itemDefResolver?: ItemDefResolver;
     /** Per-player NPC healthbar baseline (npcId -> defId -> last scaled value). */
     lastNpcHealthBarScaled: Map<number, Map<number, number>> = new Map();
     /** Composed follower persistence state (pet item/npc tracking) */
@@ -307,14 +290,17 @@ export class PlayerState extends Actor {
 
 
     // Combat target accessors
+    /** @deprecated Use player.combat.getCombatTarget() directly */
     getCombatTarget(): NpcState | PlayerState | null {
         return this.combat.combatTargetFocus?.deref() as (NpcState | PlayerState | null) ?? null;
     }
 
+    /** @deprecated Use player.combat.setCombatTarget() directly */
     setCombatTarget(target: NpcState | PlayerState | null): void {
         this.combat.combatTargetFocus = target ? new WeakRef(target) : null;
     }
 
+    /** @deprecated Use player.combat.isAttacking() directly */
     isAttacking(): boolean {
         return this.combat.combatTargetFocus?.deref() != null;
     }
@@ -331,35 +317,43 @@ export class PlayerState extends Actor {
     }
 
     // Interaction accessors
+    /** @deprecated Use player.combat.getInteractingNpc() directly */
     getInteractingNpc(): NpcState | null {
         return this.combat.interactingNpc?.deref() ?? null;
     }
 
+    /** @deprecated Use player.combat.setInteractingNpc() directly */
     setInteractingNpc(npc: NpcState | null): void {
         this.combat.interactingNpc = npc ? new WeakRef(npc) : null;
     }
 
+    /** @deprecated Use player.combat.getInteractingPlayer() directly */
     getInteractingPlayer(): PlayerState | null {
         return this.combat.interactingPlayer?.deref() as (PlayerState | null) ?? null;
     }
 
+    /** @deprecated Use player.combat.setInteractingPlayer() directly */
     setInteractingPlayer(player: PlayerState | null): void {
         this.combat.interactingPlayer = player ? new WeakRef(player) : null;
     }
 
     // Last hit tracking
+    /** @deprecated Use player.combat.getLastHitBy() directly */
     getLastHitBy(): NpcState | PlayerState | null {
         return this.combat.lastHitBy?.deref() as (NpcState | PlayerState | null) ?? null;
     }
 
+    /** @deprecated Use player.combat.setLastHitBy() directly */
     setLastHitBy(pawn: NpcState | PlayerState | null): void {
         this.combat.lastHitBy = pawn ? new WeakRef(pawn) : null;
     }
 
+    /** @deprecated Use player.combat.getLastHit() directly */
     getLastHit(): NpcState | PlayerState | null {
         return this.combat.lastHit?.deref() as (NpcState | PlayerState | null) ?? null;
     }
 
+    /** @deprecated Use player.combat.setLastHit() directly */
     setLastHit(pawn: NpcState | PlayerState | null): void {
         this.combat.lastHit = pawn ? new WeakRef(pawn) : null;
     }
@@ -371,10 +365,12 @@ export class PlayerState extends Actor {
         this.clearInteractionTarget();
     }
 
+    /** @deprecated Use player.combat.resetCombat() directly */
     resetCombat(): void {
         this.combat.combatTargetFocus = null;
     }
 
+    /** @deprecated Use player.combat.removeCombatTarget() directly */
     removeCombatTarget(): void {
         this.combat.combatTargetFocus = null;
     }
@@ -382,6 +378,7 @@ export class PlayerState extends Actor {
     /**
      * Check if attack delay is ready (can attack now).
      * RSMod: Combat.isAttackDelayReady(pawn)
+     * @deprecated Use player.combat.isAttackDelayReady() directly
      */
     isAttackDelayReady(): boolean {
         return this.combat.attackDelayTicks <= 0;
@@ -612,19 +609,9 @@ export class PlayerState extends Actor {
         return this.pidPriority;
     }
 
+    /** @deprecated Use player.items.setInventorySlot() directly */
     setInventorySlot(slot: number, itemId: number, quantity: number): void {
-        const inv = this.getInventoryEntries();
-        if (slot < 0 || slot >= inv.length) return;
-        const prevId = inv[slot].itemId;
-        const prevQty = inv[slot].quantity;
-
-        const nextId = quantity > 0 ? itemId : -1;
-        const nextQty = nextId > 0 ? quantity : 0;
-
-        if (prevId === nextId && prevQty === nextQty) return;
-
-        inv[slot] = { itemId: nextId, quantity: nextQty };
-        this.items.inventoryDirty = true;
+        this.items.setInventorySlot(slot, itemId, quantity);
     }
 
     setBankSlot(slot: number, itemId: number, quantity: number): void {
@@ -654,8 +641,9 @@ export class PlayerState extends Actor {
         this.appearanceDirty = true;
     }
 
+    /** @deprecated Use player.items.markInventoryDirty() directly */
     markInventoryDirty(): void {
-        this.items.inventoryDirty = true;
+        this.items.markInventoryDirty();
     }
 
     markEquipmentDirty(): void {
@@ -965,15 +953,9 @@ export class PlayerState extends Actor {
 
 
 
+    /** @deprecated Use player.items.clearInventory() directly */
     clearInventory(): void {
-        const inventory = this.getInventoryEntries();
-        for (let slot = 0; slot < inventory.length; slot++) {
-            const entry = inventory[slot];
-            if (entry.itemId <= 0 && entry.quantity === 0) {
-                continue;
-            }
-            this.setInventorySlot(slot, -1, 0);
-        }
+        this.items.clearInventory();
     }
 
 
@@ -994,255 +976,52 @@ export class PlayerState extends Actor {
         return equip[slot] === itemId;
     }
 
-
-
+    /** @deprecated Use player.items.getInventoryEntries() directly */
     getInventoryEntries(): InventoryEntry[] {
-        if (!Array.isArray(this.items.inventory) || this.items.inventory.length !== INVENTORY_SLOT_COUNT) {
-            this.items.inventory = createEmptyInventory();
-        }
-        return this.items.inventory;
+        return this.items.getInventoryEntries();
     }
 
-    // =============== RSMod-style inventory methods ===============
-
-    /**
-     * Set the item definition resolver for automatic stackability lookups.
-     * Should be called once when the player is created/initialized.
-     * Matches RSMod's DefinitionSet pattern.
-     */
+    /** @deprecated Use player.items.setItemDefResolver() directly */
     setItemDefResolver(resolver: ItemDefResolver): void {
-        this.itemDefResolver = resolver;
+        this.items.setItemDefResolver(resolver);
     }
 
-    /**
-     * Get whether an item is stackable using the item definition resolver.
-     */
-    private isItemStackable(itemId: number): boolean {
-        if (!this.itemDefResolver) return false;
-        const def = this.itemDefResolver(itemId);
-        return def?.stackable ?? false;
-    }
-
-    /**
-     * Add an item to the player's inventory.
-     * Matches RSMod's ItemContainer.add() pattern.
-     *
-     * @param itemId The item ID to add
-     * @param amount The quantity to add (default 1)
-     * @param options.assureFullInsertion If true, fails if not all items can be added
-     * @returns Transaction result with requested, completed, and slot info
-     */
+    /** @deprecated Use player.items.addItem() directly */
     addItem(
         itemId: number,
         amount: number = 1,
         options?: { assureFullInsertion?: boolean },
     ): ItemTransaction {
-        const inv = this.getInventoryEntries();
-        const stackable = this.isItemStackable(itemId);
-        const assureFullInsertion = options?.assureFullInsertion ?? true;
-
-        if (amount <= 0) {
-            return { requested: amount, completed: 0, slots: [] };
-        }
-
-        if (stackable) {
-            // Find existing stack
-            const existingSlot = inv.findIndex((e) => e.itemId === itemId && e.quantity > 0);
-            if (existingSlot >= 0) {
-                const currentQty = inv[existingSlot].quantity;
-                // Check for overflow
-                if (currentQty >= MAX_ITEM_STACK_QUANTITY - amount) {
-                    if (assureFullInsertion) {
-                        return { requested: amount, completed: 0, slots: [] };
-                    }
-                    const canAdd = MAX_ITEM_STACK_QUANTITY - currentQty;
-                    if (canAdd <= 0) {
-                        return { requested: amount, completed: 0, slots: [] };
-                    }
-                    this.setInventorySlot(existingSlot, itemId, currentQty + canAdd);
-                    return {
-                        requested: amount,
-                        completed: canAdd,
-                        slots: [{ slot: existingSlot, itemId, quantity: currentQty + canAdd }],
-                    };
-                }
-                this.setInventorySlot(existingSlot, itemId, currentQty + amount);
-                return {
-                    requested: amount,
-                    completed: amount,
-                    slots: [{ slot: existingSlot, itemId, quantity: currentQty + amount }],
-                };
-            }
-
-            // Find empty slot for new stack
-            const emptySlot = inv.findIndex((e) => e.itemId <= 0 || e.quantity <= 0);
-            if (emptySlot === -1) {
-                return { requested: amount, completed: 0, slots: [] };
-            }
-            this.setInventorySlot(emptySlot, itemId, amount);
-            return {
-                requested: amount,
-                completed: amount,
-                slots: [{ slot: emptySlot, itemId, quantity: amount }],
-            };
-        }
-
-        // Non-stackable: add one item per slot
-        const emptySlots: number[] = [];
-        for (let i = 0; i < inv.length && emptySlots.length < amount; i++) {
-            if (inv[i].itemId <= 0 || inv[i].quantity <= 0) {
-                emptySlots.push(i);
-            }
-        }
-
-        if (emptySlots.length === 0) {
-            return { requested: amount, completed: 0, slots: [] };
-        }
-
-        if (assureFullInsertion && emptySlots.length < amount) {
-            return { requested: amount, completed: 0, slots: [] };
-        }
-
-        const slots: Array<{ slot: number; itemId: number; quantity: number }> = [];
-        for (const slot of emptySlots) {
-            this.setInventorySlot(slot, itemId, 1);
-            slots.push({ slot, itemId, quantity: 1 });
-        }
-
-        return { requested: amount, completed: emptySlots.length, slots };
+        return this.items.addItem(itemId, amount, options);
     }
 
-    /**
-     * Remove an item from the player's inventory.
-     * Matches RSMod's ItemContainer.remove() pattern.
-     *
-     * @param itemId The item ID to remove
-     * @param amount The quantity to remove (default 1)
-     * @param options.assureFullRemoval If true, fails if not all items can be removed
-     * @param options.beginSlot Start searching from this slot index
-     * @returns Transaction result with requested, completed, and slot info
-     */
+    /** @deprecated Use player.items.removeItem() directly */
     removeItem(
         itemId: number,
         amount: number = 1,
         options?: { assureFullRemoval?: boolean; beginSlot?: number },
     ): ItemTransaction {
-        const inv = this.getInventoryEntries();
-        const assureFullRemoval = options?.assureFullRemoval ?? false;
-        const beginSlot = options?.beginSlot ?? 0;
-
-        if (amount <= 0) {
-            return { requested: amount, completed: 0, slots: [] };
-        }
-
-        // Count how many we have
-        let hasAmount = 0;
-        for (const entry of inv) {
-            if (entry.itemId === itemId && entry.quantity > 0) {
-                hasAmount += entry.quantity;
-            }
-        }
-
-        if (assureFullRemoval && hasAmount < amount) {
-            return { requested: amount, completed: 0, slots: [] };
-        }
-
-        if (hasAmount === 0) {
-            return { requested: amount, completed: 0, slots: [] };
-        }
-
-        let totalRemoved = 0;
-        const slots: Array<{ slot: number; itemId: number; quantity: number }> = [];
-
-        // First pass: from beginSlot to end
-        for (let i = beginSlot; i < inv.length && totalRemoved < amount; i++) {
-            const entry = inv[i];
-            if (entry.itemId !== itemId || entry.quantity <= 0) continue;
-
-            const removeCount = Math.min(entry.quantity, amount - totalRemoved);
-            totalRemoved += removeCount;
-
-            const newQty = entry.quantity - removeCount;
-            if (newQty <= 0) {
-                this.setInventorySlot(i, -1, 0);
-                slots.push({ slot: i, itemId, quantity: removeCount });
-            } else {
-                this.setInventorySlot(i, itemId, newQty);
-                slots.push({ slot: i, itemId, quantity: removeCount });
-            }
-        }
-
-        // Second pass: from 0 to beginSlot if we haven't removed enough
-        if (totalRemoved < amount && beginSlot > 0) {
-            for (let i = 0; i < beginSlot && totalRemoved < amount; i++) {
-                const entry = inv[i];
-                if (entry.itemId !== itemId || entry.quantity <= 0) continue;
-
-                const removeCount = Math.min(entry.quantity, amount - totalRemoved);
-                totalRemoved += removeCount;
-
-                const newQty = entry.quantity - removeCount;
-                if (newQty <= 0) {
-                    this.setInventorySlot(i, -1, 0);
-                    slots.push({ slot: i, itemId, quantity: removeCount });
-                } else {
-                    this.setInventorySlot(i, itemId, newQty);
-                    slots.push({ slot: i, itemId, quantity: removeCount });
-                }
-            }
-        }
-
-        return { requested: amount, completed: totalRemoved, slots };
+        return this.items.removeItem(itemId, amount, options);
     }
 
-    /**
-     * Check if the player has at least `amount` of an item in inventory.
-     */
+    /** @deprecated Use player.items.hasItem() directly */
     hasItem(itemId: number, amount: number = 1): boolean {
-        const inv = this.getInventoryEntries();
-        let count = 0;
-        for (const entry of inv) {
-            if (entry.itemId === itemId && entry.quantity > 0) {
-                count += entry.quantity;
-                if (count >= amount) return true;
-            }
-        }
-        return false;
+        return this.items.hasItem(itemId, amount);
     }
 
-    /**
-     * Get total count of an item in inventory.
-     */
+    /** @deprecated Use player.items.getItemCount() directly */
     getItemCount(itemId: number): number {
-        const inv = this.getInventoryEntries();
-        let count = 0;
-        for (const entry of inv) {
-            if (entry.itemId === itemId && entry.quantity > 0) {
-                count += entry.quantity;
-            }
-        }
-        return count;
+        return this.items.getItemCount(itemId);
     }
 
-    /**
-     * Get the number of free inventory slots.
-     */
+    /** @deprecated Use player.items.getFreeSlotCount() directly */
     getFreeSlotCount(): number {
-        const inv = this.getInventoryEntries();
-        let count = 0;
-        for (const entry of inv) {
-            if (entry.itemId <= 0 || entry.quantity <= 0) {
-                count++;
-            }
-        }
-        return count;
+        return this.items.getFreeSlotCount();
     }
 
-    /**
-     * Check if inventory is full.
-     */
+    /** @deprecated Use player.items.isInventoryFull() directly */
     isInventoryFull(): boolean {
-        return this.getFreeSlotCount() === 0;
+        return this.items.isInventoryFull();
     }
 
     loadInventorySnapshot(entries?: Iterable<InventorySnapshotEntry>): void {

@@ -142,7 +142,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             deps.inventoryService.findInventorySlotWithItem(player, itemId),
         canStoreItem: (player, itemId) => deps.inventoryService.canStoreItem(player, itemId),
         playerHasItem: (player, itemId) => deps.inventoryService.playerHasItem(player, itemId),
-        hasInventorySlot: (player) => player.getFreeSlotCount() > 0,
+        hasInventorySlot: (player) => player.items.getFreeSlotCount() > 0,
         collectCarriedItemIds: (player) => deps.inventoryService.collectCarriedItemIds(player),
 
         // --- EquipmentServices ---

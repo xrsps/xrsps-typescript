@@ -111,6 +111,66 @@ export class PlayerCombatState {
         this.freezeExpiryTick = expires;
         return expires;
     }
+
+    // ========================================================================
+    // Combat target / interaction accessors
+    // ========================================================================
+
+    getCombatTarget(): NpcState | PlayerCombatTargetRef | null {
+        return this.combatTargetFocus?.deref() ?? null;
+    }
+
+    setCombatTarget(target: NpcState | PlayerCombatTargetRef | null): void {
+        this.combatTargetFocus = target ? new WeakRef(target) : null;
+    }
+
+    removeCombatTarget(): void {
+        this.combatTargetFocus = null;
+    }
+
+    resetCombat(): void {
+        this.combatTargetFocus = null;
+    }
+
+    isAttacking(): boolean {
+        return this.combatTargetFocus?.deref() != null;
+    }
+
+    isAttackDelayReady(): boolean {
+        return this.attackDelayTicks <= 0;
+    }
+
+    getInteractingNpc(): NpcState | null {
+        return this.interactingNpc?.deref() ?? null;
+    }
+
+    setInteractingNpc(npc: NpcState | null): void {
+        this.interactingNpc = npc ? new WeakRef(npc) : null;
+    }
+
+    getInteractingPlayer(): PlayerCombatTargetRef | null {
+        return this.interactingPlayer?.deref() ?? null;
+    }
+
+    setInteractingPlayer(player: PlayerCombatTargetRef | null): void {
+        this.interactingPlayer = player ? new WeakRef(player) : null;
+    }
+
+    getLastHitBy(): NpcState | PlayerCombatTargetRef | null {
+        return this.lastHitBy?.deref() ?? null;
+    }
+
+    setLastHitBy(pawn: NpcState | PlayerCombatTargetRef | null): void {
+        this.lastHitBy = pawn ? new WeakRef(pawn) : null;
+    }
+
+    getLastHit(): NpcState | PlayerCombatTargetRef | null {
+        return this.lastHit?.deref() ?? null;
+    }
+
+    setLastHit(pawn: NpcState | PlayerCombatTargetRef | null): void {
+        this.lastHit = pawn ? new WeakRef(pawn) : null;
+    }
 }
 
 /**

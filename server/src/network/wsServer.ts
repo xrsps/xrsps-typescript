@@ -1238,18 +1238,18 @@ export class WSServer {
 
             const setupCasterBot = (p: PlayerState, target: PlayerState) => {
                 if (!p) return;
-                p.setItemDefResolver((id: number) => getItemDefinition(id));
+                p.items.setItemDefResolver((id: number) => getItemDefinition(id));
                 this.appearanceService.refreshAppearanceKits(p);
                 applyAutocastState(p, 3273, 1, false); // Wind Strike
                 p.botInteraction = { kind: "playerCombat", playerId: target.id };
                 // Give runes for Wind Strike (Air + Mind)
-                p.addItem(556, 10000, { assureFullInsertion: true }); // Air rune
-                p.addItem(558, 10000, { assureFullInsertion: true }); // Mind rune
+                p.items.addItem(556, 10000, { assureFullInsertion: true }); // Air rune
+                p.items.addItem(558, 10000, { assureFullInsertion: true }); // Mind rune
             };
 
             const setupPassiveBot = (p: PlayerState) => {
                 if (!p) return;
-                p.setItemDefResolver((id: number) => getItemDefinition(id));
+                p.items.setItemDefResolver((id: number) => getItemDefinition(id));
                 this.appearanceService.refreshAppearanceKits(p);
                 clearAutocastState(p);
                 p.botInteraction = undefined;

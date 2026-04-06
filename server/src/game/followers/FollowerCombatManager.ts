@@ -115,7 +115,7 @@ export class FollowerCombatManager {
         follower: ActiveFollowerSnapshot,
         currentTick: number,
     ): NpcState | undefined {
-        const target = player.getCombatTarget();
+        const target = player.combat.getCombatTarget();
         if (!(target instanceof NpcState)) {
             return undefined;
         }
