@@ -6,9 +6,6 @@ import {
     SKILL_IDS,
     SkillId,
 } from "../../../src/rs/skill/skills";
-import {
-    VARBIT_XPDROPS_ENABLED,
-} from "../../../src/shared/vars";
 import { logger } from "../utils/logger";
 import { DisplayMode, PlayerWidgetManager } from "../widgets/WidgetManager";
 import { Actor, RUN_ENERGY_MAX, Tile } from "./actor";
@@ -242,8 +239,6 @@ export interface PlayerPersistentVars {
 }
 
 export class PlayerState extends Actor {
-    static gamemodeRef: GamemodeDefinition | undefined;
-
     [key: symbol]: unknown;
 
     readonly gamemodeState: Map<string, unknown> = new Map();
@@ -291,7 +286,7 @@ export class PlayerState extends Actor {
     /** Composed run energy & stamina state */
     readonly energy = new PlayerRunEnergyState(
         this as unknown as RunEnergyOwner,
-        () => PlayerState.gamemodeRef?.hasInfiniteRunEnergy(this) ?? false,
+        () => this.gamemode.hasInfiniteRunEnergy(this),
     );
     /** Composed aggression tolerance tracker */
     readonly aggression = new PlayerAggressionTracker();
@@ -568,7 +563,7 @@ export class PlayerState extends Actor {
     /** Pending face direction (consumed by interaction system) */
     _pendingFace?: { x: number; y: number };
 
-    constructor(id: number, spawnTileX: number, spawnTileY: number, level: number = 0) {
+    constructor(id: number, spawnTileX: number, spawnTileY: number, level: number = 0, public readonly gamemode: GamemodeDefinition) {
         super(id, spawnTileX, spawnTileY, level);
         // Random per-session priority similar to OSRS PID randomness.
         this.pidPriority = Math.random() * 0x7fffffff;
@@ -579,8 +574,8 @@ export class PlayerState extends Actor {
             this.status,
             (name) => this.prayer.hasPrayerActive(name as PrayerName),
             (h, s, l, o, d) => this.setColorOverride(h, s, l, o, d),
-            PlayerState.gamemodeRef?.getDefaultSkillXp
-                ? (id) => PlayerState.gamemodeRef!.getDefaultSkillXp!(id)
+            this.gamemode.getDefaultSkillXp
+                ? (id) => this.gamemode.getDefaultSkillXp!(id)
                 : undefined,
         );
         this.skillSystem.requestFullSkillSync();
@@ -606,11 +601,7 @@ export class PlayerState extends Actor {
         this.account.accountStage = 1;
 
         // Delegate gamemode-specific player initialization
-        PlayerState.gamemodeRef?.initializePlayer(this);
-        // XP drops are enabled by default until the player explicitly hides them.
-        if (!this.varps.hasVarbitValue(VARBIT_XPDROPS_ENABLED)) {
-            this.varps.setVarbitValue(VARBIT_XPDROPS_ENABLED, 1);
-        }
+        this.gamemode.initializePlayer(this);
         // Task count is server-authoritative; default is 0 for new accounts.
         // Initialize task queue (RSMod: Pawn.queue)
         this.taskQueue = new QueueTaskSet<PlayerState>(this);
@@ -728,7 +719,7 @@ export class PlayerState extends Actor {
 
 
     private canInteractWithWorld(): boolean {
-        return PlayerState.gamemodeRef?.canInteract(this) ?? true;
+        return this.gamemode.canInteract(this);
     }
 
     /**
@@ -1334,7 +1325,7 @@ export class PlayerState extends Actor {
         const varpData = this.varps.serialize();
         if (varpData.varps) snapshot.varps = varpData.varps;
         if (varpData.varbits) snapshot.varbits = varpData.varbits;
-        const gamemodeData = PlayerState.gamemodeRef?.serializePlayerState(this);
+        const gamemodeData = this.gamemode.serializePlayerState(this);
         if (gamemodeData && Object.keys(gamemodeData).length > 0) {
             snapshot.gamemodeData = gamemodeData;
         }
@@ -1452,7 +1443,7 @@ export class PlayerState extends Actor {
         }
         this.varps.deserialize({ varps: state.varps, varbits: state.varbits });
         if (state.gamemodeData && Object.keys(state.gamemodeData).length > 0) {
-            PlayerState.gamemodeRef?.deserializePlayerState(
+            this.gamemode.deserializePlayerState(
                 this,
                 state.gamemodeData as Record<string, unknown>,
             );

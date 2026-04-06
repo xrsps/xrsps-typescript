@@ -75,6 +75,8 @@ export type DropContext = {
     recipients: DropRecipient[];
     worldViewId?: number;
     transformItemId?: (npcTypeId: number, itemId: number, recipient: DropRecipient) => number;
+    /** Gamemode-provided drop table override (bypasses NpcDropRegistry). */
+    tableOverride?: NpcDropTableDefinition;
 };
 
 export type DropRollResult = PendingNpcDrop[];

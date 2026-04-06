@@ -1,4 +1,5 @@
 import type { PendingNpcDrop } from "../npcManager";
+import { resolveDropTable } from "./helpers";
 import { NpcDropRegistry } from "./NpcDropRegistry";
 import type {
     DropConditionDefinition,
@@ -139,7 +140,8 @@ export class DropRollService {
     constructor(private readonly registry: NpcDropRegistry) {}
 
     roll(context: DropContext): PendingNpcDrop[] {
-        const table = this.registry.get(context.npcTypeId);
+        const table = (context.tableOverride ? resolveDropTable(context.tableOverride) : undefined)
+            ?? this.registry.get(context.npcTypeId);
         if (!table) return [];
         const out: PendingNpcDrop[] = [];
         const recipients =

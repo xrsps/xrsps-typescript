@@ -14,8 +14,32 @@ import {
     type PlayerSkillPersistentEntry,
     PlayerState,
 } from "../src/game/player";
+import type { GamemodeDefinition } from "../src/game/gamemodes/GamemodeDefinition";
 import { DEFAULT_BANK_CAPACITY } from "../src/game/state/PlayerBankSystem";
 import { PlayerPersistence } from "../src/game/state/PlayerPersistence";
+
+const STUB_GAMEMODE = {
+    id: "stress-test",
+    name: "Stress Test",
+    getSkillXpMultiplier: () => 1,
+    getDropRateMultiplier: () => 1,
+    isDropBoostEligible: () => false,
+    transformDropItemId: (_n: number, id: number) => id,
+    hasInfiniteRunEnergy: () => false,
+    canInteract: () => true,
+    initializePlayer: () => {},
+    serializePlayerState: () => undefined,
+    deserializePlayerState: () => {},
+    onNpcKill: () => {},
+    isTutorialActive: () => false,
+    getSpawnLocation: () => ({ x: 3222, y: 3218, level: 0 }),
+    onPlayerHandshake: () => {},
+    onPlayerLogin: () => {},
+    getDisplayName: (_p: unknown, name: string) => name,
+    getChatPlayerType: () => 0,
+    registerHandlers: () => {},
+    initialize: () => {},
+} as unknown as GamemodeDefinition;
 
 const DEFAULT_OPTIONS = {
     players: 64,
@@ -190,7 +214,7 @@ function createPlayers(count: number, rng: Prng): PlayerHandle[] {
         const spawnX = 3200 + rng.nextInt(512);
         const spawnY = 3200 + rng.nextInt(512);
         const level = rng.nextInt(4);
-        const player = new PlayerState(i + 1, spawnX, spawnY, level);
+        const player = new PlayerState(i + 1, spawnX, spawnY, level, STUB_GAMEMODE);
         const seed = rng.nextUInt32() || (i + 1) * 97;
         players.push({
             key: `player-${(i + 1).toString().padStart(4, "0")}`,

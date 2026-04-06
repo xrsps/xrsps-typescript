@@ -55,7 +55,7 @@ export interface DropEligibility {
 export type LootDistribution = "highest-damage" | "most-valuable-player" | "shared" | "ffa";
 
 // Configuration for specific NPCs
-interface NpcLootConfig {
+export interface NpcLootConfig {
     distribution: LootDistribution;
     // Minimum damage % to be eligible for shared loot
     sharedLootThreshold?: number;
@@ -96,6 +96,9 @@ export class DamageTracker {
 
     // Timeout for damage records (5 minutes = 500 ticks)
     private static readonly DAMAGE_RECORD_TIMEOUT = 500;
+
+    /** Optional gamemode-provided resolver for per-NPC loot distribution config. */
+    lootConfigResolver?: (npcTypeId: number) => NpcLootConfig | undefined;
 
     /**
      * Record damage dealt to an NPC
@@ -167,8 +170,10 @@ export class DamageTracker {
         const summaries = this.getDamageSummary(npc);
         const totalDamage = summaries.reduce((sum, s) => sum + s.totalDamage, 0);
 
-        // Get NPC-specific loot configuration
-        const config = NPC_LOOT_CONFIGS.get(npc.typeId) || { distribution: "highest-damage" };
+        // Get NPC-specific loot configuration (gamemode resolver takes priority)
+        const config = this.lootConfigResolver?.(npc.typeId)
+            ?? NPC_LOOT_CONFIGS.get(npc.typeId)
+            ?? { distribution: "highest-damage" as const };
 
         const eligibleLooters: Player[] = [];
         let primaryLooter: Player | null = null;

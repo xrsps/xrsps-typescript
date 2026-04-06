@@ -622,6 +622,7 @@ export class CombatEffectService {
             worldViewId: npc.worldViewId,
             transformItemId: (npcTypeId: number, itemId: number, recipient: { player?: PlayerState }) =>
                 gamemode.transformDropItemId(npcTypeId, itemId, recipient.player),
+            tableOverride: gamemode.getDropTable?.(npc.typeId),
         });
     }
 }

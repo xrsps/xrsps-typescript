@@ -72,13 +72,15 @@ export class SkillService {
     awardSkillXp(player: PlayerState, skillId: SkillId, xp: number): void {
         if (!(xp > 0)) return;
         try {
-            const multiplier = this.deps.gamemode.getSkillXpMultiplier(player);
+            const gamemode = this.deps.gamemode;
             const skill = player.skillSystem.getSkill(skillId);
             const prev = skill.xp;
             const oldLevel = skill.baseLevel;
             const oldCombatLevel = player.skillSystem.combatLevel;
             const baseDelta = Number.isFinite(xp) ? xp : 0;
-            const delta = baseDelta * multiplier;
+            const delta = gamemode.getSkillXpAward
+                ? gamemode.getSkillXpAward(player, skillId, baseDelta, { source: "skill" })
+                : baseDelta * gamemode.getSkillXpMultiplier(player);
             if (!(delta > 0)) return;
             player.skillSystem.setSkillXp(skillId, prev + delta);
             const newLevel = player.skillSystem.getSkill(skillId).baseLevel;
@@ -138,12 +140,14 @@ export class SkillService {
 
         let xpChanged = false;
         const oldCombatLevel = player.skillSystem.combatLevel;
-        const multiplier = this.deps.gamemode.getSkillXpMultiplier(player);
+        const gamemode = this.deps.gamemode;
         const MAX_XP = 200_000_000;
         for (const award of awards) {
             const skill = player.skillSystem.getSkill(award.skillId);
             const currentXp = skill?.xp ?? 0;
-            const scaledXp = award.xp * multiplier;
+            const scaledXp = gamemode.getSkillXpAward
+                ? gamemode.getSkillXpAward(player, award.skillId, award.xp, { source: "combat", spellId: spellId })
+                : award.xp * gamemode.getSkillXpMultiplier(player);
             const newXp = Math.min(MAX_XP, currentXp + scaledXp);
 
             if (newXp > currentXp) {

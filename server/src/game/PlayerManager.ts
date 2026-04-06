@@ -11,6 +11,7 @@ import {
     PlayerInteractionState,
 } from "./interactions/types";
 import { NpcState } from "./npc";
+import type { GamemodeDefinition } from "./gamemodes/GamemodeDefinition";
 import { PlayerState } from "./player";
 import type { ScriptRuntime } from "./scripts/ScriptRuntime";
 import { normalizePlayerAccountName } from "./state/PlayerSessionKeys";
@@ -61,6 +62,7 @@ export class PlayerManager implements PlayerRepository {
     private readonly interactionSystem: PlayerInteractionSystem;
 
     constructor(
+        private readonly gamemode: GamemodeDefinition,
         pathService: PathService,
         locTypeLoader?: LocTypeLoader,
         doorManager?: DoorStateManager,
@@ -169,7 +171,7 @@ export class PlayerManager implements PlayerRepository {
             );
             return undefined;
         }
-        const p = new PlayerState(id, spawnX, spawnY, level);
+        const p = new PlayerState(id, spawnX, spawnY, level, this.gamemode);
         this.players.set(ws, p);
         this.usedIds.add(id);
 
@@ -189,7 +191,7 @@ export class PlayerManager implements PlayerRepository {
             );
             return undefined;
         }
-        const p = new PlayerState(id, spawnX, spawnY, level);
+        const p = new PlayerState(id, spawnX, spawnY, level, this.gamemode);
         // Assign a default Rune equipment appearance for bots so clients can
         // render a distinct look without guessing.
         // OSRS classic item ids used here; clients can ignore unknown slots.

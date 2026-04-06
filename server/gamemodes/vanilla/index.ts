@@ -37,6 +37,10 @@ import { registerSettingsWidgetHandlers } from "./widgets/settingsWidgets";
 import { registerQuestJournalWidgetHandlers } from "./widgets/questJournalWidgets";
 import { registerAccountSummaryWidgetHandlers } from "./widgets/accountSummaryWidgets";
 import { registerCollectionLogWidgetHandlers } from "./widgets/collectionLogWidgets";
+import type { NpcLootConfig } from "../../src/game/combat/DamageTracker";
+import { DEFAULT_LOGIN_VARBITS } from "./data/loginVarbits";
+import { DEFAULT_LOGIN_VARPS } from "./data/loginVarps";
+import { NPC_LOOT_CONFIGS } from "./data/lootDistribution";
 
 const DEFAULT_SPAWN = { x: 3222, y: 3218, level: 0 };
 
@@ -65,12 +69,24 @@ export class VanillaGamemode implements GamemodeDefinition {
         return itemId;
     }
 
+    getLootDistributionConfig(npcTypeId: number): NpcLootConfig | undefined {
+        return NPC_LOOT_CONFIGS.get(npcTypeId);
+    }
+
     hasInfiniteRunEnergy(_player: PlayerState): boolean {
         return false;
     }
 
     canInteract(_player: PlayerState): boolean {
         return true;
+    }
+
+    getLoginVarbits(_player: PlayerState): Array<[number, number]> {
+        return DEFAULT_LOGIN_VARBITS;
+    }
+
+    getLoginVarps(_player: PlayerState): Array<[number, number]> {
+        return DEFAULT_LOGIN_VARPS;
     }
 
     initializePlayer(_player: PlayerState): void {}

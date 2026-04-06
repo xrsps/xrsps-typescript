@@ -206,24 +206,14 @@ export class VarpSyncService {
             );
         }
 
-        const DEFAULT_SOUND_VOLUME = 75;
-        const volumeVarps = [
-            VARP_MUSIC_VOLUME,
-            VARP_SOUND_EFFECTS_VOLUME,
-            VARP_AREA_SOUNDS_VOLUME,
-            VARP_MASTER_VOLUME,
-        ];
-        for (const varpId of volumeVarps) {
-            if (!player.varps.hasVarpValue(varpId)) {
-                player.varps.setVarpValue(varpId, DEFAULT_SOUND_VOLUME);
+        // Apply gamemode login varp defaults (volume, music track, etc.)
+        const loginVarps = player.gamemode.getLoginVarps?.(player);
+        if (loginVarps) {
+            for (const [varpId, value] of loginVarps) {
+                if (!player.varps.hasVarpValue(varpId)) {
+                    player.varps.setVarpValue(varpId, value);
+                }
             }
-        }
-
-        if (
-            !player.varps.hasVarpValue(VARP_MUSIC_CURRENT_TRACK) ||
-            player.varps.getVarpValue(VARP_MUSIC_CURRENT_TRACK) === 0
-        ) {
-            player.varps.setVarpValue(VARP_MUSIC_CURRENT_TRACK, -1);
         }
         const soundVarps = [
             VARP_MUSIC_VOLUME,

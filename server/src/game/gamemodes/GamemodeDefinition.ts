@@ -113,6 +113,12 @@ export interface HandshakeBridge {
     queueNotification(playerId: number, notification: unknown): void;
 }
 
+export interface XpAwardContext {
+    source: "skill" | "combat" | "quest" | "other";
+    actionId?: string;
+    spellId?: number;
+}
+
 export interface GamemodeDefinition {
     readonly id: string;
     readonly name: string;
@@ -120,11 +126,19 @@ export interface GamemodeDefinition {
     // === XP ===
     getDefaultSkillXp?(skillId: number): number | undefined;
     getSkillXpMultiplier(player: PlayerState): number;
+    /** Fine-grained XP adjustment. If defined, returns the final XP to award (not a multiplier). */
+    getSkillXpAward?(player: PlayerState, skillId: number, baseXp: number, context?: XpAwardContext): number;
 
     // === Drops ===
     getDropRateMultiplier(player: PlayerState | undefined): number;
     isDropBoostEligible(entry: { dropBoostEligible?: boolean }): boolean;
     transformDropItemId(npcTypeId: number, itemId: number, player: PlayerState | undefined): number;
+    /** Override or provide a custom drop table for an NPC type. */
+    getDropTable?(npcTypeId: number): import("../drops/types").NpcDropTableDefinition | undefined;
+    /** Provide additional drops beyond the base table. */
+    getSupplementalDrops?(npcTypeId: number, player: PlayerState): import("../drops/types").NpcDropEntryDefinition[];
+    /** Provide per-NPC loot distribution config (highest-damage, shared, etc.). */
+    getLootDistributionConfig?(npcTypeId: number): import("../combat/DamageTracker").NpcLootConfig | undefined;
 
     // === Player Rules ===
     hasInfiniteRunEnergy(player: PlayerState): boolean;
@@ -138,6 +152,10 @@ export interface GamemodeDefinition {
     onNpcKill(playerId: number, npcTypeId: number): void;
 
     // === Login / Handshake ===
+    /** Varbit defaults applied during login (diary unlocks, xp drops, etc.). */
+    getLoginVarbits?(player: PlayerState): Array<[varbitId: number, value: number]>;
+    /** Varp defaults applied during login (volume, music track, etc.). */
+    getLoginVarps?(player: PlayerState): Array<[varpId: number, value: number]>;
     isTutorialActive(player: PlayerState): boolean;
     isTutorialPreStart?(player: PlayerState): boolean;
     getSpawnLocation(player: PlayerState): { x: number; y: number; level: number };

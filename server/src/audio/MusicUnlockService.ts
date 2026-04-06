@@ -105,13 +105,7 @@ export class MusicUnlockService {
      * Set the default unlock message preference for a new player.
      * Should be called during player initialization.
      */
-    initializeDefaults(player: PlayerState): void {
-        // Set the unlock message toggle to 1 (enabled) by default
-        // Only set if the varbit hasn't been explicitly set before
-        const currentValue = player.varps.getVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE);
-        if (currentValue === 0) {
-            player.varps.setVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE, 1);
-        }
+    initializeDefaults(_player: PlayerState): void {
     }
 
     /**

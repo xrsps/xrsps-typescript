@@ -644,6 +644,7 @@ export class WSServer {
         bootstrapScripts(this.scriptRuntime, this.gamemode);
         if (opts.pathService) {
             this.players = new PlayerManager(
+                this.gamemode,
                 opts.pathService,
                 this.locTypeLoader,
                 this.doorManager,

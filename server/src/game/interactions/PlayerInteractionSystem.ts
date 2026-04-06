@@ -439,8 +439,7 @@ export class PlayerInteractionSystem {
         // Block interactions during tutorial (gamemode can override per NPC)
         if (!me.canInteract()) {
             const normalizedOption = String(option ?? "").trim().toLowerCase();
-            const { PlayerState } = require("../player");
-            const allowed = PlayerState.gamemodeRef?.canInteractWithNpc?.(
+            const allowed = me.gamemode.canInteractWithNpc?.(
                 me, npc.typeId, normalizedOption,
             ) ?? false;
             if (!allowed) {
