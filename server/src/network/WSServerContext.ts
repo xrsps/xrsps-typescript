@@ -41,7 +41,7 @@ import type { PlayerManager, PlayerState } from "../game/player";
 import type { PrayerSystem } from "../game/prayer/PrayerSystem";
 import type { ScriptRegistry } from "../game/scripts";
 import type { ScriptRuntime } from "../game/scripts";
-import type { PlayerPersistence } from "../game/state/PlayerPersistence";
+import type { PersistenceProvider } from "../game/state/PersistenceProvider";
 import type { PlayerAnimSet, BroadcastScheduler } from "../game/systems";
 import type { EquipmentHandler } from "../game/systems";
 import type {
@@ -197,7 +197,7 @@ export interface WSServerContext {
 
     // ── State collections ─────────────────────────────────────────────────
     doorManager?: DoorStateManager;
-    readonly playerPersistence: PlayerPersistence;
+    readonly playerPersistence: PersistenceProvider;
     readonly pendingNpcPackets: Map<
         number,
         { snapshots: NpcViewSnapshot[]; updates: NpcUpdatePayload[]; despawns: number[] }

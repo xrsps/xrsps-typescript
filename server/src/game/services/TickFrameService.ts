@@ -5,7 +5,7 @@ import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import type { ProjectileSystem } from "../systems/ProjectileSystem";
 import type { TickPhaseOrchestrator } from "../tick/TickPhaseOrchestrator";
 import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { PlayerPersistence } from "../state/PlayerPersistence";
+import type { PersistenceProvider } from "../state/PersistenceProvider";
 import type { PlayerManager, PlayerState } from "../player";
 import type { NpcUpdateDelta } from "../npc";
 import { buildPlayerSaveKey } from "../state/PlayerSessionKeys";
@@ -19,7 +19,7 @@ export interface TickFrameServiceDeps {
     getProjectileSystem: () => ProjectileSystem | undefined;
     getTickOrchestrator: () => TickPhaseOrchestrator;
     getNetworkLayer: () => PlayerNetworkLayer;
-    getPlayerPersistence: () => PlayerPersistence;
+    getPlayerPersistence: () => PersistenceProvider;
     getPlayers: () => PlayerManager | undefined;
     getTickMs: () => number;
     currentTick: () => number;

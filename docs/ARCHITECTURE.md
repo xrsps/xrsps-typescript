@@ -74,6 +74,46 @@ All player actions flow through the **ActionScheduler**:
 5. Type-specific handlers process it (`CombatActionHandler`, `SkillActionHandler`, etc.)
 6. `EffectDispatcher` applies results (animations, XP drops, loot)
 
+## Persistence
+
+Player state is stored through a **`PersistenceProvider`** interface (`server/src/game/state/PersistenceProvider.ts`). This decouples storage from game logic — the server doesn't care whether data lives in a JSON file, SQLite, or Postgres.
+
+The default implementation is `PlayerPersistence` — a JSON flat file provider that stores all players in a single `player-state.json` per gamemode under `server/data/gamemodes/{id}/`.
+
+### Save triggers
+
+- **Login/logout** — saved immediately via `saveSnapshot()`
+- **Autosave** — bulk save every 120 seconds via `savePlayers()`
+- **Orphan expiration** — saved when a disconnected-in-combat player is removed
+
+### What gets persisted
+
+The `PlayerStateSerializer` (`server/src/game/state/PlayerStateSerializer.ts`) handles export/import of:
+- Skills, hitpoints, location, orientation
+- Inventory, equipment, bank (capacity, tabs, modes)
+- Varps/varbits, combat settings, prayer, autocast state
+- Equipment charges, degradation charges, collection log
+- Gamemode-specific state (via `gamemode.serializePlayerState()`)
+
+### Custom backends
+
+To implement a custom backend, create a class that implements `PersistenceProvider`:
+
+```typescript
+import type { PersistenceProvider } from "./game/state/PersistenceProvider";
+
+class SqlitePersistenceProvider implements PersistenceProvider {
+    applyToPlayer(player, key) { /* load from db */ }
+    hasKey(key) { /* check if exists */ }
+    saveSnapshot(key, player) { /* write to db */ }
+    savePlayers(entries) { /* bulk write */ }
+}
+```
+
+Then swap it in at `server/src/network/wsServer.ts` where `PlayerPersistence` is constructed. No other code changes needed.
+
+For backends that need setup/teardown (database connections), implement `ManagedPersistenceProvider` which adds optional `initialize()` and `dispose()` hooks.
+
 ## Content Systems
 
 All gameplay content (skills, combat, shops, UI, etc.) is registered through the **script system** via `ScriptRegistry`. Content is organized into [Gamemodes](/gamemodes) (server identity and rules) and [Extrascripts](/extrascripts) (universal modules).

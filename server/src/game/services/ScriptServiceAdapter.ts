@@ -30,7 +30,7 @@ import type { FollowerManager } from "../followers/FollowerManager";
 import type { FollowerCombatManager } from "../followers/FollowerCombatManager";
 import type { SailingInstanceManager } from "../sailing/SailingInstanceManager";
 import type { WorldEntityInfoEncoder } from "../../network/encoding/WorldEntityInfoEncoder";
-import type { PlayerPersistence } from "../state/PlayerPersistence";
+import type { PersistenceProvider } from "../state/PersistenceProvider";
 import type { MusicCatalogService } from "../../audio/MusicCatalogService";
 import type { InventoryActionHandler } from "../actions/handlers/InventoryActionHandler";
 import type { EffectDispatcher } from "../actions/handlers/EffectDispatcher";
@@ -72,7 +72,7 @@ export interface ScriptServiceAdapterDeps {
     followerCombatManager: FollowerCombatManager;
     sailingInstanceManager: SailingInstanceManager;
     worldEntityInfoEncoder: WorldEntityInfoEncoder;
-    playerPersistence: PlayerPersistence;
+    playerPersistence: PersistenceProvider;
     musicCatalogService: MusicCatalogService | undefined;
     inventoryActionHandler: InventoryActionHandler;
     effectDispatcher: EffectDispatcher;

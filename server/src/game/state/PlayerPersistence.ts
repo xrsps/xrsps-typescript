@@ -474,13 +474,21 @@ function mergeStates(
     return result;
 }
 
+import type { PersistenceProvider } from "./PersistenceProvider";
+
+export type { PersistenceProvider };
+
 export interface PlayerPersistenceOptions {
     dataDir?: string;
     storePath?: string;
     defaultsPath?: string;
 }
 
-export class PlayerPersistence {
+/**
+ * Default JSON file-based persistence provider.
+ * Stores all player data in a single aggregate JSON file per gamemode.
+ */
+export class PlayerPersistence implements PersistenceProvider {
     private readonly store = new Map<string, PlayerPersistentVars>();
     private readonly defaults: PlayerPersistentVars | undefined;
     private readonly storePath: string;

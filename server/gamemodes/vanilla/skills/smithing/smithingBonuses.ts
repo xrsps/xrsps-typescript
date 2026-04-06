@@ -48,14 +48,14 @@ export function getSmeltingXpWithBonuses(recipe: SmeltingRecipe, equip: EquipArr
 }
 
 export function consumeRingOfForgingCharge(player: PlayerState, services: ScriptServices): void {
-    if (!player.hasEquippedItem(EquipmentSlot.RING, RING_OF_FORGING_ITEM_ID)) return;
-    let charges = player.getEquipmentCharges(RING_OF_FORGING_ITEM_ID);
+    if (!player.equipment.hasEquippedItem(player.appearance, EquipmentSlot.RING, RING_OF_FORGING_ITEM_ID)) return;
+    let charges = player.equipment.getCharges(RING_OF_FORGING_ITEM_ID);
     if (charges <= 0) {
-        player.setEquipmentCharges(RING_OF_FORGING_ITEM_ID, RING_OF_FORGING_MAX_CHARGES);
+        player.equipment.setCharges(RING_OF_FORGING_ITEM_ID, RING_OF_FORGING_MAX_CHARGES);
         charges = RING_OF_FORGING_MAX_CHARGES;
     }
     charges -= 1;
-    player.setEquipmentCharges(RING_OF_FORGING_ITEM_ID, charges);
+    player.equipment.setCharges(RING_OF_FORGING_ITEM_ID, charges);
     if (charges === 0) {
         services.unequipItem?.(player, EquipmentSlot.RING);
         services.sendGameMessage(player, "Your Ring of Forging has melted.");
@@ -74,6 +74,6 @@ export function consumeRingOfForgingCharge(player: PlayerState, services: Script
 }
 
 export function getRingOfForgingCharges(player: PlayerState): number {
-    return player.getEquipmentCharges(RING_OF_FORGING_ITEM_ID);
+    return player.equipment.getCharges(RING_OF_FORGING_ITEM_ID);
 }
 
