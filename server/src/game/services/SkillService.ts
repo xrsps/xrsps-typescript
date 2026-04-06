@@ -1,5 +1,6 @@
 import type { WebSocket } from "ws";
 
+import { logger } from "../../utils/logger";
 import type { SkillId } from "../../../../src/rs/skill/skills";
 import { getSpellBaseXp } from "../combat/SpellXpData";
 import {
@@ -12,7 +13,7 @@ import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
 import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import type { PlayerState, SkillSyncUpdate } from "../player";
-import type { ActionEffect } from "../actions";
+import type { ActionEffect, ActionExecutionResult } from "../actions";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
 
 export interface LevelUpPopup {
@@ -101,7 +102,7 @@ export class SkillService {
             if (update) {
                 this.queueSkillSnapshot(player.id, update);
             }
-        } catch {}
+        } catch (err) { logger.warn("[skill] failed to award xp and sync", err); }
     }
 
     awardCombatXp(
@@ -179,5 +180,25 @@ export class SkillService {
                 this.queueSkillSnapshot(player.id, sync);
             }
         }
+    }
+
+    buildSkillMessageEffect(player: PlayerState, message: string): ActionEffect {
+        return {
+            type: "message",
+            playerId: player.id,
+            message,
+        };
+    }
+
+    buildSkillFailure(
+        player: PlayerState,
+        message: string,
+        reason: string,
+    ): ActionExecutionResult {
+        return {
+            ok: false,
+            reason,
+            effects: [this.buildSkillMessageEffect(player, message)],
+        };
     }
 }

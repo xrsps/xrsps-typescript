@@ -1486,7 +1486,7 @@ try {
             SPELL_DATA_MAP.set(id, next);
         }
     }
-} catch {}
+} catch (err) { console.log("[spells] failed to load spell data from cache", err); }
 
 // =============================================================================
 // POWERED STAFF SPELL DATA

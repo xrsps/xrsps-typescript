@@ -1,5 +1,6 @@
 import type { WebSocket } from "ws";
 
+import { logger } from "../../utils/logger";
 import { encodeMessage } from "../../network/messages";
 import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
 import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
@@ -175,7 +176,7 @@ export class InventoryService {
         try {
             const sock = this.deps.getSocketByPlayerId(player.id);
             if (sock) this.sendInventorySnapshot(sock, player);
-        } catch {}
+        } catch (err) { logger.warn("[inventory] failed to snapshot inventory", err); }
     }
 
     snapshotInventoryImmediate(player: PlayerState): void {

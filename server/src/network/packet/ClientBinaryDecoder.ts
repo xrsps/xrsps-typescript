@@ -4,6 +4,7 @@
  * Replaces JSON.parse for client-to-server messages.
  * Returns the same message format as the JSON protocol for compatibility.
  */
+import { logger } from "../../utils/logger";
 import {
     CLIENT_PACKET_LENGTHS,
     ClientPacketId,
@@ -662,7 +663,7 @@ function parseDebugPayload(jsonStr: string): Extract<RoutedMessage, { type: "deb
                 varp: parsed.varp,
             };
         }
-    } catch {}
+    } catch (err) { logger.warn("[decoder] failed to decode client binary packet", err); }
 
     return { kind: "raw", raw: jsonStr };
 }

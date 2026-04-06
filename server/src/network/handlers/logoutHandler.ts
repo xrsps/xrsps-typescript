@@ -27,7 +27,7 @@ export function createLogoutHandler(services: MessageHandlerServices): MessageHa
                             payload: { success: false, reason: logoutMessage },
                         });
                         ws.send(response);
-                    } catch {}
+                    } catch (err) { logger.warn("[logout] failed to send logout denial", err); }
                     return;
                 }
                 services.completeLogout(ws, player);
@@ -35,7 +35,7 @@ export function createLogoutHandler(services: MessageHandlerServices): MessageHa
             if (!player) services.completeLogout(ws);
         } catch (err) {
             logger.warn("[logout] Error during logout:", err);
-            try { ws.close(1000, "logout"); } catch {}
+            try { ws.close(1000, "logout"); } catch (err) { logger.warn("[logout] failed to close websocket", err); }
         }
     };
 }

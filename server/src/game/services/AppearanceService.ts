@@ -188,7 +188,7 @@ export class AppearanceService {
                         }
                     }
                 }
-            } catch {}
+            } catch (err) { logger.warn("[appearance] failed to resolve body kit from idk loader", err); }
         }
 
         if (loader && (defaults[0] === -1 || defaults[1] === -1)) {
@@ -205,7 +205,7 @@ export class AppearanceService {
                         defaults[1] = fallback.kits[1] ?? -1;
                     }
                 }
-            } catch {}
+            } catch (err) { logger.warn("[appearance] failed to resolve fallback body kit", err); }
         }
 
         this.defaultBodyKitCache.set(key, defaults.slice());

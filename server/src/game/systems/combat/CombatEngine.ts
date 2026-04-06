@@ -1,3 +1,4 @@
+import { logger } from "../../../utils/logger";
 import { EquipmentSlot } from "../../../../../src/rs/config/player/Equipment";
 import { SkillId } from "../../../../../src/rs/skill/skills";
 import { XpMode, getCombatStyle } from "../../../../data/weapons";
@@ -602,7 +603,7 @@ export class CombatEngine {
                     return overrideBlock;
                 }
             }
-        } catch {}
+        } catch (err) { logger.warn("[combat-engine] failed to resolve block animation", err); }
         return -1;
     }
 

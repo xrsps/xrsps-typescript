@@ -4,6 +4,7 @@
  * Extracted from wsServer.ts for better organization and testability.
  * Uses a service interface pattern to avoid circular dependencies.
  */
+import { logger } from "../../utils/logger";
 import type { GroundItemManager } from "../../game/items/GroundItemManager";
 import type { InventoryAddResult, PlayerState } from "../../game/player";
 
@@ -560,6 +561,6 @@ export class GroundItemHandler {
                 "debug",
                 `[ground] pickup player=${player.id} item=${itemId} qty=${added} tile=(${tile.x},${tile.y},${tile.level})`,
             );
-        } catch {}
+        } catch (err) { logger.warn("[ground-item] failed to log pickup debug", err); }
     }
 }

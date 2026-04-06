@@ -6,6 +6,7 @@
  *
  * Reference: `class353.updateNpcs` + `PcmPlayer.method846` + `UrlRequester.method2903`
  */
+import { logger } from "../../utils/logger";
 import {
     resolveHitsplatTypeForObserver,
     type HitsplatSourceType,
@@ -279,7 +280,7 @@ export class NpcPacketEncoder {
                         health2: scaled,
                     });
                 }
-            } catch {}
+            } catch (err) { logger.warn("[npc-encoder] failed to encode health bar", err); }
 
             if (hasHits || healthBars.length > 0) {
                 info.mask |= NPC_MASKS.HIT;

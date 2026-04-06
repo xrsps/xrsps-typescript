@@ -12,7 +12,7 @@ import { EquipmentService } from "../game/services/EquipmentService";
 import { AppearanceService } from "../game/services/AppearanceService";
 import { CombatDataService } from "../game/services/CombatDataService";
 import { LocationService } from "../game/services/LocationService";
-import { InterfaceManager as ExtractedInterfaceManager } from "../game/services/InterfaceManager";
+import { InterfaceManager as ExtractedInterfaceManager, type LevelUpPopup } from "../game/services/InterfaceManager";
 import { CollectionLogService } from "../game/services/CollectionLogService";
 import { SoundService } from "../game/services/SoundService";
 import { MovementService } from "../game/services/MovementService";
@@ -23,6 +23,12 @@ import { LoginHandshakeService } from "./LoginHandshakeService";
 import { SpellCastingService } from "../game/services/SpellCastingService";
 import { TickPhaseService } from "../game/services/TickPhaseService";
 import { VarpSyncService } from "../game/services/VarpSyncService";
+import { CombatEffectService } from "../game/services/CombatEffectService";
+import { ProjectileTimingService } from "../game/services/ProjectileTimingService";
+import { LevelUpDisplayService } from "../game/services/LevelUpDisplayService";
+import { EquipmentStatsUiService } from "../game/services/EquipmentStatsUiService";
+import { InventoryMessageService } from "../game/services/InventoryMessageService";
+import { ActionDispatchService } from "../game/services/ActionDispatchService";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 
@@ -50,13 +56,12 @@ import {
 } from "../../../src/rs/config/player/WeaponCategory";
 import type { SeqTypeLoader } from "../../../src/rs/config/seqtype/SeqTypeLoader";
 import { PRAYER_DEFINITIONS, type PrayerName } from "../../../src/rs/prayer/prayers";
-import { MAX_REAL_LEVEL, SkillId, getSkillName } from "../../../src/rs/skill/skills";
+import { SkillId } from "../../../src/rs/skill/skills";
 import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../src/shared/input/modifierFlags";
 import type { ProjectileLaunch } from "../../../src/shared/projectiles/ProjectileLaunch";
-import { PLAYER_CHEST_OFFSET_UNITS } from "../../../src/shared/projectiles/projectileHeights";
 import { ACCOUNT_SUMMARY_GROUP_ID } from "../../../src/shared/ui/accountSummary";
 import { MUSIC_GROUP_ID } from "../../../src/shared/ui/music";
 import {
@@ -77,12 +82,6 @@ import { MusicUnlockService } from "../audio/MusicUnlockService";
 import { NpcSoundLookup, type NpcSoundType } from "../audio/NpcSoundLookup";
 import { getItemDefinition } from "../data/items";
 import { populateLocEffectsFromLoader } from "../data/locEffects";
-import { getProjectileParams } from "../data/projectileParams";
-import type { ProjectileParams } from "../data/projectileParams";
-import {
-    type SpellDataEntry,
-    getSpellData,
-} from "../data/spells";
 import {
     ActionEffect,
     ActionExecutionResult,
@@ -136,8 +135,6 @@ import {
 import { CombatCategoryData } from "../game/combat/CombatCategoryData";
 import { combatEffectApplicator } from "../game/combat/CombatEffectApplicator";
 import {
-    resolveNpcAttackRange as resolveNpcAttackRangeRule,
-    resolveNpcAttackType as resolveNpcAttackTypeRule,
     resolvePlayerAttackReach,
     resolvePlayerAttackType,
 } from "../game/combat/CombatRules";
@@ -147,7 +144,7 @@ import {
     type StyleMode,
     calculateCombatXp,
 } from "../game/combat/CombatXp";
-import type { DamageType, DropEligibility } from "../game/combat/DamageTracker";
+import type { DamageType } from "../game/combat/DamageTracker";
 import {
     HITMARK_BLOCK,
     HITMARK_DAMAGE,
@@ -173,9 +170,6 @@ import { getSpecialAttack } from "../game/combat/SpecialAttackRegistry";
 import { getSpellBaseXp } from "../game/combat/SpellXpData";
 import { getCategoryForWeaponInterface } from "../game/combat/WeaponInterfaces";
 import { PlayerDeathService, type PlayerDeathServices } from "../game/death";
-import { DropRollService } from "../game/drops/DropRollService";
-import { NpcDropRegistry } from "../game/drops/NpcDropRegistry";
-import { getEmoteSeq } from "../game/emotes";
 import {
     consumeEquippedAmmoApply,
     ensureEquipArrayOn,
@@ -190,11 +184,6 @@ import {
 import { FollowerCombatManager } from "../game/followers/FollowerCombatManager";
 import { FollowerManager } from "../game/followers/FollowerManager";
 import { NO_INTERACTION } from "../game/interactionIndex";
-import {
-    resolveLocExamineText,
-    resolveNpcExamineText,
-    resolveObjExamineText,
-} from "../game/interactions/ExamineText";
 import { GroundItemManager } from "../game/items/GroundItemManager";
 import {
     type OwnedItemLocation,
@@ -259,7 +248,6 @@ import { TradeManager } from "../game/trade/TradeManager";
 import { PathService } from "../pathfinding/PathService";
 import { MapCollisionService } from "../world/MapCollisionService";
 import { RectAdjacentRouteStrategy } from "../pathfinding/legacy/pathfinder/RouteStrategy";
-import { CollisionFlag } from "../pathfinding/legacy/pathfinder/flag/CollisionFlag";
 import { logger } from "../utils/logger";
 import { InterfaceService } from "../widgets/InterfaceService";
 import type { WidgetAction, WidgetEntry } from "../widgets/WidgetManager";
@@ -285,7 +273,7 @@ import { DoorRuntimeTileMappingStore } from "../world/DoorRuntimeTileMappingStor
 import { DoorStateManager } from "../world/DoorStateManager";
 import { DynamicLocStateStore } from "../world/DynamicLocStateStore";
 import { LocTileLookupService } from "../world/LocTileLookupService";
-import { loadVisibleLocTypeForPlayer, locCanResolveToId } from "../world/LocTransforms";
+import { locCanResolveToId } from "../world/LocTransforms";
 import { BitWriter } from "./BitWriter";
 import {
     type BroadcastContext,
@@ -315,14 +303,6 @@ import {
     type PlayerTickFrameData,
 } from "./encoding";
 import { encodeAppearanceBinary } from "./encoding/AppearanceEncoder";
-import {
-    LEVELUP_COMBAT_COMPONENT,
-    LEVELUP_CONTINUE_COMPONENT,
-    LEVELUP_INTERFACE_ID,
-    LEVELUP_SKILL_COMPONENT_BY_SKILL,
-    LEVELUP_TEXT1_COMPONENT,
-    LEVELUP_TEXT2_COMPONENT,
-} from "./levelUpDisplay";
 import {
     type AppearanceSnapshotEntry,
     Cs2ModalManager,
@@ -361,7 +341,7 @@ import { REPORT_GAME_TIME_GROUP_ID, ReportGameTimeTracker } from "./reportGameTi
 
 const DEFAULT_AUTOSAVE_SECONDS = 120; // Tuned via docs/autosave-sizing.md (Nov 2025)
 
-const EQUIP_SLOT_COUNT = 14;
+export const EQUIP_SLOT_COUNT = 14;
 const NPC_STREAM_RADIUS_TILES = 15;
 // Use a small hysteresis so NPCs don't rapidly despawn/respawn at the edge
 // Enter the stream at 15 tiles, exit once beyond 17 tiles
@@ -383,78 +363,12 @@ import { ADMIN_CROWN_ICON } from "./AuthenticationService";
 // Verified via cache anchors: whip=4, godsword=6, dragon dagger=4.
 const WEAPON_SPEED_PARAM = 14;
 const DEFAULT_ATTACK_SPEED = 4;
-const EQUIPMENT_STATS_GROUP_ID = 84;
-const EQUIPMENT_STATS_ATTACK_CHILD_BY_INDEX = [24, 25, 26, 27, 28] as const;
-const EQUIPMENT_STATS_DEFENCE_CHILD_BY_INDEX = [30, 31, 32, 33, 34] as const;
-const EQUIPMENT_STATS_OTHER_CHILD_BY_INDEX = [36, 37, 38, 39] as const;
-const EQUIPMENT_STATS_TARGET_UNDEAD_CHILD = 41;
-const EQUIPMENT_STATS_TARGET_SLAYER_CHILD = 42;
-const EQUIPMENT_STATS_WEAPON_SPEED_BASE_CHILD = 53;
-const EQUIPMENT_STATS_WEAPON_SPEED_ACTUAL_CHILD = 54;
-const EQUIPMENT_STATS_BONUS_COUNT = 14;
-const EQUIPMENT_STATS_SALVE_MELEE_PERCENT = ((7 / 6 - 1) * 100) as number;
-const EQUIPMENT_STATS_SALVE_IMBUED_PERCENT = EQUIPMENT_STATS_SALVE_MELEE_PERCENT;
-const EQUIPMENT_STATS_SALVE_ENCHANTED_PERCENT = 20;
-const EQUIPMENT_STATS_SLAYER_MELEE_PERCENT = ((7 / 6 - 1) * 100) as number;
-const EQUIPMENT_STATS_SLAYER_IMBUED_PERCENT = 15;
-const ITEM_ID_SALVE_AMULET = 4081;
-const ITEM_ID_SALVE_AMULET_E = 10588;
-const ITEM_ID_SALVE_AMULET_I = 12017;
-const ITEM_ID_SALVE_AMULET_EI = 12018;
-const SLAYER_HELM_IDS = new Set<number>([
-    8901, // Black mask
-    11864, // Slayer helmet
-    19639, // Black slayer helmet
-    19643, // Green slayer helmet
-    19647, // Red slayer helmet
-    21264, // Purple slayer helmet
-    21888, // Turquoise slayer helmet
-    23073, // Hydra slayer helmet
-    24370, // Twisted slayer helmet
-    25898, // Tztok slayer helmet
-    25904, // Vampyric slayer helmet
-    25910, // Tzkal slayer helmet
-]);
-const IMBUED_SLAYER_HELM_IDS = new Set<number>([
-    11774, // Black mask (i)
-    11865, // Slayer helmet (i)
-    19641, // Black slayer helmet (i)
-    19645, // Green slayer helmet (i)
-    19649, // Red slayer helmet (i)
-    21266, // Purple slayer helmet (i)
-    21890, // Turquoise slayer helmet (i)
-    23075, // Hydra slayer helmet (i)
-    24444, // Twisted slayer helmet (i)
-    25900, // Tztok slayer helmet (i)
-    25906, // Vampyric slayer helmet (i)
-    25912, // Tzkal slayer helmet (i)
-]);
 const DEFAULT_ATTACK_SEQ = 422;
 const DEFAULT_BLOCK_SEQ = 424;
 // RSMod default NPC death animation (human_death)
 const DEFAULT_NPC_DEATH_SEQ = 836;
 // OSRS synth id for human_death (used as a fixed fallback when not defined per-NPC)
 const DEFAULT_NPC_DEATH_SOUND = 512;
-const MAGIC_CAST_SEQ = 711; // Standard magic casting animation (human_caststrike)
-const MAGIC_CAST_STAFF_SEQ = 1162; // Magic casting with staff (human_caststrike_staff)
-const SPELL_CAST_SEQUENCE_OVERRIDES: Record<number, number> = {
-    3274: 1163, // Confuse
-    3278: 1164, // Weaken
-    3282: 1165, // Curse
-    3325: 1168, // Enfeeble
-    3326: 1169, // Stun
-    3293: 724, // Crumble Undead
-    9075: 725, // Superheat Item
-    9110: 712, // Low Alchemy
-    9111: 713, // High Alchemy
-    9100: 723, // Telekinetic Grab
-    9076: 726, // Charge Air Orb
-    9077: 726, // Charge Earth Orb
-    9078: 726, // Charge Fire Orb
-    9079: 726, // Charge Water Orb
-    9001: 722, // Bones to Bananas
-};
-
 // Special attack visual overrides (RuneLite gameval anchors)
 const SPEC_ANIM_DRAGON_DAGGER = 1062; // AnimationID.PUNCTURE
 const SPEC_SPOT_DRAGON_DAGGER = 252; // SpotanimID.SP_ATTACK_PUNCTURE_SPOTANIM
@@ -468,29 +382,18 @@ const SPEC_SPOT_GODSWORD_BANDOS = 1208; // SpotanimID.GODWARS_GODSWORD_BANDOS_SP
 
 // OSRS parity: melee hits resolve 1 tick after the swing animation starts.
 const MELEE_HIT_DELAY_TICKS = 1;
-const COMBAT_SOUND_DELAY_MS = 50; // Small delay to ensure hitsplat renders before sound plays
+export const COMBAT_SOUND_DELAY_MS = 50; // Small delay to ensure hitsplat renders before sound plays
 const DEFAULT_HIT_SOUND = 1979; // Generic blade hit sound
 
 
 const RANGED_WEAPON_CATEGORY_IDS = new Set([3, 5, 6, 7, 8, 19]);
-const MAGIC_WEAPON_CATEGORY_IDS = new Set([18, 24, 29, 31]);
-const PROTECTION_PRAYER_MAP: Record<AttackType, PrayerName> = {
-    melee: "protect_from_melee",
-    ranged: "protect_from_missiles",
-    magic: "protect_from_magic",
-};
-// OSRS: Protection prayers block 100% damage from most NPCs
-// Note: Bosses and some special attacks may partially ignore protection prayers
-const NPC_PROTECTION_REDUCTION = 1.0;
-// OSRS: Protection prayers reduce PvP damage by 40%
-const PVP_PROTECTION_REDUCTION = 0.4;
 const DEFAULT_MISS_SOUND = 2564; // Generic block/miss sound
 // Unarmed (no weapon equipped): style-specific hit sounds.
 const UNARMED_KICK_SOUND = 2565; // unarmed_kick
 const UNARMED_PUNCH_SOUND = 2566; // unarmed_punch
 const NPC_ATTACK_SOUND = 2549; // Generic NPC attack sound
-const PLAYER_TAKE_DAMAGE_SOUND = 510;
-const PLAYER_ZERO_DAMAGE_SOUND = 511;
+export const PLAYER_TAKE_DAMAGE_SOUND = 510;
+export const PLAYER_ZERO_DAMAGE_SOUND = 511;
 const DEFAULT_MAGIC_SPLASH_SOUND = 227;
 const ITEM_DROP_SOUND = 2739;
 
@@ -539,7 +442,7 @@ const TILE_UNIT = 128;
 const TEST_RNG_SEED_RAW = process.env.TEST_RNG_SEED?.trim() ?? "";
 const TEST_RNG_SEED = TEST_RNG_SEED_RAW ? parseFloat(TEST_RNG_SEED_RAW) : undefined;
 const TEST_HIT_FORCE_RAW = process.env.TEST_HIT_FORCE?.trim() ?? "";
-const TEST_HIT_FORCE = TEST_HIT_FORCE_RAW ? parseFloat(TEST_HIT_FORCE_RAW) : undefined;
+export const TEST_HIT_FORCE = TEST_HIT_FORCE_RAW ? parseFloat(TEST_HIT_FORCE_RAW) : undefined;
 const testRng: JavaRandom | null =
     TEST_RNG_SEED !== undefined && Number.isFinite(TEST_RNG_SEED)
         ? new JavaRandom(TEST_RNG_SEED)
@@ -554,7 +457,6 @@ export function testRandFloat(): number {
     return Math.random();
 }
 
-const CONSUME_VERBS = ["eat", "drink", "quaff", "sip", "imbibe", "swig", "consume", "devour", "activate"];
 const TELEPORT_ACTION_GROUP = "movement.teleport";
 
 type StepRecord = {
@@ -795,70 +697,6 @@ interface TickFrame {
     >;
 }
 
-// Level-up UI/effects (OSRS parity)
-// Interface 233 (LEVELUP_DISPLAY) is opened into the chatbox interface (162).
-// References:
-// - Runelite: InterfaceID.LEVELUP_DISPLAY = 233
-// - RSMod: CHATBOX_CHILD = 561 (doesn't exist in our cache)
-// - RuneLite: MES_LAYER (38) = 0x00a2_0026
-const CHATBOX_GROUP_ID = 162;
-const CHATBOX_CHILD_ID = 567; // CHATMODAL - where dialogs mount in this cache revision
-const VARBIT_CHATMODAL_UNCLAMP = 10670;
-const CHATBOX_RESET_SCRIPT_ID = 2379;
-const OBJECTBOX_INTERFACE_ID = 193;
-const HUNTER_LEVELUP_ICON_ITEM_ID = 9951;
-// Runelite: SpotanimID.LEVELUP_ANIM = 199
-const LEVELUP_SPOT_ID = 199;
-const LEVELUP_99_SPOT_ID = 1388;
-
-// OSRS parity: Level-up jingle IDs from musicJingles index (index 11)
-// These are the short fanfares that play on level-up
-// Standard level-up jingle (fallback for levels 2-98)
-const LEVELUP_JINGLE_ID = 29;
-// Level 99 jingle (special fanfare for max level)
-const LEVELUP_99_JINGLE_ID = 30;
-// Combat level-up jingle
-const LEVELUP_COMBAT_JINGLE_ID = 54;
-// OSRS parity: the jingle packet carries an unused 3-byte delay field.
-const LEVELUP_JINGLE_DELAY = 0;
-// Level-up firework sound effect (plays with spotanim)
-// Reference: osrs-synths.json ID 2396 = "firework"
-const LEVELUP_FIREWORK_SOUND = 2396;
-
-// OSRS parity: Skill-specific level-up jingles (from osrs-jingles.json)
-// Each skill has its own unique jingle fanfare
-const LEVELUP_JINGLE_BY_SKILL: Partial<Record<number, number>> = {
-    [SkillId.Agility]: 31,
-    [SkillId.Attack]: 32,
-    [SkillId.Construction]: 33,
-    [SkillId.Cooking]: 34,
-    [SkillId.Crafting]: 35,
-    [SkillId.Defence]: 36,
-    [SkillId.Farming]: 37,
-    [SkillId.Firemaking]: 38,
-    [SkillId.Fishing]: 39,
-    [SkillId.Fletching]: 40,
-    [SkillId.Herblore]: 41,
-    [SkillId.Hitpoints]: 42,
-    [SkillId.Hunter]: 43,
-    [SkillId.Magic]: 44,
-    [SkillId.Mining]: 45,
-    [SkillId.Prayer]: 46,
-    [SkillId.Ranged]: 47,
-    [SkillId.Runecraft]: 48,
-    [SkillId.Slayer]: 49,
-    [SkillId.Smithing]: 50,
-    [SkillId.Strength]: 51,
-    [SkillId.Thieving]: 52,
-    [SkillId.Woodcutting]: 53,
-    // Sailing uses default jingle (29) - no unique jingle exists
-};
-
-type LevelUpPopup =
-    | { kind: "skill"; skillId: number; newLevel: number; levelIncrement: number }
-    | { kind: "combat"; newLevel: number; levelIncrement: number }
-    | { kind: "hunter"; newLevel: number; levelIncrement: number };
-
 export function pickSpecialAttackVisualOverride(
     weaponItemId: number,
 ): { seqId?: number; spotId?: number; spotHeight?: number } | undefined {
@@ -1011,6 +849,13 @@ export class WSServer {
     private loginHandshakeService!: LoginHandshakeService;
     private tickPhaseService!: TickPhaseService;
 
+    // Extracted services (Phase 8)
+    private readonly combatEffectService!: CombatEffectService;
+    private readonly projectileTimingService!: ProjectileTimingService;
+    private readonly levelUpDisplayService!: LevelUpDisplayService;
+    private readonly equipmentStatsUiService!: EquipmentStatsUiService;
+    private readonly inventoryMessageService!: InventoryMessageService;
+    private readonly actionDispatchService!: ActionDispatchService;
 
     private gamemodeTickCallbacks: Array<(tick: number) => void> = [];
     private gamemodeSnapshotEncoders = new Map<string, {
@@ -1065,8 +910,6 @@ export class WSServer {
     private nextAutosaveTick: number;
     private autosaveRunning = false;
     private groundItems: GroundItemManager;
-    private npcDropRegistry?: NpcDropRegistry;
-    private npcDropRollService?: DropRollService;
     private playerGroundSerial = new Map<number, number>();
     private playerGroundChunk = new Map<number, number>();
     private readonly playerDynamicLocSceneKeys = new Map<number, string>();
@@ -1136,7 +979,7 @@ export class WSServer {
             forEachPlayer: (fn) => this.players?.forEach(fn),
         });
         this.actionScheduler = new ActionScheduler((player, action, tick) =>
-            this.performScheduledAction(player, action, tick),
+            this.actionDispatchService.dispatch(player, action, tick),
         );
         this.actionScheduler.setPriorityProvider((p) => p.getPidPriority());
         // OSRS parity: Pause skill actions while modal (level-up dialog) is open
@@ -1405,7 +1248,7 @@ export class WSServer {
                     this.players,
                     opts.pathService,
                     (playerId, followerNpcId) => {
-                        this.queueVarp(
+                        this.variableService.queueVarp(
                             playerId,
                             VARP_FOLLOWER_INDEX,
                             followerNpcId === undefined ? 65535 : followerNpcId | 0,
@@ -1423,7 +1266,7 @@ export class WSServer {
                             combat.attackAnimationId ??
                             this.getNpcCombatSequences(companion.typeId).attack;
                         if (attackSeq !== undefined && attackSeq >= 0) {
-                            this.broadcastNpcSequence(companion, attackSeq);
+                            this.combatEffectService.broadcastNpcSequence(companion, attackSeq);
                         }
                         if (combat.attackSoundId !== undefined && combat.attackSoundId > 0) {
                             this.queueBroadcastSound(
@@ -1496,7 +1339,7 @@ export class WSServer {
                     interaction.option === "pick-up" ||
                     interaction.option === "pickup"
                 ) {
-                    this.attemptTakeGroundItem(
+                    this.groundItemHandler.attemptTakeGroundItem(
                         player,
                         {
                             x: interaction.tileX,
@@ -1663,9 +1506,9 @@ export class WSServer {
             equipmentHandler: undefined as any, // Set after equipmentHandler is created
             weaponData: this.appearanceService.getWeaponData(),
             combatCategoryData: undefined, // Set after combatCategoryData is created
-            queueVarbit: (pid, vid, val) => this.queueVarbit(pid, vid, val),
+            queueVarbit: (pid, vid, val) => this.variableService.queueVarbit(pid, vid, val),
             queueCombatState: (p) => this.queueCombatState(p),
-            queueChatMessage: (msg) => this.queueChatMessage(msg),
+            queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
             enqueueSpotAnimation: (anim) => this.enqueueSpotAnimation(anim),
             scriptRuntime: undefined as any, // Set after scriptRuntime is created
             getCurrentTick: () => this.options.ticker.currentTick(),
@@ -1698,9 +1541,9 @@ export class WSServer {
             getIsBroadcastPhase: () => this.networkLayer.getIsBroadcastPhase(),
             broadcastScheduler: this.broadcastScheduler,
             actionScheduler: this.actionScheduler,
-            queueChatMessage: (msg) => this.queueChatMessage(msg),
-            showLevelUpPopup: (player, popup) => this.showLevelUpPopup(player, popup as any),
-            closeChatboxModalOverlay: (pid) => this.closeChatboxModalOverlay(pid),
+            queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
+            showLevelUpPopup: (player, popup) => this.levelUpDisplayService.showLevelUpPopup(player, popup as any),
+            closeChatboxModalOverlay: (pid) => this.levelUpDisplayService.closeChatboxModalOverlay(pid),
             getPlayerById: (id) => this.players?.getById(id),
         });
         logger.info("[services] Phase 5 services initialized (Location, InterfaceManager)");
@@ -1710,11 +1553,11 @@ export class WSServer {
             getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
             networkLayer: this.networkLayer,
             interfaceService: undefined as any, // Set after interfaceService is created
-            queueVarp: (pid, vid, val) => this.queueVarp(pid, vid, val),
-            queueVarbit: (pid, vid, val) => this.queueVarbit(pid, vid, val),
+            queueVarp: (pid, vid, val) => this.variableService.queueVarp(pid, vid, val),
+            queueVarbit: (pid, vid, val) => this.variableService.queueVarbit(pid, vid, val),
             queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
             queueNotification: (pid, p) => this.queueNotification(pid, p),
-            queueChatMessage: (req) => this.queueChatMessage(req),
+            queueChatMessage: (req) => this.messagingService.queueChatMessage(req),
         });
         this.soundService = new SoundService({
             networkLayer: this.networkLayer,
@@ -1736,8 +1579,8 @@ export class WSServer {
             getInventory: (p) => this.getInventory(p),
             ensureEquipArray: (p) => this.ensureEquipArray(p),
             queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
-            queueVarbit: (pid, vid, val) => this.queueVarbit(pid, vid, val),
-            queueChatMessage: (msg) => this.queueChatMessage(msg),
+            queueVarbit: (pid, vid, val) => this.variableService.queueVarbit(pid, vid, val),
+            queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
             spawnLocForPlayer: (p, id, tile, lvl, shape, rot) => this.spawnLocForPlayer(p, id, tile, lvl, shape, rot),
             closeInterruptibleInterfaces: (p) => this.closeInterruptibleInterfaces(p),
             sailingInstanceManager: undefined as any,
@@ -1758,7 +1601,7 @@ export class WSServer {
             setInventorySlot: (p, slot, itemId, qty) => this.setInventorySlot(p, slot, itemId, qty),
             addItemToInventory: (p, itemId, qty) => this.addItemToInventory(p, itemId, qty),
             sendInventorySnapshot: (ws, p) => this.sendInventorySnapshot(ws, p),
-            queueChatMessage: (msg) => this.queueChatMessage(msg),
+            queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
             queueSpellResult: (pid, payload) => this.queueSpellResult(pid, payload),
             awardSkillXp: (p, skillId, xp) => this.awardSkillXp(p, skillId, xp),
             enqueueSpotAnimation: (event) => this.enqueueSpotAnimation(event),
@@ -1767,10 +1610,10 @@ export class WSServer {
         });
         this.varpSyncService = new VarpSyncService({
             withDirectSendBypass: (ctx, fn) => this.withDirectSendBypass(ctx, fn),
-            sendWithGuard: (ws, msg, ctx) => this.sendWithGuard(ws, msg, ctx),
+            sendWithGuard: (ws, msg, ctx) => this.networkLayer.sendWithGuard(ws, msg, ctx),
             authService: this.authService,
             soundManager: this.soundManager ?? (undefined as any),
-            queueVarp: (pid, vid, val) => this.queueVarp(pid, vid, val),
+            queueVarp: (pid, vid, val) => this.variableService.queueVarp(pid, vid, val),
             musicUnlockService: undefined, // Set after musicUnlockService is created
         });
         // --- Deferred wiring: cross-references between services created above ---
@@ -1853,9 +1696,9 @@ export class WSServer {
                 bridge: {
                     getPlayer: (playerId) => this.players?.getById(playerId),
                     queueVarp: (playerId, varpId, value) =>
-                        this.queueVarp(playerId, varpId, value),
+                        this.variableService.queueVarp(playerId, varpId, value),
                     queueVarbit: (playerId, varbitId, value) =>
-                        this.queueVarbit(playerId, varbitId, value),
+                        this.variableService.queueVarbit(playerId, varbitId, value),
                     queueNotification: (playerId, notification) =>
                         this.queueNotification(playerId, notification),
                     queueWidgetEvent: (playerId, event) =>
@@ -1912,9 +1755,9 @@ export class WSServer {
                     queueWidgetEvent: (playerId, action) =>
                         this.queueWidgetEvent(playerId, action),
                     queueVarp: (playerId, varpId, value) =>
-                        this.queueVarp(playerId, varpId, value),
+                        this.variableService.queueVarp(playerId, varpId, value),
                     queueVarbit: (playerId, varbitId, value) =>
-                        this.queueVarbit(playerId, varbitId, value),
+                        this.variableService.queueVarbit(playerId, varbitId, value),
                     isWidgetGroupOpenInLedger: (playerId, groupId) =>
                         this.isWidgetGroupOpenInLedger(playerId, groupId),
                 });
@@ -2056,13 +1899,6 @@ export class WSServer {
 
     // ========== Network Layer (delegated to PlayerNetworkLayer) ==========
 
-    private sendWithGuard(
-        sock: WebSocket | undefined,
-        message: string | Uint8Array,
-        context: string,
-    ): void {
-        this.networkLayer.sendWithGuard(sock, message, context);
-    }
 
     private flushMessageBatch(sock: WebSocket): void {
         this.networkLayer.flushMessageBatch(sock);
@@ -2395,7 +2231,7 @@ export class WSServer {
         );
         this.withDirectSendBypass("loc_change_replay", () => {
             for (const state of visibleStates) {
-                this.sendWithGuard(
+                this.networkLayer.sendWithGuard(
                     ws,
                     encodeMessage({
                         type: "loc_change",
@@ -2645,12 +2481,12 @@ export class WSServer {
     private getGamemodeBridge(): GamemodeBridge {
         return {
             getPlayer: (playerId) => this.players?.getById(playerId),
-            queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
-            queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
+            queueVarp: (playerId, varpId, value) => this.variableService.queueVarp(playerId, varpId, value),
+            queueVarbit: (playerId, varbitId, value) => this.variableService.queueVarbit(playerId, varbitId, value),
             queueNotification: (playerId, notification) => this.queueNotification(playerId, notification),
             queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event),
             queueClientScript: (playerId, scriptId, ...args) => this.queueClientScript(playerId, scriptId, ...args),
-            sendGameMessage: (player, text) => this.queueChatMessage({
+            sendGameMessage: (player, text) => this.messagingService.queueChatMessage({
                 messageType: "game",
                 text,
                 targetPlayerIds: [player.id],
@@ -2715,7 +2551,7 @@ export class WSServer {
 
         // Equipment stats (84) value fields are cache-empty text widgets.
         // Populate them server-side immediately after opening the interface.
-        if (action.action === "open_sub" && (action.groupId ?? 0) === EQUIPMENT_STATS_GROUP_ID) {
+        if (action.action === "open_sub" && (action.groupId ?? 0) === 84) {
             const player = this.players?.getById(event.playerId);
             if (player) {
                 this.queueEquipmentStatsWidgetTexts(player);
@@ -2805,21 +2641,6 @@ export class WSServer {
         this.messagingService.sendGameMessageToPlayer(player, text);
     }
 
-    private queueChatMessage(message: {
-        messageType: string;
-        playerId?: number;
-        from?: string;
-        prefix?: string;
-        text: string;
-        playerType?: number;
-        colorId?: number;
-        effectId?: number;
-        pattern?: number[];
-        autoChat?: boolean;
-        targetPlayerIds?: number[];
-    }): void {
-        this.messagingService.queueChatMessage(message);
-    }
 
     private enqueueForcedChat(event: ForcedChatBroadcast): void {
         this.messagingService.enqueueForcedChat(event);
@@ -2848,10 +2669,6 @@ export class WSServer {
             this.broadcastSound({ soundId, x, y, level }, "sound"),
         );
     }
-
-
-
-
 
 
     private sendSound(
@@ -2944,7 +2761,7 @@ export class WSServer {
             const dx = Math.abs(p.tileX - px);
             const dy = Math.abs(p.tileY - py);
             if (Math.max(dx, dy) > broadcastRadius) return;
-            this.sendWithGuard(sock, msg, context);
+            this.networkLayer.sendWithGuard(sock, msg, context);
         });
     }
 
@@ -2983,139 +2800,6 @@ export class WSServer {
 
     private getMusicTrackIdByName(trackName: string): number {
         return this.soundService.getMusicTrackIdByName(trackName);
-    }
-
-    private handlePrayerDepleted(player: PlayerState, opts: { message?: string } = {}): void {
-        const message =
-            opts.message ?? "You have run out of Prayer points, you need to recharge at an altar.";
-        this.queueChatMessage({
-            messageType: "game",
-            text: message,
-            targetPlayerIds: [player.id],
-        });
-        player.resetPrayerDrainAccumulator();
-        const hadPrayers = (player.getActivePrayers()?.size ?? 0) > 0;
-        if (hadPrayers) {
-            player.clearActivePrayers();
-            this.queueCombatSnapshot(
-                player.id,
-                player.combatWeaponCategory,
-                player.combatWeaponItemId,
-                !!player.autoRetaliate,
-                player.combatStyleSlot,
-                Array.from(player.getActivePrayers() ?? []),
-                player.combatSpellId > 0 ? player.combatSpellId : undefined,
-            );
-        }
-    }
-
-    private tryActivateRedemption(player: PlayerState): boolean {
-        if (!player.hasPrayerActive("redemption")) return false;
-        const currentHp = player.getHitpointsCurrent();
-        if (!(currentHp > 0)) return false;
-        const maxHp = player.getHitpointsMax();
-        const threshold = Math.max(1, Math.floor(maxHp / 10));
-        if (currentHp > threshold) return false;
-        const prayerSkill = player.getSkill(SkillId.Prayer);
-        const currentPrayer = Math.max(0, prayerSkill.baseLevel + prayerSkill.boost);
-        if (currentPrayer <= 0) return false;
-        const healAmount = Math.max(1, Math.floor(prayerSkill.baseLevel * 0.25));
-        if (!(healAmount > 0)) return false;
-        player.setSkillBoost(SkillId.Prayer, 0);
-        this.handlePrayerDepleted(player);
-        player.applyHitpointsHeal(healAmount);
-        return true;
-    }
-
-    private applySmite(attacker: PlayerState, target: PlayerState, damage: number): void {
-        if (!(damage > 0)) return;
-        if (!attacker.hasPrayerActive("smite")) return;
-        const drain = Math.max(0, Math.floor(damage / 4));
-        if (!(drain > 0)) return;
-        target.adjustSkillBoost(SkillId.Prayer, -drain);
-        if (target.getPrayerLevel() <= 0) {
-            target.setSkillBoost(SkillId.Prayer, 0);
-            this.handlePrayerDepleted(target);
-        }
-    }
-
-    /**
-     * Activates Retribution prayer effect when player dies.
-     * Deals damage equal to 25% of base prayer level (max 25) to all adjacent enemies.
-     * OSRS parity: Retribution damages all adjacent players/NPCs within 1 tile.
-     */
-    private tryActivateRetribution(player: PlayerState, tick: number): void {
-        if (!player.hasPrayerActive("retribution")) return;
-        const prayerSkill = player.getSkill(SkillId.Prayer);
-        const baseDamage = Math.min(25, Math.max(1, Math.floor(prayerSkill.baseLevel * 0.25)));
-        if (!(baseDamage > 0)) return;
-
-        const playerX = player.tileX;
-        const playerY = player.tileY;
-        const playerLevel = player.level;
-
-        // Damage nearby NPCs
-        if (this.npcManager) {
-            const nearbyNpcs = this.npcManager.getNearby(playerX, playerY, playerLevel, 1);
-            for (const npc of nearbyNpcs) {
-                const result = this.applyPlayerDamageToNpc(
-                    player,
-                    npc,
-                    baseDamage,
-                    HITMARK_DAMAGE,
-                    tick,
-                    "other",
-                    baseDamage,
-                );
-                if (!result) continue;
-                if (this.activeFrame) {
-                    this.activeFrame.hitsplats.push({
-                        targetType: "npc",
-                        targetId: npc.id,
-                        damage: result.amount,
-                        style: result.style,
-                        sourceType: "player",
-                        sourcePlayerId: player.id,
-                        hpCurrent: result.hpCurrent,
-                        hpMax: result.hpMax,
-                    });
-                }
-            }
-        }
-
-        // Damage nearby players (PvP)
-        if (this.players) {
-            this.players.forEach((sock) => {
-                const target = this.players?.get(sock);
-                if (!target) return;
-                if (target.id === player.id) return;
-                if (target.level !== playerLevel) return;
-                const dx = Math.abs(target.tileX - playerX);
-                const dy = Math.abs(target.tileY - playerY);
-                if (dx > 1 || dy > 1) return;
-                const result = target.applyHitpointsDamage(baseDamage);
-                if (this.activeFrame) {
-                    this.activeFrame.hitsplats.push({
-                        targetType: "player",
-                        targetId: target.id,
-                        damage: baseDamage,
-                        style: HITMARK_DAMAGE,
-                        sourceType: "player",
-                        sourcePlayerId: player.id,
-                        hpCurrent: result.current,
-                        hpMax: result.max,
-                    });
-                }
-            });
-        }
-
-        // Play retribution spot animation (death animation effect)
-        this.enqueueSpotAnimation({
-            tick,
-            playerId: player.id,
-            spotId: 437, // Retribution graphic
-            delay: 0,
-        });
     }
 
     private enqueueSpellFailureChat(
@@ -3197,7 +2881,7 @@ export class WSServer {
         );
         const packet = encodeMessage({ type: "rebuild_normal", payload } as any);
         this.withDirectSendBypass("rebuild_normal", () =>
-            this.sendWithGuard(ws, packet, "rebuild_normal"),
+            this.networkLayer.sendWithGuard(ws, packet, "rebuild_normal"),
         );
     }
 
@@ -3229,7 +2913,7 @@ export class WSServer {
         (payload as any).basePlane = 1;
         const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
         this.withDirectSendBypass("rebuild_worldentity", () =>
-            this.sendWithGuard(ws, packet, "rebuild_worldentity"),
+            this.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),
         );
 
         // Register in per-tick world entity tracker with initial position (fine units)
@@ -3290,7 +2974,7 @@ export class WSServer {
         const packet = encodeMessage({ type: "rebuild_worldentity", payload } as any);
         logger.info(`[teleportToWorldEntity] Sending REBUILD_WORLDENTITY packet (${packet.length} bytes, ${payload.mapRegions.length} regions)`);
         this.withDirectSendBypass("rebuild_worldentity", () =>
-            this.sendWithGuard(ws, packet, "rebuild_worldentity"),
+            this.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),
         );
 
         // Register in per-tick world entity tracker with initial position (fine units)
@@ -3308,104 +2992,6 @@ export class WSServer {
                 this.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
             }
         }
-    }
-
-    private executeMovementTeleportAction(
-        player: PlayerState,
-        data: MovementTeleportActionData,
-        tick: number,
-    ): ActionExecutionResult {
-        const unlockLockState = data.unlockLockState;
-
-        const releaseDelayLock = () => {
-            if (!unlockLockState) return;
-            this.tryReleaseTeleportDelayLock(player, unlockLockState);
-        };
-
-        const x = data.x;
-        const y = data.y;
-        const level = data.level;
-        try {
-            this.teleportPlayer(player, x, y, level, data.forceRebuild);
-
-            // OSRS parity: teleportPlayer() unconditionally queues a stop
-            // animation (-1).  When preserveAnimation is set (e.g. climbing),
-            // the animation was already sent on a previous tick and should
-            // continue playing at the new position — clear the -1 so no
-            // animation update block is sent on the teleport tick.
-            if (data.preserveAnimation) {
-                player.clearPendingSeqs();
-            }
-
-            if (data.resetAnimation) {
-                try {
-                    player.stopAnimation();
-                } catch (err) { logger.warn("[teleport] reset animation failed", err); }
-            }
-
-            if (data.endSpotAnim !== undefined && data.endSpotAnim > 0) {
-                this.enqueueSpotAnimation({
-                    tick,
-                    playerId: player.id,
-                    spotId: data.endSpotAnim,
-                    height: data.endSpotHeight ?? 0,
-                    delay: data.endSpotDelay ?? 0,
-                });
-            }
-
-            if (data.arriveSoundId !== undefined && data.arriveSoundId > 0) {
-                this.playAreaSound({
-                    soundId: data.arriveSoundId,
-                    tile: { x, y },
-                    level,
-                    radius:
-                        data.arriveSoundRadius !== undefined
-                            ? Math.max(0, data.arriveSoundRadius)
-                            : 5,
-                    volume:
-                        data.arriveSoundVolume !== undefined
-                            ? Math.max(0, data.arriveSoundVolume)
-                            : 255,
-                });
-            }
-
-            if (data.arriveMessage) {
-                this.queueChatMessage({
-                    messageType: "game",
-                    text: data.arriveMessage,
-                    targetPlayerIds: [player.id],
-                });
-            }
-
-            if (data.arriveFaceTileX !== undefined && data.arriveFaceTileY !== undefined) {
-                player.faceTile(data.arriveFaceTileX, data.arriveFaceTileY);
-            }
-
-            if (data.arriveSeqId !== undefined && data.arriveSeqId >= 0) {
-                // teleportPlayer() queues a stop animation (-1). Clear it so
-                // the arrive animation lands in the same player_info frame.
-                player.clearPendingSeqs();
-                player.queueOneShotSeq(data.arriveSeqId, 0);
-            }
-
-            return { ok: true };
-        } finally {
-            releaseDelayLock();
-        }
-    }
-
-    private executeEmotePlayAction(
-        player: PlayerState,
-        data: EmotePlayActionData,
-    ): ActionExecutionResult {
-        const seqId =
-            data.seqId ?? (data.emoteId !== undefined ? getEmoteSeq(data.emoteId) : undefined);
-        if (seqId === undefined || seqId < 0) {
-            return { ok: false, reason: "invalid_emote" };
-        }
-        const delayTicks = data.delayTicks !== undefined ? Math.max(0, data.delayTicks) : 0;
-        player.queueOneShotSeq(seqId, delayTicks);
-        return { ok: true, cooldownTicks: 0, groups: ["emote"] };
     }
 
     private queueInventorySnapshot(playerId: number): void {
@@ -3486,81 +3072,10 @@ export class WSServer {
     }
 
 
-
     private isAdminPlayer(player: PlayerState | undefined): boolean {
         return this.authService.isAdminPlayer(player);
     }
 
-
-
-
-
-
-    private getNpcDropRollService(): DropRollService | undefined {
-        if (!this.npcDropRollService && this.npcTypeLoader) {
-            this.npcDropRegistry = new NpcDropRegistry(this.npcTypeLoader);
-            this.npcDropRollService = new DropRollService(this.npcDropRegistry);
-        }
-        return this.npcDropRollService;
-    }
-
-    private rollNpcDrops(
-        npc: NpcState,
-        eligibility: DropEligibility | undefined,
-    ): PendingNpcDrop[] {
-        const service = this.getNpcDropRollService();
-        if (!service) return [];
-        const recipients: Array<{
-            ownerId?: number;
-            player?: PlayerState;
-            dropRateMultiplier: number;
-        }> = [];
-        const seen = new Set<number>();
-        for (const looter of eligibility?.eligibleLooters ?? []) {
-            const playerId = looter.id;
-            if (seen.has(playerId)) continue;
-            seen.add(playerId);
-            recipients.push({
-                ownerId: playerId,
-                player: looter,
-                dropRateMultiplier: this.gamemode.getDropRateMultiplier(looter),
-            });
-        }
-        if (
-            recipients.length === 0 &&
-            eligibility?.primaryLooter &&
-            !seen.has(eligibility.primaryLooter.id)
-        ) {
-            recipients.push({
-                ownerId: eligibility.primaryLooter.id,
-                player: eligibility.primaryLooter,
-                dropRateMultiplier: this.gamemode.getDropRateMultiplier(
-                    eligibility.primaryLooter,
-                ),
-            });
-        }
-        if (recipients.length === 0) {
-            recipients.push({
-                ownerId: undefined,
-                player: undefined,
-                dropRateMultiplier: 1,
-            });
-        }
-        let npcName = "";
-        try {
-            npcName = this.npcTypeLoader?.load(npc.typeId)?.name ?? "";
-        } catch (err) { logger.warn("[drop] npc name lookup failed", err); }
-        return service.roll({
-            npcTypeId: npc.typeId,
-            npcName,
-            tile: { x: npc.tileX, y: npc.tileY, level: npc.level },
-            isWilderness: isInWilderness(npc.tileX, npc.tileY),
-            recipients,
-            worldViewId: npc.worldViewId,
-            transformItemId: (npcTypeId, itemId, recipient) =>
-                this.gamemode.transformDropItemId(npcTypeId, itemId, recipient.player),
-        });
-    }
 
     private getAppearanceDisplayName(player: PlayerState | undefined): string {
         return this.appearanceService.getAppearanceDisplayName(player);
@@ -3593,146 +3108,6 @@ export class WSServer {
         }
         this.broadcastScheduler.queueSpellResult(playerId, payload);
     }
-    private estimateProjectileTiming(opts: {
-        player: PlayerState;
-        targetX?: number;
-        targetY?: number;
-        projectileDefaults?: ProjectileParams;
-        spellData?: SpellDataEntry;
-        pathService?: PathService;
-    }):
-        | { startDelay: number; travelTime: number; hitDelay: number; lineOfSight?: boolean }
-        | undefined {
-        // OSRS semantics: use cache-authoritative projectile delays when present.
-        const tickMs = Math.max(1, this.options.tickMs);
-        const framesPerTick = Math.max(1, Math.round(tickMs / 20));
-        const projectileId = opts.spellData?.projectileId ?? -1;
-
-        // Start delay (ticks): OSRS parity – prefer cache-authoritative delayFrames when available.
-        // Priority: explicit spell value > explicit defaults > cache delayFrames > animation heuristic
-        let startDelay = 0;
-        let usedCacheDelay = false;
-        if (opts.spellData?.projectileStartDelay !== undefined) {
-            startDelay = Math.max(0, opts.spellData.projectileStartDelay);
-            usedCacheDelay = true;
-        } else if (opts.projectileDefaults?.startDelay !== undefined) {
-            startDelay = Math.max(0, opts.projectileDefaults.startDelay);
-            usedCacheDelay = true;
-        } else if (
-            opts.projectileDefaults?.delayFrames !== undefined &&
-            opts.projectileDefaults.delayFrames > 0
-        ) {
-            // OSRS parity: delayFrames from cache is authoritative for projectile spawn timing
-            startDelay = Math.max(0, opts.projectileDefaults.delayFrames / framesPerTick);
-            usedCacheDelay = true;
-        }
-
-        // Travel time (ticks): explicit spell/default values first, otherwise derived from projectile model.
-        let travelTime: number | undefined;
-        let rayTiles: number | undefined;
-        let lineOfSight: boolean | undefined;
-        if (opts.spellData?.projectileTravelTime !== undefined) {
-            travelTime = Math.max(1, opts.spellData.projectileTravelTime);
-        } else if (opts.projectileDefaults?.travelTime !== undefined) {
-            travelTime = Math.max(1, opts.projectileDefaults.travelTime);
-        } else if (opts.targetX !== undefined && opts.targetY !== undefined) {
-            const px = opts.player.tileX;
-            const py = opts.player.tileY;
-            const tx = opts.targetX;
-            const ty = opts.targetY;
-            const tiles = Math.max(Math.abs(px - tx), Math.abs(py - ty)); // Chebyshev
-            let effective = tiles;
-            if (opts.pathService) {
-                const ray = opts.pathService.projectileRaycast(
-                    { x: px, y: py, plane: opts.player.level },
-                    { x: tx, y: ty },
-                );
-                lineOfSight = ray.clear;
-                rayTiles = Math.max(0, ray.tiles);
-                if (ray.clear) {
-                    effective = Math.max(1, ray.tiles);
-                }
-            }
-            const travelFrames = this.estimateProjectileTravelFramesForParams(
-                projectileId,
-                opts.projectileDefaults,
-                effective,
-                rayTiles,
-                framesPerTick,
-            );
-            if (travelFrames !== undefined && Number.isFinite(travelFrames)) {
-                travelTime = Math.max(1, travelFrames / framesPerTick);
-            }
-        }
-
-        if (travelTime === undefined || !Number.isFinite(travelTime)) return undefined;
-
-        // Add optional per-spell release offset (ticks) on top of base delay.
-        if (opts.spellData?.projectileReleaseDelayTicks !== undefined) {
-            startDelay += Math.max(0, opts.spellData.projectileReleaseDelayTicks);
-        } else if (!usedCacheDelay) {
-            // Only use animation heuristic if we don't have cache-authoritative delay.
-            // This avoids overriding delayFrames with a potentially inaccurate heuristic.
-            try {
-                let castSeq = -1;
-                if (opts.spellData) {
-                    if (opts.spellData.castAnimId !== undefined) {
-                        castSeq = opts.spellData.castAnimId;
-                    } else if (opts.spellData.id > 0) {
-                        const isAutocast =
-                            !!opts.player.autocastEnabled &&
-                            (opts.player.combatSpellId ?? -1) === opts.spellData.id;
-                        castSeq = this.pickSpellCastSequence(
-                            opts.player,
-                            opts.spellData.id,
-                            isAutocast,
-                        );
-                    }
-                } else {
-                    castSeq = this.pickAttackSequence(opts.player);
-                }
-                const extra = this.estimateReleaseOffsetFromSeq(castSeq, framesPerTick);
-                if (extra !== undefined && extra > 0) {
-                    startDelay += extra;
-                }
-            } catch (err) { logger.warn("[combat] attack sequence estimation failed", err); }
-        }
-
-        const hitDelay = startDelay + travelTime;
-        return { startDelay, travelTime, hitDelay, lineOfSight };
-    }
-
-    private estimateReleaseOffsetFromSeq(seqId: number, framesPerTick: number): number | undefined {
-        if (!(seqId >= 0)) return undefined;
-        const loader: any = this.seqTypeLoader;
-        if (!loader?.load) return undefined;
-        try {
-            const seq = loader.load(seqId);
-            if (!seq) return undefined;
-            // Heuristic: if the sequence has frameSounds, assume the first sound marks release.
-            const sounds = seq.frameSounds as Map<number, any[]> | undefined;
-            let frameIndex: number | undefined;
-            if (sounds) {
-                let best: number | undefined;
-                sounds.forEach((_v: any, k: number) => {
-                    if (best === undefined || k < best) best = k;
-                });
-                frameIndex = best;
-            }
-            if (frameIndex === undefined) return undefined;
-            // Sum frameLengths up to and including that frame
-            let frames = 0;
-            for (let i = 0; i <= Math.min(frameIndex, (seq.frameLengths?.length ?? 0) - 1); i++) {
-                const fl = seq.frameLengths[i] ?? 1;
-                frames += fl > 0 ? fl : 1;
-            }
-            const ticks = frames / Math.max(1, framesPerTick);
-            return Math.max(0, ticks);
-        } catch {
-            return undefined;
-        }
-    }
-
     /**
      * Send collection-log display varps on login/reconnect so summary/account UIs have the same
      * state they would get after opening the collection log itself.
@@ -3741,7 +3116,7 @@ export class WSServer {
         const displayVarps = syncCollectionDisplayVarps(player);
         for (const [varpIdRaw, valueRaw] of Object.entries(displayVarps)) {
             this.withDirectSendBypass("varp", () =>
-                this.sendWithGuard(
+                this.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "varp",
@@ -3754,156 +3129,6 @@ export class WSServer {
                 ),
             );
         }
-    }
-
-    private estimateProjectileTravelFramesForParams(
-        projectileId: number,
-        defaults: ProjectileParams | undefined,
-        distanceTiles: number,
-        rayTiles: number | undefined,
-        framesPerTick: number,
-    ): number | undefined {
-        const tiles = Math.max(1, Math.round(distanceTiles));
-        // Prefer cache/param-provided travel frames or ticks-per-tile when present.
-        const travelFramesExplicit = defaults?.travelFrames;
-        if (
-            Number.isFinite(travelFramesExplicit as number) &&
-            (travelFramesExplicit as number) > 0
-        ) {
-            return Math.max(1, Math.round(travelFramesExplicit as number));
-        }
-        const ticksPerTile = defaults?.ticksPerTile;
-        if (Number.isFinite(ticksPerTile as number) && (ticksPerTile as number) > 0) {
-            return Math.max(1, Math.round(tiles * (ticksPerTile as number) * framesPerTick));
-        }
-        const byModel = this.estimateFramesFromLifeModel(
-            defaults?.lifeModel,
-            tiles,
-            rayTiles,
-            framesPerTick,
-        );
-        if (byModel !== undefined) {
-            return byModel;
-        }
-        // No heuristic fallback here; if cache doesn't define travel we must not invent timing.
-        return undefined;
-    }
-
-    private estimateFramesFromLifeModel(
-        model: ProjectileParams["lifeModel"],
-        distanceTiles: number,
-        rayTiles?: number,
-        framesPerTick?: number,
-    ): number | undefined {
-        if (!model) return undefined;
-        const tiles = Math.max(1, Math.round(distanceTiles));
-        const fpt = Math.max(1, Math.round(framesPerTick ?? 30));
-        switch (model) {
-            case "linear5":
-                return tiles * 5;
-            case "linear5-clamped10":
-                return Math.max(10, tiles * 5);
-            case "javelin":
-                return tiles * 3 + 2;
-            case "magic": {
-                // OSRS parity: Magic projectile travel must sync with hit delay formula.
-                // Hit delay for magic is: 1 + floor((1 + distance) / 3) + 1 (for NPC target)
-                // With startDelay=1, travelTime should be: 1 + floor((1 + distance) / 3)
-                // This ensures projectile arrives exactly when the hit is applied.
-                const pathTiles = Math.max(1, Math.round(rayTiles ?? distanceTiles));
-                const travelTicks = 1 + Math.floor((1 + pathTiles) / 3);
-                return travelTicks * fpt;
-            }
-            default:
-                return undefined;
-        }
-    }
-
-    private getPlayerProjectileHeightOffset(_player: PlayerState): number {
-        return PLAYER_CHEST_OFFSET_UNITS;
-    }
-
-    private getProjectileHeightSampler():
-        | ((worldX: number, worldY: number, plane: number) => number | undefined)
-        | undefined {
-        const pathService = this.options.pathService;
-        if (!pathService?.sampleHeight) {
-            return undefined;
-        }
-        return (worldX: number, worldY: number, plane: number): number | undefined => {
-            const sample = pathService.sampleHeight(worldX, worldY, plane);
-            if (!Number.isFinite(sample as number)) {
-                // Fallback to 0 if height data is missing to ensure consistent projectile offsets
-                // instead of letting the client default to "feet" (0 offset).
-                return 0;
-            }
-            return sample as number;
-        };
-    }
-
-    private getNpcProjectileHeightOffset(npc: NpcState): number {
-        try {
-            const npcType = this.npcManager?.getNpcType(npc);
-            let heightScale = Math.max(64, npcType?.heightScale ?? 128);
-            // Projectile targets should land around the torso, not the head.
-            // Many NPCs keep heightScale=128 even when visually short, so 0.9 tiles overshoots.
-            // Use a lower torso factor with a small floor.
-            let heightOffsetTiles = Math.max(0.6, (heightScale / 128) * 0.75);
-            const size = Math.max(1, npc.size);
-            heightOffsetTiles += (size - 1) * 0.5;
-            return Math.round(heightOffsetTiles * TILE_UNIT);
-        } catch {
-            return PLAYER_CHEST_OFFSET_UNITS;
-        }
-    }
-
-    private getTargetHeightOffset(
-        targetNpc: NpcState | undefined,
-        targetPlayer: PlayerState | undefined,
-        fallback: number,
-    ): number {
-        if (targetPlayer) return this.getPlayerProjectileHeightOffset(targetPlayer);
-        if (targetNpc) return this.getNpcProjectileHeightOffset(targetNpc);
-        return fallback;
-    }
-
-    private computeProjectileEndHeight(opts: {
-        projectileDefaults?: ProjectileParams;
-        spellData?: SpellDataEntry;
-        targetNpc?: NpcState;
-        targetPlayer?: PlayerState;
-    }): number | undefined {
-        // OSRS parity: end height comes from cache/archetype or explicit spell field only.
-        const explicit = opts.spellData?.projectileEndHeight ?? opts.projectileDefaults?.endHeight;
-        return explicit !== undefined ? explicit : undefined;
-    }
-
-    private buildPlayerRangedProjectileLaunch(opts: {
-        player: PlayerState;
-        npc: NpcState;
-        projectile: {
-            projectileId?: number;
-            startHeight?: number;
-            endHeight?: number;
-            slope?: number;
-            steepness?: number;
-            startDelay?: number;
-            sourceHeightOffset?: number;
-        };
-        timing?: { startDelay: number; travelTime: number };
-    }): ProjectileLaunch | undefined {
-        if (!this.projectileSystem) return undefined;
-        return this.projectileSystem.buildRangedProjectileLaunch(opts);
-    }
-
-    private queueProjectileForViewers(launch: ProjectileLaunch): void {
-        if (!this.projectileSystem) return;
-        // Sync the active frame container with the projectile system
-        if (this.activeFrame && this.activeFrame.tick === this.options.ticker.currentTick()) {
-            this.activeFrame.projectilePackets ??= new Map();
-            this.projectileSystem.setActiveFramePackets(this.activeFrame.projectilePackets);
-        }
-        this.projectileSystem.queueProjectileForViewers(launch);
     }
 
     private getInventory(p: PlayerState): InventoryEntry[] {
@@ -4005,9 +3230,6 @@ export class WSServer {
      */
 
 
-
-
-
     /**
      * Create the ProjectileSystem with all required services.
      */
@@ -4029,11 +3251,11 @@ export class WSServer {
     private createMessageRouter(): MessageRouter {
         const services: MessageRouterServices = {
             getPlayer: (ws) => this.players?.get(ws),
-            sendWithGuard: (ws, message, context) => this.sendWithGuard(ws, message, context),
+            sendWithGuard: (ws, message, context) => this.networkLayer.sendWithGuard(ws, message, context),
             sendAdminResponse: (ws, message, context) =>
                 this.sendAdminResponse(ws, message, context),
             withDirectSendBypass: (context, fn) => this.withDirectSendBypass(context, fn),
-            queueChatMessage: (msg) => this.queueChatMessage(msg),
+            queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
             closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
             encodeMessage: encodeMessage,
         };
@@ -4084,164 +3306,9 @@ export class WSServer {
     }
 
 
-    private equipmentStatsUid(childId: number): number {
-        return ((EQUIPMENT_STATS_GROUP_ID & 0xffff) << 16) | (childId & 0xffff);
-    }
-
-    private queueEquipmentStatsWidgetText(playerId: number, childId: number, text: string): void {
-        this.queueWidgetEvent(playerId, {
-            action: "set_text",
-            uid: this.equipmentStatsUid(childId),
-            text,
-        });
-    }
-
-    private formatEquipmentSignedInt(value: number): string {
-        return this.equipmentService.formatEquipmentSignedInt(value);
-    }
-
-    private formatEquipmentSignedPercent(value: number): string {
-        return this.equipmentService.formatEquipmentSignedPercent(value);
-    }
-
-    private formatEquipmentSignedIntPercent(value: number): string {
-        return this.equipmentService.formatEquipmentSignedIntPercent(value);
-    }
-
-    private formatEquipmentAttackSpeedSeconds(ticks: number): string {
-        return this.equipmentService.formatEquipmentAttackSpeedSeconds(ticks);
-    }
-
-    private computeEquipmentStatBonuses(player: PlayerState): number[] {
-        return this.equipmentService.computeEquipmentStatBonuses(player);
-    }
-
-    private computeEquipmentTargetSpecificBonusPercentages(player: PlayerState): {
-        undeadPercent: number;
-        slayerPercent: number;
-    } {
-        const equip = this.ensureEquipArray(player);
-        const amuletId = equip[EquipmentSlot.AMULET];
-        const headId = equip[EquipmentSlot.HEAD];
-        const attackType = resolvePlayerAttackType({
-            combatWeaponCategory: player.combatWeaponCategory,
-            combatStyleSlot: player.combatStyleSlot,
-            combatSpellId: player.combatSpellId,
-            autocastEnabled: player.autocastEnabled,
-        });
-
-        let undeadPercent = 0;
-        if (attackType === "melee") {
-            if (amuletId === ITEM_ID_SALVE_AMULET || amuletId === ITEM_ID_SALVE_AMULET_I) {
-                undeadPercent = EQUIPMENT_STATS_SALVE_MELEE_PERCENT;
-            } else if (
-                amuletId === ITEM_ID_SALVE_AMULET_E ||
-                amuletId === ITEM_ID_SALVE_AMULET_EI
-            ) {
-                undeadPercent = EQUIPMENT_STATS_SALVE_ENCHANTED_PERCENT;
-            }
-        } else if (attackType === "ranged" || attackType === "magic") {
-            if (amuletId === ITEM_ID_SALVE_AMULET_I) {
-                undeadPercent = EQUIPMENT_STATS_SALVE_IMBUED_PERCENT;
-            } else if (amuletId === ITEM_ID_SALVE_AMULET_EI) {
-                undeadPercent = EQUIPMENT_STATS_SALVE_ENCHANTED_PERCENT;
-            }
-        }
-
-        let slayerPercent = 0;
-        const task = player.getSlayerTaskInfo();
-        const onSlayerTask = !!task.onTask;
-        const hasSlayerHelm = SLAYER_HELM_IDS.has(headId) || IMBUED_SLAYER_HELM_IDS.has(headId);
-        const hasImbuedSlayerHelm = IMBUED_SLAYER_HELM_IDS.has(headId);
-        if (onSlayerTask && hasSlayerHelm) {
-            if (attackType === "melee") {
-                slayerPercent = EQUIPMENT_STATS_SLAYER_MELEE_PERCENT;
-            } else if ((attackType === "ranged" || attackType === "magic") && hasImbuedSlayerHelm) {
-                slayerPercent = EQUIPMENT_STATS_SLAYER_IMBUED_PERCENT;
-            }
-        }
-
-        // OSRS parity: Undead and Slayer multipliers do not stack.
-        if (undeadPercent > 0 && slayerPercent > 0) {
-            slayerPercent = 0;
-        }
-
-        return { undeadPercent, slayerPercent };
-    }
-
     private queueEquipmentStatsWidgetTexts(player: PlayerState): void {
-        const playerId = player.id;
-        const bonuses = this.computeEquipmentStatBonuses(player);
-        const attackLabels = ["Stab", "Slash", "Crush", "Magic", "Ranged"] as const;
-        const defenceLabels = ["Stab", "Slash", "Crush", "Magic", "Ranged"] as const;
-        const otherLabels = [
-            "Melee strength",
-            "Ranged strength",
-            "Magic damage",
-            "Prayer",
-        ] as const;
-
-        for (let i = 0; i < EQUIPMENT_STATS_ATTACK_CHILD_BY_INDEX.length; i++) {
-            this.queueEquipmentStatsWidgetText(
-                playerId,
-                EQUIPMENT_STATS_ATTACK_CHILD_BY_INDEX[i],
-                `${attackLabels[i]}: ${this.formatEquipmentSignedInt(bonuses[i] ?? 0)}`,
-            );
-        }
-        for (let i = 0; i < EQUIPMENT_STATS_DEFENCE_CHILD_BY_INDEX.length; i++) {
-            this.queueEquipmentStatsWidgetText(
-                playerId,
-                EQUIPMENT_STATS_DEFENCE_CHILD_BY_INDEX[i],
-                `${defenceLabels[i]}: ${this.formatEquipmentSignedInt(bonuses[i + 5] ?? 0)}`,
-            );
-        }
-        this.queueEquipmentStatsWidgetText(
-            playerId,
-            EQUIPMENT_STATS_OTHER_CHILD_BY_INDEX[0],
-            `${otherLabels[0]}: ${this.formatEquipmentSignedInt(bonuses[10] ?? 0)}`,
-        );
-        this.queueEquipmentStatsWidgetText(
-            playerId,
-            EQUIPMENT_STATS_OTHER_CHILD_BY_INDEX[1],
-            `${otherLabels[1]}: ${this.formatEquipmentSignedInt(bonuses[11] ?? 0)}`,
-        );
-        this.queueEquipmentStatsWidgetText(
-            playerId,
-            EQUIPMENT_STATS_OTHER_CHILD_BY_INDEX[2],
-            `${otherLabels[2]}: ${this.formatEquipmentSignedIntPercent(bonuses[12] ?? 0)}`,
-        );
-        this.queueEquipmentStatsWidgetText(
-            playerId,
-            EQUIPMENT_STATS_OTHER_CHILD_BY_INDEX[3],
-            `${otherLabels[3]}: ${this.formatEquipmentSignedInt(bonuses[13] ?? 0)}`,
-        );
-
-        const targetSpecific = this.computeEquipmentTargetSpecificBonusPercentages(player);
-        this.queueEquipmentStatsWidgetText(
-            playerId,
-            EQUIPMENT_STATS_TARGET_UNDEAD_CHILD,
-            `Undead: ${this.formatEquipmentSignedPercent(targetSpecific.undeadPercent)}`,
-        );
-        this.queueEquipmentStatsWidgetText(
-            playerId,
-            EQUIPMENT_STATS_TARGET_SLAYER_CHILD,
-            `Slayer task: ${this.formatEquipmentSignedPercent(targetSpecific.slayerPercent)}`,
-        );
-
-        const baseAttackSpeed = this.resolveBaseAttackSpeed(player);
-        const actualAttackSpeed = this.pickAttackSpeed(player);
-        this.queueEquipmentStatsWidgetText(
-            playerId,
-            EQUIPMENT_STATS_WEAPON_SPEED_BASE_CHILD,
-            `Base: ${this.formatEquipmentAttackSpeedSeconds(baseAttackSpeed)}`,
-        );
-        this.queueEquipmentStatsWidgetText(
-            playerId,
-            EQUIPMENT_STATS_WEAPON_SPEED_ACTUAL_CHILD,
-            `Current: ${this.formatEquipmentAttackSpeedSeconds(actualAttackSpeed)}`,
-        );
+        this.equipmentStatsUiService.queueEquipmentStatsWidgetTexts(player);
     }
-
 
 
     private computeRunEnergyRegenUnits(
@@ -4265,204 +3332,6 @@ export class WSServer {
         attacker?: PlayerState,
     ): AttackType {
         return this.playerCombatService.deriveAttackTypeFromStyle(style, attacker);
-    }
-
-    private applyProtectionPrayers(
-        target: PlayerState,
-        damage: number,
-        attackType: AttackType,
-        source: "npc" | "player",
-    ): number {
-        if (!(damage > 0)) return 0;
-        const prayer = PROTECTION_PRAYER_MAP[attackType];
-        if (!prayer || !target.hasPrayerActive(prayer)) return damage;
-        const reduction = source === "npc" ? NPC_PROTECTION_REDUCTION : PVP_PROTECTION_REDUCTION;
-        const remaining = Math.floor(damage * (1 - reduction));
-        return Math.max(0, remaining);
-    }
-
-    private applyMultiTargetSpellDamage(opts: {
-        player: PlayerState;
-        primary: NpcState;
-        spell: SpellDataEntry;
-        baseDamage: number;
-        style: number;
-        hitsplatTick: number;
-        currentTick: number;
-        effects: ActionEffect[];
-    }): void {
-        if (
-            !this.npcManager ||
-            !opts.spell.maxTargets ||
-            opts.spell.maxTargets <= 1 ||
-            !(opts.baseDamage > 0)
-        ) {
-            return;
-        }
-        const extras = this.npcManager
-            .getNearby(opts.primary.tileX, opts.primary.tileY, opts.primary.level, 1)
-            .filter((npc) => npc.id !== opts.primary.id);
-        if (extras.length === 0) return;
-        let remaining = Math.max(0, opts.spell.maxTargets - 1);
-        const splashDamage = Math.max(1, Math.floor(opts.baseDamage / 2));
-        if (!(splashDamage > 0)) return;
-        for (const extra of extras) {
-            if (remaining <= 0) break;
-            const result = this.applyPlayerDamageToNpc(
-                opts.player,
-                extra,
-                splashDamage,
-                opts.style,
-                opts.currentTick,
-                "magic",
-            );
-            if (!result) continue;
-            remaining--;
-            const hpFields =
-                result.amount > 0 ? { hpCurrent: result.hpCurrent, hpMax: result.hpMax } : {};
-            opts.effects.push({
-                type: "hitsplat",
-                playerId: opts.player.id,
-                targetType: "npc",
-                targetId: extra.id,
-                damage: result.amount,
-                style: result.style,
-                sourceType: "player",
-                sourcePlayerId: opts.player.id,
-                tick: opts.hitsplatTick,
-                ...hpFields,
-            });
-            if (opts.spell.freezeDuration && result.amount > 0) {
-                extra.applyFreeze(opts.spell.freezeDuration, opts.currentTick);
-            }
-            const spotId =
-                result.amount > 0
-                    ? opts.spell.impactSpotAnim ?? opts.spell.splashSpotAnim
-                    : opts.spell.splashSpotAnim ?? opts.spell.impactSpotAnim;
-            if (spotId !== undefined && spotId >= 0) {
-                this.enqueueSpotAnimation({
-                    tick: opts.hitsplatTick,
-                    npcId: extra.id,
-                    spotId: spotId,
-                    delay: 0,
-                    height: 100,
-                });
-            }
-        }
-    }
-
-    private applyPlayerDamageToNpc(
-        player: PlayerState,
-        npc: NpcState,
-        damage: number,
-        style: number,
-        tick: number,
-        damageType: DamageType,
-        maxHit?: number,
-    ): { amount: number; style: number; hpCurrent: number; hpMax: number } | undefined {
-        if (npc.isPlayerFollower?.() === true) return undefined;
-        if (npc.getHitpoints() <= 0 || npc.isDead(tick)) return undefined;
-
-        const result = combatEffectApplicator.applyNpcHitsplat(npc, style, damage, tick, maxHit);
-        if (result.amount > 0) {
-            this.playerCombatManager?.recordDamage(player, npc, result.amount, damageType, tick);
-        }
-        if (result.hpCurrent <= 0) {
-            this.handleNpcDeathOutsidePrimaryCombat(player, npc, tick);
-        }
-        return result;
-    }
-
-    private handleNpcDeathOutsidePrimaryCombat(
-        player: PlayerState,
-        npc: NpcState,
-        tick: number,
-    ): void {
-        if (npc.isPlayerFollower?.() === true || npc.isDead(tick)) {
-            return;
-        }
-
-        logger.info(`[combat] NPC ${npc.id} (type ${npc.typeId}) died`);
-        npc.clearInteractionTarget();
-
-        const eligibility = this.playerCombatManager?.getDropEligibility?.(npc);
-        const inWilderness = isInWilderness(npc.tileX, npc.tileY);
-        const pendingDrops = this.rollNpcDrops(npc, eligibility).map((drop) => ({
-            ...drop,
-            isWilderness: inWilderness,
-        }));
-
-        const deathSeq = this.getNpcCombatSequences(npc.typeId)?.death;
-        if (deathSeq !== undefined && deathSeq >= 0) {
-            npc.queueOneShotSeq(deathSeq);
-            this.broadcastNpcSequence(npc, deathSeq);
-            npc.popPendingSeq();
-        }
-
-        const deathSoundId = this.getNpcDeathSoundId(npc.typeId);
-        if (deathSoundId !== undefined && deathSoundId > 0) {
-            this.withDirectSendBypass("combat_npc_death_sound", () =>
-                this.broadcastSound(
-                    {
-                        soundId: deathSoundId,
-                        x: npc.tileX,
-                        y: npc.tileY,
-                        level: npc.level,
-                        delay: COMBAT_SOUND_DELAY_MS,
-                    },
-                    "combat_npc_death_sound",
-                ),
-            );
-        }
-
-        this.players?.clearInteractionsWithNpc(npc.id);
-
-        const affectedPlayerIds = new Set<number>([player.id]);
-        const npcTargetPlayerId = npc.getCombatTargetPlayerId();
-        if (npcTargetPlayerId !== undefined && npcTargetPlayerId >= 0) {
-            affectedPlayerIds.add(npcTargetPlayerId);
-        }
-        for (const affectedPlayerId of affectedPlayerIds) {
-            this.actionScheduler.cancelActions(affectedPlayerId, (action) => {
-                const actionNpcId =
-                    action.kind === "combat.attack" ||
-                    action.kind === "combat.playerHit" ||
-                    action.kind === "combat.npcRetaliate"
-                        ? (
-                              action.data as
-                                  | CombatAttackActionData
-                                  | CombatPlayerHitActionData
-                                  | CombatNpcRetaliateActionData
-                          ).npcId
-                        : undefined;
-                return (
-                    actionNpcId === npc.id &&
-                    (action.groups.includes("combat.attack") ||
-                        action.groups.includes("combat.retaliate") ||
-                        action.groups.includes("combat.hit"))
-                );
-            });
-        }
-
-        const RESPAWN_DELAY_TICKS = 17;
-        const deathDelayTicks = this.estimateNpcDespawnDelayTicksFromSeq(deathSeq);
-        const despawnTick = tick + Math.max(1, deathDelayTicks);
-        const respawnTick = Math.max(tick + RESPAWN_DELAY_TICKS, despawnTick + 1);
-        try {
-            npc.markDeadUntil(despawnTick, tick);
-        } catch (err) { logger.warn("[npc] mark dead failed", err); }
-        const queued =
-            this.npcManager?.queueDeath?.(npc.id, despawnTick, respawnTick, pendingDrops) ?? false;
-        if (!queued) {
-            logger.warn(
-                `[combat] Failed to queue NPC respawn (npc=${npc.id}, respawnTick=${respawnTick})`,
-            );
-        }
-
-        this.playerCombatManager?.cleanupNpc?.(npc);
-
-        const killerId = eligibility?.primaryLooter?.id ?? player.id;
-        this.gamemode.onNpcKill(killerId, npc.typeId);
     }
 
     private ensureEquipArray(p: PlayerState): number[] {
@@ -4571,73 +3440,6 @@ export class WSServer {
         }
     }
 
-    private summarizeSteps(
-        actor: PlayerState,
-        steps:
-            | Array<{
-                  x: number;
-                  y: number;
-                  level: number;
-                  rot: number;
-                  running: boolean;
-                  traversal?: number;
-                  orientation?: number;
-                  direction?: number;
-                  seq?: number;
-              }>
-            | undefined,
-    ): {
-        directions: number[];
-        traversals: number[];
-        ran: boolean;
-        runSteps: number;
-        finalRot: number;
-        finalOrientation: number;
-        finalSeq?: number;
-        level: number;
-        subX: number;
-        subY: number;
-    } {
-        const directions: number[] = [];
-        const traversals: number[] = [];
-        if (Array.isArray(steps)) {
-            for (const step of steps) {
-                const dir = step.direction !== undefined ? step.direction & 7 : undefined;
-                if (dir === undefined) {
-                    continue;
-                }
-                directions.push(dir);
-                const traversal = step.traversal ?? (step.running ? 2 : 1);
-                traversals.push(traversal >= 0 ? traversal : 1);
-            }
-        }
-        const ran = Array.isArray(steps) && steps.some((s) => !!s.running);
-        const runSteps = Array.isArray(steps) ? steps.filter((s) => !!s.running).length : 0;
-        const lastStep =
-            Array.isArray(steps) && steps.length > 0 ? steps[steps.length - 1] : undefined;
-        const finalRot = lastStep ? lastStep.rot : actor.rot;
-        const finalOrientation =
-            lastStep?.orientation !== undefined
-                ? lastStep.orientation & 2047
-                : actor.getOrientation() & 2047;
-        const finalSeq = lastStep?.seq;
-        const level = lastStep ? lastStep.level : actor.level;
-        const subX = lastStep ? lastStep.x : actor.x;
-        const subY = lastStep ? lastStep.y : actor.y;
-        return {
-            directions,
-            traversals,
-            ran,
-            runSteps,
-            finalRot,
-            finalOrientation,
-            finalSeq,
-            level,
-            subX,
-            subY,
-        };
-    }
-
     private sendAnimUpdate(ws: WebSocket, p: PlayerState): void {
         this.appearanceService.sendAnimUpdate(p);
     }
@@ -4654,129 +3456,8 @@ export class WSServer {
         this.messagingService.queuePlayerGameMessage(player, text);
     }
 
-    private handleExaminePacket(ws: WebSocket, packet: DecodedPacket): boolean {
-        const player = this.players?.get(ws);
-        if (!player) {
-            return false;
-        }
-
-        switch (packet.type) {
-            case "examine_loc": {
-                this.queuePlayerGameMessage(
-                    player,
-                    resolveLocExamineText(this.locTypeLoader, player, packet.locId),
-                );
-                return true;
-            }
-
-            case "examine_npc": {
-                this.queuePlayerGameMessage(
-                    player,
-                    resolveNpcExamineText(this.npcTypeLoader, packet.npcId),
-                );
-                return true;
-            }
-
-            case "examine_obj": {
-                const visible = this.groundItems
-                    .queryArea(
-                        packet.worldX,
-                        packet.worldY,
-                        player.level,
-                        0,
-                        this.options.ticker.currentTick(),
-                        player.id,
-                        player.worldViewId,
-                    )
-                    .some((stack) => stack.itemId === packet.itemId);
-                if (!visible) {
-                    return true;
-                }
-
-                this.queuePlayerGameMessage(
-                    player,
-                    resolveObjExamineText(this.objTypeLoader, packet.itemId),
-                );
-                return true;
-            }
-
-            default:
-                return false;
-        }
-    }
-
-    private resolveNpcOptionByOpNum(npc: any, opNum: number): string | undefined {
-        const idx = opNum - 1;
-        if (idx < 0 || idx > 4) return undefined;
-        try {
-            const type = this.npcManager?.getNpcType?.(npc);
-            const raw = Array.isArray(type?.actions) ? type.actions[idx] : undefined;
-            if (!raw) return undefined;
-            const normalized = raw.trim();
-            return normalized.length > 0 ? normalized : undefined;
-        } catch {
-            return undefined;
-        }
-    }
-
-    private resolveLocActionByOpNum(
-        locId: number,
-        opNum: number,
-        player?: PlayerState,
-    ): string | undefined {
-        const idx = opNum - 1;
-        if (idx < 0 || idx > 4) return undefined;
-        if (!(locId > 0)) return undefined;
-        try {
-            const visible = player
-                ? loadVisibleLocTypeForPlayer(this.locTypeLoader, player, locId)
-                : undefined;
-            const def = visible?.type ?? this.locTypeLoader?.load?.(locId);
-            const raw = Array.isArray(def?.actions) ? def.actions[idx] : undefined;
-            if (!raw) return undefined;
-            const normalized = raw.trim();
-            return normalized.length > 0 ? normalized : undefined;
-        } catch {
-            return undefined;
-        }
-    }
-
-    private resolveGroundItemOptionByOpNum(itemId: number, opNum: number): string | undefined {
-        const idx = opNum - 1;
-        if (idx < 0 || idx > 4) return undefined;
-        if (!(itemId > 0)) return undefined;
-        try {
-            const obj = this.getObjType(itemId);
-            const raw = Array.isArray(obj?.groundActions) ? obj.groundActions[idx] : undefined;
-            if (!raw) return undefined;
-            const normalized = raw.trim();
-            return normalized.length > 0 ? normalized : undefined;
-        } catch {
-            return undefined;
-        }
-    }
-
     private resolveEquipSlot(itemId: number): number | undefined {
         return this.equipmentService.resolveEquipSlot(itemId);
-    }
-
-    private isConsumable(
-        obj:
-            | ObjType
-            | {
-                  inventoryActions?: Array<string | null | undefined>;
-              }
-            | undefined,
-        optionLower: string,
-    ): boolean {
-        if (optionLower && CONSUME_VERBS.includes(optionLower)) return true;
-        const actions = Array.isArray(obj?.inventoryActions) ? obj.inventoryActions : [];
-        for (const act of actions) {
-            if (act && CONSUME_VERBS.includes(act.toLowerCase())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     // Item-specific actions (e.g., Prayer burying) are implemented via the scripts runtime.
@@ -4793,116 +3474,13 @@ export class WSServer {
         return this.inventoryService.addItemToInventory(p, itemId, quantity);
     }
 
-    private performScheduledAction(
-        player: PlayerState,
-        action: ScheduledAction,
-        tick: number,
-    ): ActionExecutionResult {
-        switch (action.kind) {
-            case "inventory.use_on":
-                return this.inventoryActionHandler.executeInventoryUseOnAction(
-                    player,
-                    action.data as InventoryUseOnActionData,
-                    tick,
-                );
-            case "inventory.equip":
-                return this.inventoryActionHandler.executeInventoryEquipAction(
-                    player,
-                    action.data as InventoryEquipActionData,
-                );
-            case "inventory.consume":
-                return this.inventoryActionHandler.executeInventoryConsumeAction(
-                    player,
-                    action.data as InventoryConsumeActionData,
-                );
-            case "inventory.consume_script":
-                return this.inventoryActionHandler.executeScriptedConsumeAction(
-                    player,
-                    action.data as InventoryConsumeScriptActionData,
-                    tick,
-                );
-            case "inventory.move":
-                return this.inventoryActionHandler.executeInventoryMoveAction(
-                    player,
-                    action.data as InventoryMoveActionData,
-                );
-            case "inventory.unequip":
-                return this.inventoryActionHandler.executeInventoryUnequipAction(
-                    player,
-                    action.data as InventoryUnequipActionData,
-                );
-            case "combat.attack":
-                return this.combatActionHandler.executeCombatAttackAction(
-                    player,
-                    action.data as CombatAttackActionData,
-                    tick,
-                );
-            case "combat.autocast":
-                return this.combatActionHandler.executeCombatAutocastAction(
-                    player,
-                    action.data as CombatAutocastActionData,
-                    tick,
-                );
-            case "combat.playerHit":
-                return this.combatActionHandler.executeCombatPlayerHitAction(
-                    player,
-                    action.data as CombatPlayerHitActionData,
-                    tick,
-                );
-            case "combat.npcRetaliate":
-                return this.combatActionHandler.executeCombatNpcRetaliateAction(
-                    player,
-                    action.data as CombatNpcRetaliateActionData,
-                    tick,
-                );
-            case "combat.companionHit":
-                return this.combatActionHandler.executeCombatCompanionHitAction(
-                    player,
-                    action.data as CombatCompanionHitActionData,
-                    tick,
-                );
-            case "movement.teleport":
-                return this.executeMovementTeleportAction(
-                    player,
-                    action.data as MovementTeleportActionData,
-                    tick,
-                );
-            case "emote.play":
-                return this.executeEmotePlayAction(player, action.data as EmotePlayActionData);
-            case "npc.trade": {
-                const tradeData = action.data as { npcTypeId?: number; shopId?: string };
-                this.scriptRuntime.getServices().openShop?.(player, tradeData);
-                return { ok: true, effects: [] };
-            }
-            default: {
-                const scriptHandler = this.scriptRegistry.findActionHandler(action.kind);
-                if (scriptHandler) {
-                    return scriptHandler({
-                        player,
-                        data: action.data,
-                        tick,
-                        services: this.scriptRuntime.getServices(),
-                    });
-                }
-                return {
-                    ok: false,
-                    reason: `unknown_action:${action.kind}`,
-                    effects: [
-                        {
-                            type: "log",
-                            playerId: player.id,
-                            level: "warn",
-                            message: `Unhandled action kind ${action.kind}`,
-                        },
-                    ],
-                };
-            }
-        }
-    }
-
 
     private sendInventorySnapshot(ws: WebSocket, p: PlayerState): void {
         this.inventoryService.sendInventorySnapshot(ws, p);
+    }
+
+    private sendInventorySnapshotImmediate(ws: WebSocket, p: PlayerState): void {
+        this.inventoryService.sendInventorySnapshotImmediate(ws, p);
     }
 
     private sendInventorySnapshotImmediate(ws: WebSocket, p: PlayerState): void {
@@ -4914,21 +3492,6 @@ export class WSServer {
      * Converts the player's collectionObtained map to slot format.
      */
 
-
-
-
-
-
-    /**
-     * Queue a varp update to be sent to the client.
-     */
-    private queueVarp(playerId: number, varpId: number, value: number): void {
-        this.variableService.queueVarp(playerId, varpId, value);
-    }
-
-    private queueVarbit(playerId: number, varbitId: number, value: number): void {
-        this.variableService.queueVarbit(playerId, varbitId, value);
-    }
 
     private sendSkillsSnapshotImmediate(
         ws: WebSocket,
@@ -4971,7 +3534,6 @@ export class WSServer {
     }
 
 
-
     private findOwnedItemLocation(
         player: PlayerState,
         itemId: number,
@@ -5008,62 +3570,8 @@ export class WSServer {
         this.spellCastingService.sendSpellFailure(player, spellId, reason);
     }
 
-    private buildSkillMessageEffect(player: PlayerState, message: string): ActionEffect {
-        return {
-            type: "message",
-            playerId: player.id,
-            message,
-        };
-    }
-
     private enqueueLevelUpPopup(player: PlayerState, popup: LevelUpPopup): void {
         this.interfaceManager.enqueueLevelUpPopup(player, popup);
-    }
-
-    private closeChatboxModalOverlay(playerIdRaw: number): void {
-        const playerId = playerIdRaw;
-        const chatboxTargetUid = (CHATBOX_GROUP_ID << 16) | CHATBOX_CHILD_ID;
-
-        // Close the sub-interface mounted on chatbox
-        this.queueWidgetEvent(playerId, { action: "close_sub", targetUid: chatboxTargetUid });
-
-        // Reset chatbox modal sizing for subsequent chatbox content.
-        this.queueWidgetEvent(playerId, {
-            action: "set_varbit",
-            varbitId: VARBIT_CHATMODAL_UNCLAMP,
-            value: 0,
-        });
-
-        // Re-hide MES_LAYER container
-        this.queueWidgetEvent(playerId, {
-            action: "set_hidden",
-            uid: chatboxTargetUid,
-            hidden: true,
-        });
-    }
-
-    private openLevelUpChatboxOverlay(playerIdRaw: number, groupId: number): void {
-        const playerId = playerIdRaw;
-        const chatboxTargetUid = (CHATBOX_GROUP_ID << 16) | CHATBOX_CHILD_ID;
-
-        // Match the standard chatbox modal setup used by dialogs in this cache revision.
-        this.queueWidgetEvent(playerId, {
-            action: "set_hidden",
-            uid: chatboxTargetUid,
-            hidden: false,
-        });
-
-        this.queueWidgetEvent(playerId, {
-            action: "open_sub",
-            targetUid: chatboxTargetUid,
-            groupId,
-            type: 0,
-            varbits: {
-                [VARBIT_CHATMODAL_UNCLAMP]: 1,
-            },
-            // Rev 236 parity: do not hide 162:55 here; CHATMODAL is nested under it.
-            preScripts: [{ scriptId: CHATBOX_RESET_SCRIPT_ID, args: [] }],
-        });
     }
 
     /**
@@ -5121,520 +3629,8 @@ export class WSServer {
         this.interfaceManager.interruptPlayerSkillActions(playerId);
     }
 
-    private showLevelUpPopup(player: PlayerState, popup: LevelUpPopup): boolean {
-        if (popup.kind === "skill") {
-            return this.dispatchLevelUpEffect(
-                player,
-                popup.skillId,
-                popup.newLevel,
-                popup.levelIncrement,
-            );
-        }
-        return this.dispatchCombatLevelUpEffect(player, popup.newLevel, popup.levelIncrement);
-    }
-
     private advanceLevelUpPopupQueue(player: PlayerState): void {
         this.interfaceManager.advanceLevelUpPopupQueue(player);
-    }
-
-    private dispatchCombatLevelUpEffect(
-        player: PlayerState,
-        newCombatLevelRaw: number,
-        levelIncrementRaw: number,
-    ): boolean {
-        const playerId = player.id;
-        const newLevel = Math.max(1, newCombatLevelRaw);
-        const levelIncrement = Math.max(1, levelIncrementRaw);
-
-        const noun = "combat";
-        const firstChar = noun[0] ?? "";
-        const vowel =
-            firstChar === "a" ||
-            firstChar === "e" ||
-            firstChar === "i" ||
-            firstChar === "o" ||
-            firstChar === "u";
-        const levelFormat = levelIncrement === 1 ? (vowel ? "an" : "a") : String(levelIncrement);
-        const pluralSuffix = levelIncrement === 1 ? "" : "s";
-
-        this.openLevelUpChatboxOverlay(playerId, LEVELUP_INTERFACE_ID);
-
-        // Enable clicking on continue button (component 3) - OSRS parity
-        this.queueWidgetEvent(playerId, {
-            action: "set_flags",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT,
-            flags: 1, // Click enabled (pause button)
-        });
-
-        // Hide all skill containers and show the combat-level container.
-        for (const componentId of Object.values(LEVELUP_SKILL_COMPONENT_BY_SKILL)) {
-            const comp = componentId;
-            if (typeof comp !== "number") continue;
-            this.queueWidgetEvent(playerId, {
-                action: "set_hidden",
-                uid: (LEVELUP_INTERFACE_ID << 16) | (comp & 0xffff),
-                hidden: true,
-            });
-        }
-        this.queueWidgetEvent(playerId, {
-            action: "set_hidden",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_COMBAT_COMPONENT,
-            hidden: false,
-        });
-
-        // Set chatbox texts.
-        this.queueWidgetEvent(playerId, {
-            action: "set_text",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_TEXT1_COMPONENT,
-            text: `<col=000080>Congratulations, you just advanced ${levelFormat} ${noun} level${pluralSuffix}.`,
-        });
-        this.queueWidgetEvent(playerId, {
-            action: "set_text",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_TEXT2_COMPONENT,
-            text: `Your ${noun} level is now ${newLevel}.`,
-        });
-        this.queueWidgetEvent(playerId, {
-            action: "set_text",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT,
-            text: "Click here to continue",
-        });
-
-        // Broadcast the celebratory gfx to nearby players.
-
-        const tick = this.options.ticker.currentTick();
-        this.enqueueSpotAnimation({
-            tick,
-            playerId,
-            spotId: LEVELUP_SPOT_ID,
-            delay: 0,
-            height: 120,
-        });
-
-        // OSRS parity: Play combat level-up jingle
-        this.sendJingle(player, LEVELUP_COMBAT_JINGLE_ID, LEVELUP_JINGLE_DELAY);
-
-        // OSRS parity: Play firework sound effect with spotanim
-        this.sendSound(player, LEVELUP_FIREWORK_SOUND);
-
-        return true;
-    }
-
-    private dispatchHunterLevelUpEffect(
-        player: PlayerState,
-        newLevelRaw: number,
-        levelIncrementRaw: number,
-    ): boolean {
-        const playerId = player.id;
-        const newLevel = Math.max(1, newLevelRaw);
-        const levelIncrement = Math.max(1, levelIncrementRaw);
-
-        const noun = "Hunter";
-        const levelFormat = levelIncrement === 1 ? "a" : String(levelIncrement);
-        const pluralSuffix = levelIncrement === 1 ? "" : "s";
-
-        this.openLevelUpChatboxOverlay(playerId, OBJECTBOX_INTERFACE_ID);
-
-        this.queueWidgetEvent(playerId, {
-            action: "set_item",
-            uid: (OBJECTBOX_INTERFACE_ID << 16) | 1,
-            itemId: HUNTER_LEVELUP_ICON_ITEM_ID,
-        });
-        this.queueWidgetEvent(playerId, {
-            action: "set_text",
-            uid: (OBJECTBOX_INTERFACE_ID << 16) | 2,
-            text:
-                `<col=000080>Congratulations, you've just advanced ${levelFormat} ${noun} level${pluralSuffix}.` +
-                `<col=000000><br><br>Your ${noun} level is now ${newLevel}.`,
-        });
-
-        const spotId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_SPOT_ID : LEVELUP_SPOT_ID;
-        const tick = this.options.ticker.currentTick();
-        this.enqueueSpotAnimation({
-            tick,
-            playerId,
-            spotId,
-            delay: 0,
-            height: 120,
-        });
-
-        // OSRS parity: Play skill-specific level-up jingle (different fanfare for level 99)
-        const hunterJingle = LEVELUP_JINGLE_BY_SKILL[SkillId.Hunter] ?? LEVELUP_JINGLE_ID;
-        const jingleId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_JINGLE_ID : hunterJingle;
-        this.sendJingle(player, jingleId, LEVELUP_JINGLE_DELAY);
-
-        // OSRS parity: Play firework sound effect with spotanim
-        this.sendSound(player, LEVELUP_FIREWORK_SOUND);
-
-        return true;
-    }
-
-    private dispatchLevelUpEffect(
-        player: PlayerState,
-        skillIdRaw: number,
-        newLevelRaw: number,
-        levelIncrementRaw: number,
-    ): boolean {
-        const playerId = player.id;
-        const skillId = skillIdRaw;
-        const newLevel = Math.max(1, newLevelRaw);
-        const levelIncrement = Math.max(1, levelIncrementRaw);
-
-        if (skillId === (SkillId.Hunter as number)) {
-            return this.dispatchHunterLevelUpEffect(player, newLevel, levelIncrement);
-        }
-
-        const targetComponentId = LEVELUP_SKILL_COMPONENT_BY_SKILL[skillId];
-        if (targetComponentId === undefined) {
-            return false;
-        }
-
-        const skillName = getSkillName(skillId as SkillId);
-        const firstChar = (skillName[0] ?? "").toLowerCase();
-        const vowel =
-            firstChar === "a" ||
-            firstChar === "e" ||
-            firstChar === "i" ||
-            firstChar === "o" ||
-            firstChar === "u";
-        const levelFormat = levelIncrement === 1 ? (vowel ? "an" : "a") : String(levelIncrement);
-        const pluralSuffix = levelIncrement === 1 ? "" : "s";
-
-        this.openLevelUpChatboxOverlay(playerId, LEVELUP_INTERFACE_ID);
-
-        // Enable clicking on continue button (component 3) - OSRS parity
-        this.queueWidgetEvent(playerId, {
-            action: "set_flags",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT,
-            flags: 1, // Click enabled (pause button)
-        });
-
-        // Show only the matching skill container component (and always hide Combat).
-        for (const componentId of Object.values(LEVELUP_SKILL_COMPONENT_BY_SKILL)) {
-            const comp = componentId;
-            if (typeof comp !== "number") continue;
-            this.queueWidgetEvent(playerId, {
-                action: "set_hidden",
-                uid: (LEVELUP_INTERFACE_ID << 16) | (comp & 0xffff),
-                hidden: comp !== targetComponentId,
-            });
-        }
-        this.queueWidgetEvent(playerId, {
-            action: "set_hidden",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_COMBAT_COMPONENT,
-            hidden: true,
-        });
-
-        // Set chatbox texts.
-        this.queueWidgetEvent(playerId, {
-            action: "set_text",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_TEXT1_COMPONENT,
-            text: `<col=000080>Congratulations, you just advanced ${levelFormat} ${skillName} level${pluralSuffix}.`,
-        });
-        this.queueWidgetEvent(playerId, {
-            action: "set_text",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_TEXT2_COMPONENT,
-            text: `Your ${skillName} level is now ${newLevel}.`,
-        });
-        this.queueWidgetEvent(playerId, {
-            action: "set_text",
-            uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT,
-            text: "Click here to continue",
-        });
-
-        // Broadcast the celebratory gfx to nearby players.
-
-        const spotId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_SPOT_ID : LEVELUP_SPOT_ID;
-        const tick = this.options.ticker.currentTick();
-        this.enqueueSpotAnimation({
-            tick,
-            playerId,
-            spotId,
-            delay: 0,
-            height: 120,
-        });
-
-        // OSRS parity: Play skill-specific level-up jingle (different fanfare for level 99)
-        const skillJingle = LEVELUP_JINGLE_BY_SKILL[skillId] ?? LEVELUP_JINGLE_ID;
-        const jingleId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_JINGLE_ID : skillJingle;
-        this.sendJingle(player, jingleId, LEVELUP_JINGLE_DELAY);
-
-        // OSRS parity: Play firework sound effect with spotanim
-        this.sendSound(player, LEVELUP_FIREWORK_SOUND);
-
-        return true;
-    }
-
-    private buildSkillFailure(
-        player: PlayerState,
-        message: string,
-        reason: string,
-    ): ActionExecutionResult {
-        return {
-            ok: false,
-            reason,
-            effects: [this.buildSkillMessageEffect(player, message)],
-        };
-    }
-
-
-
-
-    private handleInventoryUseMessage(
-        ws: WebSocket,
-        payload: { slot: number; itemId: number; quantity?: number; option?: string; op?: number } | undefined,
-    ): void {
-        if (!payload) return;
-        const p = this.players?.get(ws);
-        if (!p) return;
-        const slotIndex = Math.max(0, Math.min(INVENTORY_SLOT_COUNT - 1, payload.slot));
-        const inv = this.getInventory(p);
-        const slotEntry = inv[slotIndex];
-        let optionLower = payload.option?.toLowerCase() ?? "";
-        const obj = this.getObjType(payload.itemId);
-        const itemDef = getItemDefinition(payload.itemId);
-        const equipSlot = this.resolveEquipSlot(payload.itemId);
-
-        // Resolve option from cache inventoryActions when client sends op number but no text
-        if (!optionLower && obj?.inventoryActions && typeof payload.op === "number") {
-            const opIndex = (payload.op | 0) - 1;
-            if (opIndex >= 0 && opIndex < obj.inventoryActions.length) {
-                const resolved = obj.inventoryActions[opIndex];
-                if (resolved) optionLower = resolved.toLowerCase();
-            }
-        }
-
-        const nowTick = this.options.ticker.currentTick();
-        // First, allow scripts to handle item actions (e.g., bury bones, herblore steps)
-        if (optionLower) {
-            try {
-                const handled = this.scriptRuntime.queueItemAction({
-                    tick: nowTick,
-                    player: p,
-                    itemId: payload.itemId,
-                    slot: slotIndex,
-                    option: optionLower,
-                });
-                if (handled) return; // Script claimed the action
-            } catch (err) { logger.warn("[item] script action dispatch failed", err); }
-        }
-
-        const hasItemInInventory =
-            !!slotEntry && slotEntry.quantity > 0 && slotEntry.itemId === payload.itemId;
-
-        if (optionLower === "drop") {
-            if (!hasItemInInventory) return;
-            // OSRS parity: Dropping items closes interruptible interfaces
-            this.closeInterruptibleInterfaces(p);
-            if (itemDef && !itemDef.dropable) {
-                this.queueChatMessage({
-                    messageType: "game",
-                    text: "You can't drop that.",
-                    targetPlayerIds: [p.id],
-                });
-                return;
-            }
-
-            const doDrop = () => {
-                const currentInv = this.getInventory(p);
-                const currentSlot = currentInv[slotIndex];
-                if (
-                    !currentSlot ||
-                    currentSlot.quantity <= 0 ||
-                    currentSlot.itemId !== payload.itemId
-                ) {
-                    return;
-                }
-                const destroyedQty = currentSlot.quantity;
-                this.setInventorySlot(p, slotIndex, -1, 0);
-                const dropTile = { x: p.tileX, y: p.tileY, level: p.level };
-                // OSRS: Items in wilderness are immediately visible to all players
-                const inWilderness = isInWilderness(dropTile.x, dropTile.y);
-                this.groundItems.spawn(
-                    payload.itemId,
-                    destroyedQty,
-                    dropTile,
-                    this.options.ticker.currentTick(),
-                    { ownerId: p.id, privateTicks: inWilderness ? 0 : undefined },
-                    p.worldViewId,
-                );
-                this.withDirectSendBypass("drop_sound", () => this.sendSound(p, ITEM_DROP_SOUND));
-                this.checkAndSendSnapshots(p);
-                try {
-                    logger.debug(
-                        `[inventory] dropped item player=%d slot=%d item=%d qty=%d tile=(%d,%d,%d)`,
-                        p.id,
-                        slotIndex,
-                        payload.itemId,
-                        destroyedQty,
-                        dropTile.x,
-                        dropTile.y,
-                        dropTile.level,
-                    );
-                } catch (err) { logger.warn("[inventory] drop log failed", err); }
-            };
-
-            // OSRS parity: Total value = per-item value * quantity (for stackable items like coins)
-            // Special case: Coins (995) have value=0 in item definitions, but each coin is worth 1 GP
-            const COINS_ITEM_ID = 995;
-            const perItemValue =
-                payload.itemId === COINS_ITEM_ID
-                    ? 1
-                    : itemDef
-                    ? itemDef.dropValue || itemDef.value
-                    : 0;
-            const totalValue = perItemValue * slotEntry.quantity;
-            if (totalValue >= 30000) {
-                // OSRS parity: Show sprite dialog with item first, then options dialog
-                // See CS2 flow: interface 193 (sprite dialog) → interface 219 (options dialog)
-                this.widgetDialogHandler.openDialog(p, {
-                    kind: "sprite",
-                    id: "confirm_drop_warning",
-                    itemId: payload.itemId,
-                    itemQuantity: slotEntry.quantity,
-                    lines: [
-                        "The item you are trying to put down is considered",
-                        "<col=7f0000>valuable</col>. Are you absolutely sure you want to do that?",
-                    ],
-                    clickToContinue: true,
-                    closeOnContinue: false,
-                    onContinue: () => {
-                        // After clicking continue, show the Yes/No options dialog
-                        this.widgetDialogHandler.openDialogOptions(p, {
-                            id: "confirm_drop",
-                            title: `Drop ${itemDef?.name ?? "item"}?`,
-                            options: ["Yes", "No"],
-                            onSelect: (choice) => {
-                                if (choice === 0) doDrop();
-                            },
-                        });
-                    },
-                });
-            } else {
-                doDrop();
-            }
-            return;
-        }
-
-        if (equipSlot !== undefined) {
-            const equip = this.ensureEquipArray(p);
-            const hasItemEquipped = equip[equipSlot] === payload.itemId;
-            if (!hasItemInInventory && !hasItemEquipped) return;
-
-            // OSRS parity: Queue equip action to be processed during tick cycle
-            // Equipment changes happen in "Process queued actions" phase, tick-aligned but instant (delayTicks: 0)
-            const res = this.actionScheduler.requestAction(
-                p.id,
-                {
-                    kind: "inventory.equip",
-                    data: {
-                        slotIndex,
-                        itemId: payload.itemId,
-                        option: payload.option,
-                        equipSlot,
-                    },
-                    delayTicks: 0,
-                    groups: ["inventory"],
-                    cooldownTicks: 0, // No cooldown on equipping
-                },
-                nowTick,
-            );
-            if (!res.ok) {
-                logger.info(
-                    `[action] equip request rejected player=${p.id} reason=${
-                        res.reason ?? "unknown"
-                    }`,
-                );
-            }
-        } else if (this.isConsumable(obj, optionLower)) {
-            if (!hasItemInInventory) return;
-            const res = this.actionScheduler.requestAction(
-                p.id,
-                {
-                    kind: "inventory.consume",
-                    data: { slotIndex, itemId: payload.itemId, option: payload.option },
-                    delayTicks: 0, // Consume happens immediately
-                    groups: ["inventory"],
-                    cooldownTicks: 3, // 3-tick cooldown between eating/drinking (OSRS standard)
-                },
-                nowTick,
-            );
-            if (!res.ok) {
-                logger.info(
-                    `[action] consume request rejected player=${p.id} reason=${
-                        res.reason ?? "unknown"
-                    }`,
-                );
-            }
-        }
-    }
-
-    private handleInventoryMoveMessage(
-        ws: WebSocket,
-        payload: { from: number; to: number } | undefined,
-    ): void {
-        if (!payload) return;
-        const p = this.players?.get(ws);
-        if (!p) return;
-        const from = Math.max(0, Math.min(INVENTORY_SLOT_COUNT - 1, payload.from));
-        const to = Math.max(0, Math.min(INVENTORY_SLOT_COUNT - 1, payload.to));
-        if (from === to) return;
-        const inv = this.getInventory(p);
-        const src = inv[from];
-        if (!src || src.itemId <= 0 || src.quantity <= 0) return;
-
-        const nowTick = this.options.ticker.currentTick();
-
-        // OSRS parity: Queue move action to be processed during tick cycle
-        // Ensures consistency with other inventory operations (equip/unequip)
-        const res = this.actionScheduler.requestAction(
-            p.id,
-            {
-                kind: "inventory.move",
-                data: { from, to },
-                delayTicks: 0,
-                groups: ["inventory"],
-                cooldownTicks: 0, // No cooldown on moving items
-            },
-            nowTick,
-        );
-        if (!res.ok) {
-            logger.info(
-                `[action] inventory move rejected player=${p.id} reason=${res.reason ?? "unknown"}`,
-            );
-        }
-    }
-
-    private handleGroundItemAction(
-        ws: WebSocket,
-        payload: GroundItemActionPayload | undefined,
-    ): void {
-        // Interface closing handled centrally by INTERFACE_CLOSING_ACTIONS check
-        // Ground item interaction supersedes any pending walk command from earlier clicks.
-        this.movementService.getPendingWalkCommands().delete(ws);
-        this.groundItemHandler.handleGroundItemAction(ws, payload);
-    }
-
-    private attemptTakeGroundItem(
-        player: PlayerState,
-        tile: { x: number; y: number; level: number },
-        itemId: number,
-        stackId: number,
-        requestedQuantity?: number,
-    ): void {
-        this.groundItemHandler.attemptTakeGroundItem(
-            player,
-            tile,
-            itemId,
-            stackId,
-            requestedQuantity,
-        );
-    }
-
-    private performEquipmentAction(
-        player: PlayerState,
-        action: { slot: number; itemId: number; optionLabel: string },
-    ): boolean {
-        return this.equipmentService.performEquipmentAction(player, action);
     }
 
 
@@ -5652,78 +3648,6 @@ export class WSServer {
         this.loginHandshakeService.onConnection(ws);
     }
 
-
-    private handleInventoryUseOnMessage(
-        ws: WebSocket,
-        payload:
-            | {
-                  slot: number;
-                  itemId: number;
-                  modifierFlags?: number;
-                  target:
-                      | {
-                            kind: "npc";
-                            id?: number;
-                            tile?: { x: number; y: number };
-                            plane?: number;
-                        }
-                      | { kind: "loc"; id: number; tile?: { x: number; y: number }; plane?: number }
-                      | { kind: "obj"; id: number; tile?: { x: number; y: number }; plane?: number }
-                      | {
-                            kind: "player";
-                            id?: number;
-                            tile?: { x: number; y: number };
-                            plane?: number;
-                        }
-                      | { kind: "inv"; slot: number; itemId: number };
-              }
-            | undefined,
-    ): void {
-        if (!payload) return;
-        const p = this.players?.get(ws);
-        if (!p) return;
-        // Interface closing handled centrally by INTERFACE_CLOSING_ACTIONS check
-
-        try {
-            const slotIndex = Math.max(0, Math.min(INVENTORY_SLOT_COUNT - 1, payload.slot));
-            const inv = this.getInventory(p);
-            const slot = inv[slotIndex];
-            if (!slot || slot.itemId <= 0 || slot.itemId !== payload.itemId) {
-                // If targeting another inventory slot, mirror client UX with a benign chat message
-                const tgt: any = payload.target as any;
-                if (tgt && tgt.kind === "inv") {
-                    try {
-                        this.queueChatMessage({
-                            messageType: "game",
-                            text: "Nothing interesting happens.",
-                            targetPlayerIds: [p.id],
-                        });
-                    } catch (err) { logger.warn("[item] chat message send failed", err); }
-                }
-                return;
-            }
-        } catch (err) { logger.warn("[item] use validation failed", err); }
-        // Schedule server-authoritative walk-to + interaction resolution (Elvarg-style WalkToTask).
-        try {
-            this.actionScheduler.requestAction(
-                p.id,
-                {
-                    kind: "inventory.use_on",
-                    data: {
-                        slot: payload.slot,
-                        itemId: payload.itemId,
-                        modifierFlags: payload.modifierFlags ?? 0,
-                        target: payload.target,
-                    },
-                    groups: ["inventory"],
-                    delayTicks: 0,
-                },
-                this.options.ticker.currentTick(),
-            );
-        } catch (err) {
-            logger.warn("[inventory] failed to enqueue use_on", err);
-        }
-    }
 
     private ensurePlayerSyncSession(ws: WebSocket): PlayerSyncSession {
         let session = this.playerSyncSessions.get(ws);
@@ -5757,106 +3681,6 @@ export class WSServer {
         });
     }
 
-    private isAdjacentToTile(player: PlayerState, tile: { x: number; y: number }, radius = 1): boolean {
-        return this.locationService.isAdjacentToTile(player, tile, radius);
-    }
-
-    private isAdjacentToLoc(
-        player: PlayerState,
-        locId: number,
-        tile: { x: number; y: number },
-        level: number,
-    ): boolean {
-        if (!(locId > 0)) {
-            return this.isAdjacentToTile(player, tile);
-        }
-        const rect = this.getLocAdjacencyRect(locId, tile, level);
-        if (!rect) {
-            return this.isAdjacentToTile(player, tile);
-        }
-        const minX = rect.tile.x;
-        const minY = rect.tile.y;
-        const maxX = minX + Math.max(1, rect.sizeX) - 1;
-        const maxY = minY + Math.max(1, rect.sizeY) - 1;
-        const px = player.tileX;
-        const py = player.tileY;
-        const clampedX = Math.max(minX, Math.min(px, maxX));
-        const clampedY = Math.max(minY, Math.min(py, maxY));
-        return Math.abs(px - clampedX) <= 1 && Math.abs(py - clampedY) <= 1;
-    }
-
-    private getLocAdjacencyRect(
-        locId: number,
-        tile: { x: number; y: number },
-        level: number,
-    ): { tile: { x: number; y: number }; sizeX: number; sizeY: number } | undefined {
-        const size = this.getLocSize(locId);
-        if (!size) return undefined;
-        const rect = this.deriveLocCollisionRectForTile(tile, size.sizeX, size.sizeY, level);
-        if (rect) return rect;
-        return {
-            tile: { x: tile.x, y: tile.y },
-            sizeX: Math.max(1, size.sizeX),
-            sizeY: Math.max(1, size.sizeY),
-        };
-    }
-
-    private getLocSize(locId: number): { sizeX: number; sizeY: number } | undefined {
-        const loader = this.locTypeLoader;
-        if (!loader?.load) return undefined;
-        try {
-            const loc = loader.load(locId);
-            if (!loc) return undefined;
-            const sizeX = Math.max(1, loc.sizeX);
-            const sizeY = Math.max(1, loc.sizeY);
-            return { sizeX, sizeY };
-        } catch {
-            return undefined;
-        }
-    }
-
-    private deriveLocCollisionRectForTile(
-        tile: { x: number; y: number },
-        sizeX: number,
-        sizeY: number,
-        level: number,
-    ): { tile: { x: number; y: number }; sizeX: number; sizeY: number } | undefined {
-        const pathService = this.options.pathService;
-        if (!pathService?.getCollisionFlagAt) {
-            return undefined;
-        }
-        const mask = CollisionFlag.OBJECT | CollisionFlag.OBJECT_ROUTE_BLOCKER;
-        let minX = Number.POSITIVE_INFINITY;
-        let minY = Number.POSITIVE_INFINITY;
-        let maxX = Number.NEGATIVE_INFINITY;
-        let maxY = Number.NEGATIVE_INFINITY;
-        let found = false;
-        for (let dx = 0; dx < Math.max(1, sizeX); dx++) {
-            for (let dy = 0; dy < Math.max(1, sizeY); dy++) {
-                const wx = tile.x + dx;
-                const wy = tile.y + dy;
-                const flag = pathService.getCollisionFlagAt(wx, wy, level);
-                if (flag === undefined) continue;
-                if ((flag & mask) === 0) continue;
-                found = true;
-                if (wx < minX) minX = wx;
-                if (wy < minY) minY = wy;
-                if (wx > maxX) maxX = wx;
-                if (wy > maxY) maxY = wy;
-            }
-        }
-        if (!found) {
-            return undefined;
-        }
-        return {
-            tile: { x: minX, y: minY },
-            sizeX: Math.max(1, maxX - minX + 1),
-            sizeY: Math.max(1, maxY - minY + 1),
-        };
-    }
-
-
-
 
     private broadcastToNearby(
         x: number,
@@ -5874,63 +3698,14 @@ export class WSServer {
             const dx = Math.abs(player.tileX - x);
             const dy = Math.abs(player.tileY - y);
             if (Math.max(dx, dy) > broadcastRadius) return;
-            this.sendWithGuard(sock, message, context);
+            this.networkLayer.sendWithGuard(sock, message, context);
         });
-    }
-
-    private pickNpcFaceTile(player: PlayerState, npc: NpcState): { x: number; y: number } {
-        const size = Math.max(1, npc.size);
-        let bestX = npc.tileX;
-        let bestY = npc.tileY;
-        let bestDist = Number.POSITIVE_INFINITY;
-        for (let dx = 0; dx < size; dx++) {
-            for (let dy = 0; dy < size; dy++) {
-                const tx = npc.tileX + dx;
-                const ty = npc.tileY + dy;
-                const dist =
-                    (tx - player.tileX) * (tx - player.tileX) +
-                    (ty - player.tileY) * (ty - player.tileY);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestX = tx;
-                    bestY = ty;
-                }
-            }
-        }
-        return { x: bestX, y: bestY };
-    }
-
-    private pickSpellCastSequence(
-        player: PlayerState,
-        spellId: number,
-        isAutocast: boolean,
-    ): number {
-        const normalizedSpellId = spellId;
-        const category = player.combatWeaponCategory ?? 0;
-        const hasMagicWeapon = MAGIC_WEAPON_CATEGORY_IDS.has(category);
-
-        if (hasMagicWeapon) {
-            const mapped = SPELL_CAST_SEQUENCE_OVERRIDES[normalizedSpellId];
-            if (mapped !== undefined && mapped >= 0) {
-                return mapped;
-            }
-            return MAGIC_CAST_STAFF_SEQ;
-        }
-
-        // Preserve existing fallback behavior for impossible autocast states.
-        if (isAutocast) {
-            return this.pickAttackSequence(player);
-        }
-        return MAGIC_CAST_SEQ;
     }
 
     private pickAttackSequence(player: PlayerState): number {
         return this.playerCombatService.pickAttackSequence(player);
     }
 
-    private pickCombatSound(player: PlayerState, isHit: boolean): number {
-        return this.playerCombatService.pickCombatSound(player, isHit);
-    }
 
     private pickSpellSound(spellId: number, stage: "cast" | "impact" | "splash"): number | undefined {
         return this.playerCombatService.pickSpellSound(spellId, stage);
@@ -5953,84 +3728,13 @@ export class WSServer {
     }
 
 
-    private resolveNpcAttackType(npc: NpcState, explicit?: AttackType): AttackType {
-        return resolveNpcAttackTypeRule(npc, explicit);
+    pickNpcAttackSpeed(npc: NpcState, _player?: PlayerState): number {
+        return this.combatEffectService.pickNpcAttackSpeed(npc, _player);
     }
 
-    private resolveNpcAttackRange(npc: NpcState, attackType: AttackType): number {
-        return resolveNpcAttackRangeRule(npc, attackType);
+    pickNpcHitDelay(npc: NpcState, _player: PlayerState, _attackSpeed: number): number {
+        return this.combatEffectService.pickNpcHitDelay(npc, _player, _attackSpeed);
     }
-
-    private getDistanceToNpcBounds(player: PlayerState, npc: NpcState): number {
-        const px = player.tileX;
-        const py = player.tileY;
-        const minX = npc.tileX;
-        const minY = npc.tileY;
-        const size = Math.max(1, npc.size);
-        const maxX = minX + size - 1;
-        const maxY = minY + size - 1;
-        const clampedX = Math.max(minX, Math.min(px, maxX));
-        const clampedY = Math.max(minY, Math.min(py, maxY));
-        return Math.max(Math.abs(clampedX - px), Math.abs(clampedY - py));
-    }
-
-    /**
-     * Compute hit delay for NPC attacking player.
-     *
-     * OSRS hit delay formulas (docs/tick-cycle-order.md):
-     * - Melee: 1 tick
-     * - Ranged: 1 + floor((3 + distance) / 6)
-     * - Magic: 1 + floor((1 + distance) / 3)
-     *
-     * Note: Delay here is from NPC swing to hit application in server ticks.
-     */
-    private computeNpcHitDelay(
-        npc: NpcState,
-        player: PlayerState,
-        attackType: AttackType,
-        _attackSpeed: number,
-    ): number {
-        const distance = this.getDistanceToNpcBounds(player, npc);
-        switch (attackType) {
-            case "magic":
-                // OSRS: 1 + floor((1 + distance) / 3)
-                return Math.max(1, 1 + Math.floor((1 + distance) / 3));
-            case "ranged":
-                // OSRS: 1 + floor((3 + distance) / 6)
-                return Math.max(1, 1 + Math.floor((3 + distance) / 6));
-            case "melee":
-            default:
-                // OSRS: Melee retaliation hit resolves 1 tick after swing.
-                return 1;
-        }
-    }
-
-    private pickNpcAttackSpeed(npc: NpcState, _player?: PlayerState): number {
-        const paramSpeed = this.getNpcParamValue(npc, 14);
-        if (paramSpeed !== undefined && paramSpeed > 0) {
-            return Math.max(1, paramSpeed);
-        }
-        return 4;
-    }
-
-    private pickNpcHitDelay(npc: NpcState, _player: PlayerState, _attackSpeed: number): number {
-        const paramHitDelay = this.getNpcParamValue(npc, 286);
-        if (paramHitDelay !== undefined && paramHitDelay > 0) {
-            return Math.max(1, paramHitDelay);
-        }
-        const attackType = this.resolveNpcAttackType(npc);
-        return this.computeNpcHitDelay(npc, _player, attackType, _attackSpeed);
-    }
-
-    private getNpcParamValue(npc: NpcState, key: number): number | undefined {
-        return this.combatDataService.getNpcParamValue(npc, key);
-    }
-
-
-    private loadNpcCombatDefs(): void {
-        this.combatDataService.loadNpcCombatDefs();
-    }
-
 
     private getNpcCombatSequences(typeId: number): {
         block?: number;
@@ -6057,60 +3761,6 @@ export class WSServer {
         return this.combatDataService.getNpcDefendSoundId({ typeId } as any);
     }
 
-    private estimateNpcDespawnDelayTicksFromSeq(seqId: number | undefined): number {
-        if (seqId === undefined || seqId < 0) return 1;
-        const loader = this.seqTypeLoader;
-        if (!loader) return 1;
-        try {
-            const seq = loader.load(seqId);
-            if (!seq) return 1;
-            if (seq.isSkeletalSeq()) {
-                const dur = Math.max(1, seq.getSkeletalDuration?.() ?? 1);
-                // Skeletal durations are already in frames; treat as client cycles.
-                return Math.max(1, Math.ceil(dur / 30));
-            }
-            const lengths = seq.frameLengths;
-            if (!lengths || lengths.length === 0) return 1;
-            let cycles = 0;
-            for (let i = 0; i < lengths.length; i++) {
-                let fl = lengths[i];
-                if (fl <= 0) fl = 1;
-                // OSRS parity: some death sequences have an extremely long final frame to "hold" the
-                // corpse pose. That final-frame length is not treated as part of the death delay.
-                // (RSMod mirrors this with a 200-cycle threshold; 200 cycles = 4s at 20ms/cycle.)
-                if (i === lengths.length - 1 && fl >= 200) continue;
-                cycles += fl;
-            }
-            return Math.max(1, Math.ceil(cycles / 30));
-        } catch {
-            return 1;
-        }
-    }
-
-    private broadcastNpcSequence(npc: NpcState, seqId: number | undefined): void {
-        if (seqId === undefined || seqId < 0) return;
-        // NPC sequences are encoded via the binary NPC update packet (mask 0x10).
-        const frame = this.activeFrame;
-        if (!frame) return;
-        const id = npc.id;
-        // Merge into an existing delta if this NPC already produced movement/turn updates this tick.
-        const existing = frame.npcUpdates.find((d) => d?.id === id);
-        if (existing?.seq !== undefined && existing.seq >= 0) {
-            // OSRS parity: If two animations are broadcast on the same tick,
-            // keep the one with higher forcedPriority (attack > hurt).
-            const existingPriority = this.getSeqForcedPriority(existing.seq);
-            const newPriority = this.getSeqForcedPriority(seqId);
-            if (newPriority >= existingPriority) {
-                existing.seq = seqId;
-            }
-            // else: keep existing higher-priority animation
-        } else if (existing) {
-            existing.seq = seqId;
-        } else {
-            frame.npcUpdates.push({ id, seq: seqId });
-        }
-    }
-
     private queueExternalNpcTeleportSync(npc: NpcState): void {
         const delta = buildTeleportNpcUpdateDelta(npc);
         if (this.activeFrame) {
@@ -6120,17 +3770,13 @@ export class WSServer {
         upsertNpcUpdateDelta(this.pendingNpcUpdates, delta);
     }
 
-    private getSeqForcedPriority(seqId: number): number {
-        return this.seqTypeLoader?.load?.(seqId)?.forcedPriority ?? 5;
-    }
-
     /**
      * Process binary packet converted to ClientToServer message format
      */
 
     private broadcast(msg: string | Uint8Array, context = "broadcast") {
         for (const client of this.wss.clients) {
-            this.sendWithGuard(client, msg, context);
+            this.networkLayer.sendWithGuard(client, msg, context);
         }
     }
 }

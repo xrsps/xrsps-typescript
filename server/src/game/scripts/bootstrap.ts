@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 
+import { logger } from "../../utils/logger";
+
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import { loadExtrascriptEntries } from "./ExtrascriptLoader";
 import { ScriptRuntime } from "./ScriptRuntime";
@@ -21,7 +23,7 @@ const debounce = (fn: () => void, delayMs: number): (() => void) => {
 function invalidateRequireCache(filePath: string): void {
     try {
         delete require.cache[require.resolve(filePath)];
-    } catch {}
+    } catch (err) { logger.warn("[bootstrap] failed to invalidate require cache", err); }
 }
 
 export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefinition): void {

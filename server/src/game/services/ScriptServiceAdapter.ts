@@ -282,7 +282,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         // --- GatheringServices ---
         gathering: deps.gatheringSystem,
         isAdjacentToLoc: (player, locId, tile, level) =>
-            deps.locationService.isAdjacentToTile(player, tile),
+            deps.locationService.isAdjacentToLoc(player, locId, tile, level),
         isAdjacentToNpc: (player, npc) => deps.locationService.isAdjacentToNpc(player, npc),
         faceGatheringTarget: (player, tile) => deps.locationService.faceGatheringTarget(player, tile),
         stopGatheringInteraction: (player) => {

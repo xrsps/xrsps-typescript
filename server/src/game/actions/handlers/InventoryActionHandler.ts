@@ -15,6 +15,7 @@ import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../../../src/shared/input/modifierFlags";
+import { logger } from "../../../utils/logger";
 import type { NpcState } from "../../npc";
 import type { InventoryAddResult, PlayerState } from "../../player";
 import type {
@@ -373,7 +374,9 @@ export class InventoryActionHandler {
                         },
                         tick,
                     );
-                } catch {}
+                } catch (err) {
+                    logger.warn("[inventory] failed to schedule use_on action", err);
+                }
                 return { ok: true, groups: ["movement"] };
             }
 

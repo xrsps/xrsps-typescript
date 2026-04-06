@@ -1,3 +1,4 @@
+import { logger } from "../../utils/logger";
 import { TradeActionClientPayload, TradeServerPayload } from "../../network/messages";
 import { type InventoryAddResult, type InventoryEntry, PlayerState } from "../player";
 
@@ -170,7 +171,7 @@ export class TradeManager {
         try {
             this.options.openTradeWidget(a);
             this.options.openTradeWidget(b);
-        } catch {}
+        } catch (err) { logger.warn("[trade] failed to open trade widget", err); }
         this.broadcastSession(session, "open");
     }
 
@@ -180,7 +181,7 @@ export class TradeManager {
         for (const party of session.parties) {
             try {
                 this.options.closeTradeWidget(party.player);
-            } catch {}
+            } catch (err) { logger.warn("[trade] failed to close trade widget", err); }
             this.options.queueInventorySnapshot(party.player);
             this.options.queueTradeMessage(party.player.id, {
                 kind: "close",

@@ -68,7 +68,7 @@ export function createVarpTransmitHandler(services: MessageHandlerServices): Mes
             } else if (varpId === VARP_AUTO_RETALIATE) {
                 handleAutoRetaliateVarp(services, ctx.ws, p, value);
             }
-        } catch {}
+        } catch (err) { logger.warn("[varp] failed to handle varp transmit", err); }
     };
 }
 

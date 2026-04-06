@@ -1,3 +1,4 @@
+import { logger } from "../../utils/logger";
 import { PlayerState } from "../player";
 import {
     ActionInterruptionRegistry,
@@ -184,7 +185,7 @@ export class ActionScheduler {
         const priorityOf = (p: PlayerState) => {
             try {
                 if (this.priorityProvider) return this.priorityProvider(p);
-            } catch {}
+            } catch (err) { logger.warn("[action-scheduler] priority provider failed", err); }
             return p.id;
         };
 
@@ -204,7 +205,7 @@ export class ActionScheduler {
             try {
                 const hp = player.getHitpointsCurrent();
                 if (hp <= 0) continue;
-            } catch {}
+            } catch (err) { logger.warn("[action-scheduler] failed to check player hp", err); }
 
             const result = this.safeExecute(player, action, tick);
             this.applyResult(player, state, action, result, tick);

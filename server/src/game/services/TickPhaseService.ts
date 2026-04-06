@@ -78,7 +78,7 @@ type StepRecord = {
     direction?: number;
 };
 
-const EQUIPMENT_STATS_GROUP_ID = 84;
+import { EQUIPMENT_STATS_GROUP_ID } from "./EquipmentStatsUiService";
 
 /**
  * Summarized step data returned by summarizeSteps.

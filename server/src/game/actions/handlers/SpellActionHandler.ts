@@ -10,6 +10,7 @@
  */
 import type { WebSocket } from "ws";
 
+import { logger } from "../../../utils/logger";
 import { resolveSelectedSpellPayload } from "../../../../../src/shared/spells/selectedSpellPayload";
 import type { ProjectileParams as CachedProjectileParams } from "../../../data/projectileParams";
 import type { SpellDataEntry as CachedSpellDataEntry } from "../../../data/spells";
@@ -381,7 +382,7 @@ export class SpellActionHandler {
             this.services.queueSpellResult(player.id, failurePayload);
             try {
                 this.services.enqueueSpellFailureChat(player, spellId, validation.reason);
-            } catch {}
+            } catch (err) { logger.warn("[spell] failed to enqueue spell failure chat", err); }
             this.services.queueCombatSnapshot(
                 player.id,
                 player.combatWeaponCategory,
@@ -417,10 +418,10 @@ export class SpellActionHandler {
                     this.services.queueSpellResult(player.id, failurePayload);
                     try {
                         this.services.enqueueSpellFailureChat(player, spellId, "immune_target");
-                    } catch {}
+                    } catch (err) { logger.warn("[spell] failed to enqueue immune target chat", err); }
                     return false;
                 }
-            } catch {}
+            } catch (err) { logger.warn("[spell] failed to check crumble undead targeting", err); }
         }
 
         const execution = this.services.executeSpellCast(castContext, validation);
@@ -477,7 +478,7 @@ export class SpellActionHandler {
             if (xp > 0) {
                 this.services.awardSkillXp(player, SkillId.Magic, xp);
             }
-        } catch {}
+        } catch (err) { logger.warn("[spell] failed to award autocast xp", err); }
 
         const sock = this.services.getPlayerSocket(player.id);
         if (sock) {
@@ -499,12 +500,12 @@ export class SpellActionHandler {
                     player.pendingFaceTile = { x: npc.tileX, y: npc.tileY };
                     player.markSent();
                 }
-            } catch {}
+            } catch (err) { logger.warn("[spell] failed to face npc for autocast", err); }
             const attackSeq = this.services.pickSpellCastSequence(player, spellId, true);
             if (attackSeq >= 0) {
                 player.queueOneShotSeq(attackSeq, 0);
             }
-        } catch {}
+        } catch (err) { logger.warn("[spell] failed to queue autocast animation", err); }
 
         player.lastSpellCastTick = tick;
 
@@ -551,7 +552,7 @@ export class SpellActionHandler {
                     );
                 }
             }
-        } catch {}
+        } catch (err) { logger.warn("[spell] failed to queue autocast sound", err); }
 
         if (Number.isFinite(totalHitDelay as number) && (totalHitDelay as number) > plan.hitDelay) {
             plan.hitDelay = totalHitDelay as number;
@@ -853,7 +854,7 @@ export class SpellActionHandler {
             base.reason = validation.reason ?? "server_error";
             try {
                 this.services.enqueueSpellFailureChat(player, spellId, validation.reason);
-            } catch {}
+            } catch (err) { logger.warn("[spell] failed to enqueue spell failure chat", err); }
             return base;
         }
 
@@ -874,7 +875,7 @@ export class SpellActionHandler {
             if (xp > 0) {
                 this.services.awardSkillXp(player, SkillId.Magic, xp);
             }
-        } catch {}
+        } catch (err) { logger.warn("[spell] failed to award spell xp", err); }
 
         // Store pending player damage for scheduling
         if (targetPlayer) {
@@ -899,7 +900,7 @@ export class SpellActionHandler {
                 this.services.clearActionsInGroup(player.id, "combat.attack");
                 this.services.clearActionsInGroup(player.id, "combat.autocast");
             }
-        } catch {}
+        } catch (err) { logger.warn("[spell] failed to clear interactions after manual cast", err); }
 
         // OSRS parity: combat spells cast on NPCs enter the normal combat loop so the NPC can
         // retaliate on-hit, but manual spellbook casts remain one-shot and must not auto-repeat.
@@ -944,7 +945,7 @@ export class SpellActionHandler {
             if (attackSeq >= 0) {
                 player.queueOneShotSeq(attackSeq, 0);
             }
-        } catch {}
+        } catch (err) { logger.warn("[spell] failed to queue spell cast animation", err); }
 
         if (spellData.castSpotAnim !== undefined) base.castSpotAnim = spellData.castSpotAnim;
         if (spellData.impactSpotAnim !== undefined) base.impactSpotAnim = spellData.impactSpotAnim;

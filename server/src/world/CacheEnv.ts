@@ -81,7 +81,7 @@ export function initCacheEnv(rootDir: string, name?: string): CacheEnv {
     let models: CacheIndexDat2 | undefined = undefined;
     try {
         models = CacheIndexDat2.fromStore(IndexType.DAT2.models, store);
-    } catch {}
+    } catch (err) { console.log("[cache] failed to load models index", err); }
 
     const mapFileIndex: MapFileIndex = new Dat2MapIndex(maps);
 

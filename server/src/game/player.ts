@@ -3058,7 +3058,7 @@ export class PlayerState extends Actor {
         if (wasAlive && next <= 0) {
             try {
                 this.onDeath?.();
-            } catch {}
+            } catch (err) { logger.warn("[player] death callback failed", err); }
         }
     }
 
@@ -3921,7 +3921,7 @@ export class PlayerManager implements PlayerRepository {
                     size: 1,
                 });
                 if (wp.ok && wp.waypoints) debugWaypoints = wp.waypoints;
-            } catch {}
+            } catch (err) { logger.warn("[player] failed to compute debug waypoints", err); }
         }
 
         if (DEBUG_PLAYER_IDS.has(p.id)) {
@@ -3935,7 +3935,7 @@ export class PlayerManager implements PlayerRepository {
                 logger.info(
                     `pathfind route: ${dt}ms ${p.tileX},${p.tileY} -> ${to.x},${to.y} waypoints=[${waypointStr}] tiles=[${tileStr}]`,
                 );
-            } catch {}
+            } catch (err) { logger.warn("[player] failed to log debug pathfind route", err); }
         }
 
         let destinationCorrection: Tile | undefined;

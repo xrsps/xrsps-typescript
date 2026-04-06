@@ -21,6 +21,7 @@
  * - Server-side item values only
  * - Validate respawn location (no wilderness respawns)
  */
+import { logger } from "../../utils/logger";
 import { SKILL_IDS, SkillId } from "../../../../src/rs/skill/skills";
 import { RUN_ENERGY_MAX } from "../actor";
 import { getWildernessLevel, isInWilderness } from "../combat/MultiCombatZones";
@@ -501,12 +502,12 @@ export class PlayerDeathService {
         player.interruptQueues();
 
         // Clear all combat and interaction state so the player does not auto-re-engage
-        try { this.services.clearCombat?.(player); } catch {}
-        try { player.resetInteractions(); } catch {}
-        try { player.clearInteraction(); } catch {}
-        try { player.clearPath(); } catch {}
+        try { this.services.clearCombat?.(player); } catch (err) { logger.warn("[death] failed to clear combat", err); }
+        try { player.resetInteractions(); } catch (err) { logger.warn("[death] failed to reset interactions", err); }
+        try { player.clearInteraction(); } catch (err) { logger.warn("[death] failed to clear interaction", err); }
+        try { player.clearPath(); } catch (err) { logger.warn("[death] failed to clear path", err); }
         // Clear any NPCs that are still targeting this player
-        try { this.services.clearNpcTargetsForPlayer?.(player.id); } catch {}
+        try { this.services.clearNpcTargetsForPlayer?.(player.id); } catch (err) { logger.warn("[death] failed to clear npc targets", err); }
     }
 
     /**

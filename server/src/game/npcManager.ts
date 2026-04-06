@@ -361,7 +361,7 @@ export class NpcManager {
             if (hpParam !== undefined && hpParam > 0) {
                 return hpParam;
             }
-        } catch {}
+        } catch (err) { logger.warn("[npc] failed to resolve npc hp from params", err); }
         const combat = npcType.combatLevel;
         if (combat > 0) {
             return Math.max(1, Math.round(combat * 3));
@@ -399,7 +399,7 @@ export class NpcManager {
             if (speedParam !== undefined && speedParam >= 1 && speedParam <= 12) {
                 return speedParam;
             }
-        } catch {}
+        } catch (err) { logger.warn("[npc] failed to resolve npc attack speed", err); }
         // Default fallback: 4 ticks (2.4s) - most common NPC attack speed
         return 4;
     }
@@ -432,7 +432,7 @@ export class NpcManager {
             if (hasAttack) {
                 return true;
             }
-        } catch {}
+        } catch (err) { logger.warn("[npc] failed to check npc attackable status", err); }
         return false;
     }
 
@@ -626,7 +626,7 @@ export class NpcManager {
                 if (!a) continue;
                 if (a.trim().toLowerCase() === target) return true;
             }
-        } catch {}
+        } catch (err) { logger.warn("[npc] failed to check npc action", err); }
         return false;
     }
 

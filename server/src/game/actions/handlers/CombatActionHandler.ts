@@ -11,6 +11,7 @@
  *
  * Uses dependency injection via services interface to avoid tight coupling.
  */
+import { logger } from "../../../utils/logger";
 import type { ProjectileLaunch } from "../../../../../src/shared/projectiles/ProjectileLaunch";
 import { getPoweredStaffSpellData } from "../../../data/spells";
 import type { PoweredStaffSpellData, SpellDataEntry } from "../../../data/spells";
@@ -986,7 +987,7 @@ export class CombatActionHandler {
         // Keep autocast pacing consistent even on failure
         try {
             player.lastSpellCastTick = tick;
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to set last spell cast tick", err); }
 
         const targetId = data.targetId;
         const target = targetId > 0 ? this.services.getPlayer(targetId) : undefined;
@@ -1001,7 +1002,7 @@ export class CombatActionHandler {
         ) {
             try {
                 if (sock) this.services.stopPlayerCombat(sock);
-            } catch {}
+            } catch (err) { logger.warn("[combat] failed to stop player combat on invalid target", err); }
             return { ok: true, cooldownTicks: 0, groups: [], effects: [] };
         }
 
@@ -1117,7 +1118,7 @@ export class CombatActionHandler {
                 const sock = this.services.getPlayerSocket(player.id);
                 if (sock) this.services.stopPlayerCombat(sock);
             }
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to stop combat after pvp hit", err); }
 
         // PvP auto-retaliate for target
         this.handlePvpAutoRetaliate(player, target, targetId);
@@ -1834,10 +1835,10 @@ export class CombatActionHandler {
     private disableAutocast(player: PlayerState, sock: unknown | undefined): void {
         try {
             this.services.resetAutocast(player);
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to reset autocast", err); }
         try {
             if (sock) this.services.stopPlayerCombat(sock);
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to stop combat after autocast disable", err); }
     }
 
     private handlePvpAutoRetaliate(
@@ -1865,7 +1866,7 @@ export class CombatActionHandler {
                     }
                 }
             }
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to handle pvp auto-retaliate", err); }
     }
 
     private handleMagicPvpEffects(
@@ -2285,7 +2286,7 @@ export class CombatActionHandler {
         const respawnTick = Math.max(tick + RESPAWN_DELAY_TICKS, despawnTick + 1);
         try {
             npc.markDeadUntil(despawnTick, tick);
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to mark npc dead", err); }
         const queued = this.services.queueNpcDeath(npc.id, despawnTick, respawnTick, pendingDrops);
         if (!queued) {
             this.services.log(

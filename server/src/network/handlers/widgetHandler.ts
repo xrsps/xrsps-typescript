@@ -78,6 +78,6 @@ export function createWidgetHandler(services: MessageHandlerServices): MessageHa
                 }
                 services.getGamemodeUi()?.handleWidgetClose(p, groupId);
             }
-        } catch {}
+        } catch (err) { logger.warn("[widget] failed to handle widget close", err); }
     };
 }

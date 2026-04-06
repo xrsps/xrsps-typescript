@@ -13,6 +13,7 @@ import { getMeleeAttackSequenceForCategory } from "../combat/CombatStyleSequence
 import { resolvePlayerAttackReach } from "../combat/CombatRules";
 import type { DataLoaderService } from "./DataLoaderService";
 import type { PlayerState } from "../player";
+import type { NpcState } from "../npc";
 import { logger } from "../../utils/logger";
 
 const DEFAULT_ATTACK_SEQ = 422;
@@ -20,7 +21,8 @@ const DEFAULT_ATTACK_SPEED = 4;
 const DEFAULT_HIT_SOUND = 2567;
 const DEFAULT_MISS_SOUND = 2564;
 const DEFAULT_MAGIC_SPLASH_SOUND = 227;
-const MAGIC_CAST_STAFF_SEQ = 711;
+const MAGIC_CAST_SEQ = 711; // Standard magic casting animation (human_caststrike)
+const MAGIC_CAST_STAFF_SEQ = 1162; // Magic casting with staff (human_caststrike_staff)
 const MELEE_HIT_DELAY_TICKS = 1;
 const UNARMED_PUNCH_SOUND = 2567;
 const UNARMED_KICK_SOUND = 2568;
@@ -29,7 +31,23 @@ const WEAPON_SPEED_PARAM = 771;
 const MAGIC_WEAPON_CATEGORY_IDS = new Set([18, 24, 29, 31]);
 const RANGED_WEAPON_CATEGORY_IDS = new Set([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 19, 20, 22, 23, 26, 27, 30, 33]);
 
-const SPELL_CAST_SEQUENCE_OVERRIDES: Record<number, number> = {};
+const SPELL_CAST_SEQUENCE_OVERRIDES: Record<number, number> = {
+    3274: 1163, // Confuse
+    3278: 1164, // Weaken
+    3282: 1165, // Curse
+    3325: 1168, // Enfeeble
+    3326: 1169, // Stun
+    3293: 724, // Crumble Undead
+    9075: 725, // Superheat Item
+    9110: 712, // Low Alchemy
+    9111: 713, // High Alchemy
+    9100: 723, // Telekinetic Grab
+    9076: 726, // Charge Air Orb
+    9077: 726, // Charge Earth Orb
+    9078: 726, // Charge Fire Orb
+    9079: 726, // Charge Water Orb
+    9001: 722, // Bones to Bananas
+};
 
 export interface PlayerCombatServiceDeps {
     dataLoaders: DataLoaderService;
@@ -144,7 +162,7 @@ export class PlayerCombatService {
                 const dataEntry = this.deps.weaponData.get(weaponId);
                 if (dataEntry?.hitDelay !== undefined && dataEntry.hitDelay > 0) return dataEntry.hitDelay;
             }
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to resolve hit delay", err); }
         return MELEE_HIT_DELAY_TICKS;
     }
 
@@ -161,7 +179,7 @@ export class PlayerCombatService {
                 const rawSpeed = obj.params?.get(WEAPON_SPEED_PARAM) as number | undefined;
                 if (rawSpeed !== undefined && rawSpeed > 0) return rawSpeed;
             }
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to resolve attack speed", err); }
         return DEFAULT_ATTACK_SPEED;
     }
 
@@ -188,8 +206,32 @@ export class PlayerCombatService {
                 const rawRange = obj?.params?.get(13) as number | undefined;
                 if (rawRange !== undefined && rawRange > 0) baseRange = rawRange;
             }
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to resolve attack range", err); }
         return resolvePlayerAttackReach(player, { baseRange });
+    }
+
+    pickSpellCastSequence(
+        player: PlayerState,
+        spellId: number,
+        isAutocast: boolean,
+    ): number {
+        const normalizedSpellId = spellId;
+        const category = player.combatWeaponCategory ?? 0;
+        const hasMagicWeapon = MAGIC_WEAPON_CATEGORY_IDS.has(category);
+
+        if (hasMagicWeapon) {
+            const mapped = SPELL_CAST_SEQUENCE_OVERRIDES[normalizedSpellId];
+            if (mapped !== undefined && mapped >= 0) {
+                return mapped;
+            }
+            return MAGIC_CAST_STAFF_SEQ;
+        }
+
+        // Preserve existing fallback behavior for impossible autocast states.
+        if (isAutocast) {
+            return this.pickAttackSequence(player);
+        }
+        return MAGIC_CAST_SEQ;
     }
 
     deriveAttackTypeFromStyle(style: number | undefined, attacker?: PlayerState): AttackType {
@@ -200,5 +242,27 @@ export class PlayerCombatService {
         if (MAGIC_WEAPON_CATEGORY_IDS.has(category)) return "magic";
         if (RANGED_WEAPON_CATEGORY_IDS.has(category)) return "ranged";
         return "melee";
+    }
+
+    pickNpcFaceTile(player: PlayerState, npc: NpcState): { x: number; y: number } {
+        const size = Math.max(1, npc.size);
+        let bestX = npc.tileX;
+        let bestY = npc.tileY;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (let dx = 0; dx < size; dx++) {
+            for (let dy = 0; dy < size; dy++) {
+                const tx = npc.tileX + dx;
+                const ty = npc.tileY + dy;
+                const dist =
+                    (tx - player.tileX) * (tx - player.tileX) +
+                    (ty - player.tileY) * (ty - player.tileY);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestX = tx;
+                    bestY = ty;
+                }
+            }
+        }
+        return { x: bestX, y: bestY };
     }
 }

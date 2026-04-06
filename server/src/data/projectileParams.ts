@@ -246,4 +246,4 @@ try {
             }
         }
     }
-} catch {}
+} catch (err) { console.log("[projectiles] failed to load projectile params from cache", err); }

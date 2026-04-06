@@ -7,7 +7,8 @@ import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import { getItemDefinition } from "../../data/items";
 import { RUN_ENERGY_MAX } from "../actor";
 import type { ActionScheduler } from "../actions";
-import type { MovementTeleportActionData } from "../actions/actionPayloads";
+import type { EmotePlayActionData, MovementTeleportActionData } from "../actions/actionPayloads";
+import { getEmoteSeq } from "../emotes";
 import { LockState } from "../model/LockState";
 import type { PlayerState } from "../player";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
@@ -31,6 +32,8 @@ export interface MovementServiceDeps {
     queueChatMessage: (msg: any) => void;
     spawnLocForPlayer: (player: PlayerState, locId: number, tile: any, level: number, shape: number, rotation: number) => void;
     closeInterruptibleInterfaces: (player: PlayerState) => void;
+    enqueueSpotAnimation: (anim: any) => void;
+    playAreaSound: (opts: any) => void;
     sailingInstanceManager: any;
     worldEntityInfoEncoder: any;
     interfaceService: any;
@@ -363,6 +366,173 @@ export class MovementService {
             this.deps.networkLayer.sendWithGuard(sock, encodeMessage({ type: "run_energy", payload }), "run_energy"),
         );
         player.markRunEnergySynced?.();
+    }
+
+    // --- Action Execution ---
+
+    executeMovementTeleportAction(
+        player: PlayerState,
+        data: MovementTeleportActionData,
+        tick: number,
+    ): { ok: boolean; reason?: string; cooldownTicks?: number; groups?: string[] } {
+        const unlockLockState = data.unlockLockState;
+
+        const releaseDelayLock = () => {
+            if (!unlockLockState) return;
+            this.tryReleaseTeleportDelayLock(player, unlockLockState);
+        };
+
+        const x = data.x;
+        const y = data.y;
+        const level = data.level;
+        try {
+            this.teleportPlayer(player, x, y, level, data.forceRebuild);
+
+            // OSRS parity: teleportPlayer() unconditionally queues a stop
+            // animation (-1).  When preserveAnimation is set (e.g. climbing),
+            // the animation was already sent on a previous tick and should
+            // continue playing at the new position — clear the -1 so no
+            // animation update block is sent on the teleport tick.
+            if (data.preserveAnimation) {
+                player.clearPendingSeqs();
+            }
+
+            if (data.resetAnimation) {
+                try {
+                    player.stopAnimation();
+                } catch (err) { logger.warn("[teleport] reset animation failed", err); }
+            }
+
+            if (data.endSpotAnim !== undefined && data.endSpotAnim > 0) {
+                this.deps.enqueueSpotAnimation({
+                    tick,
+                    playerId: player.id,
+                    spotId: data.endSpotAnim,
+                    height: data.endSpotHeight ?? 0,
+                    delay: data.endSpotDelay ?? 0,
+                });
+            }
+
+            if (data.arriveSoundId !== undefined && data.arriveSoundId > 0) {
+                this.deps.playAreaSound({
+                    soundId: data.arriveSoundId,
+                    tile: { x, y },
+                    level,
+                    radius:
+                        data.arriveSoundRadius !== undefined
+                            ? Math.max(0, data.arriveSoundRadius)
+                            : 5,
+                    volume:
+                        data.arriveSoundVolume !== undefined
+                            ? Math.max(0, data.arriveSoundVolume)
+                            : 255,
+                });
+            }
+
+            if (data.arriveMessage) {
+                this.deps.queueChatMessage({
+                    messageType: "game",
+                    text: data.arriveMessage,
+                    targetPlayerIds: [player.id],
+                });
+            }
+
+            if (data.arriveFaceTileX !== undefined && data.arriveFaceTileY !== undefined) {
+                player.faceTile(data.arriveFaceTileX, data.arriveFaceTileY);
+            }
+
+            if (data.arriveSeqId !== undefined && data.arriveSeqId >= 0) {
+                // teleportPlayer() queues a stop animation (-1). Clear it so
+                // the arrive animation lands in the same player_info frame.
+                player.clearPendingSeqs();
+                player.queueOneShotSeq(data.arriveSeqId, 0);
+            }
+
+            return { ok: true };
+        } finally {
+            releaseDelayLock();
+        }
+    }
+
+    executeEmotePlayAction(
+        player: PlayerState,
+        data: EmotePlayActionData,
+    ): { ok: boolean; reason?: string; cooldownTicks?: number; groups?: string[] } {
+        const seqId =
+            data.seqId ?? (data.emoteId !== undefined ? getEmoteSeq(data.emoteId) : undefined);
+        if (seqId === undefined || seqId < 0) {
+            return { ok: false, reason: "invalid_emote" };
+        }
+        const delayTicks = data.delayTicks !== undefined ? Math.max(0, data.delayTicks) : 0;
+        player.queueOneShotSeq(seqId, delayTicks);
+        return { ok: true, cooldownTicks: 0, groups: ["emote"] };
+    }
+
+    summarizeSteps(
+        actor: PlayerState,
+        steps:
+            | Array<{
+                  x: number;
+                  y: number;
+                  level: number;
+                  rot: number;
+                  running: boolean;
+                  traversal?: number;
+                  orientation?: number;
+                  direction?: number;
+                  seq?: number;
+              }>
+            | undefined,
+    ): {
+        directions: number[];
+        traversals: number[];
+        ran: boolean;
+        runSteps: number;
+        finalRot: number;
+        finalOrientation: number;
+        finalSeq?: number;
+        level: number;
+        subX: number;
+        subY: number;
+    } {
+        const directions: number[] = [];
+        const traversals: number[] = [];
+        if (Array.isArray(steps)) {
+            for (const step of steps) {
+                const dir = step.direction !== undefined ? step.direction & 7 : undefined;
+                if (dir === undefined) {
+                    continue;
+                }
+                directions.push(dir);
+                const traversal = step.traversal ?? (step.running ? 2 : 1);
+                traversals.push(traversal >= 0 ? traversal : 1);
+            }
+        }
+        const ran = Array.isArray(steps) && steps.some((s) => !!s.running);
+        const runSteps = Array.isArray(steps) ? steps.filter((s) => !!s.running).length : 0;
+        const lastStep =
+            Array.isArray(steps) && steps.length > 0 ? steps[steps.length - 1] : undefined;
+        const finalRot = lastStep ? lastStep.rot : actor.rot;
+        const finalOrientation =
+            lastStep?.orientation !== undefined
+                ? lastStep.orientation & 2047
+                : actor.getOrientation() & 2047;
+        const finalSeq = lastStep?.seq;
+        const level = lastStep ? lastStep.level : actor.level;
+        const subX = lastStep ? lastStep.x : actor.x;
+        const subY = lastStep ? lastStep.y : actor.y;
+        return {
+            directions,
+            traversals,
+            ran,
+            runSteps,
+            finalRot,
+            finalOrientation,
+            finalSeq,
+            level,
+            subX,
+            subY,
+        };
     }
 
     // --- Walk Commands ---

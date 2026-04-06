@@ -9,6 +9,7 @@
  *
  * Uses dependency injection via services interface to avoid tight coupling.
  */
+import { logger } from "../../utils/logger";
 import { NO_INTERACTION } from "../../game/interactionIndex";
 import type { NpcState, NpcUpdateDelta } from "../../game/npc";
 import type { PlayerState } from "../../game/player";
@@ -329,7 +330,7 @@ export class NpcSyncManager {
                             },
                         ];
                     }
-                } catch {}
+                } catch (err) { logger.warn("[npc-sync] failed to build initial health bar", err); }
 
                 snapshots.push(snap);
                 npcViews.set(npc.id, {
@@ -414,7 +415,7 @@ export class NpcSyncManager {
                                 cycleOffset: 0,
                             });
                         }
-                    } catch {}
+                    } catch (err) { logger.warn("[npc-sync] failed to update health bar", err); }
                 }
 
                 npcViews.set(id, {

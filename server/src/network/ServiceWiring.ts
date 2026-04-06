@@ -8,6 +8,22 @@
  */
 
 import { logger } from "../utils/logger";
+import {
+    VARP_MUSICPLAY,
+    VARP_MUSIC_CURRENT_TRACK,
+    VARP_SIDE_JOURNAL_STATE,
+    VARP_OPTION_RUN,
+    VARP_SPECIAL_ATTACK,
+    VARP_ATTACK_STYLE,
+    VARP_AUTO_RETALIATE,
+    VARP_MAP_FLAGS_CACHED,
+} from "../../../src/shared/vars";
+import { EquipmentSlot } from "../../../src/rs/config/player/Equipment";
+import {
+    VARBIT_SIDE_JOURNAL_TAB,
+    SIDE_JOURNAL_CONTENT_GROUP_BY_TAB,
+    SIDE_JOURNAL_TAB_CONTAINER_UID,
+} from "../../../src/shared/ui/sideJournal";
 import { encodeMessage } from "./messages";
 import { NpcPacketEncoder, PlayerPacketEncoder } from "./encoding";
 import {
@@ -43,7 +59,15 @@ import { SpellCaster } from "../game/spells/SpellCaster";
 import { isInWilderness, getWildernessLevel } from "../game/combat/MultiCombatZones";
 import { combatEffectApplicator } from "../game/combat/CombatEffectApplicator";
 import { normalizeAttackType } from "../game/combat/AttackType";
-import { pickSpecialAttackVisualOverride, testRandFloat } from "./wsServer";
+import {
+    pickSpecialAttackVisualOverride,
+    testRandFloat,
+    EQUIP_SLOT_COUNT,
+    COMBAT_SOUND_DELAY_MS,
+    PLAYER_TAKE_DAMAGE_SOUND,
+    PLAYER_ZERO_DAMAGE_SOUND,
+    TEST_HIT_FORCE,
+} from "./wsServer";
 import { faceAngleRs } from "../../../src/rs/utils/rotation";
 import { getItemDefinition } from "../data/items";
 import { getRangedImpactSound } from "../../data/weapons";
@@ -85,7 +109,7 @@ export function createPlayerPacketEncoder(server: any): PlayerPacketEncoder {
             }
             return liveById;
         },
-        buildAnimPayload: (player) => server.buildAnimPayload(player),
+        buildAnimPayload: (player) => server.appearanceService.buildAnimPayload(player),
         serializeAppearancePayload: (view) => server.serializeAppearancePayload(view),
         resolveHealthBarWidth: (defId) => {
             try {
@@ -129,45 +153,45 @@ export function createCombatActionHandler(server: any): CombatActionHandler {
         getPathService: () => server.options.pathService,
 
         // --- Equipment/Appearance ---
-        getEquipArray: (player) => server.ensureEquipArray(player),
+        getEquipArray: (player) => server.equipmentService.ensureEquipArray(player),
         getEquipQtyArray: (player) =>
             ensureEquipQtyArrayOn(player.appearance, EQUIP_SLOT_COUNT),
         markEquipmentDirty: (player) => player.markEquipmentDirty(),
         markAppearanceDirty: (player) => player.markAppearanceDirty(),
 
         // --- Combat Utilities ---
-        pickAttackSequence: (player) => server.pickAttackSequence(player),
-        pickAttackSpeed: (player) => server.pickAttackSpeed(player),
-        pickHitDelay: (player) => server.pickHitDelay(player),
-        getPlayerAttackReach: (player) => server.getPlayerAttackReach(player),
-        pickNpcFaceTile: (player, npc) => server.pickNpcFaceTile(player, npc),
-        pickCombatSound: (player, isHit) => server.pickCombatSound(player, isHit),
+        pickAttackSequence: (player) => server.playerCombatService.pickAttackSequence(player),
+        pickAttackSpeed: (player) => server.playerCombatService.pickAttackSpeed(player),
+        pickHitDelay: (player) => server.playerCombatService.pickHitDelay(player),
+        getPlayerAttackReach: (player) => server.playerCombatService.getPlayerAttackReach(player),
+        pickNpcFaceTile: (player, npc) => server.playerCombatService.pickNpcFaceTile(player, npc),
+        pickCombatSound: (player, isHit) => server.playerCombatService.pickCombatSound(player, isHit),
         getRangedImpactSound: (player) => {
-            const equip = server.ensureEquipArray(player);
+            const equip = server.equipmentService.ensureEquipArray(player);
             const weaponId = equip[EquipmentSlot.WEAPON];
             return getRangedImpactSound(weaponId);
         },
         deriveAttackTypeFromStyle: (style, player) =>
-            server.deriveAttackTypeFromStyle(style, player),
+            server.playerCombatService.deriveAttackTypeFromStyle(style, player),
         pickBlockSequence: (player) =>
             server.playerCombatManager?.pickBlockSequence(player, server.weaponAnimOverrides) ?? -1,
 
         // --- NPC Combat ---
-        getNpcCombatSequences: (typeId) => server.getNpcCombatSequences(typeId),
-        getNpcHitSoundId: (typeId) => server.getNpcHitSoundId(typeId),
-        getNpcDefendSoundId: (typeId) => server.getNpcDefendSoundId(typeId),
-        getNpcDeathSoundId: (typeId) => server.getNpcDeathSoundId(typeId),
-        getNpcAttackSoundId: (typeId) => server.getNpcAttackSoundId(typeId),
-        resolveNpcAttackType: (npc, hint) => server.resolveNpcAttackType(npc, hint),
-        resolveNpcAttackRange: (npc, attackType) => server.resolveNpcAttackRange(npc, attackType),
-        broadcastNpcSequence: (npc, seqId) => server.broadcastNpcSequence(npc, seqId),
+        getNpcCombatSequences: (typeId) => server.combatDataService.getNpcCombatSequences(typeId),
+        getNpcHitSoundId: (typeId) => server.combatDataService.getNpcHitSoundId({ typeId } as any),
+        getNpcDefendSoundId: (typeId) => server.combatDataService.getNpcDefendSoundId({ typeId } as any),
+        getNpcDeathSoundId: (typeId) => server.combatDataService.getNpcDeathSoundId({ typeId } as any),
+        getNpcAttackSoundId: (typeId) => server.combatDataService.getNpcAttackSoundId({ typeId } as any),
+        resolveNpcAttackType: (npc, hint) => server.combatEffectService.resolveNpcAttackType(npc, hint),
+        resolveNpcAttackRange: (npc, attackType) => server.combatEffectService.resolveNpcAttackRange(npc, attackType),
+        broadcastNpcSequence: (npc, seqId) => server.combatEffectService.broadcastNpcSequence(npc, seqId),
         estimateNpcDespawnDelayTicksFromSeq: (seqId) =>
-            server.estimateNpcDespawnDelayTicksFromSeq(seqId),
+            server.combatEffectService.estimateNpcDespawnDelayTicksFromSeq(seqId),
 
         // --- Projectile ---
-        estimateProjectileTiming: (params) => server.estimateProjectileTiming(params as any),
+        estimateProjectileTiming: (params) => server.projectileTimingService.estimateProjectileTiming(params as any),
         buildPlayerRangedProjectileLaunch: (params) =>
-            server.buildPlayerRangedProjectileLaunch(params),
+            server.projectileTimingService.buildPlayerRangedProjectileLaunch(params),
 
         // --- Spell/Magic ---
         processSpellCastRequest: (player, request) =>
@@ -177,17 +201,17 @@ export function createCombatActionHandler(server: any): CombatActionHandler {
                 server.options.ticker.currentTick(),
             ),
         queueSpellResult: (playerId, result) => server.queueSpellResult(playerId, result),
-        pickSpellSound: (spellId, stage) => server.pickSpellSound(spellId, stage),
-        resetAutocast: (player) => server.resetAutocast(player),
+        pickSpellSound: (spellId, stage) => server.playerCombatService.pickSpellSound(spellId, stage),
+        resetAutocast: (player) => server.equipmentService.resetAutocast(player),
 
         // --- Effect Dispatching ---
         broadcastSound: (request, tag) => server.broadcastSound(request, tag),
-        withDirectSendBypass: (tag, fn) => server.withDirectSendBypass(tag, fn),
+        withDirectSendBypass: (tag, fn) => server.networkLayer.withDirectSendBypass(tag, fn),
         enqueueSpotAnimation: (request) => server.enqueueSpotAnimation(request),
-        queueChatMessage: (request) => server.queueChatMessage(request),
+        queueChatMessage: (request) => server.messagingService.queueChatMessage(request),
         queueCombatState: (player) => server.queueCombatState(player),
         queueSkillSnapshot: (playerId, sync) =>
-            server.queueSkillSnapshot(playerId, sync as SkillSyncUpdate),
+            server.skillService.queueSkillSnapshot(playerId, sync as SkillSyncUpdate),
         dispatchActionEffects: (effects) =>
             server.effectDispatcher.dispatchActionEffects(effects),
         broadcast: (data, tag) => server.broadcast(data, tag),
@@ -213,7 +237,8 @@ export function createCombatActionHandler(server: any): CombatActionHandler {
         clearInteractionsWithNpc: (npcId) => server.players?.clearInteractionsWithNpc(npcId),
         sendSkillsMessage: (socket, player) => {
             if (socket instanceof WebSocket) {
-                server.sendSkillsMessage(socket, player);
+                const sync = player.takeSkillSync();
+                if (sync) server.skillService.queueSkillSnapshot(player.id, sync);
             }
         },
 
@@ -235,7 +260,7 @@ export function createCombatActionHandler(server: any): CombatActionHandler {
         rollRetaliateDamage: (npc, player) =>
             server.playerCombatManager?.rollRetaliateDamage(npc, player) ?? 0,
         getDropEligibility: (npc) => server.playerCombatManager?.getDropEligibility?.(npc),
-        rollNpcDrops: (npc, eligibility) => server.rollNpcDrops(npc, eligibility),
+        rollNpcDrops: (npc, eligibility) => server.combatEffectService.rollNpcDrops(npc, eligibility),
         cleanupNpc: (npc) => server.playerCombatManager?.cleanupNpc?.(npc),
 
         // --- Ground Items ---
@@ -248,11 +273,11 @@ export function createCombatActionHandler(server: any): CombatActionHandler {
 
         // --- Prayer/Combat Effects ---
         applyProtectionPrayers: (target, damage, attackType, sourceType) =>
-            server.applyProtectionPrayers(target, damage, attackType, sourceType),
-        applySmite: (attacker, target, damage) => server.applySmite(attacker, target, damage),
-        tryActivateRedemption: (player) => server.tryActivateRedemption(player),
+            server.combatEffectService.applyProtectionPrayers(target, damage, attackType, sourceType),
+        applySmite: (attacker, target, damage) => server.combatEffectService.applySmite(attacker, target, damage),
+        tryActivateRedemption: (player) => server.combatEffectService.tryActivateRedemption(player),
         closeInterruptibleInterfaces: (player) => server.closeInterruptibleInterfaces(player),
-        applyMultiTargetSpellDamage: (params) => server.applyMultiTargetSpellDamage(params),
+        applyMultiTargetSpellDamage: (params) => server.combatEffectService.applyMultiTargetSpellDamage(params),
 
         // --- XP Awards ---
         awardCombatXp: (player, damage, hitData, effects) =>
@@ -376,8 +401,8 @@ export function createSpellActionHandler(server: any): SpellActionHandler {
         executeSpellCast: (context, validation) => SpellCaster.execute(context, validation),
 
         // --- Projectile ---
-        computeProjectileEndHeight: (opts) => server.computeProjectileEndHeight(opts),
-        estimateProjectileTiming: (opts) => server.estimateProjectileTiming(opts),
+        computeProjectileEndHeight: (opts) => server.projectileTimingService.computeProjectileEndHeight(opts),
+        estimateProjectileTiming: (opts) => server.projectileTimingService.estimateProjectileTiming(opts),
         buildAndQueueSpellProjectileLaunch: (opts) => {
             if (!server.projectileSystem) return;
             const launch = server.projectileSystem.buildSpellProjectileLaunch({
@@ -392,7 +417,7 @@ export function createSpellActionHandler(server: any): SpellActionHandler {
                 impactDelayTicks: opts.impactDelayTicks,
             });
             if (launch) {
-                server.queueProjectileForViewers(launch);
+                server.projectileTimingService.queueProjectileForViewers(launch);
             }
         },
 
@@ -400,11 +425,11 @@ export function createSpellActionHandler(server: any): SpellActionHandler {
         queueSpellResult: (playerId, payload) => server.queueSpellResult(playerId, payload),
         enqueueSpotAnimation: (request) => server.enqueueSpotAnimation(request),
         enqueueSpellFailureChat: (player, spellId, reason) =>
-            server.enqueueSpellFailureChat(player, spellId, reason),
-        pickSpellSound: (spellId, stage) => server.pickSpellSound(spellId, stage),
+            server.spellCastingService.enqueueSpellFailureChat(player, spellId, reason),
+        pickSpellSound: (spellId, stage) => server.playerCombatService.pickSpellSound(spellId, stage),
         broadcastSound: (request, tag) => server.broadcastSound(request, tag),
-        withDirectSendBypass: (tag, fn) => server.withDirectSendBypass(tag, fn),
-        resetAutocast: (player) => server.resetAutocast(player),
+        withDirectSendBypass: (tag, fn) => server.networkLayer.withDirectSendBypass(tag, fn),
+        resetAutocast: (player) => server.equipmentService.resetAutocast(player),
 
         // --- Combat State ---
         queueCombatSnapshot: (
@@ -425,10 +450,10 @@ export function createSpellActionHandler(server: any): SpellActionHandler {
                 activePrayers,
                 specialPercent,
             ),
-        pickAttackSequence: (player) => server.pickAttackSequence(player),
+        pickAttackSequence: (player) => server.playerCombatService.pickAttackSequence(player),
         pickSpellCastSequence: (player, spellId, isAutocast) =>
-            server.pickSpellCastSequence(player, spellId, isAutocast),
-        pickAttackSpeed: (player) => server.pickAttackSpeed(player),
+            server.playerCombatService.pickSpellCastSequence(player, spellId, isAutocast),
+        pickAttackSpeed: (player) => server.playerCombatService.pickAttackSpeed(player),
         clearAllInteractions: (socket) => server.players?.clearAllInteractions(socket),
         clearActionsInGroup: (playerId, group) =>
             server.actionScheduler.clearActionsInGroup(playerId, group),
@@ -438,14 +463,14 @@ export function createSpellActionHandler(server: any): SpellActionHandler {
         stopAutoAttack: (playerId) => server.playerCombatManager?.stopAutoAttack(playerId),
 
         // --- Inventory ---
-        sendInventorySnapshot: (socket, player) => server.sendInventorySnapshot(socket, player),
+        sendInventorySnapshot: (socket, player) => server.inventoryService.sendInventorySnapshot(socket, player),
 
         // --- Action Scheduling ---
         scheduleAction: (playerId, request, tick) =>
             server.actionScheduler.requestAction(playerId, request, tick),
 
         // --- XP ---
-        awardSkillXp: (player, skillId, xp) => server.awardSkillXp(player, skillId, xp),
+        awardSkillXp: (player, skillId, xp) => server.skillService.awardSkillXp(player, skillId, xp),
 
         // --- PvP Combat ---
         planPlayerVsPlayerMagic: (attacker, target) => {
@@ -472,7 +497,7 @@ export function createSpellActionHandler(server: any): SpellActionHandler {
                 const res = engine.planPlayerAttack({
                     player: magicCaster,
                     npc: target,
-                    attackSpeed: server.pickAttackSpeed(attacker),
+                    attackSpeed: server.playerCombatService.pickAttackSpeed(attacker),
                 });
                 return {
                     hitLanded: !!res.hitLanded,
@@ -511,38 +536,38 @@ export function createInventoryActionHandler(server: any): InventoryActionHandle
         getPlayer: (id) => server.players?.getById(id) ?? undefined,
 
         // --- Inventory Operations ---
-        getInventory: (player) => server.getInventory(player),
+        getInventory: (player) => server.inventoryService.getInventory(player),
         addItemToInventory: (player, itemId, quantity) =>
-            server.addItemToInventory(player, itemId, quantity),
-        consumeItem: (player, slot) => server.consumeItem(player, slot),
-        countInventoryItem: (player, itemId) => server.countInventoryItem(player, itemId),
+            server.inventoryService.addItemToInventory(player, itemId, quantity),
+        consumeItem: (player, slot) => server.inventoryService.consumeItem(player, slot),
+        countInventoryItem: (player, itemId) => server.inventoryService.countInventoryItem(player, itemId),
         markInventoryDirty: (player) => player.markInventoryDirty(),
 
         // --- Equipment ---
-        resolveEquipSlot: (itemId) => server.resolveEquipSlot(itemId),
+        resolveEquipSlot: (itemId) => server.equipmentService.resolveEquipSlot(itemId),
         equipItem: (player, slotIndex, itemId, equipSlot, options) =>
-            server.equipItem(player, slotIndex, itemId, equipSlot, options),
+            server.equipmentService.equipItem(player, slotIndex, itemId, equipSlot, options),
         unequipItem: (player, equipSlot) => {
             // OSRS parity: Unequipping closes interruptible interfaces (modals, dialogs)
             server.closeInterruptibleInterfaces(player);
 
-            const appearance = server.getOrCreateAppearance(player);
+            const appearance = server.appearanceService.getOrCreateAppearance(player);
             return unequipItemApply({
                 appearance,
                 equipSlot,
-                addItemToInventory: (id, qty) => server.addItemToInventory(player, id, qty),
+                addItemToInventory: (id, qty) => server.inventoryService.addItemToInventory(player, id, qty),
                 slotCount: EQUIP_SLOT_COUNT,
             });
         },
-        ensureEquipArray: (player) => server.ensureEquipArray(player),
-        refreshCombatWeaponCategory: (player) => server.refreshCombatWeaponCategory(player),
-        refreshAppearanceKits: (player) => server.refreshAppearanceKits(player),
-        resetAutocast: (player) => server.resetAutocast(player),
+        ensureEquipArray: (player) => server.equipmentService.ensureEquipArray(player),
+        refreshCombatWeaponCategory: (player) => server.equipmentService.refreshCombatWeaponCategory(player),
+        refreshAppearanceKits: (player) => server.appearanceService.refreshAppearanceKits(player),
+        resetAutocast: (player) => server.equipmentService.resetAutocast(player),
         pickEquipSound: (slot, itemName) => pickEquipSound(slot, itemName),
 
         // --- Object Types ---
-        getObjType: (itemId) => server.getObjType(itemId),
-        isConsumable: (obj, option) => server.isConsumable(obj as any, option),
+        getObjType: (itemId) => server.dataLoaderService.getObjType(itemId),
+        isConsumable: (obj, option) => server.inventoryMessageService.isConsumable(obj as any, option),
 
         // --- Pathfinding ---
         createRectAdjacentStrategy: (x, y, sizeX, sizeY) =>
@@ -569,10 +594,10 @@ export function createInventoryActionHandler(server: any): InventoryActionHandle
             server.actionScheduler.requestAction(playerId, request, tick),
 
         // --- Effects ---
-        queueChatMessage: (request) => server.queueChatMessage(request),
+        queueChatMessage: (request) => server.messagingService.queueChatMessage(request),
         buildSkillFailure: (player, message, reason) =>
-            server.buildSkillFailure(player, message, reason),
-        playLocSound: (request) => server.playLocSound(request),
+            server.skillService.buildSkillFailure(player, message, reason),
+        playLocSound: (request) => server.soundService.playLocSound(request),
 
         // --- Script Runtime ---
         queueLocInteraction: (request) => server.scriptRuntime.queueLocInteraction(request),
@@ -616,9 +641,9 @@ export function createEffectDispatcher(server: any): EffectDispatcher {
         isSocketOpen: (socket) => socket?.readyState === WebSocket.OPEN,
 
         // --- Effect Queueing ---
-        enqueueForcedChat: (event) => server.enqueueForcedChat(event),
+        enqueueForcedChat: (event) => server.messagingService.enqueueForcedChat(event),
         enqueueForcedMovement: (event) => server.enqueueForcedMovement(event),
-        enqueueLevelUpPopup: (player, popup) => server.enqueueLevelUpPopup(player, popup),
+        enqueueLevelUpPopup: (player, popup) => server.interfaceManager.enqueueLevelUpPopup(player, popup),
         queueHitsplat: (hitsplat, frame) => {
             if (frame) {
                 frame.hitsplats.push(hitsplat);
@@ -628,16 +653,16 @@ export function createEffectDispatcher(server: any): EffectDispatcher {
         },
 
         // --- Snapshots ---
-        checkAndSendSnapshots: (player, socket) => server.checkAndSendSnapshots(player, socket),
+        checkAndSendSnapshots: (player, socket) => server.tickPhaseService.checkAndSendSnapshots(player, socket),
 
         // --- Chat ---
-        queueChatMessage: (request) => server.queueChatMessage(request as any),
+        queueChatMessage: (request) => server.messagingService.queueChatMessage(request as any),
 
         // --- Sound ---
-        sendSound: (player, soundId, options) => server.sendSound(player, soundId, options),
+        sendSound: (player, soundId, options) => server.soundService.sendSound(player, soundId, options),
 
         // --- Projectile ---
-        queueProjectileForViewers: (projectile) => server.queueProjectileForViewers(projectile),
+        queueProjectileForViewers: (projectile) => server.projectileTimingService.queueProjectileForViewers(projectile),
 
         // --- Frame Access ---
         getActiveFrame: () => server.activeFrame,
@@ -670,7 +695,7 @@ export function createWidgetDialogHandler(server: any): WidgetDialogHandler {
         queueWidgetEvent: (playerId, action) => server.queueWidgetEvent(playerId, action as any),
         queueClientScript: (playerId, scriptId, ...args) =>
             server.queueClientScript(playerId, scriptId, ...args),
-        queueVarbit: (playerId, varbitId, value) => server.queueVarbit(playerId, varbitId, value),
+        queueVarbit: (playerId, varbitId, value) => server.variableService.queueVarbit(playerId, varbitId, value),
 
         // --- Script Runtime ---
         queueWidgetAction: (request) => server.scriptRuntime.queueWidgetAction(request),
@@ -705,7 +730,7 @@ export function createCs2ModalManager(server: any): Cs2ModalManager {
         getCurrentModal: (player) => server.interfaceService?.getCurrentModal(player),
         queueWidgetEvent: (playerId, event) => server.queueWidgetEvent(playerId, event as any),
         queueGameMessage: (playerId, text) =>
-            server.queueChatMessage({
+            server.messagingService.queueChatMessage({
                 messageType: "game",
                 text: String(text ?? ""),
                 targetPlayerIds: [playerId],
@@ -747,16 +772,16 @@ export function createPlayerAppearanceManager(server: any): PlayerAppearanceMana
         getObjTypeLoader: () => server.objTypeLoader,
         getBasTypeLoader: () => server.basTypeLoader,
         getIdkTypeLoader: () => server.idkTypeLoader,
-        getDefaultBodyKits: (gender) => server.getDefaultBodyKits(gender),
-        ensureEquipArray: (player) => server.ensureEquipArray(player),
-        getObjType: (id) => server.getObjType(id),
-        buildAnimPayload: (player) => server.buildAnimPayload(player),
+        getDefaultBodyKits: (gender) => server.appearanceService.getDefaultBodyKits(gender),
+        ensureEquipArray: (player) => server.equipmentService.ensureEquipArray(player),
+        getObjType: (id) => server.dataLoaderService.getObjType(id),
+        buildAnimPayload: (player) => server.appearanceService.buildAnimPayload(player),
         getDefaultPlayerAnimMale: () => server.defaultPlayerAnimMale,
         getDefaultPlayerAnimFemale: () => server.defaultPlayerAnimFemale,
         getDefaultPlayerAnim: () => server.defaultPlayerAnim,
         getWeaponAnimOverrides: () => server.weaponAnimOverrides,
         applyWeaponAnimOverrides: (player, animTarget) =>
-            server.applyWeaponAnimOverrides(player, animTarget),
+            server.appearanceService.applyWeaponAnimOverrides(player, animTarget),
         log: (level, message) => {
             if (level === "error") logger.error(message);
             else if (level === "warn") logger.warn(message);
@@ -777,26 +802,26 @@ export function createSoundManager(server: any): SoundManager {
         getNpcTypeLoader: () => server.npcTypeLoader,
         getDbRepository: () => server.dbRepository,
         getWeaponData: () => server.weaponData,
-        ensureEquipArray: (player) => server.ensureEquipArray(player),
+        ensureEquipArray: (player) => server.equipmentService.ensureEquipArray(player),
         getCurrentTick: () => server.options.ticker.currentTick(),
         random: () => Math.random(),
         getVarpMusicPlay: () => VARP_MUSICPLAY,
         getVarpMusicCurrentTrack: () => VARP_MUSIC_CURRENT_TRACK,
-        sendWithGuard: (sock, message, context) => server.sendWithGuard(sock, message, context),
+        sendWithGuard: (sock, message, context) => server.networkLayer.sendWithGuard(sock, message, context),
         encodeMessage: (msg) => encodeMessage(msg as any),
-        queueChatMessage: (request) => server.queueChatMessage(request),
+        queueChatMessage: (request) => server.messagingService.queueChatMessage(request),
         queueClientScript: (playerId, scriptId, ...args) =>
             server.queueClientScript(playerId, scriptId, ...args),
-        queueVarp: (playerId, varpId, value) => server.queueVarp(playerId, varpId, value),
+        queueVarp: (playerId, varpId, value) => server.variableService.queueVarp(playerId, varpId, value),
         broadcastToNearby: (x, y, level, radius, message, context) =>
             server.broadcastToNearby(x, y, level, radius, message, context),
-        withDirectSendBypass: (context, fn) => server.withDirectSendBypass(context, fn),
+        withDirectSendBypass: (context, fn) => server.networkLayer.withDirectSendBypass(context, fn),
         getNpcCombatDefs: () => server.npcCombatDefs,
         getNpcCombatDefaults: () =>
             server.npcCombatDefaults ?? {
                 deathSound: 512,
             },
-        loadNpcCombatDefs: () => server.loadNpcCombatDefs(),
+        loadNpcCombatDefs: () => server.combatDataService.loadNpcCombatDefs(),
         log: (level, message) => {
             if (level === "error") logger.error(message);
             else if (level === "warn") logger.warn(message);
@@ -820,18 +845,18 @@ export function createGroundItemHandler(server: any): GroundItemHandler {
         getPlayerGroundChunk: () => server.playerGroundChunk,
         getGroundChunkKey: (player) => server.getGroundChunkKey(player),
         addItemToInventory: (player, itemId, quantity) =>
-            server.addItemToInventory(player, itemId, quantity),
-        getItemDefinition: (itemId) => server.getObjType(itemId) ?? getItemDefinition(itemId),
+            server.inventoryService.addItemToInventory(player, itemId, quantity),
+        getItemDefinition: (itemId) => server.dataLoaderService.getObjType(itemId) ?? getItemDefinition(itemId),
         isInWilderness: (x, y) => isInWilderness(x, y),
-        sendPickupSound: (player) => server.sendSound(player, 2582),
+        sendPickupSound: (player) => server.soundService.sendSound(player, 2582),
         sendLootNotification: (player, itemId, quantity) =>
-            server.sendLootNotification(player, itemId, quantity),
+            server.messagingService.sendLootNotification(player, itemId, quantity),
         trackCollectionLogItem: (player, itemId) =>
             server.collectionLogService.trackCollectionLogItem(player, itemId),
-        queueChatMessage: (request) => server.queueChatMessage(request),
-        sendWithGuard: (sock, message, context) => server.sendWithGuard(sock, message, context),
+        queueChatMessage: (request) => server.messagingService.queueChatMessage(request),
+        sendWithGuard: (sock, message, context) => server.networkLayer.sendWithGuard(sock, message, context),
         encodeMessage: (msg) => encodeMessage(msg as any),
-        withDirectSendBypass: (context, fn) => server.withDirectSendBypass(context, fn),
+        withDirectSendBypass: (context, fn) => server.networkLayer.withDirectSendBypass(context, fn),
         log: (level, message) => {
             if (level === "error") logger.error(message);
             else if (level === "warn") logger.warn(message);
@@ -851,14 +876,14 @@ export function createPlayerDeathService(server: any): PlayerDeathService {
         getItemDefinition: (itemId) => getItemDefinition(itemId),
         sendMessage: (player, message) => {
             // Queue chat message - will be processed during broadcast phase
-            server.queueChatMessage({
+            server.messagingService.queueChatMessage({
                 messageType: "game",
                 text: message,
                 targetPlayerIds: [player.id],
             });
         },
         teleportPlayer: (player, x, y, level, forceRebuild = false) =>
-            server.teleportPlayer(player, x, y, level, forceRebuild),
+            server.movementService.teleportPlayer(player, x, y, level, forceRebuild),
         playAnimation: (player, animId) => {
             try {
                 player.queueOneShotSeq(animId, 0);
@@ -870,16 +895,16 @@ export function createPlayerDeathService(server: any): PlayerDeathService {
             } catch (err) { logger.warn("Failed to clear death animation", err); }
         },
         refreshAppearance: (player) => {
-            server.refreshAppearanceKits(player);
+            server.appearanceService.refreshAppearanceKits(player);
             player.markAppearanceDirty();
-            server.queueAppearanceSnapshot(player);
+            server.playerAppearanceManager.queueAppearanceSnapshot(player);
             // Note: queueAnimSnapshot is no longer needed here since the appearance block
             // now includes the animation set
         },
         sendInventoryUpdate: (player) => {
             const sock = server.players?.getSocketByPlayerId(player.id);
             if (sock) {
-                server.sendInventorySnapshot(sock, player);
+                server.inventoryService.sendInventorySnapshot(sock, player);
             }
         },
         playJingle: (player, jingleId) => {
@@ -935,7 +960,7 @@ export function createProjectileSystem(server: any): ProjectileSystem {
 export function createGatheringSystem(server: any): GatheringSystemManager {
     const services: GatheringSystemServices = {
         emitLocChange: (oldId, newId, tile, level, opts) =>
-            server.emitLocChange(oldId, newId, tile, level, opts),
+            server.locationService.emitLocChange(oldId, newId, tile, level, opts),
         spawnGroundItem: (itemId, quantity, tile, currentTick, opts) =>
             server.groundItems.spawn(itemId, quantity, tile, currentTick, opts),
     };
@@ -944,15 +969,15 @@ export function createGatheringSystem(server: any): GatheringSystemManager {
 
 export function createEquipmentHandler(server: any): EquipmentHandler {
     const services: EquipmentHandlerServices = {
-        getInventory: (player) => server.getInventory(player),
-        getObjType: (itemId) => server.getObjType(itemId),
+        getInventory: (player) => server.inventoryService.getInventory(player),
+        getObjType: (itemId) => server.dataLoaderService.getObjType(itemId),
         addItemToInventory: (player, itemId, quantity) =>
-            server.addItemToInventory(player, itemId, quantity),
+            server.inventoryService.addItemToInventory(player, itemId, quantity),
         closeInterruptibleInterfaces: (player) => server.closeInterruptibleInterfaces(player),
-        refreshCombatWeaponCategory: (player) => server.refreshCombatWeaponCategory(player),
-        refreshAppearanceKits: (player) => server.refreshAppearanceKits(player),
-        resetAutocast: (player) => server.resetAutocast(player),
-        playLocSound: (opts) => server.playLocSound(opts),
+        refreshCombatWeaponCategory: (player) => server.equipmentService.refreshCombatWeaponCategory(player),
+        refreshAppearanceKits: (player) => server.appearanceService.refreshAppearanceKits(player),
+        resetAutocast: (player) => server.equipmentService.resetAutocast(player),
+        playLocSound: (opts) => server.soundService.playLocSound(opts),
     };
     return new EquipmentHandler(services);
 }
@@ -970,16 +995,16 @@ export function createTickOrchestrator(server: any): TickPhaseOrchestrator {
     };
     const phaseProvider: TickPhaseProvider = {
         broadcastTick: (frame) => server.broadcastTick(frame as TickFrame),
-        runPreMovementPhase: (frame) => server.runPreMovementPhase(frame as TickFrame),
-        runMovementPhase: (frame) => server.runMovementPhase(frame as TickFrame),
-        runMusicPhase: (frame) => server.runMusicPhase(frame as TickFrame),
-        runScriptPhase: (frame) => server.runScriptPhase(frame as TickFrame),
-        runCombatPhase: (frame) => server.runCombatPhase(frame as TickFrame),
-        runDeathPhase: (frame) => server.runDeathPhase(frame as TickFrame),
-        runPostScriptPhase: (frame) => server.runPostScriptPhase(frame as TickFrame),
-        runPostEffectsPhase: (frame) => server.runPostEffectsPhase(frame as TickFrame),
-        runOrphanedPlayersPhase: (frame) => server.runOrphanedPlayersPhase(frame as TickFrame),
-        runBroadcastPhase: (frame) => server.runBroadcastPhase(frame as TickFrame),
+        runPreMovementPhase: (frame) => server.tickPhaseService.runPreMovementPhase(frame as TickFrame),
+        runMovementPhase: (frame) => server.tickPhaseService.runMovementPhase(frame as TickFrame),
+        runMusicPhase: (frame) => server.tickPhaseService.runMusicPhase(frame as TickFrame),
+        runScriptPhase: (frame) => server.tickPhaseService.runScriptPhase(frame as TickFrame),
+        runCombatPhase: (frame) => server.tickPhaseService.runCombatPhase(frame as TickFrame),
+        runDeathPhase: (frame) => server.tickPhaseService.runDeathPhase(frame as TickFrame),
+        runPostScriptPhase: (frame) => server.tickPhaseService.runPostScriptPhase(frame as TickFrame),
+        runPostEffectsPhase: (frame) => server.tickPhaseService.runPostEffectsPhase(frame as TickFrame),
+        runOrphanedPlayersPhase: (frame) => server.tickPhaseService.runOrphanedPlayersPhase(frame as TickFrame),
+        runBroadcastPhase: (frame) => server.tickPhaseService.runBroadcastPhase(frame as TickFrame),
     };
     return new TickPhaseOrchestrator(services, phaseProvider);
 }
@@ -1007,17 +1032,17 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
         clearPendingWalkCommand: (ws) => server.movementService.getPendingWalkCommands().delete(ws),
         clearActionsInGroup: (playerId, group) =>
             server.actionScheduler.clearActionsInGroup(playerId, group),
-        canUseAdminTeleport: (player) => server.isAdminPlayer(player),
+        canUseAdminTeleport: (player) => server.authService.isAdminPlayer(player),
         teleportPlayer: (player, x, y, level, forceRebuild = false) =>
-            server.teleportPlayer(player, x, y, level, forceRebuild),
+            server.movementService.teleportPlayer(player, x, y, level, forceRebuild),
         teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
-            server.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
+            server.movementService.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
         teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
             server.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
         sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
             server.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
         spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
-            server.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
+            server.locationService.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
         spawnNpc: (config: any) => server.npcManager?.spawnTransientNpc(config),
         initSailingInstance: (player) => server.sailingInstanceManager?.initInstance(player),
         disposeSailingInstance: (player) => server.sailingInstanceManager?.disposeInstance(player),
@@ -1028,7 +1053,7 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
         buildSailingDockedCollision: () => server.sailingInstanceManager?.buildDockedCollision(),
         applySailingDeckCollision: () => server.sailingInstanceManager?.buildDockedCollision(),
         clearSailingDeckCollision: () => server.sailingInstanceManager?.clearDockedCollision(),
-        requestTeleportAction: (player, request) => server.requestTeleportAction(player, request),
+        requestTeleportAction: (player, request) => server.movementService.requestTeleportAction(player, request),
 
         // Combat/NPC
         getNpcById: (npcId) => server.npcManager?.getById(npcId),
@@ -1036,7 +1061,7 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
             server.players!.startNpcAttack(ws, npc, tick, attackSpeed, modifierFlags),
         startNpcInteraction: (ws, npc, option, modifierFlags) =>
             server.players?.startNpcInteraction(ws, npc, option, modifierFlags),
-        pickAttackSpeed: (player) => server.pickAttackSpeed(player),
+        pickAttackSpeed: (player) => server.playerCombatService.pickAttackSpeed(player),
         startCombat: (player, npc, tick, attackSpeed) =>
             server.playerCombatManager?.startCombat(player, npc, tick, attackSpeed),
         hasNpcOption: (npc, option) => server.npcManager?.hasNpcOption(npc, option) ?? false,
@@ -1070,7 +1095,7 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
                 tick,
             );
         },
-        handleSpellCastOnItem: (ws, payload) => server.handleSpellCastOnItem(ws, payload),
+        handleSpellCastOnItem: (ws, payload) => server.spellCastingService.handleSpellCastOnItem(ws, payload),
 
         // Widget/Interface
         handleIfButtonD: () => {},
@@ -1104,41 +1129,41 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
         queueWidgetEvent: (playerId, event) => server.queueWidgetEvent(playerId, event as any),
         queueClientScript: (playerId, scriptId, ...args) =>
             server.queueClientScript(playerId, scriptId, ...args),
-        queueVarp: (playerId, varpId, value) => server.queueVarp(playerId, varpId, value),
-        queueVarbit: (playerId, varbitId, value) => server.queueVarbit(playerId, varbitId, value),
+        queueVarp: (playerId, varpId, value) => server.variableService.queueVarp(playerId, varpId, value),
+        queueVarbit: (playerId, varbitId, value) => server.variableService.queueVarbit(playerId, varbitId, value),
         queueNotification: (playerId, notification) =>
-            server.queueNotification(playerId, notification),
+            server.messagingService.queueNotification(playerId, notification),
         sendGameMessage: (player, text) => {
-            server.queueChatMessage({
+            server.messagingService.queueChatMessage({
                 messageType: "game",
                 text,
                 targetPlayerIds: [player.id],
             });
         },
-        sendSound: (player, soundId, opts) => server.sendSound(player, soundId, opts),
-        sendVarp: (player, varpId, value) => server.queueVarp(player.id, varpId, value),
-        sendVarbit: (player, varbitId, value) => server.queueVarbit(player.id, varbitId, value),
+        sendSound: (player, soundId, opts) => server.soundService.sendSound(player, soundId, opts),
+        sendVarp: (player, varpId, value) => server.variableService.queueVarp(player.id, varpId, value),
+        sendVarbit: (player, varbitId, value) => server.variableService.queueVarbit(player.id, varbitId, value),
         trackCollectionLogItem: (player, itemId) =>
             server.collectionLogService.trackCollectionLogItem(player, itemId),
-        sendRunEnergyState: (ws, player) => server.sendRunEnergyState(ws, player),
-        getWeaponSpecialCostPercent: (weaponId) => server.getWeaponSpecialCostPercent(weaponId),
+        sendRunEnergyState: (ws, player) => server.movementService.sendRunEnergyState(ws, player),
+        getWeaponSpecialCostPercent: (weaponId) => server.combatDataService.getWeaponSpecialCostPercent(weaponId),
         queueCombatState: (player) => server.queueCombatState(player),
-        ensureEquipArray: (player) => server.ensureEquipArray(player),
+        ensureEquipArray: (player) => server.equipmentService.ensureEquipArray(player),
         gamemodeServices: server.gamemode.getGamemodeServices?.() ?? {},
 
         // Chat
-        queueChatMessage: (msg) => server.queueChatMessage(msg),
-        getPublicChatPlayerType: (player) => server.getPublicChatPlayerType(player),
-        enqueueLevelUpPopup: (player, data) => server.enqueueLevelUpPopup(player, data),
+        queueChatMessage: (msg) => server.messagingService.queueChatMessage(msg),
+        getPublicChatPlayerType: (player) => server.authService.getPublicChatPlayerType(player),
+        enqueueLevelUpPopup: (player, data) => server.interfaceManager.enqueueLevelUpPopup(player, data),
         findScriptCommand: (name) => server.scriptRegistry.findCommand(name),
         getCurrentTick: () => server.options.ticker.currentTick(),
 
         // Debug
         broadcast: (message, context) => server.broadcast(message, context),
-        sendWithGuard: (ws, message, context) => server.sendWithGuard(ws, message, context),
+        sendWithGuard: (ws, message, context) => server.networkLayer.sendWithGuard(ws, message, context),
         sendAdminResponse: (ws, message, context) =>
-            server.sendAdminResponse(ws, message, context),
-        withDirectSendBypass: (context, fn) => server.withDirectSendBypass(context, fn),
+            server.networkLayer.sendAdminResponse(ws, message, context),
+        withDirectSendBypass: (context, fn) => server.networkLayer.withDirectSendBypass(context, fn),
         encodeMessage: encodeMessage,
         setPendingDebugRequest: (requestId, ws) => server.pendingDebugRequests.set(requestId, ws),
         getPendingDebugRequest: (requestId) => server.pendingDebugRequests.get(requestId),
@@ -1169,7 +1194,7 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
         // --- Services for extracted handlers (logout, widget, varp_transmit, if_close) ---
         completeLogout: (ws, player, source) => server.completeLogout(ws, player, source),
         closeInterruptibleInterfaces: (player) => server.closeInterruptibleInterfaces(player),
-        noteWidgetEventForLedger: (playerId, event) => server.noteWidgetEventForLedger(playerId, event),
+        noteWidgetEventForLedger: (playerId, event) => server.interfaceManager.noteWidgetEventForLedger(playerId, event),
         normalizeSideJournalState: (player, value?) => server.normalizeSideJournalState(player, value),
         queueSideJournalGamemodeUi: (player) => server.queueSideJournalGamemodeUi(player),
         syncMusicInterface: (player) => server.soundManager.syncMusicInterfaceForPlayer(player),
@@ -1182,17 +1207,17 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
         // --- Services for binary message handlers ---
         resolveGroundItemOptionByOpNum: (itemId, opNum) =>
             server.resolveGroundItemOptionByOpNum(itemId, opNum),
-        handleGroundItemAction: (ws, payload) => server.handleGroundItemAction(ws, payload),
+        handleGroundItemAction: (ws, payload) => server.inventoryMessageService.handleGroundItemAction(ws, payload),
         getScriptRegistry: () => server.scriptRegistry,
         getScriptRuntime: () => server.scriptRuntime,
         getCs2ModalManager: () => server.cs2ModalManager,
         getWidgetDialogHandler: () => server.widgetDialogHandler,
-        getObjType: (itemId) => server.getObjType(itemId),
+        getObjType: (itemId) => server.dataLoaderService.getObjType(itemId),
         handleInventoryUseOnMessage: (ws, payload) =>
-            server.handleInventoryUseOnMessage(ws, payload),
+            server.inventoryMessageService.handleInventoryUseOnMessage(ws, payload),
         getLevelUpPopupQueue: (playerId) =>
             (server.interfaceManager as any).levelUpPopupQueue?.get(playerId),
-        advanceLevelUpPopupQueue: (player) => server.advanceLevelUpPopupQueue(player),
+        advanceLevelUpPopupQueue: (player) => server.interfaceManager.advanceLevelUpPopupQueue(player),
     };
     registerAllHandlers(router, extendedServices);
 
@@ -1202,13 +1227,13 @@ export function registerMessageHandlers(server: any, router: MessageRouter): voi
     });
 
     router.register("inventory_use", (ctx) => {
-        server.handleInventoryUseMessage(ctx.ws, ctx.payload);
+        server.inventoryMessageService.handleInventoryUseMessage(ctx.ws, ctx.payload);
     });
 
     // inventory_use_on and ground_item_action are registered by binaryMessageHandlers
 
     router.register("inventory_move", (ctx) => {
-        server.handleInventoryMoveMessage(ctx.ws, ctx.payload);
+        server.inventoryMessageService.handleInventoryMoveMessage(ctx.ws, ctx.payload);
     });
 
     router.register("interact_stop", (ctx) => {
