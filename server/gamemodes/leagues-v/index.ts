@@ -27,7 +27,7 @@ import { registerLeagueWidgetHandlers } from "./scripts/leagueWidgets";
 import { registerLeagueTutorialWidgetHandlers } from "./scripts/leagueTutorialWidgets";
 import { getLeagueVDropRateMultiplier, getLeagueVReplacementItemId, isLeagueVWorldPlayer } from "./leagueDrops";
 import { LeagueTaskManager } from "./LeagueTaskManager";
-import { LeagueTaskService, setTaskProgress } from "./LeagueTaskService";
+import { LeagueTaskService, setTaskProgress, setChallengeProgress, getChallengeProgress } from "./LeagueTaskService";
 import { syncLeagueGeneralVarp } from "./leagueGeneral";
 import { getLeaguePackedVarpsForPlayer } from "./leaguePackedVarps";
 import { getLeagueSkillXpMultiplier } from "./leagueXp";
@@ -133,28 +133,57 @@ export class LeaguesVGamemode extends VanillaGamemode {
     }
 
     override serializePlayerState(player: PlayerState): Record<string, unknown> | undefined {
-        const map = player.gamemodeState.get("taskProgress") as Map<number, number> | undefined;
-        if (!map || map.size === 0) return undefined;
-        const progress: Record<number, number> = {};
-        for (const [taskId, value] of map.entries()) {
-            if (value > 0) progress[taskId] = value;
+        const result: Record<string, unknown> = {};
+
+        const taskMap = player.gamemodeState.get("taskProgress") as Map<number, number> | undefined;
+        if (taskMap && taskMap.size > 0) {
+            const progress: Record<number, number> = {};
+            for (const [taskId, value] of taskMap.entries()) {
+                if (value > 0) progress[taskId] = value;
+            }
+            if (Object.keys(progress).length > 0) result.progress = progress;
         }
-        return Object.keys(progress).length > 0 ? { progress } : undefined;
+
+        const challengeMap = player.gamemodeState.get("challengeProgress") as Map<number, number> | undefined;
+        if (challengeMap && challengeMap.size > 0) {
+            const challengeProgress: Record<number, number> = {};
+            for (const [idx, value] of challengeMap.entries()) {
+                if (value > 0) challengeProgress[idx] = value;
+            }
+            if (Object.keys(challengeProgress).length > 0) result.challengeProgress = challengeProgress;
+        }
+
+        return Object.keys(result).length > 0 ? result : undefined;
     }
 
     override deserializePlayerState(player: PlayerState, data: Record<string, unknown>): void {
         const raw = (data.progress ?? data.leagueTaskProgress) as Record<string, number> | undefined;
-        if (!raw) return;
-        for (const [key, value] of Object.entries(raw)) {
-            const taskId = parseInt(key, 10);
-            if (!Number.isNaN(taskId)) {
-                setTaskProgress(player, taskId, value);
+        if (raw) {
+            for (const [key, value] of Object.entries(raw)) {
+                const taskId = parseInt(key, 10);
+                if (!Number.isNaN(taskId)) {
+                    setTaskProgress(player, taskId, value);
+                }
+            }
+        }
+
+        const challengeRaw = data.challengeProgress as Record<string, number> | undefined;
+        if (challengeRaw) {
+            for (const [key, value] of Object.entries(challengeRaw)) {
+                const idx = parseInt(key, 10);
+                if (!Number.isNaN(idx)) {
+                    setChallengeProgress(player, idx, value);
+                }
             }
         }
     }
 
-    override onNpcKill(playerId: number, npcTypeId: number): void {
-        this.taskManager?.onNpcKill(playerId, npcTypeId);
+    override onNpcKill(playerId: number, npcTypeId: number, combatLevel?: number): void {
+        this.taskManager?.onNpcKill(playerId, npcTypeId, combatLevel);
+    }
+
+    override onItemCraft(playerId: number, itemId: number, count: number): void {
+        this.taskManager?.onItemCraft(playerId, itemId, count);
     }
 
     // === Login / Handshake ===
@@ -361,7 +390,14 @@ export class LeaguesVGamemode extends VanillaGamemode {
                 context.npcTypeLoader,
                 context.objTypeLoader,
                 {
-                    getPlayer: (playerId) => context.bridge.getPlayer(playerId),
+                    getPlayer: (playerId) => {
+                        const p = context.bridge.getPlayer(playerId);
+                        if (!p) return undefined;
+                        return Object.assign(p, {
+                            getChallengeProgress: (idx: number) => getChallengeProgress(p, idx),
+                            setChallengeProgress: (idx: number, val: number) => setChallengeProgress(p, idx, val),
+                        });
+                    },
                     queueVarp: (playerId, varpId, value) =>
                         context.bridge.queueVarp(playerId, varpId, value),
                     queueVarbit: (playerId, varbitId, value) =>

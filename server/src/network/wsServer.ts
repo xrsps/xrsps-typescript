@@ -630,6 +630,7 @@ export class WSServer {
                 completeLogout: (sock, player, reason) => this.loginHandshakeService.completeLogout(sock, player, reason),
                 closeInterruptibleInterfaces: (player) => this.interfaceManager.closeInterruptibleInterfaces(player),
                 activeFrame: () => this.activeFrame,
+                gamemode: this.gamemode,
         };
         this.scriptRuntime = new ScriptRuntime({
             registry: this.scriptRegistry,

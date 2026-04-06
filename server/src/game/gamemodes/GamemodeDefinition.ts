@@ -149,7 +149,8 @@ export interface GamemodeDefinition {
     initializePlayer(player: PlayerState): void;
     serializePlayerState(player: PlayerState): Record<string, unknown> | undefined;
     deserializePlayerState(player: PlayerState, data: Record<string, unknown>): void;
-    onNpcKill(playerId: number, npcTypeId: number): void;
+    onNpcKill(playerId: number, npcTypeId: number, combatLevel?: number): void;
+    onItemCraft?(playerId: number, itemId: number, count: number): void;
 
     // === Login / Handshake ===
     /** Varbit defaults applied during login (diary unlocks, xp drops, etc.). */

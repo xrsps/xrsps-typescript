@@ -160,6 +160,7 @@ function executeSpinAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
     services.playPlayerSeq?.(player, recipe.animation);
     services.addSkillXp?.(player, SkillId.Crafting, recipe.xp);
+    services.onItemCraft?.(player.id, recipe.outputItemId, 1);
 
     const effects: ActionEffect[] = [
         { type: "inventorySnapshot", playerId: player.id },
@@ -214,6 +215,7 @@ function executeSinewAction(ctx: ScriptActionHandlerContext): ActionExecutionRes
     services.setInventorySlot(player, slot, SINEW_ITEM_ID, 1);
     services.playPlayerSeq?.(player, SINEW_ANIMATION_ID);
     services.addSkillXp?.(player, SkillId.Crafting, SINEW_CRAFT_XP);
+    services.onItemCraft?.(player.id, SINEW_ITEM_ID, 1);
 
     const effects: ActionEffect[] = [
         { type: "inventorySnapshot", playerId: player.id },

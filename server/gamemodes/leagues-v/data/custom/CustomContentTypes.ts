@@ -128,6 +128,12 @@ export type CustomChallenge = {
     description: string;
     /** Optional trigger for automatic completion detection */
     trigger?: TaskTrigger;
+    /**
+     * If this custom challenge replaces a cache-defined challenge,
+     * set this to the cache struct ID (e.g. 1177 for "Defeat a Giant").
+     * The replaced cache entry will be excluded from enum 5695 to avoid duplicates.
+     */
+    replacesStructId?: number;
 };
 
 /**

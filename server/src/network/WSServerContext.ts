@@ -71,6 +71,7 @@ import type { MovementService } from "../game/services/MovementService";
 import type { PlayerCombatService } from "../game/services/PlayerCombatService";
 import type { SpellCastingService } from "../game/services/SpellCastingService";
 import type { TickPhaseService } from "../game/services/TickPhaseService";
+import type { TickFrameService } from "../game/services/TickFrameService";
 import type { CombatEffectService } from "../game/services/CombatEffectService";
 import type { ProjectileTimingService } from "../game/services/ProjectileTimingService";
 import type { InventoryMessageService } from "../game/services/InventoryMessageService";
@@ -137,6 +138,7 @@ export interface WSServerContext {
     readonly movementService: MovementService;
     readonly combatEffectService: CombatEffectService;
     readonly tickPhaseService: TickPhaseService;
+    readonly tickFrameService: TickFrameService;
     readonly broadcastService: BroadcastService;
     readonly loginHandshakeService: LoginHandshakeService;
 

@@ -110,24 +110,30 @@ const HOME_TELEPORT_WAIT_PHASE3_TO_4 = 4; // 4-tick gap
 const HOME_TELEPORT_WAIT_PHASE4_TO_5 = 4; // 4-tick gap
 const HOME_TELEPORT_WAIT_PHASE5_TO_TP = 3; // 3-tick gap
 
-// Rune ID to name mapping for error messages
-const RUNE_NAMES: Record<number, string> = {
-    [RUNE_IDS.AIR]: "Air",
-    [RUNE_IDS.WATER]: "Water",
-    [RUNE_IDS.EARTH]: "Earth",
-    [RUNE_IDS.FIRE]: "Fire",
-    [RUNE_IDS.MIND]: "Mind",
-    [RUNE_IDS.BODY]: "Body",
-    [RUNE_IDS.COSMIC]: "Cosmic",
-    [RUNE_IDS.CHAOS]: "Chaos",
-    [RUNE_IDS.NATURE]: "Nature",
-    [RUNE_IDS.LAW]: "Law",
-    [RUNE_IDS.DEATH]: "Death",
-    [RUNE_IDS.BLOOD]: "Blood",
-    [RUNE_IDS.SOUL]: "Soul",
-    [RUNE_IDS.ASTRAL]: "Astral",
-    [RUNE_IDS.WRATH]: "Wrath",
-};
+// Rune ID to name mapping for error messages (lazy to avoid accessing RUNE_IDS at module load)
+let _runeNames: Record<number, string> | undefined;
+function getRuneNames(): Record<number, string> {
+    if (!_runeNames) {
+        _runeNames = {
+            [RUNE_IDS.AIR]: "Air",
+            [RUNE_IDS.WATER]: "Water",
+            [RUNE_IDS.EARTH]: "Earth",
+            [RUNE_IDS.FIRE]: "Fire",
+            [RUNE_IDS.MIND]: "Mind",
+            [RUNE_IDS.BODY]: "Body",
+            [RUNE_IDS.COSMIC]: "Cosmic",
+            [RUNE_IDS.CHAOS]: "Chaos",
+            [RUNE_IDS.NATURE]: "Nature",
+            [RUNE_IDS.LAW]: "Law",
+            [RUNE_IDS.DEATH]: "Death",
+            [RUNE_IDS.BLOOD]: "Blood",
+            [RUNE_IDS.SOUL]: "Soul",
+            [RUNE_IDS.ASTRAL]: "Astral",
+            [RUNE_IDS.WRATH]: "Wrath",
+        };
+    }
+    return _runeNames;
+}
 
 type BoltEnchantVariant = {
     sourceItemId: number;
@@ -170,7 +176,10 @@ function getCrossbowBoltEnchantmentsChildId(): number | undefined {
  *  data from CS2 [proc,skill_guide_data_magic].
  * Ordered highest -> lowest so auto-detection prefers the strongest applicable bolt type.
  */
-const BOLT_ENCHANT_RECIPES: BoltEnchantRecipe[] = [
+let _boltEnchantRecipes: BoltEnchantRecipe[] | undefined;
+function getBoltEnchantRecipes(): BoltEnchantRecipe[] {
+    if (_boltEnchantRecipes) return _boltEnchantRecipes;
+    _boltEnchantRecipes = [
     {
         key: "onyx",
         levelRequired: 87,
@@ -401,7 +410,9 @@ const BOLT_ENCHANT_RECIPES: BoltEnchantRecipe[] = [
             },
         ],
     },
-];
+    ];
+    return _boltEnchantRecipes;
+}
 
 /**
  * Spellbook widget handlers for interface 218.
@@ -620,7 +631,7 @@ function sendMissingRuneMessage(
 ): void {
     if (runeValidation.missingRunes && runeValidation.missingRunes.length > 0) {
         const missing = runeValidation.missingRunes[0];
-        const runeName = RUNE_NAMES[missing.runeId] ?? "Unknown";
+        const runeName = getRuneNames()[missing.runeId] ?? "Unknown";
         services.sendGameMessage(
             player,
             `You do not have enough ${runeName} Runes to cast this spell.`,
@@ -985,7 +996,7 @@ function handleCrossbowBoltEnchantments(player: PlayerState, services: ScriptSer
     let requiredMagicLevel = 0;
     let missingRuneValidation: RuneValidationResult | undefined;
 
-    for (const recipe of BOLT_ENCHANT_RECIPES) {
+    for (const recipe of getBoltEnchantRecipes()) {
         for (const variant of recipe.variants) {
             if (countInventoryItem(inventory, variant.sourceItemId) > 0) {
                 hasAnyBoltType = true;

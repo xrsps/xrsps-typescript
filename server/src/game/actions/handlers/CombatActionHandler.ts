@@ -526,7 +526,7 @@ export interface CombatActionServices {
     getNpcName(typeId: number): string | undefined;
 
     // --- Gamemode Events ---
-    onNpcKill(playerId: number, npcId: number): void;
+    onNpcKill(playerId: number, npcId: number, combatLevel?: number): void;
 }
 
 // ============================================================================
@@ -2339,7 +2339,7 @@ export class CombatActionHandler {
 
         // Gamemode event: notify of NPC kill
         const killerId = eligibility?.primaryLooter?.id ?? player.id;
-        this.services.onNpcKill(killerId, npc.typeId);
+        this.services.onNpcKill(killerId, npc.typeId, npc.getCombatLevel());
 
         if (!this.services.isActiveFrame() && effects.length > 0) {
             this.services.dispatchActionEffects(effects);

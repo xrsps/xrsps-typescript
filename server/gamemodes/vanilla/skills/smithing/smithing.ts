@@ -87,6 +87,7 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
 
     services.playPlayerSeq?.(player, recipe.animation ?? 898);
     services.addSkillXp?.(player, SkillId.Smithing, recipe.xp);
+    services.onItemCraft?.(player.id, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
 
     const effects: ActionEffect[] = [
         { type: "inventorySnapshot", playerId: player.id },

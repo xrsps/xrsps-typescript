@@ -15,6 +15,7 @@ let customTasksByStructId: Map<number, any> | null = null;
 let customTasksByTaskId: Map<number, any> | null = null;
 let customChallengesByStructId: Map<number, any> | null = null;
 let customEnumOverrides: Map<number, any[]> | null = null;
+let replacedCacheStructIds: Set<number> = new Set();
 
 let dynamicWidgetGroups: Map<number, { root: any; widgets: Map<number, any> }> | null = null;
 
@@ -74,8 +75,17 @@ export function loadFromPayload(payload: {
                 break;
             case "customChallenges":
                 customChallengesByStructId = new Map();
+                replacedCacheStructIds = new Set();
+                if (!customEnumOverrides) customEnumOverrides = new Map();
                 for (const row of dataset.rows as any[]) {
                     if (row.structId != null) customChallengesByStructId.set(row.structId | 0, row);
+                    if (row.replacesStructId != null) replacedCacheStructIds.add(row.replacesStructId | 0);
+                }
+                // Register challenges into enum 5695 overrides (prepended)
+                if (customChallengesByStructId.size > 0) {
+                    const challengeEntries = Array.from(customChallengesByStructId.values());
+                    const existing = customEnumOverrides.get(5695) ?? [];
+                    customEnumOverrides.set(5695, [...challengeEntries, ...existing]);
                 }
                 break;
             case "customWidgets":
@@ -203,8 +213,12 @@ export function getCustomStructParam(
 }
 
 export function getCustomEnumCountOverride(enumId: number): number {
-    const tasks = customEnumOverrides?.get(enumId);
-    return tasks?.length ?? 0;
+    const entries = customEnumOverrides?.get(enumId);
+    if (!entries || entries.length === 0) return 0;
+    // Replacement challenges take the place of cache entries, so they don't
+    // increase the total count. Only genuinely new entries add to the count.
+    const newEntries = entries.filter((e: any) => e.replacesStructId === undefined).length;
+    return newEntries;
 }
 
 export function getCustomEnumValueOverride(
@@ -219,6 +233,10 @@ export function getCustomEnumValueOverride(
         return { custom: tasks[key].structId };
     }
     return { shiftedKey: key - customCount };
+}
+
+export function getReplacedChallengeStructIds(): ReadonlySet<number> {
+    return replacedCacheStructIds;
 }
 
 export function getDynamicWidgetGroup(

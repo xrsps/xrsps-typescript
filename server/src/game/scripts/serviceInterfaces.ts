@@ -356,6 +356,7 @@ export interface ProductionServiceFacade {
 
 export interface ProductionServices {
     production?: ProductionServiceFacade;
+    onItemCraft?: (playerId: number, itemId: number, count: number) => void;
 }
 
 // ============================================================================

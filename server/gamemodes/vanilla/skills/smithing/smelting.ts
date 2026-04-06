@@ -99,6 +99,7 @@ export function executeSmeltAction(ctx: ScriptActionHandlerContext): ActionExecu
         services.playPlayerSeq?.(player, recipe.animation ?? FURNACE_ANIMATION);
         const xpAward = getSmeltingXpWithBonuses(recipe, equip);
         services.addSkillXp?.(player, SkillId.Smithing, xpAward);
+        services.onItemCraft?.(player.id, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
         const barName = describeBar(services, recipe.outputItemId);
         effects.push(
             { type: "inventorySnapshot", playerId: player.id },

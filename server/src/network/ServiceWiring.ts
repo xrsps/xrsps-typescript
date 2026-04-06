@@ -393,8 +393,8 @@ export function createCombatActionHandler(server: WSServerContext): CombatAction
         },
 
         // --- Gamemode Events ---
-        onNpcKill: (playerId, npcId) => {
-            server.gamemode.onNpcKill(playerId, npcId);
+        onNpcKill: (playerId, npcId, combatLevel) => {
+            server.gamemode.onNpcKill(playerId, npcId, combatLevel);
         },
     };
     return new CombatActionHandler(services);
@@ -1014,16 +1014,16 @@ export function createEquipmentHandler(server: WSServerContext): EquipmentHandle
 export function createTickOrchestrator(server: WSServerContext): TickPhaseOrchestrator {
     const services: TickPhaseOrchestratorServices = {
         getTickMs: () => server.options.tickMs,
-        createTickFrame: (tick, time) => server.createTickFrame({ tick, time }),
+        createTickFrame: (tick, time) => server.tickFrameService.createTickFrame({ tick, time }),
         setActiveFrame: (frame) => {
             server.activeFrame = frame as TickFrame | undefined;
         },
-        restorePendingFrame: (frame) => server.restorePendingFrame(frame as unknown as TickFrame),
-        yieldToEventLoop: (stage) => server.yieldToEventLoop(stage),
-        maybeRunAutosave: (frame) => server.maybeRunAutosave(frame as unknown as TickFrame),
+        restorePendingFrame: (frame) => server.tickFrameService.restorePendingFrame(frame as unknown as TickFrame),
+        yieldToEventLoop: (stage) => server.tickFrameService.yieldToEventLoop(stage),
+        maybeRunAutosave: (frame) => server.tickFrameService.maybeRunAutosave(frame as unknown as TickFrame),
     };
     const phaseProvider: TickPhaseProvider = {
-        broadcastTick: (frame) => server.broadcastTick(frame as unknown as TickFrame),
+        broadcastTick: (frame) => server.tickPhaseService.broadcastTick(frame as unknown as TickFrame),
         runPreMovementPhase: (frame) => server.tickPhaseService.runPreMovementPhase(frame),
         runMovementPhase: (frame) => server.tickPhaseService.runMovementPhase(frame),
         runMusicPhase: (frame) => server.tickPhaseService.runMusicPhase(frame),

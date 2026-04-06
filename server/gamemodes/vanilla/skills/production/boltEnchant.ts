@@ -85,6 +85,7 @@ export function executeBoltEnchantAction(ctx: ScriptActionHandlerContext): Actio
 
     services.playPlayerSeq?.(player, animationId);
     if (xpPerSet > 0) services.addSkillXp?.(player, SkillId.Magic, xpPerSet);
+    services.onItemCraft?.(player.id, enchantedItemId, BOLT_ENCHANT_BOLTS_PER_SET);
 
     const effects: ActionEffect[] = [
         { type: "inventorySnapshot", playerId: player.id },

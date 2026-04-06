@@ -90,6 +90,7 @@ export interface ScriptServiceAdapterDeps {
     completeLogout: (sock: WebSocket, player: PlayerState, reason?: string) => void;
     closeInterruptibleInterfaces: (player: PlayerState) => void;
     activeFrame: () => TickFrame | undefined;
+    gamemode?: { onItemCraft?: (playerId: number, itemId: number, count: number) => void };
 }
 
 /**
@@ -324,6 +325,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         getCookingRecipeByRawItemId: undefined,
 
         // --- ProductionServices ---
+        onItemCraft: (playerId, itemId, count) => deps.gamemode?.onItemCraft?.(playerId, itemId, count),
         production: {
             takeInventoryItems: (player, inputs) => deps.inventoryService.takeInventoryItems(player, inputs),
             restoreInventoryRemovals: (player, removed) => deps.inventoryService.restoreInventoryRemovals(player, removed),

@@ -12,6 +12,7 @@ import {
     getCustomStructParam,
     getRelicOrMasteryStructParam,
     getLeagueTaskStructParam,
+    getReplacedChallengeStructIds,
 } from "../../../shared/gamemode/GamemodeContentStore";
 import { Opcodes } from "../Opcodes";
 import type { HandlerMap } from "./HandlerTypes";
@@ -320,6 +321,24 @@ export function registerConfigOps(handlers: HandlerMap): void {
             }
             // Shift the key to account for inserted custom content
             key = customOverride.shiftedKey;
+        }
+
+        // Skip cache entries replaced by custom challenges.
+        // When iterating, the Nth non-replaced cache entry maps to a higher
+        // original cache key because replaced entries are removed from the sequence.
+        const replaced = getReplacedChallengeStructIds();
+        if (replaced.size > 0 && enumType?.intValues && customOverride) {
+            let target = key; // 0-based position among non-replaced entries
+            let cacheIdx = 0;
+            for (let i = 0; i < (enumType.keys?.length ?? 0); i++) {
+                const structId = enumType.intValues[i];
+                if (replaced.has(structId)) continue;
+                if (cacheIdx === target) {
+                    key = enumType.keys![i];
+                    break;
+                }
+                cacheIdx++;
+            }
         }
 
         if (enumType?.outputType === "s") {

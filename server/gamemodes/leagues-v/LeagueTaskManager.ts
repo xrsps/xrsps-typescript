@@ -95,7 +95,7 @@ export class LeagueTaskManager {
      * Checks for and completes any matching tasks and challenges.
      * Also handles mastery unlocks for specific NPCs.
      */
-    onNpcKill(playerId: number, npcId: number): void {
+    onNpcKill(playerId: number, npcId: number, combatLevel?: number): void {
         if (!this.initialized) return;
 
         const player = this.services.getPlayer(playerId);
@@ -111,6 +111,14 @@ export class LeagueTaskManager {
         const challenges = this.index.getChallengesForNpcKill(npcId);
         for (const challenge of challenges) {
             this.tryCompleteChallenge(player, playerId, challenge);
+        }
+
+        // Check combat-level challenges
+        if (combatLevel !== undefined && combatLevel > 0) {
+            const clChallenges = this.index.getChallengesForNpcKillCombatLevel(combatLevel);
+            for (const challenge of clChallenges) {
+                this.tryCompleteChallenge(player, playerId, challenge);
+            }
         }
     }
 
@@ -359,30 +367,83 @@ export class LeagueTaskManager {
         parsed: ParsedChallenge,
     ): void {
         const challenge = parsed.challenge;
+        const trigger = parsed.trigger;
 
         // Calculate the varbit ID for this challenge
-        // Custom challenges are appended, so position = customIndex + 1 (assuming base count = 0)
-        // Varbit = VARBIT_MASTERY_POINT_UNLOCK_BASE + (position - 1) = 11585 + customIndex
+        // Custom challenges are prepended to enum 5695, so position = customIndex + 1.
+        // Varbit = VARBIT_MASTERY_POINT_UNLOCK_BASE + customIndex = 11585 + customIndex
         const varbitId = VARBIT_MASTERY_POINT_UNLOCK_BASE + challenge.customIndex;
 
-        // Check if already completed (varbit >= 1)
-        const currentValue = player.varps.getVarbitValue?.(varbitId) ?? 0;
-        if (currentValue >= 1) {
+        // Check if already marked complete (varbit == 1 means done)
+        const completionValue = player.varps.getVarbitValue?.(varbitId) ?? 0;
+        if (completionValue >= 1) {
             return; // Already complete
         }
 
-        // Mark as complete by setting varbit to 1
-        player.varps.setVarbitValue(varbitId, 1);
-        const packedVarpUpdates = syncLeaguePackedVarps(player);
-        queuePackedVarpUpdates(this.services, playerId, packedVarpUpdates);
-        this.services.queueVarbit(playerId, varbitId, 1);
+        // Determine the required count for completion
+        const requiredCount =
+            (trigger.type === "npc_kill_combat_level" && trigger.count > 1)
+                ? trigger.count
+                : (trigger.type === "npc_kill" && trigger.count !== undefined && trigger.count > 1)
+                    ? trigger.count
+                    : 1;
 
-        logger.info(
-            `[LeagueTaskManager] Completed challenge ${challenge.customIndex} "${challenge.description}" for player ${playerId} (varbit ${varbitId})`,
-        );
+        if (requiredCount > 1) {
+            // Counter-based challenge: track progress separately, only set varbit on completion.
+            // Progress is stored in player.challengeProgress (persisted), NOT in the
+            // completion varbit. The CS2 script treats varbit > 0 as "complete", so we must
+            // keep the varbit at 0 until the full count is reached.
+            const currentProgress = player.getChallengeProgress(challenge.customIndex);
+            if (currentProgress >= requiredCount) {
+                return;
+            }
 
-        // Award a mastery point for completing the challenge
-        this.awardMasteryPoint(player, playerId);
+            const newProgress = currentProgress + 1;
+            player.setChallengeProgress(challenge.customIndex, newProgress);
+
+            if (newProgress >= requiredCount) {
+                player.varps.setVarbitValue(varbitId, 1);
+                const packedVarpUpdates = syncLeaguePackedVarps(player);
+                queuePackedVarpUpdates(this.services, playerId, packedVarpUpdates);
+                this.services.queueVarbit(playerId, varbitId, 1);
+
+                const notification = {
+                    kind: "league_task",
+                    title: "League Challenge Completed",
+                    message: `${challenge.description}<br><br><col=ffffff>Challenge Complete!</col>`,
+                    durationMs: 3000,
+                };
+                this.services.queueNotification(playerId, notification);
+
+                logger.info(
+                    `[LeagueTaskManager] Completed challenge ${challenge.customIndex} "${challenge.description}" for player ${playerId} (varbit ${varbitId}, count ${newProgress}/${requiredCount})`,
+                );
+                this.awardMasteryPoint(player, playerId);
+            } else {
+                logger.info(
+                    `[LeagueTaskManager] Challenge progress ${challenge.customIndex} "${challenge.description}" for player ${playerId}: ${newProgress}/${requiredCount}`,
+                );
+            }
+        } else {
+            // Binary challenge: complete on first trigger
+            player.varps.setVarbitValue(varbitId, 1);
+            const packedVarpUpdates = syncLeaguePackedVarps(player);
+            queuePackedVarpUpdates(this.services, playerId, packedVarpUpdates);
+            this.services.queueVarbit(playerId, varbitId, 1);
+
+            const notification = {
+                kind: "league_task",
+                title: "League Challenge Completed",
+                message: `${challenge.description}<br><br><col=ffffff>Challenge Complete!</col>`,
+                durationMs: 3000,
+            };
+            this.services.queueNotification(playerId, notification);
+
+            logger.info(
+                `[LeagueTaskManager] Completed challenge ${challenge.customIndex} "${challenge.description}" for player ${playerId} (varbit ${varbitId})`,
+            );
+            this.awardMasteryPoint(player, playerId);
+        }
     }
 
     /**

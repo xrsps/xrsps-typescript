@@ -65,6 +65,7 @@ export function executeCookAction(ctx: ScriptActionHandlerContext): ActionExecut
 
     if (cooked) {
         services.addSkillXp?.(player, SkillId.Cooking, recipe.xp);
+        services.onItemCraft?.(player.id, recipe.cookedItemId, 1);
     }
 
     const effects: ActionEffect[] = [

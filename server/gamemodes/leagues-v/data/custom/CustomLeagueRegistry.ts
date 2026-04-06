@@ -49,6 +49,9 @@ const challengesByStructId = new Map<number, RegisteredCustomChallenge>();
 /** Challenges grouped by enum ID for enum overrides (APPENDED to enum) */
 const challengesByEnumId = new Map<number, RegisteredCustomChallenge[]>();
 
+/** Cache struct IDs replaced by custom challenges (to avoid enum duplicates) */
+const replacedCacheStructIds = new Set<number>();
+
 // Synthetic task ID base - uses groups 58-61 (taskIds 1856-1983)
 // CS2 script league_task_is_completed only handles groups 0-61
 // Cache tasks max at taskId 1845 (group 57), so groups 58-61 are free
@@ -115,6 +118,11 @@ const SYNTHETIC_TASK_ID_BASE = 1856;
 
         registeredChallenges.push(registered);
         challengesByStructId.set(registered.structId, registered);
+
+        // Track replaced cache struct IDs to exclude from enum
+        if (challenge.replacesStructId !== undefined) {
+            replacedCacheStructIds.add(challenge.replacesStructId | 0);
+        }
 
         // All challenges go to enum 5695
         let arr = challengesByEnumId.get(ENUM_IDS.MASTERY_CHALLENGES);
@@ -218,10 +226,12 @@ export function getEnumCountOverride(enumId: number): number {
         return tasks.length;
     }
 
-    // Check for appended challenges
+    // Check for prepended challenges
     const challenges = challengesByEnumId.get(eid);
     if (challenges && challenges.length > 0) {
-        return challenges.length;
+        // Custom challenges that replace cache entries don't add to the total count.
+        const newEntries = challenges.filter((c) => c.replacesStructId === undefined).length;
+        return newEntries;
     }
 
     return 0;
@@ -280,6 +290,14 @@ export function getEnumValueOverride(
     }
 
     return undefined;
+}
+
+/**
+ * Get the set of cache struct IDs that are replaced by custom challenges.
+ * ConfigOps uses this to skip replaced cache entries when resolving enum keys.
+ */
+export function getReplacedChallengeStructIds(): ReadonlySet<number> {
+    return replacedCacheStructIds;
 }
 
 // =============================================================================

@@ -44,4 +44,5 @@ export {
     // Data access - Challenges
     getAllCustomChallenges,
     getCustomChallengeByStructId,
+    getReplacedChallengeStructIds,
 } from "./CustomLeagueRegistry";
