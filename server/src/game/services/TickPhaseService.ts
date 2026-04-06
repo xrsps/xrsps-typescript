@@ -20,7 +20,7 @@ import type { GroundItemManager } from "../items/GroundItemManager";
 import type { NpcState, NpcUpdateDelta } from "../npc";
 import type { NpcManager } from "../npcManager";
 import type { InventoryEntry, PlayerManager, PlayerState, SkillSyncUpdate } from "../player";
-import type { PrayerSystem } from "../prayer/PrayerSystem";
+import type { PrayerSystem } from "../../../gamemodes/vanilla/prayer/PrayerSystem";
 import type { ScriptRuntime } from "../scripts/ScriptRuntime";
 import type {
     BroadcastScheduler,

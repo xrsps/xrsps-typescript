@@ -3,8 +3,8 @@ import type {
     ProjectileEndpoint,
     ProjectileLaunch,
 } from "../../../../src/shared/projectiles/ProjectileLaunch";
-import { ProjectileParams } from "../../data/projectileParams";
-import { SpellDataEntry } from "../../data/spells";
+import { ProjectileParams } from "../data/ProjectileParamsProvider";
+import { SpellDataEntry } from "../spells/SpellDataProvider";
 import { NpcState } from "../npc";
 import { PlayerState } from "../player";
 

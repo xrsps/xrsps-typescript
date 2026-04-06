@@ -11,7 +11,7 @@ import {
     calculatePoweredStaffBaseDamage,
     getPoweredStaffSpellData,
     hasPoweredStaffSpellData,
-} from "../../../src/data/spells";
+} from "../../../src/game/spells/SpellDataProvider";
 
 // ATTACK TYPE - Determines which defence bonus is used
 

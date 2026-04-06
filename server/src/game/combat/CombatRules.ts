@@ -1,4 +1,4 @@
-import { getSpellData } from "../../data/spells";
+import { getSpellData } from "../spells/SpellDataProvider";
 import { SpellCaster } from "../spells/SpellCaster";
 import type { AttackType } from "./AttackType";
 

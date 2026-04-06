@@ -5,7 +5,7 @@ import {
 } from "../../../../src/rs/config/player/Equipment";
 import type { IdkType } from "../../../../src/rs/config/idktype/IdkType";
 import type { WeaponDataEntry } from "../combat/WeaponDataProvider";
-import { weaponDataEntries } from "../../../data/weapons";
+import { weaponDataEntries } from "../combat/WeaponDataProvider";
 import type { BroadcastScheduler, PlayerAnimSet } from "../systems/BroadcastScheduler";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import type { PlayerState, PlayerAppearance as PlayerAppearanceState } from "../player";

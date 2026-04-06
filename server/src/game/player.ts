@@ -35,8 +35,8 @@ import {
 } from "./model/timer";
 import { NpcState } from "./npc";
 import { PlayerAccountState } from "./state/PlayerAccountState";
-import { PlayerCollectionLogState } from "./state/PlayerCollectionLogState";
-import type { CollectionLogUnlockEntry } from "./state/PlayerCollectionLogState";
+import { PlayerCollectionLogState } from "../../gamemodes/vanilla/state/PlayerCollectionLogState";
+import type { CollectionLogUnlockEntry } from "../../gamemodes/vanilla/state/PlayerCollectionLogState";
 import { PlayerCombatState } from "./state/PlayerCombatState";
 import { PlayerFollowerPersistState } from "./state/PlayerFollowerPersistState";
 import { PlayerInventoryState } from "./state/PlayerInventoryState";
@@ -155,7 +155,7 @@ export interface PlayerFollowerPersistentEntry {
     npcTypeId: number;
 }
 
-export type { CollectionLogUnlockEntry } from "./state/PlayerCollectionLogState";
+export type { CollectionLogUnlockEntry } from "../../gamemodes/vanilla/state/PlayerCollectionLogState";
 
 // modern OSRS bank starts at 800 slots (varp BANK_LOCKED_SLOTS is based on 1410 max slots).
 export const DEFAULT_BANK_CAPACITY = 800;

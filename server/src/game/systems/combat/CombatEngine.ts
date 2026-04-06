@@ -2,26 +2,26 @@ import { logger } from "../../../utils/logger";
 import { EquipmentSlot } from "../../../../../src/rs/config/player/Equipment";
 import { SkillId } from "../../../../../src/rs/skill/skills";
 import { XpMode } from "../../combat/WeaponDataProvider";
-import { getCombatStyle } from "../../../../data/weapons";
+import { getCombatStyle } from "../../combat/WeaponDataProvider";
 import { type ItemDefinition, getItemDefinition } from "../../../data/items";
 import {
     ProjectileParams,
     buildProjectileParamsFromArchetype,
     getProjectileParams,
-} from "../../../data/projectileParams";
+} from "../../data/ProjectileParamsProvider";
 import {
     calculatePoweredStaffBaseDamage,
     getPoweredStaffSpellData,
     getSpellData,
-} from "../../../data/spells";
+} from "../../spells/SpellDataProvider";
 import { doesBoltEffectActivate, getEnchantedBoltEffect } from "../../combat/AmmoSystem";
 import type { AttackType } from "../../combat/AttackType";
-import * as CombatFormulas from "../../combat/CombatFormulas";
+import * as CombatFormulas from "../../combat/CombatFormulaProvider";
 import {
     type SlayerTaskInfo,
     type TargetInfo,
     calculateEquipmentBonuses,
-} from "../../combat/EquipmentBonuses";
+} from "../../combat/EquipmentBonusProvider";
 import { HITMARK_BLOCK, HITMARK_DAMAGE } from "../../combat/HitEffects";
 import { type NpcCombatProfile as NpcCombatProfileResolved, NpcState } from "../../npc";
 import type { NpcCombatProfile } from "../../npc";

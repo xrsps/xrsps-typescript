@@ -1,5 +1,5 @@
-import { getCombinationRuneSubstitutes, getStaffNegatedRunes } from "../../data/runes";
-import { RuneCost } from "../../data/spells";
+import { getCombinationRuneSubstitutes, getStaffNegatedRunes } from "../data/RuneDataProvider";
+import { RuneCost } from "./SpellDataProvider";
 
 export type InventoryItem = {
     itemId: number;

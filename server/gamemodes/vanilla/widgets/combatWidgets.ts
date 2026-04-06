@@ -10,7 +10,7 @@ import {
     canWeaponAutocastSpell,
     getAutocastCompatibilityMessage,
     getSpellIdFromAutocastIndex,
-} from "../../../src/data/spells";
+} from "../../../src/game/spells/SpellDataProvider";
 import { DisplayMode, getDefaultInterfaces } from "../../../src/widgets/WidgetManager";
 import { applyAutocastState, clearAutocastState } from "../../../src/game/combat/AutocastState";
 import {

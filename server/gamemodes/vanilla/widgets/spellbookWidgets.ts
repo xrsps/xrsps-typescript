@@ -1,7 +1,7 @@
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import { SkillId } from "../../../../src/rs/skill/skills";
 import { VARP_LAST_HOME_TELEPORT } from "../../../../src/shared/vars";
-import { RUNE_IDS } from "../../../src/data/runes";
+import { RUNE_IDS } from "../../../src/game/data/RuneDataProvider";
 import { getSpellWidgetId } from "../../../src/data/spellWidgetLoader";
 import {
     canWeaponAutocastSpell,
@@ -9,7 +9,7 @@ import {
     getAutocastIndexFromSpellId,
     getSpellDataByWidget,
     isSpellAutocastable,
-} from "../../../src/data/spells";
+} from "../../../src/game/spells/SpellDataProvider";
 import { type TeleportSpellData, getTeleportByWidgetId } from "../../../src/data/teleportDestinations";
 import { getMainmodalUid } from "../../../src/widgets/viewport";
 import type { SkillBoltEnchantActionData as BoltEnchantActionData } from "../../../src/game/actions/skillActionPayloads";

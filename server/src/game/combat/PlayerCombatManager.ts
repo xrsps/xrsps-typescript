@@ -5,7 +5,7 @@
  * NPC movement, chase, retreat, and retaliation authority remain in NpcManager.
  */
 import { SkillId } from "../../../../src/rs/skill/skills";
-import { getPoweredStaffSpellData, getSpellData } from "../../data/spells";
+import { getPoweredStaffSpellData, getSpellData } from "../spells/SpellDataProvider";
 import type { PathService } from "../../pathfinding/PathService";
 import {
     CardinalAdjacentRouteStrategy,
@@ -33,7 +33,7 @@ import {
 } from "./CombatAction";
 import { CombatEffectApplicator } from "./CombatEffectApplicator";
 import { CombatEngagementRegistry } from "./CombatEngagementRegistry";
-import * as CombatFormulas from "./CombatFormulas";
+import * as CombatFormulas from "./CombatFormulaProvider";
 import { resolvePlayerAttackReach, resolvePlayerAttackType } from "./CombatRules";
 import {
     CombatPhase,
@@ -55,7 +55,7 @@ import {
     calculateDragonClawsHits,
     isDarkBow,
     resolveAmmoModifiers,
-} from "./SpecialAttackRegistry";
+} from "./SpecialAttackProvider";
 
 // =============================================================================
 // Constants (from CombatSystem)

@@ -32,3 +32,39 @@ export interface ProjectileParamsProvider {
     applyProjectileDefaults<T extends ProjectileTarget>(projectileId: number | undefined, target: T): T;
     buildProjectileParamsFromArchetype(archetype: ProjectileArchetypeName, overrides?: Partial<ProjectileParams>): ProjectileParams;
 }
+
+// =============================================================================
+// Provider Registration & Delegation
+// =============================================================================
+
+let _provider: ProjectileParamsProvider | undefined;
+
+export function registerProjectileParamsProvider(provider: ProjectileParamsProvider): void {
+    _provider = provider;
+}
+
+export function getProjectileParamsProvider(): ProjectileParamsProvider | undefined {
+    return _provider;
+}
+
+function ensureProvider(): ProjectileParamsProvider {
+    if (!_provider) {
+        throw new Error("[projectileParams] ProjectileParamsProvider not registered. Ensure the gamemode has initialized.");
+    }
+    return _provider;
+}
+
+export function getProjectileParams(projectileId: number | undefined): ProjectileParams | undefined {
+    return ensureProvider().getProjectileParams(projectileId);
+}
+
+export function applyProjectileDefaults<T extends ProjectileTarget>(projectileId: number | undefined, target: T): T {
+    return ensureProvider().applyProjectileDefaults(projectileId, target);
+}
+
+export function buildProjectileParamsFromArchetype(
+    archetype: ProjectileArchetypeName,
+    overrides?: Partial<ProjectileParams>,
+): ProjectileParams {
+    return ensureProvider().buildProjectileParamsFromArchetype(archetype, overrides);
+}

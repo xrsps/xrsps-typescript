@@ -12,8 +12,8 @@ import type { WebSocket } from "ws";
 
 import { logger } from "../../../utils/logger";
 import { resolveSelectedSpellPayload } from "../../../../../src/shared/spells/selectedSpellPayload";
-import type { ProjectileParams as CachedProjectileParams } from "../../../data/projectileParams";
-import type { SpellDataEntry as CachedSpellDataEntry } from "../../../data/spells";
+import type { ProjectileParams as CachedProjectileParams } from "../../data/ProjectileParamsProvider";
+import type { SpellDataEntry as CachedSpellDataEntry } from "../../spells/SpellDataProvider";
 import { HITMARK_BLOCK, HITMARK_DAMAGE } from "../../combat/HitEffects";
 import type { NpcState } from "../../npc";
 import type { PlayerState } from "../../player";

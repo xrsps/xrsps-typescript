@@ -2,7 +2,7 @@ import path from "path";
 
 import { getCacheLoaderFactory } from "../../src/rs/cache/loader/CacheLoaderFactory";
 import { config } from "./config";
-import { initSpellWidgetMapping } from "./data/spells";
+import { initSpellWidgetMapping } from "./game/spells/SpellDataProvider";
 import { createGamemode } from "./game/gamemodes/GamemodeRegistry";
 import { NpcManager } from "./game/npcManager";
 import { PlayerState } from "./game/player";

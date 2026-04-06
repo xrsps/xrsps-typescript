@@ -13,8 +13,8 @@
  */
 import { logger } from "../../../utils/logger";
 import type { ProjectileLaunch } from "../../../../../src/shared/projectiles/ProjectileLaunch";
-import { getPoweredStaffSpellData } from "../../../data/spells";
-import type { PoweredStaffSpellData, SpellDataEntry } from "../../../data/spells";
+import { getPoweredStaffSpellData } from "../../spells/SpellDataProvider";
+import type { PoweredStaffSpellData, SpellDataEntry } from "../../spells/SpellDataProvider";
 import type { PathService } from "../../../pathfinding/PathService";
 import type { AttackType } from "../../combat/AttackType";
 import {

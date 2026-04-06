@@ -12,8 +12,8 @@ import {
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../src/shared/input/modifierFlags";
 import { getItemDefinition } from "../data/items";
-import { ALL_RUNE_ITEM_IDS, RUNE_IDS } from "../data/runes";
-import { getSpellData } from "../data/spells";
+import { ALL_RUNE_ITEM_IDS, RUNE_IDS } from "../game/data/RuneDataProvider";
+import { getSpellData } from "../game/spells/SpellDataProvider";
 import { getCollectionLogItems } from "../game/collectionlog";
 import { clearAutocastState } from "../game/combat/AutocastState";
 import type { NpcState } from "../game/npc";

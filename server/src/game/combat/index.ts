@@ -122,7 +122,7 @@ export {
     getSpecialAttackProvider,
     type SpecialAttackDef,
     type SpecialAttackProvider,
-} from "./SpecialAttackRegistry";
+} from "./SpecialAttackProvider";
 
 // Combat formulas
 export {
@@ -146,7 +146,7 @@ export {
     type DefenderStats,
     type MaxHitParams,
     type CombatFormulaProvider,
-} from "./CombatFormulas";
+} from "./CombatFormulaProvider";
 
 // Combat style sequences
 export {
@@ -155,7 +155,7 @@ export {
     getCombatStyleSequenceProvider,
     type CombatStyleSlot,
     type CombatStyleSequenceProvider,
-} from "./CombatStyleSequences";
+} from "./CombatStyleSequenceProvider";
 
 // Skill configuration
 export {
@@ -167,7 +167,7 @@ export {
     getHitpointOverhealDecayIntervalTicks,
     getPreserveDecayMultiplier,
     type SkillConfiguration,
-} from "./SkillConfiguration";
+} from "./SkillConfigurationProvider";
 
 // Equipment bonuses
 export {
@@ -178,7 +178,7 @@ export {
     type SlayerTaskInfo,
     type EquipmentBonusResult,
     type EquipmentBonusProvider,
-} from "./EquipmentBonuses";
+} from "./EquipmentBonusProvider";
 
 // Ammo system
 export {

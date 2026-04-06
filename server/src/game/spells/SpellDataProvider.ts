@@ -122,3 +122,88 @@ export interface SpellDataProvider {
     hasPoweredStaffSpellData(weaponId: number): boolean;
     calculatePoweredStaffBaseDamage(magicLevel: number, formula: PoweredStaffSpellData["maxHitFormula"]): number;
 }
+
+// =============================================================================
+// Provider Registration & Delegation
+// =============================================================================
+
+let _provider: SpellDataProvider | undefined;
+
+export function registerSpellDataProvider(provider: SpellDataProvider): void {
+    _provider = provider;
+}
+
+export function getSpellDataProvider(): SpellDataProvider | undefined {
+    return _provider;
+}
+
+function ensureProvider(): SpellDataProvider {
+    if (!_provider) {
+        throw new Error("[spells] SpellDataProvider not registered. Ensure the gamemode has initialized.");
+    }
+    return _provider;
+}
+
+export function getSpellData(spellId: number): SpellDataEntry | undefined {
+    return ensureProvider().getSpellData(spellId);
+}
+
+export function getSpellDataByWidget(spellbookGroupId: number, widgetChildId: number): SpellDataEntry | undefined {
+    return ensureProvider().getSpellDataByWidget(spellbookGroupId, widgetChildId);
+}
+
+export function getAllSpellData(): SpellDataEntry[] {
+    return ensureProvider().getAllSpellData();
+}
+
+export function registerSpellData(entry: SpellDataEntry): void {
+    ensureProvider().registerSpellData(entry);
+}
+
+export function hasSpellData(spellId: number): boolean {
+    return ensureProvider().hasSpellData(spellId);
+}
+
+export function initSpellWidgetMapping(cacheInfo: CacheInfo, cache: CacheSystem): void {
+    ensureProvider().initSpellWidgetMapping(cacheInfo, cache);
+}
+
+export function isSpellWidgetMappingInitialized(): boolean {
+    return ensureProvider().isSpellWidgetMappingInitialized();
+}
+
+export function getSpellIdFromAutocastIndex(autocastIndex: number): number | undefined {
+    return ensureProvider().getSpellIdFromAutocastIndex(autocastIndex);
+}
+
+export function getAutocastIndexFromSpellId(spellId: number): number | undefined {
+    return ensureProvider().getAutocastIndexFromSpellId(spellId);
+}
+
+export function isSpellAutocastable(spellId: number): boolean {
+    return ensureProvider().isSpellAutocastable(spellId);
+}
+
+export function buildVisibleAutocastIndices(weaponItemId: number): number[] {
+    return ensureProvider().buildVisibleAutocastIndices(weaponItemId);
+}
+
+export function canWeaponAutocastSpell(weaponItemId: number, spellId: number): AutocastCompatibilityResult {
+    return ensureProvider().canWeaponAutocastSpell(weaponItemId, spellId);
+}
+
+export function getAutocastCompatibilityMessage(reason: AutocastCompatibilityResult["reason"]): string {
+    return ensureProvider().getAutocastCompatibilityMessage(reason);
+}
+
+export function getPoweredStaffSpellData(weaponId: number): PoweredStaffSpellData | undefined {
+    return ensureProvider().getPoweredStaffSpellData(weaponId);
+}
+
+export function hasPoweredStaffSpellData(weaponId: number): boolean {
+    return ensureProvider().hasPoweredStaffSpellData(weaponId);
+}
+
+export function calculatePoweredStaffBaseDamage(magicLevel: number, formula: PoweredStaffSpellData["maxHitFormula"]): number {
+    return ensureProvider().calculatePoweredStaffBaseDamage(magicLevel, formula);
+}

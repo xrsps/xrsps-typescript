@@ -1,5 +1,5 @@
-import type { ProjectileParams } from "../../data/projectileParams";
-import type { SpellDataEntry } from "../../data/spells";
+import type { ProjectileParams } from "../data/ProjectileParamsProvider";
+import type { SpellDataEntry } from "../spells/SpellDataProvider";
 import type { ProjectileLaunch } from "../../../../src/shared/projectiles/ProjectileLaunch";
 import { PLAYER_CHEST_OFFSET_UNITS } from "../../../../src/shared/projectiles/projectileHeights";
 import type { PathService } from "../../pathfinding/PathService";

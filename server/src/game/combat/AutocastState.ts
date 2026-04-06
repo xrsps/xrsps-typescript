@@ -3,7 +3,7 @@ import {
     VARBIT_AUTOCAST_SET,
     VARBIT_AUTOCAST_SPELL,
 } from "../../../../src/shared/vars";
-import { canWeaponAutocastSpell, getAutocastIndexFromSpellId } from "../../data/spells";
+import { canWeaponAutocastSpell, getAutocastIndexFromSpellId } from "../spells/SpellDataProvider";
 import type { PlayerState } from "../player";
 
 type AutocastSyncCallbacks = {

@@ -55,12 +55,12 @@ import {
     resolveGroundItemOptionByOpNum,
 } from "./handlers/examineHandler";
 import { calculateAmmoConsumption } from "../game/combat/AmmoSystem";
-import { canWeaponAutocastSpell, getAutocastCompatibilityMessage, getSpellData, getSpellDataByWidget } from "../data/spells";
+import { canWeaponAutocastSpell, getAutocastCompatibilityMessage, getSpellData, getSpellDataByWidget } from "../game/spells/SpellDataProvider";
 import { ensureEquipQtyArrayOn, consumeEquippedAmmoApply, pickEquipSound, unequipItemApply } from "../game/equipment";
 import { hasDirectMeleePath, hasDirectMeleeReach, isWithinAttackRange } from "../game/combat/CombatAction";
-import { getSpecialAttack } from "../game/combat/SpecialAttackRegistry";
+import { getSpecialAttack } from "../game/combat/SpecialAttackProvider";
 import { getSpellBaseXp } from "../game/combat/SpellXpData";
-import { getProjectileParams } from "../data/projectileParams";
+import { getProjectileParams } from "../game/data/ProjectileParamsProvider";
 import { SpellCaster } from "../game/spells/SpellCaster";
 import { isInWilderness, getWildernessLevel } from "../game/combat/MultiCombatZones";
 import { combatEffectApplicator } from "../game/combat/CombatEffectApplicator";
@@ -76,7 +76,7 @@ import {
 } from "./wsServer";
 import { faceAngleRs } from "../../../src/rs/utils/rotation";
 import { getItemDefinition } from "../data/items";
-import { getRangedImpactSound } from "../../data/weapons";
+import { getRangedImpactSound } from "../game/combat/WeaponDataProvider";
 
 export function createNpcPacketEncoder(server: any): NpcPacketEncoder {
     const services: NpcPacketEncoderServices = {

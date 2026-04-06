@@ -38,7 +38,7 @@ import {
     SlayerTaskInfo,
     TargetInfo,
     calculateEquipmentBonuses,
-} from "./EquipmentBonuses";
+} from "./EquipmentBonusProvider";
 import { MultiCombatSystem, multiCombatSystem } from "./MultiCombatZones";
 import { PoisonVenomSystem, poisonVenomSystem } from "./PoisonVenomSystem";
 // Import all combat subsystems
@@ -48,7 +48,7 @@ import {
     consumeSpecialEnergy,
     getSpecialAttack,
     restoreSpecialEnergy,
-} from "./SpecialAttackRegistry";
+} from "./SpecialAttackProvider";
 
 // Type aliases for compatibility
 type Npc = NpcState;

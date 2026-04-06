@@ -11,7 +11,7 @@ import {
     MUSIC_NOW_PLAYING_FLAGS,
     MUSIC_NOW_PLAYING_TEXT_UID,
 } from "../../../../src/shared/ui/music";
-import { MISS_SOUND, getHitSoundForStyle, getMissSound } from "../../../data/weapons";
+import { MISS_SOUND, getHitSoundForStyle, getMissSound } from "../../game/combat/WeaponDataProvider";
 import type { NpcSoundType } from "../../audio/NpcSoundLookup";
 import type { PlayerState } from "../../game/player";
 

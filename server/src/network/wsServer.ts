@@ -84,7 +84,7 @@ import {
     PlayerState,
     SkillSyncUpdate,
 } from "../game/player";
-import { PrayerSystem } from "../game/prayer/PrayerSystem";
+import { PrayerSystem } from "../../gamemodes/vanilla/prayer/PrayerSystem";
 import { ScriptRegistry } from "../game/scripts";
 import { ScriptRuntime } from "../game/scripts";
 import { bootstrapScripts } from "../game/scripts/bootstrap";

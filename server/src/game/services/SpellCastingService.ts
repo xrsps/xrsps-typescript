@@ -7,7 +7,7 @@ import {
     type SpellDataEntry,
     getSpellData,
     getSpellDataByWidget,
-} from "../../data/spells";
+} from "../spells/SpellDataProvider";
 import type { PlayerState } from "../player";
 import { SpellCaster } from "../spells/SpellCaster";
 import { logger } from "../../utils/logger";

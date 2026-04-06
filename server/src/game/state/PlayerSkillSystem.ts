@@ -27,7 +27,7 @@ import {
     getHitpointRegenIntervalTicks,
     getHitpointOverhealDecayIntervalTicks,
     getPreserveDecayMultiplier,
-} from "../combat/SkillConfiguration";
+} from "../combat/SkillConfigurationProvider";
 import type { PlayerStatusState } from "./PlayerStatusState";
 
 export interface SkillEntry {
