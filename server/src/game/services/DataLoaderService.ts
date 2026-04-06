@@ -56,7 +56,7 @@ export class DataLoaderService {
                     archive,
                 );
             }
-        } catch {}
+        } catch (err) { logger.warn("[data-loader] failed to init healthbar loader", err); }
 
         this.initLoaders();
     }
@@ -67,28 +67,28 @@ export class DataLoaderService {
 
         try {
             this.locTypeLoader = factory.getLocTypeLoader();
-        } catch {}
+        } catch (err) { logger.warn("[data-loader] failed to init locTypeLoader", err); }
         try {
             this.npcTypeLoader = factory.getNpcTypeLoader?.();
-        } catch {}
+        } catch (err) { logger.warn("[data-loader] failed to init npcTypeLoader", err); }
         try {
             this.seqTypeLoader = factory.getSeqTypeLoader?.();
-        } catch {}
+        } catch (err) { logger.warn("[data-loader] failed to init seqTypeLoader", err); }
         try {
             this.objTypeLoader = factory.getObjTypeLoader();
-        } catch {}
+        } catch (err) { logger.warn("[data-loader] failed to init objTypeLoader", err); }
         try {
             this.idkTypeLoader = factory.getIdkTypeLoader();
-        } catch {}
+        } catch (err) { logger.warn("[data-loader] failed to init idkTypeLoader", err); }
         try {
             this.basTypeLoader = factory.getBasTypeLoader();
-        } catch {}
+        } catch (err) { logger.warn("[data-loader] failed to init basTypeLoader", err); }
         try {
             this.enumTypeLoader = factory.getEnumTypeLoader?.();
-        } catch {}
+        } catch (err) { logger.warn("[data-loader] failed to init enumTypeLoader", err); }
         try {
             this.structTypeLoader = factory.getStructTypeLoader?.();
-        } catch {}
+        } catch (err) { logger.warn("[data-loader] failed to init structTypeLoader", err); }
 
         if (this.cacheEnv) {
             try {

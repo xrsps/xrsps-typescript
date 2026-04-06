@@ -316,7 +316,6 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             }
         };
         registry.registerItemOnItem(KNIFE_ITEM_ID, logId, handler);
-        registry.registerItemOnItem(logId, KNIFE_ITEM_ID, handler);
     };
 
     const registerStringingHandler = (unstrungId: number) => {
@@ -379,7 +378,6 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             }
         };
         registry.registerItemOnItem(unstrungId, secondaryItemId, handler);
-        registry.registerItemOnItem(secondaryItemId, unstrungId, handler);
     };
 
     const registerCombineHandler = (recipe: FletchingProductDefinition) => {
@@ -459,7 +457,6 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         };
         if (typeof secondaryId === "number" && secondaryId > 0) {
             registry.registerItemOnItem(recipe.inputItemId, secondaryId, handler);
-            registry.registerItemOnItem(secondaryId, recipe.inputItemId, handler);
         }
     };
 

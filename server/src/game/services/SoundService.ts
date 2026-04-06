@@ -19,8 +19,17 @@ export interface SoundServiceDeps {
  * Manages sound effects, jingles, loc graphics/sounds, area sounds, and music track lookup.
  * Extracted from WSServer.
  */
+export interface SoundServiceDeferredDeps {
+    soundManager?: any;
+    musicCatalogService?: MusicCatalogService;
+}
+
 export class SoundService {
     constructor(private readonly deps: SoundServiceDeps) {}
+
+    setDeferredDeps(deferred: SoundServiceDeferredDeps): void {
+        Object.assign(this.deps, deferred);
+    }
 
     playLocGraphic(opts: {
         spotId: number;

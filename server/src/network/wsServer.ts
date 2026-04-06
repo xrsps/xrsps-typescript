@@ -17,8 +17,12 @@ import { CollectionLogService } from "../game/services/CollectionLogService";
 import { SoundService } from "../game/services/SoundService";
 import { MovementService } from "../game/services/MovementService";
 import { PlayerCombatService } from "../game/services/PlayerCombatService";
-import { buildScriptServices } from "../game/services/ScriptServiceAdapter";
+import { buildScriptServices, type ScriptServiceAdapterDeps } from "../game/services/ScriptServiceAdapter";
 import { buildGamemodeServices } from "../game/services/GamemodeServiceAdapter";
+import { LoginHandshakeService } from "./LoginHandshakeService";
+import { SpellCastingService } from "../game/services/SpellCastingService";
+import { TickPhaseService } from "../game/services/TickPhaseService";
+import { VarpSyncService } from "../game/services/VarpSyncService";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 
@@ -47,70 +51,16 @@ import {
 import type { SeqTypeLoader } from "../../../src/rs/config/seqtype/SeqTypeLoader";
 import { PRAYER_DEFINITIONS, type PrayerName } from "../../../src/rs/prayer/prayers";
 import { MAX_REAL_LEVEL, SkillId, getSkillName } from "../../../src/rs/skill/skills";
-import { faceAngleRs } from "../../../src/rs/utils/rotation";
 import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../src/shared/input/modifierFlags";
 import type { ProjectileLaunch } from "../../../src/shared/projectiles/ProjectileLaunch";
 import { PLAYER_CHEST_OFFSET_UNITS } from "../../../src/shared/projectiles/projectileHeights";
-import { resolveSelectedSpellPayload } from "../../../src/shared/spells/selectedSpellPayload";
 import { ACCOUNT_SUMMARY_GROUP_ID } from "../../../src/shared/ui/accountSummary";
 import { MUSIC_GROUP_ID } from "../../../src/shared/ui/music";
 import {
-    SIDE_JOURNAL_CONTENT_GROUP_BY_TAB,
-    SIDE_JOURNAL_GROUP_ID,
-    SIDE_JOURNAL_TAB_CONTAINER_UID,
-    decodeSideJournalTabFromStateVarp,
-} from "../../../src/shared/ui/sideJournal";
-import {
-    MUSIC_UNLOCK_VARPS,
-    VARBIT_ACCOUNT_TYPE,
-    VARBIT_ARCEUUS_FAVOR,
-    VARBIT_ARCEUUS_SPELLBOOK_UNLOCKED,
-    VARBIT_AUTOCAST_DEFMODE,
-    VARBIT_AUTOCAST_SET,
-    VARBIT_AUTOCAST_SPELL,
-    VARBIT_CLIENT_OF_KOUREND,
-    VARBIT_IBAN_BOOK_READ,
-    VARBIT_IN_LMS,
-    VARBIT_IN_RAID,
-    VARBIT_IN_WILDERNESS,
-    VARBIT_MAGE_ARENA_2_PROGRESS,
-    VARBIT_MULTICOMBAT_AREA,
-    VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE,
-    VARBIT_PVP_SPEC_ORB,
-    VARBIT_RAID_STATE,
-    VARBIT_SIDE_JOURNAL_TAB,
-    VARBIT_XPDROPS_ENABLED,
-    VARP_AREA_SOUNDS_VOLUME,
-    VARP_ATTACK_STYLE,
-    VARP_AUTO_RETALIATE,
-    VARP_BIOHAZARD,
-    VARP_COMBAT_TARGET_PLAYER_INDEX,
-    VARP_DESERT_TREASURE,
-    VARP_EADGAR_QUEST,
     VARP_FOLLOWER_INDEX,
-    VARP_LAST_HOME_TELEPORT,
-    VARP_LAST_MINIGAME_TELEPORT,
-    VARP_LEGENDS_QUEST,
-    VARP_LUNAR_DIPLOMACY,
-    VARP_MAGE_ARENA,
-    VARP_MAP_FLAGS_CACHED,
-    VARP_MASTER_VOLUME,
-    VARP_MUSICPLAY,
-    VARP_MUSIC_CURRENT_TRACK,
-    VARP_MUSIC_VOLUME,
-    VARP_OPTION_ATTACK_PRIORITY_NPC,
-    VARP_OPTION_ATTACK_PRIORITY_PLAYER,
-    VARP_OPTION_RUN,
-    VARP_PLAGUE_CITY,
-    VARP_SIDE_JOURNAL_STATE,
-    VARP_SOUND_EFFECTS_VOLUME,
-    VARP_SPECIAL_ATTACK,
-    VARP_UNDERGROUND_PASS,
-    VARP_WATCHTOWER,
-    XPDROPS_TRANSMIT_VARPS,
 } from "../../../src/shared/vars";
 import {
     AttackStyle,
@@ -131,10 +81,7 @@ import { getProjectileParams } from "../data/projectileParams";
 import type { ProjectileParams } from "../data/projectileParams";
 import {
     type SpellDataEntry,
-    canWeaponAutocastSpell,
-    getAutocastCompatibilityMessage,
     getSpellData,
-    getSpellDataByWidget,
 } from "../data/spells";
 import {
     ActionEffect,
@@ -167,7 +114,6 @@ import type {
     InventoryUseOnActionData,
     MovementTeleportActionData,
 } from "../game/actions/actionPayloads";
-import { DEBUG_PLAYER_IDS, RUN_ENERGY_MAX } from "../game/actor";
 import {
     COLLECTION_LOG_GROUP_ID,
     COLLECTION_OVERVIEW_GROUP_ID,
@@ -209,10 +155,6 @@ import {
     HITMARK_REGEN,
 } from "../game/combat/HitEffects";
 import {
-    getWildernessLevel,
-    isInLMS,
-    isInPvPArea,
-    isInRaid,
     isInWilderness,
     multiCombatSystem,
 } from "../game/combat/MultiCombatZones";
@@ -253,7 +195,6 @@ import {
     resolveNpcExamineText,
     resolveObjExamineText,
 } from "../game/interactions/ExamineText";
-import { deriveInteractionIndex } from "../game/interactions/InteractionViewBuilder";
 import { GroundItemManager } from "../game/items/GroundItemManager";
 import {
     type OwnedItemLocation,
@@ -287,9 +228,8 @@ import type {
     ScriptInventoryAddResult,
 } from "../game/scripts/types";
 import type { Vec2 } from "../game/systems/ResourceNodeTracker";
-import { SpellCastContext, SpellCaster } from "../game/spells/SpellCaster";
 import { PlayerPersistence } from "../game/state/PlayerPersistence";
-import { buildPlayerSaveKey, normalizePlayerAccountName } from "../game/state/PlayerSessionKeys";
+import { buildPlayerSaveKey } from "../game/state/PlayerSessionKeys";
 import {
     BroadcastScheduler,
     type ChatMessageSnapshot,
@@ -360,6 +300,7 @@ import {
 } from "./broadcast";
 import { type MessageHandlerServices } from "./MessageHandlers";
 import { registerAllHandlers, type BinaryHandlerExtServices } from "./handlers";
+import * as ServiceWiring from "./ServiceWiring";
 import { MessageRouter, type MessageRouterServices, type RoutedMessage } from "./MessageRouter";
 import { buildTeleportNpcUpdateDelta, upsertNpcUpdateDelta } from "./NpcExternalSync";
 import { NpcSyncSession } from "./NpcSyncSession";
@@ -603,12 +544,12 @@ const testRng: JavaRandom | null =
     TEST_RNG_SEED !== undefined && Number.isFinite(TEST_RNG_SEED)
         ? new JavaRandom(TEST_RNG_SEED)
         : null;
-function testRandFloat(): number {
+export function testRandFloat(): number {
     if (TEST_HIT_FORCE !== undefined && TEST_HIT_FORCE >= 0) return 0; // will be overridden by force damage
     if (testRng?.nextFloat) {
         try {
             return testRng.nextFloat();
-        } catch {}
+        } catch (err) { logger.warn("[testRng] nextFloat failed", err); }
     }
     return Math.random();
 }
@@ -918,7 +859,7 @@ type LevelUpPopup =
     | { kind: "combat"; newLevel: number; levelIncrement: number }
     | { kind: "hunter"; newLevel: number; levelIncrement: number };
 
-function pickSpecialAttackVisualOverride(
+export function pickSpecialAttackVisualOverride(
     weaponItemId: number,
 ): { seqId?: number; spotId?: number; spotHeight?: number } | undefined {
     if (!(weaponItemId > 0)) return undefined;
@@ -1064,6 +1005,12 @@ export class WSServer {
     private readonly movementService!: MovementService;
     private readonly playerCombatService!: PlayerCombatService;
 
+    // Extracted services (Phase 7)
+    private readonly varpSyncService!: VarpSyncService;
+    private readonly spellCastingService!: SpellCastingService;
+    private loginHandshakeService!: LoginHandshakeService;
+    private tickPhaseService!: TickPhaseService;
+
 
     private gamemodeTickCallbacks: Array<(tick: number) => void> = [];
     private gamemodeSnapshotEncoders = new Map<string, {
@@ -1077,7 +1024,6 @@ export class WSServer {
     > = new Map();
     private pendingNpcUpdates: NpcUpdateDelta[] = [];
     private pendingDebugRequests: Map<number, WebSocket> = new Map();
-    private readonly pendingLoginNames = new WeakMap<WebSocket, string>();
     private projectileSystem!: ProjectileSystem;
     // pendingWalkCommands moved to MovementService
     private pendingDirectSends = new Map<
@@ -1279,7 +1225,7 @@ export class WSServer {
                         archive,
                     );
                 }
-            } catch {}
+            } catch (err) { logger.warn("[cache] healthbar loader init failed", err); }
         } catch (e) {
             logger.warn("Failed to initialize cache environment", e);
         }
@@ -1295,14 +1241,14 @@ export class WSServer {
                 } catch (err) {
                     logger.warn("[locEffects] failed to auto-register from loc loader", err);
                 }
-            } catch {}
+            } catch (err) { logger.warn("[cache] loc type loader init failed", err); }
             try {
                 npcTypeLoader = cacheFactory.getNpcTypeLoader?.();
                 this.npcTypeLoader = npcTypeLoader;
-            } catch {}
+            } catch (err) { logger.warn("[cache] npc type loader init failed", err); }
             try {
                 this.seqTypeLoader = cacheFactory.getSeqTypeLoader?.();
-            } catch {}
+            } catch (err) { logger.warn("[cache] seq type loader init failed", err); }
         }
         let collisionOverlays: CollisionOverlayStore | undefined;
         if (locTypeLoader) {
@@ -1337,7 +1283,7 @@ export class WSServer {
                               if (locCanResolveToId(definition, hintedId)) {
                                   return placement;
                               }
-                          } catch {}
+                          } catch (err) { logger.warn("[loc] loc definition lookup failed", err); }
                       }
 
                       return undefined;
@@ -1359,10 +1305,7 @@ export class WSServer {
                 opts.pathService.setCollisionOverlays(collisionOverlays);
                 logger.info("[doors] collision overlays connected to pathfinding");
             }
-            // Wire doorManager to location service
-            if (this.locationService) {
-                (this.locationService as any).deps.doorManager = this.doorManager;
-            }
+            // doorManager → locationService wired in deferred block below
 
             // Loc/npc map building is now handled by extrascripts during register()
         }
@@ -1381,9 +1324,8 @@ export class WSServer {
         this.interfaceService = new InterfaceService({
             queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
         });
-        (this.collectionLogService as any).deps.interfaceService = this.interfaceService;
-        (this.movementService as any).deps.interfaceService = this.interfaceService;
-        (this.movementService as any).deps.sailingInstanceManager = this.sailingInstanceManager;
+        // Deferred wiring: these services are created later, wire after init
+        // (moved to after service creation block below)
 
         // Register interface lifecycle hooks
         registerDialogInterfaceHooks(this.interfaceService);
@@ -1394,11 +1336,7 @@ export class WSServer {
             defaultPrivateTicks: GROUND_ITEM_PRIVATE_TICKS,
         });
         this.spawnDebugGroundItemStack();
-        this.scriptRuntime = new ScriptRuntime({
-            registry: this.scriptRegistry,
-            scheduler: this.scriptScheduler,
-            logger,
-            services: buildScriptServices({
+        const scriptAdapterDeps: ScriptServiceAdapterDeps = {
                 dataLoaders: this.dataLoaderService,
                 variableService: this.variableService,
                 messagingService: this.messagingService,
@@ -1407,7 +1345,7 @@ export class WSServer {
                 equipmentService: this.equipmentService,
                 appearanceService: this.appearanceService,
                 locationService: this.locationService,
-                movementService: this.movementService,
+                movementService: undefined as any, // Deferred: wired after creation
                 collectionLogService: this.collectionLogService,
                 soundService: this.soundService,
                 actionScheduler: this.actionScheduler,
@@ -1416,18 +1354,18 @@ export class WSServer {
                 doorManager: this.doorManager,
                 npcManager: this.npcManager,
                 interfaceService: this.interfaceService,
-                widgetDialogHandler: undefined as any, // Set after creation
+                widgetDialogHandler: undefined as any, // Deferred: wired after creation
                 prayerSystem: this.prayerSystem,
-                gatheringSystem: undefined as any, // Set after creation
-                cs2ModalManager: undefined as any, // Set after creation
-                followerManager: undefined as any, // Set after creation
-                followerCombatManager: undefined as any, // Set after creation
+                gatheringSystem: undefined as any, // Deferred: wired after creation
+                cs2ModalManager: undefined as any, // Deferred: wired after creation
+                followerManager: undefined as any, // Deferred: wired after creation
+                followerCombatManager: undefined as any, // Deferred: wired after creation
                 sailingInstanceManager: this.sailingInstanceManager,
                 worldEntityInfoEncoder: this.worldEntityInfoEncoder,
                 playerPersistence: this.playerPersistence,
-                musicCatalogService: undefined, // Set after creation
-                inventoryActionHandler: undefined as any, // Set after creation
-                effectDispatcher: undefined as any, // Set after creation
+                musicCatalogService: undefined, // Deferred: wired after creation
+                inventoryActionHandler: undefined as any, // Deferred: wired after creation
+                effectDispatcher: undefined as any, // Deferred: wired after creation
                 combatEffectApplicator: combatEffectApplicator,
                 getPlayers: () => this.players,
                 enqueueSpotAnimation: (anim) => this.enqueueSpotAnimation(anim),
@@ -1442,7 +1380,12 @@ export class WSServer {
                 completeLogout: (sock, player, reason) => this.completeLogout(sock, player, reason),
                 closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
                 activeFrame: () => this.activeFrame,
-            }),
+        };
+        this.scriptRuntime = new ScriptRuntime({
+            registry: this.scriptRegistry,
+            scheduler: this.scriptScheduler,
+            logger,
+            services: buildScriptServices(scriptAdapterDeps),
         });
         logger.info(
             "[scripts] loaded",
@@ -1579,7 +1522,7 @@ export class WSServer {
         if (this.npcManager) {
             try {
                 this.npcManager.setStatusEffectSystem(this.statusEffects);
-            } catch {}
+            } catch (err) { logger.warn("[npc] status effect system init failed", err); }
         }
         if (this.players) {
             this.playerCombatManager = createPlayerCombatManager({
@@ -1596,44 +1539,41 @@ export class WSServer {
                 multiCombatSystem.canAttack(attacker, npc, currentTick),
             );
             // Initialize NpcPacketEncoder
-            this.npcPacketEncoder = this.createNpcPacketEncoder();
+            this.npcPacketEncoder = ServiceWiring.createNpcPacketEncoder(this);
             // Initialize PlayerPacketEncoder
-            this.playerPacketEncoder = this.createPlayerPacketEncoder();
+            this.playerPacketEncoder = ServiceWiring.createPlayerPacketEncoder(this);
             // Initialize CombatActionHandler
-            this.combatActionHandler = this.createCombatActionHandler();
+            this.combatActionHandler = ServiceWiring.createCombatActionHandler(this);
             // Initialize SpellActionHandler
-            this.spellActionHandler = this.createSpellActionHandler();
+            this.spellActionHandler = ServiceWiring.createSpellActionHandler(this);
             // Initialize InventoryActionHandler
-            this.inventoryActionHandler = this.createInventoryActionHandler();
+            this.inventoryActionHandler = ServiceWiring.createInventoryActionHandler(this);
             // Initialize EffectDispatcher
-            this.effectDispatcher = this.createEffectDispatcher();
+            this.effectDispatcher = ServiceWiring.createEffectDispatcher(this);
             // Initialize WidgetDialogHandler
-            this.widgetDialogHandler = this.createWidgetDialogHandler();
+            this.widgetDialogHandler = ServiceWiring.createWidgetDialogHandler(this);
             // Initialize CS2 modal manager
-            this.cs2ModalManager = this.createCs2ModalManager();
+            this.cs2ModalManager = ServiceWiring.createCs2ModalManager(this);
             // Initialize NpcSyncManager
-            this.npcSyncManager = this.createNpcSyncManager();
+            this.npcSyncManager = ServiceWiring.createNpcSyncManager(this);
             // Initialize PlayerAppearanceManager
-            this.playerAppearanceManager = this.createPlayerAppearanceManager();
+            this.playerAppearanceManager = ServiceWiring.createPlayerAppearanceManager(this);
             // Initialize SoundManager
-            this.soundManager = this.createSoundManager();
-            (this.soundService as any).deps.soundManager = this.soundManager;
+            this.soundManager = ServiceWiring.createSoundManager(this);
+            // soundManager → soundService wired in deferred block below
             // Initialize GroundItemHandler
-            this.groundItemHandler = this.createGroundItemHandler();
+            this.groundItemHandler = ServiceWiring.createGroundItemHandler(this);
             // Initialize PlayerDeathService
-            this.playerDeathService = this.createPlayerDeathService();
+            this.playerDeathService = ServiceWiring.createPlayerDeathService(this);
             // Initialize ProjectileSystem
-            this.projectileSystem = this.createProjectileSystem();
+            this.projectileSystem = ServiceWiring.createProjectileSystem(this);
             // Initialize GatheringSystemManager
-            this.gatheringSystem = this.createGatheringSystem();
+            this.gatheringSystem = ServiceWiring.createGatheringSystem(this);
             // Initialize EquipmentHandler
-            this.equipmentHandler = this.createEquipmentHandler();
-            // Wire deferred Phase 3 service deps
-            (this.equipmentService as any).deps.equipmentHandler = this.equipmentHandler;
-            (this.equipmentService as any).deps.scriptRuntime = this.scriptRuntime;
-            (this.appearanceService as any).deps.playerAppearanceManager = this.playerAppearanceManager;
+            this.equipmentHandler = ServiceWiring.createEquipmentHandler(this);
+            // Phase 3 deferred deps wired in consolidated block below
             // Initialize TickPhaseOrchestrator
-            this.tickOrchestrator = this.createTickOrchestrator();
+            this.tickOrchestrator = ServiceWiring.createTickOrchestrator(this);
             // Initialize MessageRouter
             this.messageRouter = this.createMessageRouter();
             // Wire up broadcast domain callbacks that require players
@@ -1677,7 +1617,7 @@ export class WSServer {
         });
         if (this.players) {
             this.gameContext.setPlayers(this.players);
-            (this.movementService as any).deps.players = this.players;
+            // movementService.players wired in deferred block below
         }
         logger.info("[services] Phase 1 services initialized (GameContext, DataLoaders, Auth, Network)");
 
@@ -1811,6 +1751,55 @@ export class WSServer {
             weaponData: this.appearanceService.getWeaponData(),
             ensureEquipArray: (p) => this.ensureEquipArray(p),
         });
+        this.spellCastingService = new SpellCastingService({
+            getPlayerBySocket: (ws) => this.players?.get(ws),
+            getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
+            getInventory: (p) => this.getInventory(p),
+            setInventorySlot: (p, slot, itemId, qty) => this.setInventorySlot(p, slot, itemId, qty),
+            addItemToInventory: (p, itemId, qty) => this.addItemToInventory(p, itemId, qty),
+            sendInventorySnapshot: (ws, p) => this.sendInventorySnapshot(ws, p),
+            queueChatMessage: (msg) => this.queueChatMessage(msg),
+            queueSpellResult: (pid, payload) => this.queueSpellResult(pid, payload),
+            awardSkillXp: (p, skillId, xp) => this.awardSkillXp(p, skillId, xp),
+            enqueueSpotAnimation: (event) => this.enqueueSpotAnimation(event),
+            getCurrentTick: () => this.options.ticker.currentTick(),
+            getActiveFrameTick: () => this.activeFrame?.tick,
+        });
+        this.varpSyncService = new VarpSyncService({
+            withDirectSendBypass: (ctx, fn) => this.withDirectSendBypass(ctx, fn),
+            sendWithGuard: (ws, msg, ctx) => this.sendWithGuard(ws, msg, ctx),
+            authService: this.authService,
+            soundManager: this.soundManager ?? (undefined as any),
+            queueVarp: (pid, vid, val) => this.queueVarp(pid, vid, val),
+            musicUnlockService: undefined, // Set after musicUnlockService is created
+        });
+        // --- Deferred wiring: cross-references between services created above ---
+        // Uses typed setDeferredDeps() instead of (service as any).deps mutations.
+        this.locationService.setDeferredDeps({ doorManager: this.doorManager });
+        this.soundService.setDeferredDeps({ soundManager: this.soundManager });
+        this.varpSyncService.setDeferredDeps({ soundManager: this.soundManager });
+        this.equipmentService.setDeferredDeps({
+            equipmentHandler: this.equipmentHandler,
+            scriptRuntime: this.scriptRuntime,
+        });
+        this.appearanceService.setDeferredDeps({ playerAppearanceManager: this.playerAppearanceManager });
+        this.movementService.setDeferredDeps({
+            players: this.players,
+            interfaceService: this.interfaceService,
+            sailingInstanceManager: this.sailingInstanceManager,
+        });
+        this.collectionLogService.setDeferredDeps({ interfaceService: this.interfaceService });
+        // Wire deferred deps on the ScriptServiceAdapter deps object.
+        // The adapter closures lazily read from this object, so mutations here
+        // take effect before any script handler runs.
+        scriptAdapterDeps.movementService = this.movementService;
+        scriptAdapterDeps.widgetDialogHandler = this.widgetDialogHandler;
+        scriptAdapterDeps.gatheringSystem = this.gatheringSystem;
+        scriptAdapterDeps.cs2ModalManager = this.cs2ModalManager;
+        scriptAdapterDeps.followerManager = this.followerManager;
+        scriptAdapterDeps.followerCombatManager = this.followerCombatManager;
+        scriptAdapterDeps.inventoryActionHandler = this.inventoryActionHandler;
+        scriptAdapterDeps.effectDispatcher = this.effectDispatcher;
         logger.info("[services] All services initialized");
 
         this.loadWeaponData();
@@ -1818,14 +1807,16 @@ export class WSServer {
             try {
                 this.dbRepository = new DbRepository(this.cacheEnv.cacheSystem as any);
                 this.combatCategoryData = new CombatCategoryData(this.dbRepository);
-                (this.equipmentService as any).deps.combatCategoryData = this.combatCategoryData;
+                this.equipmentService.setDeferredDeps({ combatCategoryData: this.combatCategoryData });
                 this.npcSoundLookup = new NpcSoundLookup(this.dbRepository);
                 this.npcSoundLookup.initialize();
-                (this.combatDataService as any).deps.npcSoundLookup = this.npcSoundLookup;
+                this.combatDataService.setDeferredDeps({ npcSoundLookup: this.npcSoundLookup });
                 this.musicCatalogService = new MusicCatalogService(this.dbRepository);
-                (this.soundService as any).deps.musicCatalogService = this.musicCatalogService;
+                scriptAdapterDeps.musicCatalogService = this.musicCatalogService;
+                this.soundService.setDeferredDeps({ musicCatalogService: this.musicCatalogService });
                 this.musicRegionService = new MusicRegionService();
                 this.musicUnlockService = new MusicUnlockService(this.musicCatalogService);
+                this.varpSyncService.setDeferredDeps({ musicUnlockService: this.musicUnlockService });
             } catch (err) {
                 logger.warn("[combat] failed to load combat category data", err);
             }
@@ -1833,21 +1824,19 @@ export class WSServer {
         if (cacheFactory) {
             try {
                 this.objTypeLoader = cacheFactory.getObjTypeLoader();
-            } catch {}
+            } catch (err) { logger.warn("[cache] obj type loader init failed", err); }
             try {
                 this.idkTypeLoader = cacheFactory.getIdkTypeLoader();
-            } catch {}
+            } catch (err) { logger.warn("[cache] idk type loader init failed", err); }
             // Store cache loaders for systems that still use enum/struct lookups
             let enumTypeLoader: any;
             let structTypeLoader: any;
             try {
                 enumTypeLoader = cacheFactory.getEnumTypeLoader?.();
-            } catch {}
+            } catch (err) { logger.warn("[cache] enum type loader init failed", err); }
             try {
                 structTypeLoader = cacheFactory.getStructTypeLoader?.();
-            } catch {
-                // StructTypeLoader may not be available
-            }
+            } catch (err) { logger.warn("[cache] struct type loader init failed", err); }
             this.enumTypeLoader = enumTypeLoader;
             this.structTypeLoader = structTypeLoader;
 
@@ -2001,8 +1990,10 @@ export class WSServer {
                 this.actionScheduler.registerPlayer(bot1);
                 this.actionScheduler.registerPlayer(bot2);
             }
-        } catch {}
+        } catch (err) { logger.warn("[bot] test bot spawn failed", err); }
 
+        this.loginHandshakeService = new LoginHandshakeService(this as any);
+        this.tickPhaseService = new TickPhaseService(this as any);
         this.wss.on("connection", (ws) => this.onConnection(ws));
 
         // Broadcast ticks to all connected clients
@@ -2045,7 +2036,7 @@ export class WSServer {
                     payload: { success: true },
                 });
                 ws.send(response);
-            } catch {}
+            } catch (err) { logger.warn("[logout] send logout response failed", err); }
 
             try {
                 const saveKey = player.__saveKey ?? this.getPlayerSaveKey(player.name, player.id);
@@ -2060,7 +2051,7 @@ export class WSServer {
             // Intentional logouts must use the canonical close reason so the client
             // suppresses reconnect-based session resumption.
             ws.close(1000, "logout");
-        } catch {}
+        } catch (err) { logger.warn("[logout] ws close failed", err); }
     }
 
     // ========== Network Layer (delegated to PlayerNetworkLayer) ==========
@@ -2528,877 +2519,87 @@ export class WSServer {
     }
 
     private runPreMovementPhase(frame: TickFrame): void {
-        if (this.npcManager) {
-            try {
-                const playerLookup = (id: number) => this.players?.getById(id) as any;
-                const activeNpcIds = new Set<number>();
-                if (this.players) {
-                    this.players.forEach((_client, player) => {
-                        // Only simulate NPCs near active players.
-                        this.npcManager?.collectNearbyIds(
-                            player.tileX,
-                            player.tileY,
-                            player.level,
-                            NPC_SIM_RADIUS_TILES,
-                            activeNpcIds,
-                        );
-                    });
-                }
-                this.followerManager?.addActiveNpcIds(activeNpcIds);
-                this.followerManager?.tick(frame.tick);
-                this.followerCombatManager?.tick(frame.tick);
-
-                // OSRS NPC Aggression: Update player aggression states each tick
-                // This handles the 10-minute tolerance timer and position tracking
-                if (this.players) {
-                    this.players.forEach((_client, player) => {
-                        // Check if player is in wilderness (NPCs never become tolerant)
-                        const inWilderness = isInWilderness(player.tileX, player.tileY);
-                        player.updateAggressionState(frame.tick, inWilderness);
-                    });
-                }
-
-                // OSRS NPC Aggression: Provide nearby player data for aggression checks
-                const getNearbyPlayers = (
-                    tileX: number,
-                    tileY: number,
-                    level: number,
-                    radius: number,
-                ) => {
-                    const nearbyPlayers: Array<{
-                        id: number;
-                        x: number;
-                        y: number;
-                        level: number;
-                        combatLevel: number;
-                        inCombat: boolean;
-                        aggressionState: {
-                            entryTick: number;
-                            aggressionExpired: boolean;
-                            tile1: { x: number; y: number };
-                            tile2: { x: number; y: number };
-                        };
-                    }> = [];
-                    if (this.players) {
-                        this.players.forEach((_client, player) => {
-                            // Check if player is on the same plane
-                            if (player.level !== level) return;
-                            // Check if player is within radius (Chebyshev distance)
-                            const dx = Math.abs(player.tileX - tileX);
-                            const dy = Math.abs(player.tileY - tileY);
-                            const distance = Math.max(dx, dy);
-                            if (distance > radius) return;
-                            nearbyPlayers.push({
-                                id: player.id,
-                                x: player.tileX,
-                                y: player.tileY,
-                                level: player.level,
-                                combatLevel: player.combatLevel,
-                                // OSRS single-combat: player is "in combat" if attacking OR being attacked
-                                inCombat: player.isAttacking() || player.isBeingAttacked(),
-                                aggressionState: player.getAggressionState(frame.tick),
-                            });
-                        });
-                    }
-                    return nearbyPlayers;
-                };
-
-                const npcTickResult = this.npcManager.tick(
-                    frame.tick,
-                    playerLookup,
-                    activeNpcIds,
-                    getNearbyPlayers,
-                );
-                frame.npcEffectEvents = npcTickResult.statusEvents;
-
-                // Process NPC aggression events - schedule attacks on target players
-                for (const aggroEvent of npcTickResult.aggressionEvents) {
-                    this.scheduleNpcAggressionAttack(
-                        aggroEvent.npcId,
-                        aggroEvent.targetPlayerId,
-                        frame.tick,
-                    );
-                }
-
-                const emittedNpcUpdates = this.npcManager.consumeUpdates();
-                if (frame.npcUpdates.length === 0) {
-                    frame.npcUpdates = emittedNpcUpdates;
-                } else if (emittedNpcUpdates.length > 0) {
-                    const mergedByNpcId = new Map<number, NpcUpdateDelta>();
-                    for (const update of emittedNpcUpdates) {
-                        mergedByNpcId.set(update.id, { ...update });
-                    }
-                    for (const pending of frame.npcUpdates) {
-                        const existing = mergedByNpcId.get(pending.id);
-                        if (!existing) {
-                            mergedByNpcId.set(pending.id, { ...pending });
-                            continue;
-                        }
-                        mergedByNpcId.set(pending.id, {
-                            ...existing,
-                            ...pending,
-                            directions:
-                                pending.directions !== undefined
-                                    ? pending.directions
-                                    : existing.directions,
-                            traversals:
-                                pending.traversals !== undefined
-                                    ? pending.traversals
-                                    : existing.traversals,
-                        });
-                    }
-                    frame.npcUpdates = Array.from(mergedByNpcId.values());
-                }
-                // Collect NPC color overrides (consumed once, shared across all observers)
-                this.npcManager.forEach((npc) => {
-                    if (npc.consumeColorOverrideDirty()) {
-                        const co = npc.getColorOverride();
-                        if (co && co.amount > 0) {
-                            frame.npcColorOverrides.set(npc.id, co);
-                        }
-                    }
-                });
-
-                if (this.players) {
-                    this.players.forEach((_client, player) => {
-                        this.npcSyncManager.updateNpcViewForPlayer(player);
-                    });
-                }
-            } catch (err) {
-                logger.warn("[NpcManager] tick error", err);
-            }
-        }
-        if (!this.players) return;
-        this.flushPendingWalkCommands(frame.tick, "pre");
-        this.movementSystem?.runPreMovement(frame.tick);
+        this.tickPhaseService.runPreMovementPhase(frame);
     }
 
-    /**
-     * Schedule an NPC aggression attack on a player.
-     * This is similar to retaliation but initiated by the NPC targeting a player.
-     */
     private scheduleNpcAggressionAttack(
         npcId: number,
         targetPlayerId: number,
         currentTick: number,
     ): void {
-        const player = this.players?.getById(targetPlayerId);
-        if (!player) return;
-
-        const npc = this.npcManager?.getById(npcId);
-        if (!npc || npc.isDead?.(currentTick)) return;
-
-        // Schedule the NPC attack using the retaliate action mechanism
-        // The handler will compute damage, animations, etc.
-        const result = this.actionScheduler.requestAction(
-            player.id,
-            {
-                kind: "combat.npcRetaliate",
-                data: {
-                    npcId: npc.id,
-                    phase: "swing",
-                    // Let the handler compute damage/style
-                    isAggression: true, // Flag to indicate this is aggression, not retaliation
-                },
-                groups: ["combat.npcAggro"],
-                cooldownTicks: 0,
-                delayTicks: 0,
-            },
-            currentTick,
-        );
-
-        if (!result.ok) {
-            logger.debug?.(
-                `[aggression] failed to schedule NPC attack (npc=${npcId}, player=${targetPlayerId}): ${result.reason}`,
-            );
-        }
+        this.tickPhaseService.scheduleNpcAggressionAttack(npcId, targetPlayerId, currentTick);
     }
 
     private flushPendingWalkCommands(currentTick: number, stage: "pre" | "movement" = "pre"): void {
-        this.movementService.flushPendingWalkCommands(currentTick, stage);
+        this.tickPhaseService.flushPendingWalkCommands(currentTick, stage);
     }
 
     private runMovementPhase(frame: TickFrame): void {
-        if (!this.players) return;
-        const players = this.players!;
-        const npcs = this.npcManager;
-        this.flushPendingWalkCommands(frame.tick, "movement");
-        const playerLookup = (id: number) => players.getById(id);
-        const npcLookup = (npcId: number) => npcs?.getById(npcId);
-        const entries: Array<{ sock: any; player: PlayerState }> = [];
-        players.forEach((sock, player) => entries.push({ sock, player }));
-
-        // OSRS parity: Players must be processed in PID order (ascending)
-        // Reference: docs/tick-cycle-order.md
-        entries.sort((a, b) => a.player.getPidPriority() - b.player.getPidPriority());
-
-        // Pass A: update state and enqueue/refresh paths for this tick (but do not consume steps yet).
-        // OSRS parity: Player tick order is Queue → Timers → Area queue → Movement → Combat
-        // Reference: docs/game-engine.md lines 31-42
-        for (const { sock, player } of entries) {
-            players.applyInteractionFacing(sock, player, npcLookup, frame.tick);
-
-            // 1. Process queued actions FIRST (before timers)
-            // Ensure any deferred movement is part of the path before reservations are computed.
-            player.processDeferredMovement();
-            player.processTimersAndQueue();
-
-            try {
-                const hadPath = player.hasPath();
-                const walkUpdate = players.continueWalkToDestination(player, frame.tick);
-                if (walkUpdate?.destinationCorrection) {
-                    const corrected = walkUpdate.destinationCorrection;
-                    this.withDirectSendBypass("destination_correction_repath", () =>
-                        this.sendWithGuard(
-                            sock,
-                            encodeMessage({
-                                type: "destination",
-                                payload: {
-                                    worldX: corrected.x,
-                                    worldY: corrected.y,
-                                },
-                            }),
-                            "destination_correction_repath",
-                        ),
-                    );
-                }
-                // Debug: if a new segment was enqueued (long-distance walking), send it to the client.
-                if (!hadPath && player.hasPath() && DEBUG_PLAYER_IDS.has(player.id)) {
-                    try {
-                        const dest = player.getWalkDestination();
-                        const steps = player.getPathQueue() as {
-                            x: number;
-                            y: number;
-                        }[];
-                        const message = dest
-                            ? `walk segment (repath) dest=(${dest.x},${dest.y}) run=${!!dest.run}`
-                            : "walk segment (repath)";
-                        this.queueDirectSend(
-                            sock,
-                            encodeMessage({
-                                type: "path",
-                                payload: {
-                                    id: -2000 - player.id,
-                                    ok: true,
-                                    waypoints: Array.isArray(steps)
-                                        ? steps.map((t) => ({ x: t.x, y: t.y }))
-                                        : [],
-                                    message,
-                                },
-                            }),
-                            "walk_path_debug_repath",
-                        );
-                    } catch {}
-                }
-            } catch {}
-
-            // 2. Process timers AFTER queue (OSRS parity: Queue → Timers)
-            const statusHits = this.statusEffects.processPlayer(player, frame.tick);
-            if (statusHits && statusHits.length > 0) {
-                for (const event of statusHits) {
-                    if (!(event.amount > 0)) continue;
-                    frame.hitsplats.push({
-                        targetType: "player",
-                        targetId: player.id,
-                        damage: event.amount,
-                        style: event.style,
-                        sourceType: "status",
-                        hpCurrent: event.hpCurrent,
-                        hpMax: event.hpMax,
-                    });
-                }
-            }
-            const prayerTick = this.prayerSystem.processPlayer(player);
-            if (prayerTick?.prayerDepleted) {
-                this.handlePrayerDepleted(player);
-            }
-        }
-
-        // Bots also participate in move reservations; apply deferred movement before peeking queues.
-        players.forEachBot((bot) => bot.processDeferredMovement());
-
-        // Resolve 1-2 sub-step reservations after all paths are finalized for this tick.
-        players.resolveMoveReservations();
-
-        // Pass B: consume steps and build snapshots.
-        for (const { sock, player } of entries) {
-            player.setMovementTick(frame.tick);
-            const moved = player.tickStep();
-            const steps = player.drainStepPositions() as StepRecord[] | undefined;
-
-            // FIX: Removed pendingImmediateSteps handling (part of desync fix)
-            // All movement now goes through normal tick broadcast only
-            if (steps && steps.length > 0) {
-                frame.playerSteps.set(player.id, steps);
-            }
-            const summary = this.summarizeSteps(player, steps);
-            const interactionState = players.getInteractionState(sock);
-            const interactionIndex = deriveInteractionIndex({
-                player,
-                interaction: interactionState,
-                playerLookup,
-                npcLookup,
-            });
-            frame.interactionIndices.set(player.id, interactionIndex);
-
-            // Collect pending color override
-            if (player.consumeColorOverrideDirty()) {
-                const co = player.getColorOverride();
-                if (co && co.amount > 0) {
-                    frame.colorOverrides.set(player.id, co);
-                }
-            }
-
-            this.updateRunEnergy(
-                player,
-                { ran: summary.ran, moved, runSteps: summary.runSteps },
-                frame.tick,
-            );
-
-            if (player.hasRunEnergyUpdate()) {
-                this.queueRunEnergySnapshot(player);
-            }
-
-            // OSRS parity: Send wilderness level updates via CS2 script 388 (pvp_icons_wildernesslevel)
-            // This displays the "Level: X Wilderness" overlay when in the wilderness
-            // Note: player.x/y are in sub-tile units (128 per tile), convert to tile coordinates
-            const tileX = player.x / 128;
-            const tileY = player.y / 128;
-            const currentWildyLevel = getWildernessLevel(tileX, tileY);
-            const previousWildyLevel = player._lastWildernessLevel ?? 0;
-
-            if (currentWildyLevel !== previousWildyLevel) {
-                player._lastWildernessLevel = currentWildyLevel;
-
-                // PVP interface (90) container: toplevel_osrs_stretch:pvp_icons = (161 << 16) | 3
-                const PVP_INTERFACE_ID = 90;
-                const PVP_ICONS_CONTAINER_UID = (161 << 16) | 3;
-                // pvp_icons:wildernesslevel component = (90 << 16) | 50 = 5898290
-                const WILDERNESS_LEVEL_WIDGET_UID = (90 << 16) | 50;
-
-                if (currentWildyLevel > 0 && previousWildyLevel === 0) {
-                    // Entering wilderness - open pvp interface into container
-                    // The interface's onLoad script (865, pvp_icons_layout_init) handles
-                    // visibility of deadman/skull elements via pvp_icons_layout proc (386)
-                    this.queueWidgetEvent(player.id, {
-                        action: "open_sub",
-                        targetUid: PVP_ICONS_CONTAINER_UID,
-                        groupId: PVP_INTERFACE_ID,
-                        type: 1, // overlay type
-                    });
-                    // Set varbit 5963 (in_wilderness) to 1
-                    this.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 1);
-                } else if (currentWildyLevel === 0 && previousWildyLevel > 0) {
-                    // Leaving wilderness - close pvp interface
-                    this.queueWidgetEvent(player.id, {
-                        action: "close_sub",
-                        targetUid: PVP_ICONS_CONTAINER_UID,
-                    });
-                    // Set varbit 5963 (in_wilderness) to 0
-                    this.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 0);
-                }
-
-                // OSRS parity: Run script 388 to update wilderness level display
-                // Script takes component UID and internally calls ~wilderness_level for the level
-                if (currentWildyLevel > 0) {
-                    this.queueClientScript(player.id, 388, WILDERNESS_LEVEL_WIDGET_UID);
-                }
-            }
-
-            // OSRS parity: Track multi-combat zone changes and update varbit 4605
-            const currentInMulti = multiCombatSystem.isMultiCombat(tileX, tileY, player.level);
-            const previousInMulti = player._lastInMultiCombat ?? false;
-
-            if (currentInMulti !== previousInMulti) {
-                player._lastInMultiCombat = currentInMulti;
-                // Set varbit 4605 (multicombat_area) - controls crossed swords icon visibility
-                this.queueVarbit(player.id, VARBIT_MULTICOMBAT_AREA, currentInMulti ? 1 : 0);
-            }
-
-            // OSRS parity: Track PvP area state and update varbit 8121 (pvp_spec_orb)
-            const currentInPvP = isInPvPArea(tileX, tileY, player.level);
-            const previousInPvP = player._lastInPvPArea ?? false;
-
-            if (currentInPvP !== previousInPvP) {
-                player._lastInPvPArea = currentInPvP;
-                // Set varbit 8121 (pvp_spec_orb) - affects spec orb visibility in PvP
-                this.queueVarbit(player.id, VARBIT_PVP_SPEC_ORB, currentInPvP ? 1 : 0);
-            }
-
-            // OSRS parity: Track raid zone state and update varbit 5432 (in_raid)
-            const currentInRaid = isInRaid(tileX, tileY, player.level);
-            const previousInRaid = player._lastInRaid ?? false;
-
-            if (currentInRaid !== previousInRaid) {
-                player._lastInRaid = currentInRaid;
-                // Set varbit 5432 (in_raid) - indicates player is in a raid instance
-                this.queueVarbit(player.id, VARBIT_IN_RAID, currentInRaid ? 1 : 0);
-                // Reset raid state when leaving raid
-                if (!currentInRaid) {
-                    this.queueVarbit(player.id, VARBIT_RAID_STATE, 0);
-                }
-            }
-
-            // OSRS parity: Track LMS state and update varbit 5314 (in_lms)
-            const currentInLMS = isInLMS(tileX, tileY, player.level);
-            const previousInLMS = player._lastInLMS ?? false;
-
-            if (currentInLMS !== previousInLMS) {
-                player._lastInLMS = currentInLMS;
-                // Set varbit 5314 (in_lms) - indicates player is in Last Man Standing
-                this.queueVarbit(player.id, VARBIT_IN_LMS, currentInLMS ? 1 : 0);
-            }
-
-            player.tickSkillRestoration(frame.tick);
-            let specialUpdated = player.tickSpecialEnergy(frame.tick);
-            if (!specialUpdated && player.hasSpecialEnergyUpdate?.()) {
-                specialUpdated = true;
-            }
-
-            if (specialUpdated) {
-                this.queueCombatSnapshot(
-                    player.id,
-                    player.combatWeaponCategory,
-                    player.combatWeaponItemId,
-                    !!player.autoRetaliate,
-                    player.combatStyleSlot,
-                    Array.from(player.activePrayers ?? []),
-                    player.combatSpellId > 0 ? player.combatSpellId : undefined,
-                );
-            }
-            const snap = player.wasTeleported() ?? false;
-            const turned = player.didTurn() ?? false;
-            const shouldSendMovement =
-                summary.directions.length > 0 || snap || turned || player.shouldSendPos();
-            if (shouldSendMovement) {
-                player.markSent();
-            }
-            frame.playerViews.set(player.id, {
-                id: player.id,
-                x: summary.subX,
-                y: summary.subY,
-                level: summary.level,
-                rot: summary.finalRot,
-                orientation: summary.finalOrientation,
-                running: summary.ran,
-                name: this.getAppearanceDisplayName(player),
-                appearance: player.appearance,
-                interactionIndex: interactionIndex >= 0 ? interactionIndex : undefined,
-                seq: summary.finalSeq,
-                moved: moved || snap,
-                turned,
-                snap,
-                directions: summary.directions.length > 0 ? summary.directions : undefined,
-                traversals: summary.traversals.length > 0 ? summary.traversals : undefined,
-                anim: this.buildAnimPayload(player),
-                shouldSendPos: shouldSendMovement,
-                worldViewId: player.worldViewId >= 0 ? player.worldViewId : undefined,
-            });
-            // OSRS parity: teleport flag is consumed by a single update and then cleared.
-            if (snap) {
-                try {
-                    player.clearTeleportFlag();
-                } catch {}
-            }
-            const skillUpdate = player.takeSkillSync();
-            if (skillUpdate) {
-                this.sendSkillsMessage(sock, player, skillUpdate);
-            }
-        }
-        try {
-            this.players.tickBots(frame.tick);
-        } catch {}
-        this.players.forEachBot((bot) => {
-            const botSteps = bot.drainStepPositions() as StepRecord[] | undefined;
-            if (botSteps && botSteps.length > 0) {
-                frame.playerSteps.set(bot.id, botSteps);
-            }
-            const summary = this.summarizeSteps(bot, botSteps);
-            const snap = bot.wasTeleported() ?? false;
-            const moved = bot.didMove() ?? false;
-            const turned = bot.didTurn() ?? false;
-            try {
-                this.updateRunEnergy(
-                    bot,
-                    { ran: summary.ran, moved, runSteps: summary.runSteps },
-                    frame.tick,
-                );
-            } catch {}
-            frame.playerViews.set(bot.id, {
-                id: bot.id,
-                x: summary.subX,
-                y: summary.subY,
-                level: summary.level,
-                rot: summary.finalRot,
-                orientation: summary.finalOrientation,
-                running: summary.ran,
-                name: this.getAppearanceDisplayName(bot),
-                appearance: bot.appearance,
-                seq: summary.finalSeq,
-                moved: moved || snap,
-                turned,
-                snap,
-                directions: summary.directions.length > 0 ? summary.directions : undefined,
-                traversals: summary.traversals.length > 0 ? summary.traversals : undefined,
-                anim: this.buildAnimPayload(bot),
-                shouldSendPos: false,
-            });
-            if (snap) {
-                try {
-                    bot.clearTeleportFlag();
-                } catch {}
-            }
-        });
-        try {
-            this.movementSystem?.runPostMovement(frame.tick);
-        } catch {}
+        this.tickPhaseService.runMovementPhase(frame);
     }
 
     private runCombatPhase(frame: TickFrame): void {
-        if (!this.players || !this.playerCombatManager) return;
-        const combatResult = this.playerCombatManager.processTick({
-            tick: frame.tick,
-            npcLookup: (npcId) => this.npcManager?.getById(npcId),
-            pathService: this.options.pathService,
-            pickAttackSpeed: (player) => this.pickAttackSpeed(player),
-            pickNpcHitDelay: (npc, player, attackSpeed) =>
-                this.pickNpcHitDelay(npc, player, attackSpeed),
-            getWeaponSpecialCostPercent: (weaponItemId) =>
-                this.getWeaponSpecialCostPercent(weaponItemId),
-            getAttackReach: (player) => this.getPlayerAttackReach(player),
-            queueSpotAnimation: (event) => {
-                this.enqueueSpotAnimation(event);
-            },
-            onMagicAttack: ({ player, npc, plan, tick }) =>
-                this.spellActionHandler.handleAutocastMagicAttack({ player, npc, plan, tick }),
-            logger,
-        });
-        for (const ended of combatResult.endedEngagements) {
-            try {
-                this.players?.finishNpcCombatByPlayerId(ended.playerId);
-            } catch {}
-        }
-        frame.actionEffects = combatResult.effects;
-        this.refreshInteractionFacing(frame);
-        this.processGamemodeTickCallbacks(frame);
+        this.tickPhaseService.runCombatPhase(frame);
     }
 
     private refreshInteractionFacing(frame: TickFrame): void {
-        if (!this.players) return;
-        const players = this.players!;
-        const playerLookup = (id: number) => players.getById(id);
-        const npcLookup = (npcId: number) => this.npcManager?.getById(npcId);
-
-        const updateView = (player: PlayerState, interactionIndex: number | undefined) => {
-            frame.interactionIndices.set(player.id, interactionIndex ?? -1);
-            const view = frame.playerViews.get(player.id);
-            if (view) {
-                const previousOrientation = view.orientation;
-                const updatedOrientation = player.getOrientation() & 2047;
-                view.orientation = updatedOrientation;
-                view.interactionIndex =
-                    interactionIndex !== undefined && interactionIndex >= 0
-                        ? interactionIndex
-                        : undefined;
-                if (previousOrientation !== updatedOrientation) {
-                    player.markSent();
-                }
-            }
-        };
-
-        const collectFaceTile = (player: PlayerState) => {
-            if (player.pendingFaceTile) {
-                const ft = player.pendingFaceTile;
-                const targetX = (ft.x << 7) + 64;
-                const targetY = (ft.y << 7) + 64;
-                const dir = faceAngleRs(player.x, player.y, targetX, targetY) & 2047;
-                frame.pendingFaceDirs.set(player.id, dir);
-                player.pendingFaceTile = undefined;
-            }
-        };
-
-        players.forEach((sock, player) => {
-            try {
-                players.applyInteractionFacing(sock, player, npcLookup);
-            } catch {}
-            collectFaceTile(player);
-            const interactionState = players.getInteractionState(sock);
-            const interactionIndex = deriveInteractionIndex({
-                player,
-                interaction: interactionState,
-                playerLookup,
-                npcLookup,
-            });
-            updateView(player, interactionIndex);
-        });
-
-        players.forEachBot((bot) => {
-            const interactionState = (bot as any).botInteraction;
-            collectFaceTile(bot);
-            const interactionIndex = deriveInteractionIndex({
-                player: bot,
-                interaction: interactionState,
-                playerLookup,
-                npcLookup,
-            });
-            updateView(bot, interactionIndex);
-        });
+        this.tickPhaseService.refreshInteractionFacing(frame);
     }
 
     private processGamemodeTickCallbacks(frame: TickFrame): void {
-        for (const callback of this.gamemodeTickCallbacks) {
-            try {
-                callback(frame.tick);
-            } catch (err) {
-                logger.warn("[gamemode-tick] Tick callback error", err);
-            }
-        }
+        this.tickPhaseService.processGamemodeTickCallbacks(frame);
     }
 
-    /**
-     * Check for region changes, unlock music tracks, and play area music if in Area mode.
-     * OSRS parity: When player enters a new region and music mode is "Area" (varp 18 = 0),
-     * the region's music track is played automatically. Additionally, entering a region
-     * with music unlocks that track if not already unlocked.
-     */
     private runMusicPhase(frame: TickFrame): void {
-        this.soundManager.runMusicPhase(frame);
+        this.tickPhaseService.runMusicPhase(frame);
     }
 
-    /**
-     * Sync the music unlock varp to the client after unlocking a track.
-     */
     private syncMusicUnlockVarps(player: PlayerState, trackId: number): void {
-        this.soundManager.syncMusicUnlockVarps(player, trackId);
+        this.varpSyncService.syncMusicUnlockVarps(player, trackId);
     }
 
     private getCombatTargetPlayerVarpValue(player: PlayerState): number {
-        const target = player.getCombatTarget();
-        if (!target || !target.isPlayer) {
-            return -1;
-        }
-        return target.id & 0x7ff;
+        return this.varpSyncService.getCombatTargetPlayerVarpValue(player);
     }
 
     private syncCombatTargetPlayerVarp(player: PlayerState): void {
-        const nextValue = this.getCombatTargetPlayerVarpValue(player);
-        if ((player.getVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX) | 0) === (nextValue | 0)) {
-            return;
-        }
-
-        player.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
-        this.queueVarp(player.id, VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
+        this.varpSyncService.syncCombatTargetPlayerVarp(player);
     }
 
     private runScriptPhase(frame: TickFrame): void {
-        this.scriptRuntime.queueTick(frame.tick);
-        this.scriptScheduler.process(frame.tick);
+        this.tickPhaseService.runScriptPhase(frame);
     }
 
     private runDeathPhase(frame: TickFrame): void {
-        // Process pending player deaths (tick down death animations, complete deaths)
-        if (this.playerDeathService) {
-            this.playerDeathService.tick();
-        }
+        this.tickPhaseService.runDeathPhase(frame);
     }
 
     private runPostScriptPhase(frame: TickFrame): void {
-        // Late input window to allow same-tick toggles (e.g., prayer flicking) before next tick drain.
-        this.scriptScheduler.process(frame.tick);
+        this.tickPhaseService.runPostScriptPhase(frame);
     }
 
     private runPostEffectsPhase(frame: TickFrame): void {
-        // Process all gathering skill respawns via the unified system
-        if (this.gatheringSystem) {
-            this.gatheringSystem.processTick(frame.tick);
-        }
-        this.groundItems.tick(frame.tick);
-        if (frame.actionEffects.length > 0) {
-            this.effectDispatcher.dispatchActionEffects(frame.actionEffects, frame);
-        }
-        if (this.players) {
-            const nowMs = Date.now();
-            this.players.forEach((_, player) => {
-                this.accountSummary.syncPlayer(player, nowMs);
-                this.gamemode.onPlayerTick?.(player, nowMs);
-                this.reportGameTime.syncPlayer(player, nowMs);
-                const seqData = player.popPendingSeq() as
-                    | { seqId: number; delay: number }
-                    | undefined;
-                if (seqData && seqData.seqId >= -1) {
-                    frame.pendingSequences.set(player.id, {
-                        seqId: seqData.seqId,
-                        delay: Math.max(0, seqData.delay),
-                        startTick: frame.tick,
-                    });
-                    const view = frame.playerViews.get(player.id);
-                    if (view) {
-                        // Ensure the owning client receives the animation update even without movement.
-                        view.shouldSendPos = true;
-                    }
-                }
-                this.syncCombatTargetPlayerVarp(player);
-                player.attackDelay = this.pickAttackSpeed(player);
-            });
-            this.players.forEachBot((bot) => {
-                const seqData = bot.popPendingSeq() as { seqId: number; delay: number } | undefined;
-                if (seqData && seqData.seqId >= 0) {
-                    frame.pendingSequences.set(bot.id, {
-                        seqId: seqData.seqId,
-                        delay: Math.max(0, seqData.delay),
-                        startTick: frame.tick,
-                    });
-                    const view = frame.playerViews.get(bot.id);
-                    if (view) {
-                        view.shouldSendPos = true;
-                    }
-                }
-            });
-        }
-        this.tradeManager?.tick(frame.tick);
+        this.tickPhaseService.runPostEffectsPhase(frame);
     }
 
-
-    /**
-     * Process orphaned players - players who disconnected while in combat.
-     * Removes them when combat ends or max timeout is exceeded.
-     */
     private runOrphanedPlayersPhase(frame: TickFrame): void {
-        if (!this.players) return;
-
-        this.players.processOrphanedPlayers(frame.tick, (player, saveKey) => {
-            // Save player state when orphan expires
-            try {
-                this.playerPersistence.saveSnapshot(saveKey, player);
-                logger.info(`[orphan] Saved and removed expired orphan: ${saveKey}`);
-            } catch (err) {
-                logger.warn(`[orphan] Failed to save expired orphan ${saveKey}:`, err);
-            }
-            this.followerCombatManager?.resetPlayer(player.id);
-            this.followerManager?.despawnFollowerForPlayer(player.id, false);
-            // Unregister from action scheduler
-            this.actionScheduler.unregisterPlayer(player.id);
-        });
+        this.tickPhaseService.runOrphanedPlayersPhase(frame);
     }
 
     private checkAndSendSnapshots(player: PlayerState, sock?: WebSocket): void {
-        if (this.activeFrame) {
-            // We are inside a tick logic phase. To avoid "direct-send" errors and ensure
-            // OSRS-like consistency (updates at end of tick), we rely on dirty flags
-            // which will be picked up by runBroadcastPhase at the end of the tick.
-            return;
-        }
-
-        // We are handling an event outside of the tick loop (e.g. direct network message).
-        // Send updates immediately for better responsiveness.
-        const ws = sock ?? this.players?.getSocketByPlayerId(player.id);
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-        if (player.hasInventoryUpdate()) {
-            const snapshot = player.takeInventorySnapshot();
-            if (snapshot) {
-                // Send immediately instead of queueing
-                this.sendInventorySnapshotImmediate(ws, player);
-            }
-        }
-        if (player.hasAppearanceUpdate()) {
-            // Don't call takeAppearanceSnapshot or send immediately.
-            // Let the dirty flag remain so the normal tick-based player sync
-            // handles it properly with the binary protocol.
-        }
-        if (player.hasCombatStateUpdate()) {
-            player.takeCombatStateSnapshot();
-            this.sendCombatState(ws, player);
-        }
-    }
-
-    private sendInventorySnapshotImmediate(ws: WebSocket, p: PlayerState): void {
-        this.inventoryService.sendInventorySnapshotImmediate(ws, p);
+        this.tickPhaseService.checkAndSendSnapshots(player, sock);
     }
 
     private runBroadcastPhase(frame: TickFrame): void {
-        // Final late-input drain: process widget/script actions that arrived after post-script
-        // but before broadcast. This minimizes perceived UI latency for click-driven highlights.
-        this.scriptScheduler.process(frame.tick);
-        this.networkLayer.setBroadcastPhase(true);
-        try {
-            const ctx = this.buildBroadcastContext();
-            // Flush any pending direct sends queued outside the broadcast phase
-            if (this.pendingDirectSends.size > 0) {
-                const entries = Array.from(this.pendingDirectSends.entries());
-                this.pendingDirectSends.clear();
-                for (const [ws, entry] of entries) {
-                    try {
-                        this.sendWithGuard(ws, entry.message, entry.context);
-                    } catch {}
-                }
-            }
-            // OSRS parity ordering - each broadcaster handles one domain:
-            // 1. Loc changes (early, before any actor state)
-            this.miscBroadcaster.flushLocChanges(frame, ctx);
-            // 2. Skills (before combat visuals so XP drops fire first)
-            this.skillBroadcaster.flush(frame, ctx);
-            // 3. Combat: hitsplats, NPC effects, spot anims, combat snapshots
-            this.combatBroadcaster.flush(frame, ctx);
-            // 4. Actor sync: player sync + NPC sync + WorldEntity info
-            this.actorSyncBroadcaster.flush(frame, ctx);
-            // 5. Widget close events (before varps to prevent re-render flicker)
-            this.widgetBroadcaster.flushCloseEvents(frame, ctx);
-            // 6. Varps/varbits (before open widget events so scripts have correct state)
-            this.varBroadcaster.flush(frame, ctx);
-            // 7. Widget open/non-close events (after varps)
-            this.widgetBroadcaster.flushOpenEvents(frame, ctx);
-            // 8. Notifications, client scripts, smithing, trade, gamemode, run energy, spells, projectiles
-            this.miscBroadcaster.flushPostWidgetEvents(frame, ctx);
-            // 9. Chat messages
-            this.chatBroadcaster.flush(frame, ctx);
-            // 10. Inventory snapshots
-            this.inventoryBroadcaster.flush(frame, ctx);
-            // 11. Per-player dirty state flush (inventory, appearance, combat)
-            this.flushPerPlayerDirtyState(frame);
-            // 12. Animation snapshots (AFTER per-player loop so equipment change anims are included)
-            this.flushAnimSnapshots(frame, ctx);
-        } finally {
-            // Flush all batched messages before ending broadcast phase
-            this.flushAllMessageBatches();
-            this.networkLayer.setBroadcastPhase(false);
-            this.networkLayer.flushDirectSendWarnings("broadcast");
-        }
+        this.tickPhaseService.runBroadcastPhase(frame);
     }
 
     private buildBroadcastContext(): BroadcastContext {
-        const tickMs = Math.max(1, this.options.tickMs);
-        return {
-            sendWithGuard: (sock, msg, context) => this.sendWithGuard(sock, msg, context),
-            broadcast: (msg, context) => this.broadcast(msg, context),
-            getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
-            cyclesPerTick: Math.max(1, Math.round(tickMs / 20)),
-        };
+        return this.tickPhaseService.buildBroadcastContext();
     }
 
     private applyAppearanceSnapshotsToViews(frame: TickFrame): void {
-        if (!frame.appearanceSnapshots || frame.appearanceSnapshots.length === 0) return;
-        for (const snapshot of frame.appearanceSnapshots) {
-            const view = frame.playerViews.get(snapshot.playerId);
-            if (view) {
-                if (snapshot.payload.appearance) {
-                    view.appearance = snapshot.payload.appearance;
-                }
-                if (snapshot.payload.snap) {
-                    view.x = snapshot.payload.x;
-                    view.y = snapshot.payload.y;
-                    view.level = snapshot.payload.level;
-                    view.snap = true;
-                    view.moved = true;
-                }
-                if (snapshot.payload.anim) {
-                    view.anim = snapshot.payload.anim;
-                }
-                if (snapshot.payload.worldViewId !== undefined) {
-                    view.worldViewId = snapshot.payload.worldViewId;
-                }
-            }
-        }
+        this.tickPhaseService.applyAppearanceSnapshotsToViews(frame);
     }
 
     private buildAndSendActorSync(
@@ -3407,181 +2608,15 @@ export class WSServer {
         frame: TickFrame,
         ctx: BroadcastContext,
     ): void {
-        const session = this.ensurePlayerSyncSession(sock);
-        const playerFrame: PlayerTickFrameData = {
-            tick: frame.tick,
-            tickMs: this.options.tickMs,
-            playerViews: frame.playerViews,
-            playerSteps: frame.playerSteps,
-            hitsplats: frame.hitsplats,
-            forcedChats: frame.forcedChats,
-            forcedMovements: frame.forcedMovements,
-            spotAnimations: frame.spotAnimations,
-            chatMessages: frame.chatMessages,
-            pendingSequences: frame.pendingSequences,
-            interactionIndices: frame.interactionIndices,
-            pendingFaceDirs: frame.pendingFaceDirs,
-            colorOverrides: frame.colorOverrides,
-        };
-        const packet = this.playerPacketEncoder.buildPlayerSyncPacket(
-            session,
-            player,
-            playerFrame,
-        );
-        session.activeIndices = packet.activeIndices;
-        ctx.sendWithGuard(
-            sock,
-            encodeMessage({
-                type: "player_sync",
-                payload: {
-                    baseX: packet.baseTileX,
-                    baseY: packet.baseTileY,
-                    localIndex: player.id,
-                    loopCycle: frame.tick,
-                    packet: Array.from(packet.bytes),
-                },
-            }),
-            "player_sync",
-        );
-
-        if (this.enableBinaryNpcSync && this.npcManager) {
-            try {
-                const npcSession = this.getOrCreateNpcSyncSession(sock);
-                const npcFrame = {
-                    tick: frame.tick,
-                    tickMs: this.options.tickMs,
-                    npcUpdates: frame.npcUpdates,
-                    hitsplats: frame.hitsplats,
-                    npcEffectEvents: frame.npcEffectEvents,
-                    spotAnimations: frame.spotAnimations,
-                    colorOverrides: frame.npcColorOverrides,
-                };
-                const built = this.npcPacketEncoder.buildNpcSyncPacket(
-                    player,
-                    npcFrame,
-                    npcSession,
-                );
-                if (built.packet.length > 0) {
-                    ctx.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "npc_info",
-                            payload: {
-                                loopCycle: frame.tick,
-                                large: built.large,
-                                packet: Array.from(built.packet),
-                            },
-                        } as any),
-                        "npc_info",
-                    );
-                }
-            } catch (err) {
-                logger.warn("[npc_info] encode failed", err);
-            }
-        }
-        if (this.worldEntityInfoEncoder.needsUpdate(player.id)) {
-            const wePacket = this.worldEntityInfoEncoder.encode(player.id);
-            if (wePacket) {
-                ctx.sendWithGuard(sock, wePacket, "worldentity_info");
-            }
-        }
+        this.tickPhaseService.buildAndSendActorSync(sock, player, frame, ctx);
     }
 
     private flushPerPlayerDirtyState(frame: TickFrame): void {
-        if (!this.players) return;
-        this.players.forEach((_, player) => {
-            player.clearTeleportFlag();
-        });
-        this.players.forEachBot((bot) => {
-            bot.clearTeleportFlag();
-        });
-        this.players.forEach((sock, player) => {
-            this.maybeReplayDynamicLocState(sock, player);
-        });
-        this.players.forEach((sock, player) => {
-            this.maybeSendGroundItemSnapshot(sock, player);
-        });
-        this.players.forEach((sock, player) => {
-            if (player.hasInventoryUpdate()) {
-                const snapshot = player.takeInventorySnapshot();
-                if (snapshot) {
-                    const inv = this.getInventory(player);
-                    const slots = inv.map((entry, idx) => ({
-                        slot: idx,
-                        itemId: entry.itemId,
-                        quantity: entry.quantity,
-                    }));
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "inventory",
-                            payload: { kind: "snapshot", slots },
-                        } as any),
-                        "inventory_snapshot",
-                    );
-                }
-            }
-            const appearanceDirty = player.hasAppearanceUpdate();
-            if (appearanceDirty) {
-                player.takeAppearanceSnapshot();
-                this.queueAppearanceSnapshot(player);
-                this.queueAnimSnapshot(player.id, this.buildAnimPayload(player));
-            }
-            const hasCombatUpdate = player.hasCombatStateUpdate();
-            if (hasCombatUpdate) {
-                player.takeCombatStateSnapshot();
-                let specialEnergy: number | undefined;
-                let specialActivated: boolean | undefined;
-                let quickPrayers: string[] | undefined;
-                let quickPrayersEnabled: boolean | undefined;
-                try {
-                    specialEnergy = player.getSpecialEnergyPercent();
-                    specialActivated = player.isSpecialActivated();
-                    player.markSpecialEnergySynced();
-                    const quickSet = player.getQuickPrayers();
-                    quickPrayers = Array.from(quickSet);
-                    quickPrayersEnabled = player.areQuickPrayersEnabled();
-                } catch {}
-                this.sendWithGuard(
-                    sock,
-                    encodeMessage({
-                        type: "combat",
-                        payload: {
-                            weaponCategory: player.combatWeaponCategory,
-                            weaponItemId: player.combatWeaponItemId,
-                            autoRetaliate: !!player.autoRetaliate,
-                            activeStyle: player.combatStyleSlot,
-                            activePrayers: Array.from(player.activePrayers ?? []),
-                            activeSpellId:
-                                player.combatSpellId > 0 ? player.combatSpellId : undefined,
-                            specialEnergy,
-                            specialActivated,
-                            quickPrayers,
-                            quickPrayersEnabled,
-                        },
-                    }),
-                    "combat_state_dirty",
-                );
-            }
-            if (
-                (appearanceDirty || hasCombatUpdate) &&
-                this.isWidgetGroupOpenInLedger(player.id, EQUIPMENT_STATS_GROUP_ID)
-            ) {
-                this.queueEquipmentStatsWidgetTexts(player);
-            }
-        });
+        this.tickPhaseService.flushPerPlayerDirtyState(frame);
     }
 
     private flushAnimSnapshots(frame: TickFrame, ctx: BroadcastContext): void {
-        if (!frame.animSnapshots || frame.animSnapshots.length === 0) return;
-        for (const snapshot of frame.animSnapshots) {
-            const sock = ctx.getSocketByPlayerId(snapshot.playerId);
-            ctx.sendWithGuard(
-                sock,
-                encodeMessage({ type: "anim", payload: snapshot.anim }),
-                "anim_snapshot",
-            );
-        }
+        this.tickPhaseService.flushAnimSnapshots(frame, ctx);
     }
 
     getScriptScheduler(): ScriptScheduler {
@@ -4088,76 +3123,7 @@ export class WSServer {
         spellId: number,
         reason: string | undefined,
     ): void {
-        let text: string | undefined;
-        const sd = getSpellData(spellId);
-        switch (reason) {
-            case "level_requirement": {
-                const req = sd?.levelRequired ?? 1;
-                text = `You need a Magic level of ${req} to cast this spell.`;
-                break;
-            }
-            case "out_of_runes":
-                text = "You do not have enough runes to cast this spell.";
-                break;
-            case "out_of_range":
-                text = "You need to be closer to use that spell.";
-                break;
-            case "invalid_target":
-                text = "You can't cast that on that target.";
-                break;
-            case "immune_target":
-                text =
-                    spellId === 3293
-                        ? "This spell only affects undead."
-                        : "The spell has no effect.";
-                break;
-            case "already_active":
-                text = "That target is already affected by this spell.";
-                break;
-            case "line_of_sight":
-                text = "You don't have a clear line of sight to that target.";
-                break;
-            case "restricted_zone":
-                text = "A magical force stops you from casting that here.";
-                break;
-            case "cooldown":
-                text = "You can't cast that yet.";
-                break;
-            // Teleport/teleblock family
-            case "teleblocked":
-                text = "You can't teleport while teleblocked.";
-                break;
-            case "teleport_blocked_area":
-                text = "A magical force stops you from teleporting.";
-                break;
-            // Weapon/autocast constraints
-            case "not_autocastable_with_weapon":
-                text = "You can't autocast that spell with this weapon.";
-                break;
-            // Utility spell specifics (will be raised by future handlers)
-            case "alch_invalid_item":
-                text = "You cannot alchemise this item.";
-                break;
-            case "superheat_invalid_item":
-                text = "You can't superheat that.";
-                break;
-            case "telegrab_invalid":
-                text = "You can't reach that.";
-                break;
-            case "charge_orb_wrong_obelisk":
-                text = "You can only charge this orb at the Obelisk of the correct element.";
-                break;
-            case "charge_orb_missing_orb":
-                text = "You need an unpowered orb to cast this spell.";
-                break;
-            case "invalid_spell":
-            default:
-                // Prefer a gentle generic for unsupported utility spells on wrong targets
-                text = sd?.category === "utility" ? "Nothing interesting happens." : undefined;
-        }
-        if (text) {
-            this.queueChatMessage({ messageType: "game", text });
-        }
+        this.spellCastingService.enqueueSpellFailureChat(player, spellId, reason);
     }
 
     private queueAppearanceSnapshot(
@@ -4374,7 +3340,7 @@ export class WSServer {
             if (data.resetAnimation) {
                 try {
                     player.stopAnimation();
-                } catch {}
+                } catch (err) { logger.warn("[teleport] reset animation failed", err); }
             }
 
             if (data.endSpotAnim !== undefined && data.endSpotAnim > 0) {
@@ -4476,7 +3442,7 @@ export class WSServer {
                     quickPrayers = [];
                 }
                 quickPrayersEnabled = player.areQuickPrayersEnabled();
-            } catch {}
+            } catch (err) { logger.warn("[combat] player state snapshot failed", err); }
         }
         const snapshot = {
             playerId: playerId,
@@ -4583,7 +3549,7 @@ export class WSServer {
         let npcName = "";
         try {
             npcName = this.npcTypeLoader?.load(npc.typeId)?.name ?? "";
-        } catch {}
+        } catch (err) { logger.warn("[drop] npc name lookup failed", err); }
         return service.roll({
             npcTypeId: npc.typeId,
             npcName,
@@ -4605,325 +3571,15 @@ export class WSServer {
     }
 
     private syncAccountTypeVarbit(sock: WebSocket, player: PlayerState): void {
-        this.authService.syncAccountTypeVarbit(player, (varbitId, value) => {
-            this.withDirectSendBypass("varbit", () =>
-                this.sendWithGuard(
-                    sock,
-                    encodeMessage({
-                        type: "varbit",
-                        payload: { varbitId, value },
-                    }),
-                    "varbit",
-                ),
-            );
-        });
+        this.varpSyncService.syncAccountTypeVarbit(sock, player);
     }
 
     private sendSavedAutocastTransmitVarbits(sock: WebSocket, player: PlayerState): void {
-        // Reference CS2 autocast_init/autocast_setup rebuilds the combat-tab autocast UI from
-        // var-transmits, so these must be replayed on login even when the value is 0.
-        const autocastVarbits = [
-            VARBIT_AUTOCAST_SET,
-            VARBIT_AUTOCAST_SPELL,
-            VARBIT_AUTOCAST_DEFMODE,
-        ] as const;
-        for (const varbitId of autocastVarbits) {
-            const value = player.getVarbitValue(varbitId);
-            this.withDirectSendBypass("varbit", () =>
-                this.sendWithGuard(
-                    sock,
-                    encodeMessage({
-                        type: "varbit",
-                        payload: { varbitId, value },
-                    }),
-                    "varbit",
-                ),
-            );
-        }
+        this.varpSyncService.sendSavedAutocastTransmitVarbits(sock, player);
     }
 
-    /**
-     * Send saved transmit varps to the client on login/reconnect.
-     * This restores persisted varp state (combat toggles, XP drops setup, audio, attack options).
-     */
     private sendSavedTransmitVarps(sock: WebSocket, player: PlayerState): void {
-        // Send each transmit varp that has a non-zero value
-        const transmitVarpIds = [
-            VARP_OPTION_RUN,
-            VARP_ATTACK_STYLE,
-            VARP_AUTO_RETALIATE,
-            VARP_SPECIAL_ATTACK,
-        ];
-        for (const varpId of transmitVarpIds) {
-            let value = player.getVarpValue(varpId);
-
-            // OSRS parity: varp 172 is "option_nodef" where 0 = retaliate ON, 1 = retaliate OFF
-            // Derive varp value from the boolean state rather than persisted varp (for migration)
-            if (varpId === VARP_AUTO_RETALIATE) {
-                value = player.autoRetaliate ? 0 : 1;
-                player.setVarpValue(VARP_AUTO_RETALIATE, value);
-            }
-
-            // For run mode, derive value from actual runToggle state (not persisted varp which may be stale)
-            if (varpId === VARP_OPTION_RUN) {
-                value = player.wantsToRun() ? 1 : 0;
-            }
-
-            // Always send run mode and auto-retaliate (since 0 is valid for "on" state)
-            if (varpId === VARP_OPTION_RUN || varpId === VARP_AUTO_RETALIATE || value !== 0) {
-                this.withDirectSendBypass("varp", () =>
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "varp",
-                            payload: { varpId, value },
-                        }),
-                        "varp",
-                    ),
-                );
-            }
-        }
-
-        // XP drops setup/tracker varps are client-authored via CS2 scripts and transmitted to server.
-        // Replay non-zero values on login so setup UI and tracker behavior match persisted state.
-        for (const varpId of XPDROPS_TRANSMIT_VARPS) {
-            const value = player.getVarpValue(varpId);
-            if (value === 0) continue;
-            this.withDirectSendBypass("varp", () =>
-                this.sendWithGuard(
-                    sock,
-                    encodeMessage({
-                        type: "varp",
-                        payload: { varpId, value },
-                    }),
-                    "varp",
-                ),
-            );
-        }
-
-        // Send sound/music volume varps - these control audio settings in CS2 scripts
-        // Initialize sound volume defaults for new players (unmuted with reasonable volume)
-        const DEFAULT_SOUND_VOLUME = 75; // 70% volume as default
-        const volumeVarps = [
-            VARP_MUSIC_VOLUME,
-            VARP_SOUND_EFFECTS_VOLUME,
-            VARP_AREA_SOUNDS_VOLUME,
-            VARP_MASTER_VOLUME,
-        ];
-        for (const varpId of volumeVarps) {
-            if (!player.hasVarpValue(varpId)) {
-                player.setVarpValue(varpId, DEFAULT_SOUND_VOLUME);
-            }
-        }
-
-        // Always send these even if 0 (muted) since the client defaults may differ
-        if (
-            !player.hasVarpValue(VARP_MUSIC_CURRENT_TRACK) ||
-            player.getVarpValue(VARP_MUSIC_CURRENT_TRACK) === 0
-        ) {
-            player.setVarpValue(VARP_MUSIC_CURRENT_TRACK, -1);
-        }
-        const soundVarps = [
-            VARP_MUSIC_VOLUME, // Music volume (0-100)
-            VARP_SOUND_EFFECTS_VOLUME, // Sound effects volume (0-100)
-            VARP_AREA_SOUNDS_VOLUME, // Area sounds volume (0-100)
-            VARP_MASTER_VOLUME, // Master volume (0-100) - enhanced client
-            VARP_MUSICPLAY, // Music play mode (0=Area, 1=Shuffle, 2=Single)
-            VARP_MUSIC_CURRENT_TRACK, // Current music DB row (default -1)
-        ];
-        for (const varpId of soundVarps) {
-            const value = player.getVarpValue(varpId);
-            this.withDirectSendBypass("varp", () =>
-                this.sendWithGuard(
-                    sock,
-                    encodeMessage({
-                        type: "varp",
-                        payload: { varpId, value },
-                    }),
-                    "varp",
-                ),
-            );
-        }
-
-        // Send attack option varps - these control NPC/player attack menu priorities
-        const attackOptionVarps = [
-            VARP_OPTION_ATTACK_PRIORITY_PLAYER, // Player attack options (0-4)
-            VARP_OPTION_ATTACK_PRIORITY_NPC, // NPC attack options (0-3)
-        ];
-        for (const varpId of attackOptionVarps) {
-            const value = player.getVarpValue(varpId);
-            this.withDirectSendBypass("varp", () =>
-                this.sendWithGuard(
-                    sock,
-                    encodeMessage({
-                        type: "varp",
-                        payload: { varpId, value },
-                    }),
-                    "varp",
-                ),
-            );
-        }
-
-        const combatTargetPlayerIndex = this.getCombatTargetPlayerVarpValue(player);
-        player.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, combatTargetPlayerIndex);
-        this.withDirectSendBypass("varp", () =>
-            this.sendWithGuard(
-                sock,
-                encodeMessage({
-                    type: "varp",
-                    payload: {
-                        varpId: VARP_COMBAT_TARGET_PLAYER_INDEX,
-                        value: combatTargetPlayerIndex,
-                    },
-                }),
-                "varp",
-            ),
-        );
-
-        // Send home teleport varp with large negative value to bypass 30-minute cooldown.
-        // The CS2 check is: clientclock - varp(892) >= 90000. With varp = -100000,
-        // this becomes clientclock + 100000 >= 90000, which is always true.
-        this.withDirectSendBypass("varp", () =>
-            this.sendWithGuard(
-                sock,
-                encodeMessage({
-                    type: "varp",
-                    payload: { varpId: VARP_LAST_HOME_TELEPORT, value: -100000 },
-                }),
-                "varp",
-            ),
-        );
-
-        // Send minigame teleport varp with large negative value to bypass the 20-minute cooldown.
-        // The CS2 check is: date_minutes - varp(888) >= 20. With varp = -100000,
-        // this becomes date_minutes + 100000 >= 20, which is always true.
-        this.withDirectSendBypass("varp", () =>
-            this.sendWithGuard(
-                sock,
-                encodeMessage({
-                    type: "varp",
-                    payload: { varpId: VARP_LAST_MINIGAME_TELEPORT, value: -100000 },
-                }),
-                "varp",
-            ),
-        );
-
-        // Send spell unlock varps - set quest completion values to unlock all spells
-        // These varps control spell availability in the spellbook CS2 scripts
-        const spellUnlockVarps: Array<{ varpId: number; value: number }> = [
-            // Legend's Quest complete (value 180 = quest finished) - unlocks Charge spell
-            { varpId: VARP_LEGENDS_QUEST, value: 180 },
-            // Underground Pass complete (value 110 = quest finished) - unlocks Iban Blast
-            { varpId: VARP_UNDERGROUND_PASS, value: 110 },
-            // Mage Arena complete (value 8 = all god spells unlocked) - unlocks Claws of Guthix, Flames of Zamorak, Saradomin Strike
-            { varpId: VARP_MAGE_ARENA, value: 8 },
-            // Desert Treasure complete (value 15 = quest finished) - unlocks Ancient Magicks spellbook
-            { varpId: VARP_DESERT_TREASURE, value: 15 },
-            // Lunar Diplomacy complete (value 190 = quest finished) - unlocks Lunar spellbook
-            { varpId: VARP_LUNAR_DIPLOMACY, value: 190 },
-            // Eadgar's Ruse complete - unlocks Trollheim Teleport
-            { varpId: VARP_EADGAR_QUEST, value: 110 },
-            // Watchtower quest complete - unlocks Watchtower Teleport
-            { varpId: VARP_WATCHTOWER, value: 13 },
-            // Plague City complete - prerequisite for Ardougne Teleport
-            { varpId: VARP_PLAGUE_CITY, value: 29 },
-            // Biohazard complete - unlocks Ardougne Teleport
-            { varpId: VARP_BIOHAZARD, value: 16 },
-        ];
-
-        for (const { varpId, value } of spellUnlockVarps) {
-            this.withDirectSendBypass("varp", () =>
-                this.sendWithGuard(
-                    sock,
-                    encodeMessage({
-                        type: "varp",
-                        payload: { varpId, value },
-                    }),
-                    "varp",
-                ),
-            );
-        }
-
-        // Send spell unlock varbits for additional spell requirements
-        const spellUnlockVarbits: Array<{ varbitId: number; value: number }> = [
-            // Arceuus favor at 100% (1000 = 100%) - required for Arceuus spells
-            { varbitId: VARBIT_ARCEUUS_FAVOR, value: 1000 },
-            // Arceuus spellbook unlocked flag
-            { varbitId: VARBIT_ARCEUUS_SPELLBOOK_UNLOCKED, value: 1 },
-            // Iban's book read (Underground Pass) - required for Iban Blast
-            { varbitId: VARBIT_IBAN_BOOK_READ, value: 1 },
-            // Mage Arena 2 complete (value 6 = fully complete) - unlocks enhanced god spells
-            { varbitId: VARBIT_MAGE_ARENA_2_PROGRESS, value: 6 },
-            // Client of Kourend quest complete (value 9) - unlocks Kourend Castle Teleport
-            { varbitId: VARBIT_CLIENT_OF_KOUREND, value: 9 },
-        ];
-
-        for (const { varbitId, value } of spellUnlockVarbits) {
-            this.withDirectSendBypass("varbit", () =>
-                this.sendWithGuard(
-                    sock,
-                    encodeMessage({
-                        type: "varbit",
-                        payload: { varbitId, value },
-                    }),
-                    "varbit",
-                ),
-            );
-        }
-
-        // Send music unlock varps (musicmulti_1 through musicmulti_27)
-        // These control which tracks appear as unlocked (green) vs locked (red) in the music list
-        for (const varpId of MUSIC_UNLOCK_VARPS) {
-            const value = player.getVarpValue(varpId);
-            if (value !== 0) {
-                this.withDirectSendBypass("varp", () =>
-                    this.sendWithGuard(
-                        sock,
-                        encodeMessage({
-                            type: "varp",
-                            payload: { varpId, value },
-                        }),
-                        "varp",
-                    ),
-                );
-            }
-        }
-
-        // Send music unlock message toggle varbit (default ON = 1)
-        // Initialize to 1 if not set, then send current value
-        if (this.musicUnlockService) {
-            this.musicUnlockService.initializeDefaults(player);
-        }
-        const musicUnlockMsgValue = player.getVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE);
-        this.withDirectSendBypass("varbit", () =>
-            this.sendWithGuard(
-                sock,
-                encodeMessage({
-                    type: "varbit",
-                    payload: {
-                        varbitId: VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE,
-                        value: musicUnlockMsgValue,
-                    },
-                }),
-                "varbit",
-            ),
-        );
-
-        // Send XP drops enabled state (varbit 4702) so minimap orb and XP tracker stay in sync.
-        const xpDropsEnabledValue = player.getVarbitValue(VARBIT_XPDROPS_ENABLED);
-        this.withDirectSendBypass("varbit", () =>
-            this.sendWithGuard(
-                sock,
-                encodeMessage({
-                    type: "varbit",
-                    payload: {
-                        varbitId: VARBIT_XPDROPS_ENABLED,
-                        value: xpDropsEnabledValue,
-                    },
-                }),
-                "varbit",
-            ),
-        );
+        this.varpSyncService.sendSavedTransmitVarps(sock, player);
     }
 
     private queueAnimSnapshot(playerId: number, anim: PlayerAnimSet | undefined): void {
@@ -5039,7 +3695,7 @@ export class WSServer {
                 if (extra !== undefined && extra > 0) {
                     startDelay += extra;
                 }
-            } catch {}
+            } catch (err) { logger.warn("[combat] attack sequence estimation failed", err); }
         }
 
         const hitDelay = startDelay + travelTime;
@@ -5271,78 +3927,10 @@ export class WSServer {
     /**
      * Create the NpcPacketEncoder with all required services.
      */
-    private createNpcPacketEncoder(): NpcPacketEncoder {
-        const services: NpcPacketEncoderServices = {
-            getNpcById: (id) => this.npcManager?.getById(id),
-            getNearbyNpcs: (x, y, level, radius) =>
-                this.npcManager?.getNearby(x, y, level, radius) ?? [],
-            resolveHealthBarWidth: (defId) => {
-                try {
-                    const def = this.healthBarDefLoader?.load?.(defId);
-                    return Math.max(1, Math.min(255, def?.width ?? 30));
-                } catch {
-                    return 30;
-                }
-            },
-        };
-        return new NpcPacketEncoder(services);
-    }
 
     /**
      * Create the PlayerPacketEncoder with all required services.
      */
-    private createPlayerPacketEncoder(): PlayerPacketEncoder {
-        const huffman = this.huffman;
-        const services: PlayerPacketEncoderServices = {
-            getPlayer: (id) => {
-                const p = this.players?.getById(id);
-                return p ?? undefined;
-            },
-            getLivePlayers: () => {
-                const liveById = new Map<number, PlayerState>();
-                if (this.players) {
-                    this.players.forEach((_, p) => {
-                        liveById.set(p.id, p);
-                    });
-                    this.players.forEachBot((p) => {
-                        liveById.set(p.id, p);
-                    });
-                }
-                return liveById;
-            },
-            buildAnimPayload: (player) => this.buildAnimPayload(player),
-            serializeAppearancePayload: (view) => this.serializeAppearancePayload(view),
-            resolveHealthBarWidth: (defId) => {
-                try {
-                    const def = this.healthBarDefLoader?.load?.(defId);
-                    return Math.max(1, Math.min(255, def?.width ?? 30));
-                } catch {
-                    return 30;
-                }
-            },
-            encodeHuffmanChat: (text) => {
-                const raw = this.encodeCp1252(text);
-                if (!huffman) {
-                    return raw;
-                }
-                const maxCompressed = raw.length * 4 + 8;
-                const buf = new Uint8Array(maxCompressed);
-                let off = 0;
-                // smartByteShort encoding
-                const len = raw.length;
-                if (len >= 0 && len < 128) {
-                    buf[off++] = len & 0xff;
-                } else if (len >= 0 && len < 32768) {
-                    const vv = (len + 32768) & 0xffff;
-                    buf[off++] = (vv >> 8) & 0xff;
-                    buf[off++] = vv & 0xff;
-                }
-                const written = huffman.compress(raw, 0, raw.length, buf, off);
-                return buf.subarray(0, off + written);
-            },
-        };
-        return new PlayerPacketEncoder(services);
-    }
 
     /**
      * Encode text to CP1252 bytes.
@@ -5394,897 +3982,49 @@ export class WSServer {
     /**
      * Create the CombatActionHandler with all required services.
      */
-    private createCombatActionHandler(): CombatActionHandler {
-        const services: CombatActionServices = {
-            // --- Core Entity Access ---
-            getPlayer: (id) => this.players?.getById(id) ?? undefined,
-            getNpc: (id) => this.npcManager?.getById(id) ?? undefined,
-            getCurrentTick: () => this.options.ticker.currentTick(),
-            getPathService: () => this.options.pathService,
-
-            // --- Equipment/Appearance ---
-            getEquipArray: (player) => this.ensureEquipArray(player),
-            getEquipQtyArray: (player) =>
-                ensureEquipQtyArrayOn(player.appearance, EQUIP_SLOT_COUNT),
-            markEquipmentDirty: (player) => player.markEquipmentDirty(),
-            markAppearanceDirty: (player) => player.markAppearanceDirty(),
-
-            // --- Combat Utilities ---
-            pickAttackSequence: (player) => this.pickAttackSequence(player),
-            pickAttackSpeed: (player) => this.pickAttackSpeed(player),
-            pickHitDelay: (player) => this.pickHitDelay(player),
-            getPlayerAttackReach: (player) => this.getPlayerAttackReach(player),
-            pickNpcFaceTile: (player, npc) => this.pickNpcFaceTile(player, npc),
-            pickCombatSound: (player, isHit) => this.pickCombatSound(player, isHit),
-            getRangedImpactSound: (player) => {
-                const equip = this.ensureEquipArray(player);
-                const weaponId = equip[EquipmentSlot.WEAPON];
-                return getRangedImpactSound(weaponId);
-            },
-            deriveAttackTypeFromStyle: (style, player) =>
-                this.deriveAttackTypeFromStyle(style, player),
-            pickBlockSequence: (player) =>
-                this.playerCombatManager?.pickBlockSequence(player, this.weaponAnimOverrides) ?? -1,
-
-            // --- NPC Combat ---
-            getNpcCombatSequences: (typeId) => this.getNpcCombatSequences(typeId),
-            getNpcHitSoundId: (typeId) => this.getNpcHitSoundId(typeId),
-            getNpcDefendSoundId: (typeId) => this.getNpcDefendSoundId(typeId),
-            getNpcDeathSoundId: (typeId) => this.getNpcDeathSoundId(typeId),
-            getNpcAttackSoundId: (typeId) => this.getNpcAttackSoundId(typeId),
-            resolveNpcAttackType: (npc, hint) => this.resolveNpcAttackType(npc, hint),
-            resolveNpcAttackRange: (npc, attackType) => this.resolveNpcAttackRange(npc, attackType),
-            broadcastNpcSequence: (npc, seqId) => this.broadcastNpcSequence(npc, seqId),
-            estimateNpcDespawnDelayTicksFromSeq: (seqId) =>
-                this.estimateNpcDespawnDelayTicksFromSeq(seqId),
-
-            // --- Projectile ---
-            estimateProjectileTiming: (params) => this.estimateProjectileTiming(params as any),
-            buildPlayerRangedProjectileLaunch: (params) =>
-                this.buildPlayerRangedProjectileLaunch(params),
-
-            // --- Spell/Magic ---
-            processSpellCastRequest: (player, request) =>
-                this.spellActionHandler.processSpellCastRequest(
-                    player,
-                    request as any,
-                    this.options.ticker.currentTick(),
-                ),
-            queueSpellResult: (playerId, result) => this.queueSpellResult(playerId, result),
-            pickSpellSound: (spellId, stage) => this.pickSpellSound(spellId, stage),
-            resetAutocast: (player) => this.resetAutocast(player),
-
-            // --- Effect Dispatching ---
-            broadcastSound: (request, tag) => this.broadcastSound(request, tag),
-            withDirectSendBypass: (tag, fn) => this.withDirectSendBypass(tag, fn),
-            enqueueSpotAnimation: (request) => this.enqueueSpotAnimation(request),
-            queueChatMessage: (request) => this.queueChatMessage(request),
-            queueCombatState: (player) => this.queueCombatState(player),
-            queueSkillSnapshot: (playerId, sync) =>
-                this.queueSkillSnapshot(playerId, sync as SkillSyncUpdate),
-            dispatchActionEffects: (effects) =>
-                this.effectDispatcher.dispatchActionEffects(effects),
-            broadcast: (data, tag) => this.broadcast(data, tag),
-            encodeMessage: (msg) => encodeMessage(msg as any),
-
-            // --- Action Scheduling ---
-            scheduleAction: (playerId, request, tick) =>
-                this.actionScheduler.requestAction(playerId, request, tick),
-            cancelActions: (playerId, predicate) =>
-                this.actionScheduler.cancelActions(playerId, predicate),
-
-            // --- Player Interaction State ---
-            getPlayerSocket: (playerId) => this.players?.getSocketByPlayerId(playerId),
-            getInteractionState: (socket) =>
-                socket ? this.players?.getInteractionState(socket) : undefined,
-            startNpcAttack: (socket, npc, tick, attackSpeed) =>
-                this.players?.startNpcAttack(socket, npc, tick, attackSpeed) ?? {
-                    ok: false,
-                },
-            stopPlayerCombat: (socket) => this.players?.stopPlayerCombat(socket),
-            startPlayerCombat: (socket, targetId) =>
-                this.players?.startPlayerCombat(socket, targetId),
-            clearInteractionsWithNpc: (npcId) => this.players?.clearInteractionsWithNpc(npcId),
-            sendSkillsMessage: (socket, player) => {
-                if (socket instanceof WebSocket) {
-                    this.sendSkillsMessage(socket, player);
-                }
-            },
-
-            // --- Combat System ---
-            startNpcCombat: (player, npc, tick, attackSpeed) =>
-                this.playerCombatManager?.startCombat(player, npc, tick, attackSpeed),
-            resumeAutoAttack: (playerId) => this.playerCombatManager?.resumeAutoAttack(playerId),
-            confirmHitLanded: (playerId, tick, npc, damage, attackType, player) =>
-                this.playerCombatManager?.confirmHitLanded(
-                    playerId,
-                    npc,
-                    tick,
-                    damage,
-                    attackType,
-                    player,
-                ),
-            extendAggroHold: (playerId, minimumTicks) =>
-                this.playerCombatManager?.extendAggroHold(playerId, minimumTicks),
-            rollRetaliateDamage: (npc, player) =>
-                this.playerCombatManager?.rollRetaliateDamage(npc, player) ?? 0,
-            getDropEligibility: (npc) => this.playerCombatManager?.getDropEligibility?.(npc),
-            rollNpcDrops: (npc, eligibility) => this.rollNpcDrops(npc, eligibility),
-            cleanupNpc: (npc) => this.playerCombatManager?.cleanupNpc?.(npc),
-
-            // --- Ground Items ---
-            spawnGroundItem: (itemId, quantity, location, tick, options) =>
-                this.groundItems.spawn(itemId, quantity, location, tick, options),
-
-            // --- NPC Manager ---
-            queueNpcDeath: (npcId, despawnTick, respawnTick, drops) =>
-                this.npcManager?.queueDeath?.(npcId, despawnTick, respawnTick, drops) ?? false,
-
-            // --- Prayer/Combat Effects ---
-            applyProtectionPrayers: (target, damage, attackType, sourceType) =>
-                this.applyProtectionPrayers(target, damage, attackType, sourceType),
-            applySmite: (attacker, target, damage) => this.applySmite(attacker, target, damage),
-            tryActivateRedemption: (player) => this.tryActivateRedemption(player),
-            closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
-            applyMultiTargetSpellDamage: (params) => this.applyMultiTargetSpellDamage(params),
-
-            // --- XP Awards ---
-            awardCombatXp: (player, damage, hitData, effects) =>
-                this.skillService.awardCombatXp(player, damage, hitData, effects),
-            getSkillXpMultiplier: (player) => this.gamemode.getSkillXpMultiplier(player),
-
-            // --- Special Attacks ---
-            getSpecialAttack: (weaponId) => getSpecialAttack(weaponId),
-            pickSpecialAttackVisualOverride: (weaponId) =>
-                pickSpecialAttackVisualOverride(weaponId),
-
-            // --- Ammo Consumption ---
-            consumeEquippedAmmoApply: (params) => consumeEquippedAmmoApply(params),
-            calculateAmmoConsumption: (
-                weaponId,
-                ammoId,
-                ammoQty,
-                capeId,
-                targetX,
-                targetY,
-                randFn,
-            ) =>
-                calculateAmmoConsumption(
-                    weaponId,
-                    ammoId,
-                    ammoQty,
-                    capeId,
-                    targetX,
-                    targetY,
-                    randFn,
-                ),
-
-            // --- Magic Autocast ---
-            canWeaponAutocastSpell: (weaponId, spellId) =>
-                canWeaponAutocastSpell(weaponId, spellId),
-            getAutocastCompatibilityMessage: (reason) =>
-                getAutocastCompatibilityMessage(reason as any),
-
-            // --- Spell Caster ---
-            validateSpellCast: (context) => SpellCaster.validate(context),
-            executeSpellCast: (context, validation) => SpellCaster.execute(context, validation),
-
-            // --- Spell Data ---
-            getSpellData: (spellId) => getSpellData(spellId),
-            getSpellBaseXp: (spellId) => getSpellBaseXp(spellId),
-            getProjectileParams: (projectileId) =>
-                projectileId !== undefined ? getProjectileParams(projectileId) : undefined,
-
-            // --- Hitsplat Applicator ---
-            applyNpcHitsplat: (npc, style, damage, tick, maxHit) =>
-                combatEffectApplicator.applyNpcHitsplat(npc, style, damage, tick, maxHit),
-            applyPlayerHitsplat: (player, style, damage, tick, maxHit) =>
-                combatEffectApplicator.applyPlayerHitsplat(player, style, damage, tick, maxHit),
-
-            // --- Wilderness Check ---
-            isInWilderness: (x, y) => isInWilderness(x, y),
-
-            // --- Range Checks ---
-            isWithinAttackRange: (attacker, target, range) =>
-                isWithinAttackRange(attacker, target, range),
-            hasDirectMeleeReach: (attacker, target, pathService) =>
-                hasDirectMeleeReach(attacker, target, pathService),
-            hasDirectMeleePath: (attacker, target, pathService) =>
-                hasDirectMeleePath(attacker, target, pathService),
-
-            // --- Helpers ---
-            normalizeAttackType: (value) => normalizeAttackType(value),
-            isActiveFrame: () => !!this.activeFrame,
-            log: (level, message) => {
-                try {
-                    if (level === "warn") logger.warn(message);
-                    else if (level === "error") logger.error(message);
-                    else logger.info(message);
-                } catch {}
-            },
-
-            // --- NPC Info ---
-            getNpcName: (typeId) => {
-                try {
-                    return this.npcTypeLoader?.load(typeId)?.name;
-                } catch {
-                    return undefined;
-                }
-            },
-
-            // --- Gamemode Events ---
-            onNpcKill: (playerId, npcId) => {
-                this.gamemode.onNpcKill(playerId, npcId);
-            },
-        };
-        return new CombatActionHandler(services);
-    }
 
     /**
      * Create the SpellActionHandler with all required services.
      */
-    private createSpellActionHandler(): SpellActionHandler {
-        const services: SpellActionServices = {
-            // --- Core ---
-            getCurrentTick: () => this.options.ticker.currentTick(),
-            getDeliveryTick: () =>
-                this.activeFrame ? this.activeFrame.tick : this.options.ticker.currentTick() + 1,
-            getTickMs: () => this.options.tickMs,
-            getFramesPerTick: () => Math.max(1, Math.round(this.options.tickMs / 20)),
-
-            // --- Entity Access ---
-            getNpc: (id) => this.npcManager?.getById(id) ?? undefined,
-            getPlayer: (id) => this.players?.getById(id) ?? undefined,
-            getPlayerSocket: (playerId) => this.players?.getSocketByPlayerId(playerId),
-            getNpcType: (npc) => this.npcManager?.getNpcType(npc),
-
-            // --- Spell Data ---
-            getSpellData: (spellId) => getSpellData(spellId),
-            getSpellDataByWidget: (groupId, childId) => getSpellDataByWidget(groupId, childId),
-            getProjectileParams: (projectileId) =>
-                projectileId !== undefined ? getProjectileParams(projectileId) : undefined,
-            canWeaponAutocastSpell: (weaponId, spellId) =>
-                canWeaponAutocastSpell(weaponId, spellId),
-            getSpellBaseXp: (spellId) => getSpellBaseXp(spellId),
-
-            // --- Spell Validation/Execution ---
-            validateSpellCast: (context) => SpellCaster.validate(context),
-            executeSpellCast: (context, validation) => SpellCaster.execute(context, validation),
-
-            // --- Projectile ---
-            computeProjectileEndHeight: (opts) => this.computeProjectileEndHeight(opts),
-            estimateProjectileTiming: (opts) => this.estimateProjectileTiming(opts),
-            buildAndQueueSpellProjectileLaunch: (opts) => {
-                if (!this.projectileSystem) return;
-                const launch = this.projectileSystem.buildSpellProjectileLaunch({
-                    player: opts.player,
-                    targetNpc: opts.targetNpc,
-                    targetPlayer: opts.targetPlayer,
-                    targetTile: opts.targetTile,
-                    spellData: opts.spellData,
-                    projectileDefaults: opts.projectileDefaults,
-                    endHeight: opts.endHeight,
-                    timing: opts.timing,
-                    impactDelayTicks: opts.impactDelayTicks,
-                });
-                if (launch) {
-                    this.queueProjectileForViewers(launch);
-                }
-            },
-
-            // --- Effects ---
-            queueSpellResult: (playerId, payload) => this.queueSpellResult(playerId, payload),
-            enqueueSpotAnimation: (request) => this.enqueueSpotAnimation(request),
-            enqueueSpellFailureChat: (player, spellId, reason) =>
-                this.enqueueSpellFailureChat(player, spellId, reason),
-            pickSpellSound: (spellId, stage) => this.pickSpellSound(spellId, stage),
-            broadcastSound: (request, tag) => this.broadcastSound(request, tag),
-            withDirectSendBypass: (tag, fn) => this.withDirectSendBypass(tag, fn),
-            resetAutocast: (player) => this.resetAutocast(player),
-
-            // --- Combat State ---
-            queueCombatSnapshot: (
-                playerId,
-                weaponCategory,
-                weaponItemId,
-                autoRetaliate,
-                styleSlot,
-                activePrayers,
-                specialPercent,
-            ) =>
-                this.queueCombatSnapshot(
-                    playerId,
-                    weaponCategory,
-                    weaponItemId,
-                    autoRetaliate,
-                    styleSlot,
-                    activePrayers,
-                    specialPercent,
-                ),
-            pickAttackSequence: (player) => this.pickAttackSequence(player),
-            pickSpellCastSequence: (player, spellId, isAutocast) =>
-                this.pickSpellCastSequence(player, spellId, isAutocast),
-            pickAttackSpeed: (player) => this.pickAttackSpeed(player),
-            clearAllInteractions: (socket) => this.players?.clearAllInteractions(socket),
-            clearActionsInGroup: (playerId, group) =>
-                this.actionScheduler.clearActionsInGroup(playerId, group),
-            startNpcCombat: (player, npc, tick, attackSpeed) => {
-                this.playerCombatManager?.startCombat(player, npc, tick, attackSpeed);
-            },
-            stopAutoAttack: (playerId) => this.playerCombatManager?.stopAutoAttack(playerId),
-
-            // --- Inventory ---
-            sendInventorySnapshot: (socket, player) => this.sendInventorySnapshot(socket, player),
-
-            // --- Action Scheduling ---
-            scheduleAction: (playerId, request, tick) =>
-                this.actionScheduler.requestAction(playerId, request, tick),
-
-            // --- XP ---
-            awardSkillXp: (player, skillId, xp) => this.awardSkillXp(player, skillId, xp),
-
-            // --- PvP Combat ---
-            planPlayerVsPlayerMagic: (attacker, target) => {
-                try {
-                    const engine = new CombatEngine();
-                    const res = engine.planPlayerVsPlayerMagic(attacker, target);
-                    return {
-                        hitLanded: !!res.hitLanded,
-                        maxHit: res.maxHit,
-                        damage: res.damage,
-                    };
-                } catch {
-                    return { hitLanded: false, maxHit: 0, damage: 0 };
-                }
-            },
-            planPlayerVsNpcMagic: (attacker, target, spellId) => {
-                try {
-                    const engine = new CombatEngine();
-                    const magicCaster = Object.create(attacker) as PlayerState;
-                    (magicCaster as any).combatSpellId = spellId;
-                    (magicCaster as any).autocastEnabled = false;
-                    (magicCaster as any).autocastMode = null;
-                    (magicCaster as any).getCurrentAttackType = () => "magic";
-                    const res = engine.planPlayerAttack({
-                        player: magicCaster,
-                        npc: target,
-                        attackSpeed: this.pickAttackSpeed(attacker),
-                    });
-                    return {
-                        hitLanded: !!res.hitLanded,
-                        maxHit: res.maxHit,
-                        damage: res.damage,
-                    };
-                } catch {
-                    return { hitLanded: false, maxHit: 0, damage: 0 };
-                }
-            },
-
-            // --- Helpers ---
-            faceAngleRs: (x1, y1, x2, y2) => faceAngleRs(x1, y1, x2, y2),
-            testRandFloat: () => testRandFloat(),
-            getTestHitForce: () => TEST_HIT_FORCE,
-
-            // --- Logging ---
-            log: (level, message, data) => {
-                try {
-                    if (level === "warn") logger.warn(message, data);
-                    else if (level === "error") logger.error(message, data);
-                    else logger.info(message, data);
-                } catch {}
-            },
-        };
-        return new SpellActionHandler(services);
-    }
 
     /**
      * Create the InventoryActionHandler with all required services.
      */
-    private createInventoryActionHandler(): InventoryActionHandler {
-        const services: InventoryActionServices = {
-            // --- Core ---
-            getCurrentTick: () => this.options.ticker.currentTick(),
-
-            // --- Entity Access ---
-            getNpc: (id) => this.npcManager?.getById(id) ?? undefined,
-            getPlayer: (id) => this.players?.getById(id) ?? undefined,
-
-            // --- Inventory Operations ---
-            getInventory: (player) => this.getInventory(player),
-            addItemToInventory: (player, itemId, quantity) =>
-                this.addItemToInventory(player, itemId, quantity),
-            consumeItem: (player, slot) => this.consumeItem(player, slot),
-            countInventoryItem: (player, itemId) => this.countInventoryItem(player, itemId),
-            markInventoryDirty: (player) => player.markInventoryDirty(),
-
-            // --- Equipment ---
-            resolveEquipSlot: (itemId) => this.resolveEquipSlot(itemId),
-            equipItem: (player, slotIndex, itemId, equipSlot, options) =>
-                this.equipItem(player, slotIndex, itemId, equipSlot, options),
-            unequipItem: (player, equipSlot) => {
-                // OSRS parity: Unequipping closes interruptible interfaces (modals, dialogs)
-                this.closeInterruptibleInterfaces(player);
-
-                const appearance = this.getOrCreateAppearance(player);
-                return unequipItemApply({
-                    appearance,
-                    equipSlot,
-                    addItemToInventory: (id, qty) => this.addItemToInventory(player, id, qty),
-                    slotCount: EQUIP_SLOT_COUNT,
-                });
-            },
-            ensureEquipArray: (player) => this.ensureEquipArray(player),
-            refreshCombatWeaponCategory: (player) => this.refreshCombatWeaponCategory(player),
-            refreshAppearanceKits: (player) => this.refreshAppearanceKits(player),
-            resetAutocast: (player) => this.resetAutocast(player),
-            pickEquipSound: (slot, itemName) => pickEquipSound(slot, itemName),
-
-            // --- Object Types ---
-            getObjType: (itemId) => this.getObjType(itemId),
-            isConsumable: (obj, option) => this.isConsumable(obj as any, option),
-
-            // --- Pathfinding ---
-            createRectAdjacentStrategy: (x, y, sizeX, sizeY) =>
-                new RectAdjacentRouteStrategy(x, y, sizeX, sizeY),
-            findPathSteps: (from, to, size, strategy) => {
-                const pathService = this.options.pathService;
-                if (!pathService) return { ok: false };
-                const res = pathService.findPathSteps(
-                    {
-                        from,
-                        to,
-                        size,
-                    },
-                    {
-                        maxSteps: 128,
-                        routeStrategy: strategy as any,
-                    },
-                );
-                return { ok: res.ok, steps: res.steps, end: res.end };
-            },
-
-            // --- Action Scheduling ---
-            scheduleAction: (playerId, request, tick) =>
-                this.actionScheduler.requestAction(playerId, request, tick),
-
-            // --- Effects ---
-            queueChatMessage: (request) => this.queueChatMessage(request),
-            buildSkillFailure: (player, message, reason) =>
-                this.buildSkillFailure(player, message, reason),
-            playLocSound: (request) => this.playLocSound(request),
-
-            // --- Script Runtime ---
-            queueLocInteraction: (request) => this.scriptRuntime.queueLocInteraction(request),
-            queueItemOnLoc: (request) => this.scriptRuntime.queueItemOnLoc(request),
-            queueItemOnItem: (request) => this.scriptRuntime.queueItemOnItem(request),
-
-            // --- Scripted Consume ---
-            executeScriptedConsume: (player, itemId, slotIndex, option, tick) => {
-                const handler = this.scriptRegistry.findItemAction(itemId, option);
-                if (handler) {
-                    handler({
-                        player,
-                        source: { slot: slotIndex, itemId },
-                        target: { slot: -1, itemId: -1 },
-                        option,
-                        tick: tick ?? 0,
-                        services: this.scriptRuntime.getServices(),
-                    });
-                    return { handled: true };
-                }
-                return { handled: false };
-            },
-
-            // --- Logging ---
-            log: (level, message, data) => {
-                try {
-                    if (level === "warn") logger.warn(message, data);
-                    else if (level === "error") logger.error(message, data);
-                    else logger.info(message, data);
-                } catch {}
-            },
-        };
-        return new InventoryActionHandler(services);
-    }
 
     /**
      * Create the EffectDispatcher with all required services.
      */
-    private createEffectDispatcher(): EffectDispatcher {
-        const services: EffectDispatcherServices = {
-            // --- Entity Access ---
-            getPlayer: (id) => this.players?.getById(id) ?? undefined,
-            getPlayerSocket: (playerId) => this.players?.getSocketByPlayerId(playerId),
-            isSocketOpen: (socket) => socket?.readyState === WebSocket.OPEN,
-
-            // --- Effect Queueing ---
-            enqueueForcedChat: (event) => this.enqueueForcedChat(event),
-            enqueueForcedMovement: (event) => this.enqueueForcedMovement(event),
-            enqueueLevelUpPopup: (player, popup) => this.enqueueLevelUpPopup(player, popup),
-            queueHitsplat: (hitsplat, frame) => {
-                if (frame) {
-                    frame.hitsplats.push(hitsplat);
-                } else {
-                    this.broadcastScheduler.queueHitsplat(hitsplat);
-                }
-            },
-
-            // --- Snapshots ---
-            checkAndSendSnapshots: (player, socket) => this.checkAndSendSnapshots(player, socket),
-
-            // --- Chat ---
-            queueChatMessage: (request) => this.queueChatMessage(request as any),
-
-            // --- Sound ---
-            sendSound: (player, soundId, options) => this.sendSound(player, soundId, options),
-
-            // --- Projectile ---
-            queueProjectileForViewers: (projectile) => this.queueProjectileForViewers(projectile),
-
-            // --- Frame Access ---
-            getActiveFrame: () => this.activeFrame,
-
-            // --- Constants ---
-            getPlayerTakeDamageSound: () => PLAYER_TAKE_DAMAGE_SOUND,
-            getPlayerZeroDamageSound: () => PLAYER_ZERO_DAMAGE_SOUND,
-            getCombatSoundDelayMs: () => COMBAT_SOUND_DELAY_MS,
-
-            // --- Logging ---
-            log: (level, message) => {
-                if (level === "error") logger.error(message);
-                else if (level === "warn") logger.warn(message);
-                else logger.info(message);
-            },
-        };
-        return new EffectDispatcher(services);
-    }
 
     /**
      * Create the WidgetDialogHandler with all required services.
      */
-    private createWidgetDialogHandler(): WidgetDialogHandler {
-        const services: WidgetDialogServices = {
-            // --- Entity Access ---
-            getPlayer: (id) => this.players?.getById(id) ?? undefined,
-            getPlayerFromSocket: (ws) => this.players?.get(ws) ?? undefined,
 
-            // --- Tick ---
-            getCurrentTick: () => this.options.ticker.currentTick(),
-
-            // --- Widget Events ---
-            queueWidgetEvent: (playerId, action) => this.queueWidgetEvent(playerId, action as any),
-            queueClientScript: (playerId, scriptId, ...args) =>
-                this.queueClientScript(playerId, scriptId, ...args),
-            queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
-
-            // --- Script Runtime ---
-            queueWidgetAction: (request) => this.scriptRuntime.queueWidgetAction(request),
-
-            // --- Shop/Smithing/Bank ---
-            closeShopInterface: (player, options) => this.scriptRuntime.getServices().closeShop?.(player),
-            closeBank: (player) => this.interfaceService?.closeModal(player),
-            queueSmithingInterfaceMessage: (playerId, payload) =>
-                this.queueSmithingInterfaceMessage(playerId, payload as any),
-
-            // --- Constants ---
-            getShopGroupId: () => 300,
-            getBankGroupId: () => 12,
-
-            // --- Logging ---
-            log: (level, message, error) => {
-                if (level === "error") logger.error(message, error);
-                else if (level === "warn") logger.warn(message, error);
-                else if (level === "debug") logger.debug(message);
-                else logger.info(message);
-            },
-        };
-        // Pass InterfaceService for unified chatbox modal management
-        return new WidgetDialogHandler(services, this.interfaceService!);
-    }
-
-    private createCs2ModalManager(): Cs2ModalManager {
-        const services: Cs2ModalManagerServices = {
-            openModal: (player, interfaceId, data) =>
-                this.interfaceService?.openModal(player, interfaceId, data),
-            closeModal: (player) => this.interfaceService?.closeModal(player),
-            getCurrentModal: (player) => this.interfaceService?.getCurrentModal(player),
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
-            queueGameMessage: (playerId, text) =>
-                this.queueChatMessage({
-                    messageType: "game",
-                    text: String(text ?? ""),
-                    targetPlayerIds: [playerId],
-                }),
-            setSmithingBarType: (player, barType) =>
-                player.setVarbitValue(3216, barType),
-            openSmithingForgeInterface: (player) => {
-                this.scriptRuntime.getServices().production?.openForgeInterface?.(player);
-            },
-        };
-        return new Cs2ModalManager(services);
-    }
 
     /**
      * Create the NpcSyncManager with all required services.
      */
-    private createNpcSyncManager(): NpcSyncManager {
-        const services: NpcSyncManagerServices = {
-            // --- NPC Access ---
-            getNpcManager: () => this.npcManager,
 
-            // --- Health Bar Definitions ---
-            getHealthBarDefLoader: () => this.healthBarDefLoader,
 
-            // --- Packet Buffer Access ---
-            getPendingNpcPackets: () => this.pendingNpcPackets,
 
-            // --- Logging ---
-            log: (level, message) => {
-                if (level === "error") logger.error(message);
-                else if (level === "warn") logger.warn(message);
-                else if (level === "debug") logger.debug(message);
-                else logger.info(message);
-            },
-        };
-        return new NpcSyncManager(services);
-    }
 
-    private createPlayerAppearanceManager(): PlayerAppearanceManager {
-        const services: PlayerAppearanceServices = {
-            getPendingAppearanceSnapshots: () => this.broadcastScheduler.getPendingAppearanceSnapshots(),
-            getObjTypeLoader: () => this.objTypeLoader,
-            getBasTypeLoader: () => this.basTypeLoader,
-            getIdkTypeLoader: () => this.idkTypeLoader,
-            getDefaultBodyKits: (gender) => this.getDefaultBodyKits(gender),
-            ensureEquipArray: (player) => this.ensureEquipArray(player),
-            getObjType: (id) => this.getObjType(id),
-            buildAnimPayload: (player) => this.buildAnimPayload(player),
-            getDefaultPlayerAnimMale: () => this.defaultPlayerAnimMale,
-            getDefaultPlayerAnimFemale: () => this.defaultPlayerAnimFemale,
-            getDefaultPlayerAnim: () => this.defaultPlayerAnim,
-            getWeaponAnimOverrides: () => this.weaponAnimOverrides,
-            applyWeaponAnimOverrides: (player, animTarget) =>
-                this.applyWeaponAnimOverrides(player, animTarget),
-            log: (level, message) => {
-                if (level === "error") logger.error(message);
-                else if (level === "warn") logger.warn(message);
-                else if (level === "debug") logger.debug(message);
-                else logger.info(message);
-            },
-        };
-        return new PlayerAppearanceManager(services);
-    }
-
-    private createSoundManager(): SoundManager {
-        const services: SoundManagerServices = {
-            getPlayers: () => this.players,
-            getNpcSoundLookup: () => this.npcSoundLookup,
-            getMusicRegionService: () => this.musicRegionService,
-            getMusicCatalogService: () => this.musicCatalogService,
-            getMusicUnlockService: () => this.musicUnlockService,
-            getNpcTypeLoader: () => this.npcTypeLoader,
-            getDbRepository: () => this.dbRepository,
-            getWeaponData: () => this.weaponData,
-            ensureEquipArray: (player) => this.ensureEquipArray(player),
-            getCurrentTick: () => this.options.ticker.currentTick(),
-            random: () => Math.random(),
-            getVarpMusicPlay: () => VARP_MUSICPLAY,
-            getVarpMusicCurrentTrack: () => VARP_MUSIC_CURRENT_TRACK,
-            sendWithGuard: (sock, message, context) => this.sendWithGuard(sock, message, context),
-            encodeMessage: (msg) => encodeMessage(msg as any),
-            queueChatMessage: (request) => this.queueChatMessage(request),
-            queueClientScript: (playerId, scriptId, ...args) =>
-                this.queueClientScript(playerId, scriptId, ...args),
-            queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
-            broadcastToNearby: (x, y, level, radius, message, context) =>
-                this.broadcastToNearby(x, y, level, radius, message, context),
-            withDirectSendBypass: (context, fn) => this.withDirectSendBypass(context, fn),
-            getNpcCombatDefs: () => this.npcCombatDefs,
-            getNpcCombatDefaults: () =>
-                this.npcCombatDefaults ?? {
-                    deathSound: 512,
-                },
-            loadNpcCombatDefs: () => this.loadNpcCombatDefs(),
-            log: (level, message) => {
-                if (level === "error") logger.error(message);
-                else if (level === "warn") logger.warn(message);
-                else if (level === "debug") logger.debug(message);
-                else logger.info(message);
-            },
-        };
-        return new SoundManager(services);
-    }
-
-    private createGroundItemHandler(): GroundItemHandler {
-        const players = this.players;
-        if (!players) {
-            throw new Error("Player manager unavailable for ground item handler");
-        }
-        const services: GroundItemHandlerServices = {
-            getGroundItems: () => this.groundItems,
-            getPlayers: () => players,
-            getCurrentTick: () => this.options.ticker.currentTick(),
-            getPlayerGroundSerial: () => this.playerGroundSerial,
-            getPlayerGroundChunk: () => this.playerGroundChunk,
-            getGroundChunkKey: (player) => this.getGroundChunkKey(player),
-            addItemToInventory: (player, itemId, quantity) =>
-                this.addItemToInventory(player, itemId, quantity),
-            getItemDefinition: (itemId) => this.getObjType(itemId) ?? getItemDefinition(itemId),
-            isInWilderness: (x, y) => isInWilderness(x, y),
-            sendPickupSound: (player) => this.sendSound(player, 2582),
-            sendLootNotification: (player, itemId, quantity) =>
-                this.sendLootNotification(player, itemId, quantity),
-            trackCollectionLogItem: (player, itemId) =>
-                this.collectionLogService.trackCollectionLogItem(player, itemId),
-            queueChatMessage: (request) => this.queueChatMessage(request),
-            sendWithGuard: (sock, message, context) => this.sendWithGuard(sock, message, context),
-            encodeMessage: (msg) => encodeMessage(msg as any),
-            withDirectSendBypass: (context, fn) => this.withDirectSendBypass(context, fn),
-            log: (level, message) => {
-                if (level === "error") logger.error(message);
-                else if (level === "warn") logger.warn(message);
-                else if (level === "debug") logger.debug(message);
-                else logger.info(message);
-            },
-        };
-        return new GroundItemHandler(services);
-    }
-
-    private createPlayerDeathService(): PlayerDeathService {
-        const services: PlayerDeathServices = {
-            groundItemManager: this.groundItems,
-            getCurrentTick: () => this.options.ticker.currentTick(),
-            isInWilderness: (x, y) => isInWilderness(x, y),
-            getWildernessLevel: (x, y) => getWildernessLevel(x, y),
-            getItemDefinition: (itemId) => getItemDefinition(itemId),
-            sendMessage: (player, message) => {
-                // Queue chat message - will be processed during broadcast phase
-                this.queueChatMessage({
-                    messageType: "game",
-                    text: message,
-                    targetPlayerIds: [player.id],
-                });
-            },
-            teleportPlayer: (player, x, y, level, forceRebuild = false) =>
-                this.teleportPlayer(player, x, y, level, forceRebuild),
-            playAnimation: (player, animId) => {
-                try {
-                    player.queueOneShotSeq(animId, 0);
-                } catch {}
-            },
-            clearAnimation: (player) => {
-                try {
-                    player.queueOneShotSeq(-1, 0);
-                } catch {}
-            },
-            refreshAppearance: (player) => {
-                this.refreshAppearanceKits(player);
-                player.markAppearanceDirty();
-                this.queueAppearanceSnapshot(player);
-                // Note: queueAnimSnapshot is no longer needed here since the appearance block
-                // now includes the animation set
-            },
-            sendInventoryUpdate: (player) => {
-                const sock = this.players?.getSocketByPlayerId(player.id);
-                if (sock) {
-                    this.sendInventorySnapshot(sock, player);
-                }
-            },
-            playJingle: (player, jingleId) => {
-                this.soundManager?.sendJingle(player, jingleId);
-            },
-            pathService: this.options.pathService,
-            log: (level, message) => {
-                if (level === "error") logger.error(`[death] ${message}`);
-                else if (level === "warn") logger.warn(`[death] ${message}`);
-                else logger.info(`[death] ${message}`);
-            },
-            clearCombat: (player) => {
-                const sock = this.players?.getSocketByPlayerId(player.id);
-                if (sock) {
-                    try { this.players?.clearAllInteractions(sock); } catch {}
-                }
-            },
-            clearNpcTargetsForPlayer: (playerId) => {
-                const nowTick = this.options.ticker.currentTick();
-                this.npcManager?.forEach((npc) => {
-                    try {
-                        if (npc.getCombatTargetPlayerId() === playerId) {
-                            npc.disengageCombat();
-                            // Delay next aggression check by 10 ticks (6s) so the NPC
-                            // does not immediately re-aggro the respawned player
-                            npc.scheduleNextAggressionCheck(nowTick, 10);
-                        }
-                    } catch {}
-                });
-            },
-        };
-        return new PlayerDeathService({ services });
-    }
 
     /**
      * Create the ProjectileSystem with all required services.
      */
-    private createProjectileSystem(): ProjectileSystem {
-        const services: ProjectileSystemServices = {
-            getCurrentTick: () => this.options.ticker.currentTick(),
-            getTickMs: () => this.options.tickMs,
-            getActiveFrameTick: () => this.activeFrame?.tick,
-            forEachPlayer: (callback) => {
-                if (!this.players) return;
-                this.players.forEach((_sock, player) => callback(player));
-            },
-            log: (level, message) => {
-                if (level === "error") logger.error(message);
-                else if (level === "warn") logger.warn(message);
-                else logger.info(message);
-            },
-        };
-        return new ProjectileSystem(services);
-    }
 
     /**
      * Create the GatheringSystemManager with all required services.
      */
-    private createGatheringSystem(): GatheringSystemManager {
-        const services: GatheringSystemServices = {
-            emitLocChange: (oldId, newId, tile, level, opts) =>
-                this.emitLocChange(oldId, newId, tile, level, opts),
-            spawnGroundItem: (itemId, quantity, tile, currentTick, opts) =>
-                this.groundItems.spawn(itemId, quantity, tile, currentTick, opts),
-        };
-        return new GatheringSystemManager(services);
-    }
 
     /**
      * Create the EquipmentHandler with all required services.
      */
-    private createEquipmentHandler(): EquipmentHandler {
-        const services: EquipmentHandlerServices = {
-            getInventory: (player) => this.getInventory(player),
-            getObjType: (itemId) => this.getObjType(itemId),
-            addItemToInventory: (player, itemId, quantity) =>
-                this.addItemToInventory(player, itemId, quantity),
-            closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
-            refreshCombatWeaponCategory: (player) => this.refreshCombatWeaponCategory(player),
-            refreshAppearanceKits: (player) => this.refreshAppearanceKits(player),
-            resetAutocast: (player) => this.resetAutocast(player),
-            playLocSound: (opts) => this.playLocSound(opts),
-        };
-        return new EquipmentHandler(services);
-    }
 
     /**
      * Build the ScriptServices object for the ScriptRuntime.
      * Extracted from the constructor to reduce constructor size and make
      * the services wiring independently modifiable.
      */
-    private createTickOrchestrator(): TickPhaseOrchestrator {
-        const services: TickPhaseOrchestratorServices = {
-            getTickMs: () => this.options.tickMs,
-            createTickFrame: (tick, time) => this.createTickFrame({ tick, time }) as any,
-            setActiveFrame: (frame) => {
-                this.activeFrame = frame as TickFrame | undefined;
-            },
-            restorePendingFrame: (frame) => this.restorePendingFrame(frame as TickFrame),
-            yieldToEventLoop: (stage) => this.yieldToEventLoop(stage),
-            maybeRunAutosave: (frame) => this.maybeRunAutosave(frame as TickFrame),
-        };
-        const phaseProvider: TickPhaseProvider = {
-            broadcastTick: (frame) => this.broadcastTick(frame as TickFrame),
-            runPreMovementPhase: (frame) => this.runPreMovementPhase(frame as TickFrame),
-            runMovementPhase: (frame) => this.runMovementPhase(frame as TickFrame),
-            runMusicPhase: (frame) => this.runMusicPhase(frame as TickFrame),
-            runScriptPhase: (frame) => this.runScriptPhase(frame as TickFrame),
-            runCombatPhase: (frame) => this.runCombatPhase(frame as TickFrame),
-            runDeathPhase: (frame) => this.runDeathPhase(frame as TickFrame),
-            runPostScriptPhase: (frame) => this.runPostScriptPhase(frame as TickFrame),
-            runPostEffectsPhase: (frame) => this.runPostEffectsPhase(frame as TickFrame),
-            runOrphanedPlayersPhase: (frame) => this.runOrphanedPlayersPhase(frame as TickFrame),
-            runBroadcastPhase: (frame) => this.runBroadcastPhase(frame as TickFrame),
-        };
-        return new TickPhaseOrchestrator(services, phaseProvider);
-    }
 
     private createMessageRouter(): MessageRouter {
         const services: MessageRouterServices = {
@@ -6301,258 +4041,11 @@ export class WSServer {
         const router = new MessageRouter(services);
 
         // Register message handlers
-        this.registerMessageHandlers(router);
+        ServiceWiring.registerMessageHandlers(this, router);
 
         return router;
     }
 
-    private registerMessageHandlers(router: MessageRouter): void {
-        // Register extracted handlers from MessageHandlers.ts
-        const extendedServices: BinaryHandlerExtServices = {
-            // Player management
-            getPlayer: (ws) => this.players?.get(ws),
-            getPlayerById: (id) => this.players?.getById(id),
-            startFollowing: (ws, targetId, mode, modifierFlags) =>
-                this.players?.startFollowing(ws, targetId, mode, modifierFlags),
-            startLocInteract: (ws, opts, currentTick) =>
-                this.players?.startLocInteract?.(ws, opts, currentTick),
-            clearAllInteractions: (ws) => this.players?.clearAllInteractions(ws),
-            startPlayerCombat: (ws, targetId) => this.players?.startPlayerCombat(ws, targetId),
-
-            // Trade
-            handleTradeAction: (player, payload, tick) => {
-                this.tradeManager?.handleAction(player, payload, tick);
-            },
-
-            // Movement
-            setPendingWalkCommand: (ws, command) => this.movementService.getPendingWalkCommands().set(ws, command),
-            clearPendingWalkCommand: (ws) => this.movementService.getPendingWalkCommands().delete(ws),
-            clearActionsInGroup: (playerId, group) =>
-                this.actionScheduler.clearActionsInGroup(playerId, group),
-            canUseAdminTeleport: (player) => this.isAdminPlayer(player),
-            teleportPlayer: (player, x, y, level, forceRebuild = false) =>
-                this.teleportPlayer(player, x, y, level, forceRebuild),
-            teleportToInstance: (player, x, y, level, templateChunks, extraLocs) =>
-                this.teleportToInstance(player, x, y, level, templateChunks, extraLocs),
-            teleportToWorldEntity: (player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs) =>
-                this.teleportToWorldEntity(player, x, y, level, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs),
-            sendWorldEntity: (player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode) =>
-                this.sendWorldEntity(player, entityIndex, configId, sizeX, sizeZ, templateChunks, buildAreas, extraLocs, extraNpcs, drawMode),
-            spawnLocForPlayer: (player, locId, tile, level, shape, rotation) =>
-                this.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
-            spawnNpc: (config: any) => this.npcManager?.spawnTransientNpc(config),
-            initSailingInstance: (player) => this.sailingInstanceManager?.initInstance(player),
-            disposeSailingInstance: (player) => this.sailingInstanceManager?.disposeInstance(player),
-            removeWorldEntity: (playerId, entityIndex) => this.worldEntityInfoEncoder.removeEntity(playerId, entityIndex),
-            queueWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.queuePosition(playerId, entityIndex, position),
-            setWorldEntityPosition: (playerId, entityIndex, position) => this.worldEntityInfoEncoder.setPosition(playerId, entityIndex, position),
-            queueWorldEntityMask: (playerId, entityIndex, mask) => this.worldEntityInfoEncoder.queueMaskUpdate(playerId, entityIndex, mask),
-            buildSailingDockedCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
-            applySailingDeckCollision: () => this.sailingInstanceManager?.buildDockedCollision(),
-            clearSailingDeckCollision: () => this.sailingInstanceManager?.clearDockedCollision(),
-            requestTeleportAction: (player, request) => this.requestTeleportAction(player, request),
-
-            // Combat/NPC
-            getNpcById: (npcId) => this.npcManager?.getById(npcId),
-            startNpcAttack: (ws, npc, tick, attackSpeed, modifierFlags) =>
-                this.players!.startNpcAttack(ws, npc, tick, attackSpeed, modifierFlags),
-            startNpcInteraction: (ws, npc, option, modifierFlags) =>
-                this.players?.startNpcInteraction(ws, npc, option, modifierFlags),
-            pickAttackSpeed: (player) => this.pickAttackSpeed(player),
-            startCombat: (player, npc, tick, attackSpeed) =>
-                this.playerCombatManager?.startCombat(player, npc, tick, attackSpeed),
-            hasNpcOption: (npc, option) => this.npcManager?.hasNpcOption(npc, option) ?? false,
-            resolveNpcOption: (npc, opNum) => this.resolveNpcOptionByOpNum(npc, opNum),
-            resolveLocAction: (player, locId, opNum) =>
-                this.resolveLocActionByOpNum(locId, opNum, player),
-            routePlayer: (ws, to, run, tick) => this.players?.routePlayer(ws, to, run, tick),
-            findPath: (opts) =>
-                this.options.pathService?.findPath(opts) ?? {
-                    ok: false,
-                    message: "path service unavailable",
-                },
-            edgeHasWallBetween: (x1, y1, x2, y2, level) =>
-                this.options.pathService?.edgeHasWallBetween(x1, y1, x2, y2, level) ?? false,
-
-            // Spells
-            handleSpellCast: (ws, player, payload, targetType, tick) => {
-                if (
-                    targetType !== "npc" &&
-                    targetType !== "player" &&
-                    targetType !== "loc" &&
-                    targetType !== "obj"
-                ) {
-                    return;
-                }
-                this.spellActionHandler.handleSpellCastMessage(
-                    ws,
-                    player,
-                    payload,
-                    targetType,
-                    tick,
-                );
-            },
-            handleSpellCastOnItem: (ws, payload) => this.handleSpellCastOnItem(ws, payload),
-
-            // Widget/Interface
-            handleIfButtonD: () => {},
-            handleWidgetAction: (player, payload) => {},
-            handleWidgetCloseState: (player, groupId) => {
-                this.cs2ModalManager.handleWidgetCloseState(player, groupId);
-                this.widgetDialogHandler.handleWidgetCloseState(player, groupId);
-            },
-            openModal: (player, interfaceId, data) =>
-                this.interfaceService?.openModal(player, interfaceId, data),
-            openIndexedMenu: (player, request) =>
-                this.cs2ModalManager.openIndexedMenu(player, request),
-            openSubInterface: (player, targetUid, groupId, type = 0, opts) => {
-                if (type === 0 || type === 1) {
-                    player.widgets.open(groupId, {
-                        targetUid,
-                        type,
-                        modal: opts?.modal !== false,
-                    });
-                    return;
-                }
-                this.queueWidgetEvent(player.id, {
-                    action: "open_sub",
-                    targetUid,
-                    groupId,
-                    type,
-                });
-            },
-            openDialog: (player, request) =>
-                this.widgetDialogHandler.openDialog(player, request as any),
-            queueWidgetEvent: (playerId, event) => this.queueWidgetEvent(playerId, event as any),
-            queueClientScript: (playerId, scriptId, ...args) =>
-                this.queueClientScript(playerId, scriptId, ...args),
-            queueVarp: (playerId, varpId, value) => this.queueVarp(playerId, varpId, value),
-            queueVarbit: (playerId, varbitId, value) => this.queueVarbit(playerId, varbitId, value),
-            queueNotification: (playerId, notification) =>
-                this.queueNotification(playerId, notification),
-            sendGameMessage: (player, text) => {
-                this.queueChatMessage({
-                    messageType: "game",
-                    text,
-                    targetPlayerIds: [player.id],
-                });
-            },
-            sendSound: (player, soundId, opts) => this.sendSound(player, soundId, opts),
-            sendVarp: (player, varpId, value) => this.queueVarp(player.id, varpId, value),
-            sendVarbit: (player, varbitId, value) => this.queueVarbit(player.id, varbitId, value),
-            trackCollectionLogItem: (player, itemId) =>
-                this.collectionLogService.trackCollectionLogItem(player, itemId),
-            sendRunEnergyState: (ws, player) => this.sendRunEnergyState(ws, player),
-            getWeaponSpecialCostPercent: (weaponId) => this.getWeaponSpecialCostPercent(weaponId),
-            queueCombatState: (player) => this.queueCombatState(player),
-            ensureEquipArray: (player) => this.ensureEquipArray(player),
-            gamemodeServices: this.gamemode.getGamemodeServices?.() ?? {},
-
-            // Chat
-            queueChatMessage: (msg) => this.queueChatMessage(msg),
-            getPublicChatPlayerType: (player) => this.getPublicChatPlayerType(player),
-            enqueueLevelUpPopup: (player, data) => this.enqueueLevelUpPopup(player, data),
-            findScriptCommand: (name) => this.scriptRegistry.findCommand(name),
-            getCurrentTick: () => this.options.ticker.currentTick(),
-
-            // Debug
-            broadcast: (message, context) => this.broadcast(message, context),
-            sendWithGuard: (ws, message, context) => this.sendWithGuard(ws, message, context),
-            sendAdminResponse: (ws, message, context) =>
-                this.sendAdminResponse(ws, message, context),
-            withDirectSendBypass: (context, fn) => this.withDirectSendBypass(context, fn),
-            encodeMessage: encodeMessage,
-            setPendingDebugRequest: (requestId, ws) => this.pendingDebugRequests.set(requestId, ws),
-            getPendingDebugRequest: (requestId) => this.pendingDebugRequests.get(requestId),
-
-            // Tick
-            currentTick: () => this.options.ticker.currentTick(),
-
-            // Constants/Config
-            getEquipmentSlotWeapon: () => EquipmentSlot.WEAPON,
-            getVarpConstants: () => ({
-                VARP_SIDE_JOURNAL_STATE,
-                VARP_OPTION_RUN,
-                VARP_SPECIAL_ATTACK,
-                VARP_ATTACK_STYLE,
-                VARP_AUTO_RETALIATE,
-                VARP_MAP_FLAGS_CACHED,
-            }),
-            getVarbitConstants: () => ({
-                VARBIT_SIDE_JOURNAL_TAB,
-            }),
-            getSideJournalConstants: () => ({
-                SIDE_JOURNAL_CONTENT_GROUP_BY_TAB: Object.values(
-                    SIDE_JOURNAL_CONTENT_GROUP_BY_TAB,
-                ),
-                SIDE_JOURNAL_TAB_CONTAINER_UID,
-            }),
-
-            // --- Services for extracted handlers (logout, widget, varp_transmit, if_close) ---
-            completeLogout: (ws, player, source) => this.completeLogout(ws, player, source),
-            closeInterruptibleInterfaces: (player) => this.closeInterruptibleInterfaces(player),
-            noteWidgetEventForLedger: (playerId, event) => this.noteWidgetEventForLedger(playerId, event),
-            normalizeSideJournalState: (player, value?) => this.normalizeSideJournalState(player, value),
-            queueSideJournalGamemodeUi: (player) => this.queueSideJournalGamemodeUi(player),
-            syncMusicInterface: (player) => this.soundManager.syncMusicInterfaceForPlayer(player),
-            handleCs2ModalCloseState: (player, groupId) => this.cs2ModalManager.handleWidgetCloseState(player, groupId),
-            handleDialogCloseState: (player, groupId) => this.widgetDialogHandler.handleWidgetCloseState(player, groupId),
-            getInterfaceService: () => this.interfaceService,
-            getGamemodeUi: () => this.gamemodeUi,
-            getGamemode: () => this.gamemode,
-
-            // --- Services for binary message handlers ---
-            resolveGroundItemOptionByOpNum: (itemId, opNum) =>
-                this.resolveGroundItemOptionByOpNum(itemId, opNum),
-            handleGroundItemAction: (ws, payload) => this.handleGroundItemAction(ws, payload),
-            getScriptRegistry: () => this.scriptRegistry,
-            getScriptRuntime: () => this.scriptRuntime,
-            getCs2ModalManager: () => this.cs2ModalManager,
-            getWidgetDialogHandler: () => this.widgetDialogHandler,
-            getObjType: (itemId) => this.getObjType(itemId),
-            handleInventoryUseOnMessage: (ws, payload) =>
-                this.handleInventoryUseOnMessage(ws, payload),
-            getLevelUpPopupQueue: (playerId) =>
-                (this.interfaceManager as any).levelUpPopupQueue?.get(playerId),
-            advanceLevelUpPopupQueue: (player) => this.advanceLevelUpPopupQueue(player),
-        };
-        registerAllHandlers(router, extendedServices);
-
-        // Simple handlers
-        router.register("hello", (ctx) => {
-            logger.info(`Hello from ${ctx.payload.client} ${ctx.payload.version ?? ""}`.trim());
-        });
-
-        router.register("inventory_use", (ctx) => {
-            this.handleInventoryUseMessage(ctx.ws, ctx.payload);
-        });
-
-        router.register("inventory_use_on", (ctx) => {
-            this.handleInventoryUseOnMessage(ctx.ws, ctx.payload);
-        });
-
-        router.register("inventory_move", (ctx) => {
-            this.handleInventoryMoveMessage(ctx.ws, ctx.payload);
-        });
-
-        router.register("ground_item_action", (ctx) => {
-            this.handleGroundItemAction(ctx.ws, ctx.payload);
-        });
-
-        router.register("interact_stop", (ctx) => {
-            try {
-                // RSMod parity: Use player.resetInteractions() to clear all interactions
-                if (ctx.player) {
-                    ctx.player.resetInteractions();
-                }
-                // Also clear the interaction system's internal state map
-                this.players?.clearAllInteractions(ctx.ws);
-            } catch {}
-        });
-
-
-        // More handlers will be added incrementally...
-    }
 
     private sanitizeHandshakeAppearance(raw: HandshakeAppearance): PlayerAppearanceState {
         const colors = raw.colors?.slice(0, 10);
@@ -6577,13 +4070,11 @@ export class WSServer {
     }
 
     private setPendingLoginName(ws: WebSocket, name: string): void {
-        this.pendingLoginNames.set(ws, name);
+        this.loginHandshakeService.setPendingLoginName(ws, name);
     }
 
     private consumePendingLoginName(ws: WebSocket): string | undefined {
-        const name = this.pendingLoginNames.get(ws);
-        this.pendingLoginNames.delete(ws);
-        return name;
+        return this.loginHandshakeService.consumePendingLoginName(ws);
     }
 
     private getSocketRemoteAddress(ws: WebSocket): string | undefined {
@@ -6959,7 +4450,7 @@ export class WSServer {
         const respawnTick = Math.max(tick + RESPAWN_DELAY_TICKS, despawnTick + 1);
         try {
             npc.markDeadUntil(despawnTick, tick);
-        } catch {}
+        } catch (err) { logger.warn("[npc] mark dead failed", err); }
         const queued =
             this.npcManager?.queueDeath?.(npc.id, despawnTick, respawnTick, pendingDrops) ?? false;
         if (!queued) {
@@ -7414,6 +4905,10 @@ export class WSServer {
         this.inventoryService.sendInventorySnapshot(ws, p);
     }
 
+    private sendInventorySnapshotImmediate(ws: WebSocket, p: PlayerState): void {
+        this.inventoryService.sendInventorySnapshotImmediate(ws, p);
+    }
+
     /**
      * Send the collection log inventory (620) snapshot to a player.
      * Converts the player's collectionObtained map to slot format.
@@ -7492,10 +4987,6 @@ export class WSServer {
         this.skillService.awardSkillXp(player, skillId, xp);
     }
 
-    /**
-     * Handle spell cast on inventory item (e.g., High Alchemy, Low Alchemy, Superheat)
-     * OSRS parity: Uses widget references (spellbook group + widget child ID) to identify spells
-     */
     private handleSpellCastOnItem(
         ws: WebSocket,
         payload: {
@@ -7504,198 +4995,17 @@ export class WSServer {
             selectedSpellWidgetId?: number;
             selectedSpellChildIndex?: number;
             selectedSpellItemId?: number;
-            spellId?: number; // Legacy fallback
+            spellId?: number;
             slot: number;
             itemId: number;
             widgetId?: number;
         },
     ): void {
-        const player = this.players?.get(ws);
-        if (!player) return;
-
-        const slot = payload.slot;
-        const targetItemId = payload.itemId;
-
-        // OSRS parity: Look up spell by widget reference instead of hardcoded spell ID
-        let spellData: SpellDataEntry | undefined;
-        let spellId: number;
-        const resolvedSelection = resolveSelectedSpellPayload(payload);
-
-        if (
-            resolvedSelection.spellbookGroupId !== undefined &&
-            resolvedSelection.widgetChildId !== undefined
-        ) {
-            // New OSRS-parity path: look up by widget reference
-            spellData = getSpellDataByWidget(
-                resolvedSelection.spellbookGroupId,
-                resolvedSelection.widgetChildId,
-            );
-            spellId = spellData?.id ?? -1;
-        } else if (payload.spellId !== undefined) {
-            // Legacy fallback: look up by spell ID
-            spellId = payload.spellId;
-            spellData = getSpellData(spellId);
-        } else {
-            this.sendSpellFailure(player, -1, "invalid_spell");
-            return;
-        }
-
-        if (!spellData) {
-            this.sendSpellFailure(player, spellId, "invalid_spell");
-            return;
-        }
-
-        // Check magic level
-        const magicSkill = player.getSkill(SkillId.Magic);
-        const magicLevel = Math.max(1, magicSkill.baseLevel + magicSkill.boost);
-        if (spellData.levelRequired && magicLevel < spellData.levelRequired) {
-            this.queueChatMessage({
-                messageType: "game",
-                playerId: player.id,
-                text: `You need a Magic level of ${spellData.levelRequired} to cast this spell.`,
-            });
-            this.sendSpellFailure(player, spellId, "level_requirement");
-            return;
-        }
-
-        // Get inventory and validate target item
-        const inventory = this.getInventory(player);
-        const invSlot = inventory[slot];
-        if (!invSlot || invSlot.itemId !== targetItemId || invSlot.quantity <= 0) {
-            this.sendSpellFailure(player, spellId, "invalid_target");
-            return;
-        }
-
-        // Validate runes
-        if (spellData.runeCosts && spellData.runeCosts.length > 0) {
-            const validation = SpellCaster.validate({
-                player,
-                spellId,
-            });
-            if (!validation.success) {
-                this.queueChatMessage({
-                    messageType: "game",
-                    playerId: player.id,
-                    text: "You don't have the required runes.",
-                });
-                this.sendSpellFailure(player, spellId, "out_of_runes");
-                return;
-            }
-        }
-
-        // Handle High Level Alchemy (id: 9111) and Low Level Alchemy (id: 9110)
-        const HIGH_ALCH_ID = 9111;
-        const LOW_ALCH_ID = 9110;
-        const COINS_ID = 995;
-
-        if (spellId === HIGH_ALCH_ID || spellId === LOW_ALCH_ID) {
-            const itemDef = getItemDefinition(targetItemId);
-            if (!itemDef) {
-                this.queueChatMessage({
-                    messageType: "game",
-                    playerId: player.id,
-                    text: "You cannot alchemise this item.",
-                });
-                this.sendSpellFailure(player, spellId, "alch_invalid_item");
-                return;
-            }
-
-            // Get alch value
-            const alchValue = spellId === HIGH_ALCH_ID ? itemDef.highAlch : itemDef.lowAlch;
-            if (alchValue <= 0) {
-                this.queueChatMessage({
-                    messageType: "game",
-                    playerId: player.id,
-                    text: "You cannot alchemise this item.",
-                });
-                this.sendSpellFailure(player, spellId, "alch_invalid_item");
-                return;
-            }
-
-            // Cannot alch coins
-            if (targetItemId === COINS_ID) {
-                this.queueChatMessage({
-                    messageType: "game",
-                    playerId: player.id,
-                    text: "You cannot alchemise coins.",
-                });
-                this.sendSpellFailure(player, spellId, "alch_invalid_item");
-                return;
-            }
-
-            // Consume runes
-            if (spellData.runeCosts) {
-                const outcome = SpellCaster.execute(
-                    { player, spellId },
-                    { success: true, spellData },
-                );
-                if (!outcome.success) {
-                    this.sendSpellFailure(player, spellId, "out_of_runes");
-                    return;
-                }
-            }
-
-            // Remove item from inventory (just 1, even if stacked)
-            if (invSlot.quantity > 1) {
-                this.setInventorySlot(player, slot, targetItemId, invSlot.quantity - 1);
-            } else {
-                this.setInventorySlot(player, slot, 0, 0);
-            }
-
-            // Add coins to inventory
-            this.addItemToInventory(player, COINS_ID, alchValue);
-
-            // Award XP (High Alch = 65 XP, Low Alch = 31 XP)
-            const xpAward = spellId === HIGH_ALCH_ID ? 65 : 31;
-            this.awardSkillXp(player, SkillId.Magic, xpAward);
-
-            // Play animation and spot animation
-            const animId = spellId === HIGH_ALCH_ID ? 713 : 712; // High alch anim / Low alch anim
-            player.queueOneShotSeq(animId);
-            const tick = this.activeFrame?.tick ?? this.options.ticker.currentTick();
-            this.enqueueSpotAnimation({
-                tick: tick,
-                playerId: player.id,
-                spotId: spellData.castSpotAnim ?? 113,
-                delay: 0,
-                height: 100,
-            });
-
-            // Sync inventory
-            const sock = this.players?.getSocketByPlayerId(player.id);
-            if (sock) this.sendInventorySnapshot(sock, player);
-
-            // Send success result
-            this.queueSpellResult(player.id, {
-                casterId: player.id,
-                spellId: spellId,
-                outcome: "success",
-                targetType: "item",
-            });
-
-            logger.info(
-                `[magic] Player ${player.id} cast ${spellData.name} on item ${targetItemId} for ${alchValue} coins`,
-            );
-            return;
-        }
-
-        // For other spells on items (like Superheat), add handling here
-        this.queueChatMessage({
-            messageType: "game",
-            playerId: player.id,
-            text: "Nothing interesting happens.",
-        });
-        this.sendSpellFailure(player, spellId, "invalid_target");
+        this.spellCastingService.handleSpellCastOnItem(ws, payload);
     }
 
     private sendSpellFailure(player: PlayerState, spellId: number, reason: string): void {
-        this.queueSpellResult(player.id, {
-            casterId: player.id,
-            spellId: spellId,
-            outcome: "failure",
-            reason: reason as any,
-            targetType: "item",
-        });
+        this.spellCastingService.sendSpellFailure(player, spellId, reason);
     }
 
     private buildSkillMessageEffect(player: PlayerState, message: string): ActionEffect {
@@ -8105,7 +5415,7 @@ export class WSServer {
                     option: optionLower,
                 });
                 if (handled) return; // Script claimed the action
-            } catch {}
+            } catch (err) { logger.warn("[item] script action dispatch failed", err); }
         }
 
         const hasItemInInventory =
@@ -8160,7 +5470,7 @@ export class WSServer {
                         dropTile.y,
                         dropTile.level,
                     );
-                } catch {}
+                } catch (err) { logger.warn("[inventory] drop log failed", err); }
             };
 
             // OSRS parity: Total value = per-item value * quantity (for stackable items like coins)
@@ -8329,1110 +5639,19 @@ export class WSServer {
 
 
     private handleLoginMessage(ws: WebSocket, payload: any): void {
-        // Handle login request with proper validation
-        const { username, password, revision } = payload;
-        const normalizedUsername = (username || "").trim().toLowerCase();
-
-        // Helper to send login error response
-        const sendLoginError = (errorCode: number, error: string) => {
-            this.withDirectSendBypass("login_response", () =>
-                this.sendWithGuard(
-                    ws,
-                    encodeMessage({
-                        type: "login_response",
-                        payload: { success: false, errorCode, error },
-                    }),
-                    "login_response",
-                ),
-            );
-            logger.info(`Login failed (code ${errorCode}): ${username} - ${error}`);
-        };
-
-        // Get client IP for rate limiting (fallback to ws identifier)
-        const clientIp = this.getSocketRemoteAddress(ws) ?? "ws-unknown";
-        logger.info(`Login attempt from: ${username} (${clientIp})`);
-
-        // 0. Check client revision matches server
-        const serverRevision = this.cacheEnv?.info?.revision ?? 0;
-        if (serverRevision > 0 && revision !== serverRevision) {
-            sendLoginError(6, "Please close the client and reload to update.");
-            return;
-        }
-
-        // 1. Check rate limiting first
-        if (this.checkLoginRateLimit(clientIp)) {
-            sendLoginError(9, "Login limit exceeded. Please wait a minute.");
-            return;
-        }
-
-        // 2. Check maintenance mode
-        if (this.maintenanceMode) {
-            sendLoginError(14, "The server is being updated. Please wait.");
-            return;
-        }
-
-        // 3. Check world capacity
-        if (this.isWorldFull()) {
-            sendLoginError(2, "This world is full. Please use a different world.");
-            return;
-        }
-
-        // 4. Validate username is not empty
-        if (!normalizedUsername || normalizedUsername.length === 0) {
-            sendLoginError(3, "Invalid username or password.");
-            return;
-        }
-
-        // 5. Check if already logged in
-        if (this.isPlayerAlreadyLoggedIn(normalizedUsername)) {
-            sendLoginError(
-                5,
-                "Your account is already logged in. Try again in 60 seconds.",
-            );
-            return;
-        }
-
-        // All checks passed - login successful
-        const displayName = (username ?? "").slice(0, 12);
-        this.setPendingLoginName(ws, displayName);
-        this.withDirectSendBypass("login_response", () =>
-            this.sendWithGuard(
-                ws,
-                encodeMessage({
-                    type: "login_response",
-                    payload: {
-                        success: true,
-                        displayName,
-                    },
-                }),
-                "login_response",
-            ),
-        );
-        logger.info(`Login successful: ${username}`);
-
+        this.loginHandshakeService.handleLoginMessage(ws, payload);
     }
 
 
     private handleHandshakeMessage(ws: WebSocket, payload: any): void {
-        const parsed = { type: "handshake" as const, payload };
-        // Accept handshake and assign player id, then spawn
-        try {
-            // Get player name first to check for orphaned session
-            const pendingLoginName = this.consumePendingLoginName(ws);
-            const name = pendingLoginName || parsed.payload.name?.slice(0, 12) || undefined;
-
-            // Check for orphaned player (disconnected while in combat)
-            // We need to compute a preliminary save key based on name
-            const preliminarySaveKey = normalizePlayerAccountName(name);
-            let p: import("../game/player").PlayerState | undefined;
-            let isReconnect = false;
-
-            if (preliminarySaveKey && this.players?.hasOrphanedPlayer(preliminarySaveKey)) {
-                // Reconnect to orphaned player
-                p = this.players.reconnectOrphanedPlayer(ws, preliminarySaveKey);
-                if (p) {
-                    isReconnect = true;
-                    logger.info(
-                        `[handshake] Player ${name} reconnected to orphaned session (id=${p.id})`,
-                    );
-                }
-            }
-
-            if (!p) {
-                // No orphaned session - create new player
-                const spawn = this.gamemode.getSpawnLocation(undefined as any);
-                const spawnX = spawn.x,
-                    spawnY = spawn.y,
-                    level = spawn.level;
-                p = this.players?.add(ws, spawnX, spawnY, level);
-            }
-
-            if (!p) {
-                try {
-                    ws.close(1013, "server_full");
-                } catch {}
-                return;
-            }
-            {
-                p.widgets.setDispatcher((action) => {
-                    if (action.action === "close") {
-                        this.widgetDialogHandler.handleWidgetCloseState(p!, action.groupId);
-                    }
-                    this.queueWidgetEvent(p!.id, action);
-                });
-
-                if (!isReconnect) {
-                    // Only register with action scheduler for new players
-                    // Orphaned players were never unregistered
-                    this.actionScheduler.registerPlayer(p);
-                }
-
-                // RSMod parity: Set item definition resolver for inventory operations
-                p.setItemDefResolver((id) => getItemDefinition(id));
-
-                // Wire up death callback (tick-based death sequence)
-                p.onDeath = () => {
-                    if (this.playerDeathService) {
-                        this.playerDeathService.startPlayerDeath(p!);
-                    }
-                };
-
-                const appearance =
-                    parsed.payload.appearance !== undefined
-                        ? this.sanitizeHandshakeAppearance(parsed.payload.appearance)
-                        : this.createDefaultAppearance();
-
-                if (!isReconnect) {
-                    // Only set name/appearance for new players
-                    p.name = name ?? "";
-                    p.appearance = appearance;
-                    this.ensureEquipArray(p);
-                    this.refreshAppearanceKits(p);
-                    this.refreshCombatWeaponCategory(p);
-                    p.attackDelay = this.pickAttackSpeed(p);
-                    const saveKey = this.getPlayerSaveKey(name, p.id);
-                    p.__saveKey = saveKey;
-                    try {
-                        this.playerPersistence.applyToPlayer(p, saveKey);
-                    } catch (err) {
-                        logger.warn("[player] failed to apply persistent vars", err);
-                    }
-                    // New accounts (no persistence key yet) must complete the player design flow.
-                    // Existing saves default to post-design stage unless persisted otherwise.
-                    try {
-                        if (!this.playerPersistence.hasKey(saveKey)) {
-                            p.accountStage = 0;
-                        } else if (!Number.isFinite(p.accountStage)) {
-                            p.accountStage = 1;
-                        }
-                    } catch {
-                        if (!Number.isFinite(p.accountStage)) p.accountStage = 1;
-                    }
-                    // Let the gamemode resolve account stage (e.g. tutorial completion).
-                    try {
-                        this.gamemode.resolveAccountStage?.(p);
-                    } catch {}
-                    // Force run mode on login (default to enabled)
-                    p.setRunToggle(true);
-                    try {
-                        this.refreshAppearanceKits(p);
-                        this.refreshCombatWeaponCategory(p);
-                    } catch (err) {
-                        logger.warn(
-                            "[player] failed to refresh appearance after persist",
-                            err,
-                        );
-                    }
-                } else {
-                    // Reconnecting - just refresh appearance in case client needs it
-                    logger.info(
-                        `[handshake] Resuming player ${name} at (${p.tileX}, ${p.tileY})`,
-                    );
-                }
-
-                try {
-                    this.followerManager?.restoreFollowerForPlayer(p);
-                } catch (err) {
-                    logger.warn("[follower] failed to restore player follower", err);
-                }
-
-                // Unlock all achievement diaries
-                // Structure: [varbitId, value] pairs
-                const DIARY_VARBITS: Array<[number, number]> = [
-                    // === STARTED FLAGS (1 = started) ===
-                    [3576, 1], // Karamja (atjun_started)
-                    [4448, 1], // Ardougne
-                    [4449, 1], // Falador
-                    [4450, 1], // Fremennik
-                    [4451, 1], // Kandarin
-                    [4452, 1], // Desert
-                    [4453, 1], // Lumbridge
-                    [4454, 1], // Morytania
-                    [4455, 1], // Varrock
-                    [4456, 1], // Western
-                    [4457, 1], // Wilderness
-                    [7924, 1], // Kourend
-
-                    // === COMPLETION FLAGS (1 = complete) ===
-                    // Ardougne
-                    [4458, 1],
-                    [4459, 1],
-                    [4460, 1],
-                    [4461, 1],
-                    // Desert
-                    [4483, 1],
-                    [4484, 1],
-                    [4485, 1],
-                    [4486, 1],
-                    // Falador
-                    [4462, 1],
-                    [4463, 1],
-                    [4464, 1],
-                    [4465, 1],
-                    // Fremennik
-                    [4491, 1],
-                    [4492, 1],
-                    [4493, 1],
-                    [4494, 1],
-                    // Kandarin
-                    [4475, 1],
-                    [4476, 1],
-                    [4477, 1],
-                    [4478, 1],
-                    // Karamja (atjun)
-                    // OSRS CS2 parity: these "done" varbits use value 2 when complete.
-                    [3578, 2],
-                    [3599, 2],
-                    [3611, 2],
-                    [4566, 1],
-                    // Kourend
-                    [7925, 1],
-                    [7926, 1],
-                    [7927, 1],
-                    [7928, 1],
-                    // Lumbridge
-                    [4495, 1],
-                    [4496, 1],
-                    [4497, 1],
-                    [4498, 1],
-                    // Morytania
-                    [4487, 1],
-                    [4488, 1],
-                    [4489, 1],
-                    [4490, 1],
-                    // Varrock
-                    [4479, 1],
-                    [4480, 1],
-                    [4481, 1],
-                    [4482, 1],
-                    // Western
-                    [4471, 1],
-                    [4472, 1],
-                    [4473, 1],
-                    [4474, 1],
-                    // Wilderness
-                    [4466, 1],
-                    [4467, 1],
-                    [4468, 1],
-                    [4469, 1],
-
-                    // === TASK COUNTS (set to max required for each tier) ===
-                    // Karamja: easy=10, med=19, hard=10, elite=5
-                    [2423, 10],
-                    [6288, 19],
-                    [6289, 10],
-                    [6290, 5],
-                    // Ardougne: easy=10, med=12, hard=12, elite=8
-                    [6291, 10],
-                    [6292, 12],
-                    [6293, 12],
-                    [6294, 8],
-                    // Desert: easy=11, med=12, hard=10, elite=6
-                    [6295, 11],
-                    [6296, 12],
-                    [6297, 10],
-                    [6298, 6],
-                    // Falador: easy=11, med=14, hard=11, elite=6
-                    [6299, 11],
-                    [6300, 14],
-                    [6301, 11],
-                    [6302, 6],
-                    // Fremennik: easy=10, med=9, hard=9, elite=6
-                    [6303, 10],
-                    [6304, 9],
-                    [6305, 9],
-                    [6306, 6],
-                    // Kandarin: easy=11, med=14, hard=11, elite=7
-                    [6307, 11],
-                    [6308, 14],
-                    [6309, 11],
-                    [6310, 7],
-                    // Lumbridge: easy=12, med=12, hard=11, elite=6
-                    [6311, 12],
-                    [6312, 12],
-                    [6313, 11],
-                    [6314, 6],
-                    // Morytania: easy=11, med=11, hard=10, elite=6
-                    [6315, 11],
-                    [6316, 11],
-                    [6317, 10],
-                    [6318, 6],
-                    // Varrock: easy=14, med=13, hard=10, elite=5
-                    [6319, 14],
-                    [6320, 13],
-                    [6321, 10],
-                    [6322, 5],
-                    // Wilderness: easy=12, med=11, hard=10, elite=7
-                    [6323, 12],
-                    [6324, 11],
-                    [6325, 10],
-                    [6326, 7],
-                    // Western: easy=11, med=13, hard=13, elite=7
-                    [6327, 11],
-                    [6328, 13],
-                    [6329, 13],
-                    [6330, 7],
-                    // Kourend: easy=12, med=13, hard=10, elite=8
-                    [7933, 12],
-                    [7934, 13],
-                    [7935, 10],
-                    [7936, 8],
-
-                    // === REWARD FLAGS (1 = claimed) ===
-                    // Karamja: easy=3577, med=3598, hard=3610, elite=4567
-                    [3577, 1],
-                    [3598, 1],
-                    [3610, 1],
-                    [4567, 1],
-                    // Ardougne: easy=4499, med=4500, hard=4501, elite=4502
-                    [4499, 1],
-                    [4500, 1],
-                    [4501, 1],
-                    [4502, 1],
-                    // Falador: easy=4503, med=4504, hard=4505, elite=4506
-                    [4503, 1],
-                    [4504, 1],
-                    [4505, 1],
-                    [4506, 1],
-                    // Wilderness: easy=4507, med=4508, hard=4509, elite=4510
-                    [4507, 1],
-                    [4508, 1],
-                    [4509, 1],
-                    [4510, 1],
-                    // Western: easy=4511, med=4512, hard=4513, elite=4514
-                    [4511, 1],
-                    [4512, 1],
-                    [4513, 1],
-                    [4514, 1],
-                    // Kandarin: easy=4515, med=4516, hard=4517, elite=4518
-                    [4515, 1],
-                    [4516, 1],
-                    [4517, 1],
-                    [4518, 1],
-                    // Varrock: easy=4519, med=4520, hard=4521, elite=4522
-                    [4519, 1],
-                    [4520, 1],
-                    [4521, 1],
-                    [4522, 1],
-                    // Desert: easy=4523, med=4524, hard=4525, elite=4526
-                    [4523, 1],
-                    [4524, 1],
-                    [4525, 1],
-                    [4526, 1],
-                    // Morytania: easy=4527, med=4528, hard=4529, elite=4530
-                    [4527, 1],
-                    [4528, 1],
-                    [4529, 1],
-                    [4530, 1],
-                    // Fremennik: easy=4531, med=4532, hard=4533, elite=4534
-                    [4531, 1],
-                    [4532, 1],
-                    [4533, 1],
-                    [4534, 1],
-                    // Lumbridge: easy=4535, med=4536, hard=4537, elite=4538
-                    [4535, 1],
-                    [4536, 1],
-                    [4537, 1],
-                    [4538, 1],
-                    // Kourend: easy=7929, med=7930, hard=7931, elite=7932
-                    [7929, 1],
-                    [7930, 1],
-                    [7931, 1],
-                    [7932, 1],
-                ];
-                for (const [varbitId, value] of DIARY_VARBITS) {
-                    p.setVarbitValue(varbitId, value);
-                }
-
-                const handshakeAppearance = p.appearance;
-                const handshakeName = this.getAppearanceDisplayName(p) || name;
-                const handshakeChatIcons = this.isAdminPlayer(p)
-                    ? [ADMIN_CROWN_ICON]
-                    : undefined;
-                // Confirm handshake to client with assigned id and appearance
-                this.withDirectSendBypass("handshake_ack", () =>
-                    this.sendWithGuard(
-                        ws,
-                        encodeMessage({
-                            type: "handshake",
-                            payload: {
-                                id: p.id,
-                                name: handshakeName,
-                                appearance: handshakeAppearance,
-                                chatIcons: handshakeChatIcons,
-                            } as any,
-                        }),
-                        "handshake_ack",
-                    ),
-                );
-                this.sendAnimUpdate(ws, p);
-                this.sendInventorySnapshotImmediate(ws, p);
-                // OSRS parity: ensure login sends a full skill snapshot (packet 134 burst).
-                // Without this, reconnect paths can end up sending only deltas (or nothing),
-                // leading to briefly incorrect levels until the next XP/HP change.
-                p.requestFullSkillSync();
-                this.sendSkillsSnapshotImmediate(ws, p);
-                this.sendCombatState(ws, p);
-                this.sendRunEnergyState(ws, p);
-                // Send saved transmit varps to restore client state
-                this.sendSavedTransmitVarps(ws, p);
-                this.sendCollectionLogDisplayVarps(ws, p);
-                this.sendSavedAutocastTransmitVarbits(ws, p);
-                // Account type (varbit 1777) drives ownership filtering for ground items.
-                this.syncAccountTypeVarbit(ws, p);
-                const sideJournalState = this.normalizeSideJournalState(p);
-                // Send side-journal tab state immediately so varp/varbit selection state
-                // is synchronized before side_journal scripts execute.
-                this.withDirectSendBypass("varp", () =>
-                    this.sendWithGuard(
-                        ws,
-                        encodeMessage({
-                            type: "varp",
-                            payload: {
-                                varpId: VARP_SIDE_JOURNAL_STATE,
-                                value: sideJournalState.stateVarp,
-                            },
-                        }),
-                        "varp",
-                    ),
-                );
-                this.withDirectSendBypass("varbit", () =>
-                    this.sendWithGuard(
-                        ws,
-                        encodeMessage({
-                            type: "varbit",
-                            payload: {
-                                varbitId: VARBIT_SIDE_JOURNAL_TAB,
-                                value: sideJournalState.tab,
-                            },
-                        }),
-                        "varbit",
-                    ),
-                );
-
-                // Send diary varbits to client
-                for (const [varbitId, value] of DIARY_VARBITS) {
-                    this.withDirectSendBypass("varbit", () =>
-                        this.sendWithGuard(
-                            ws,
-                            encodeMessage({
-                                type: "varbit",
-                                payload: { varbitId, value },
-                            }),
-                            "varbit",
-                        ),
-                    );
-                }
-
-                // Send gamemode content data (tasks, masteries, etc.) before any varps
-                const contentDataPacket = this.gamemode.getContentDataPacket?.();
-                if (contentDataPacket) {
-                    this.withDirectSendBypass("gamemode_data", () =>
-                        this.sendWithGuard(ws, contentDataPacket, "gamemode_data"),
-                    );
-                }
-
-                // Gamemode handshake: send gamemode-specific varps/varbits
-                this.gamemode.onPlayerHandshake(p, {
-                    sendVarp: (varpId, value) =>
-                        this.withDirectSendBypass("varp", () =>
-                            this.sendWithGuard(ws, encodeMessage({
-                                type: "varp",
-                                payload: { varpId, value },
-                            }), "varp"),
-                        ),
-                    sendVarbit: (varbitId, value) =>
-                        this.withDirectSendBypass("varbit", () =>
-                            this.sendWithGuard(ws, encodeMessage({
-                                type: "varbit",
-                                payload: { varbitId, value },
-                            }), "varbit"),
-                        ),
-                    queueVarp: (playerId, varpId, value) =>
-                        this.queueVarp(playerId, varpId, value),
-                    queueVarbit: (playerId, varbitId, value) =>
-                        this.queueVarbit(playerId, varbitId, value),
-                    queueNotification: (playerId, notification) =>
-                        this.queueNotification(playerId, notification),
-                });
-
-                const clientType = parsed.payload.clientType;
-                const isMobileClient = clientType === 1;
-
-                // Seed standalone root bootstrap scripts before the root interface mounts.
-                // Reference cache:
-                // - clientscript 626 -> camera zoom clamp varcs for toplevel_resize
-                // - clientscript 5487 -> enhanced highlight/clientop channel bootstrap
-                // - proc 7581 -> enhanced NPC tagging client-op bootstrap
-                // These arrive as RUN_CLIENT_SCRIPT before root setup, not from later
-                // widget events or sub-interface post-scripts.
-                {
-                    const {
-                        getDefaultInterfaces,
-                        getRootInterfaceId,
-                        DisplayMode,
-                    } = require("../widgets/WidgetManager");
-                    const { getViewportRootInitScripts } = require("../widgets/viewport");
-                    const displayMode = isMobileClient
-                        ? DisplayMode.MOBILE
-                        : DisplayMode.RESIZABLE_NORMAL;
-                    const rootInterfaceGroupId = getRootInterfaceId(displayMode);
-                    for (const script of getViewportRootInitScripts()) {
-                        this.withDirectSendBypass("runClientScript", () =>
-                            this.sendWithGuard(
-                                ws,
-                                encodeMessage({
-                                    type: "runClientScript",
-                                    payload: {
-                                        scriptId: script.scriptId,
-                                        args: script.args,
-                                    },
-                                }),
-                                "runClientScript",
-                            ),
-                        );
-                    }
-                    this.queueWidgetEvent(p.id, {
-                        action: "set_root",
-                        groupId: rootInterfaceGroupId,
-                    });
-
-                    // Send IF_OPENSUB packets to populate all the tabs.
-                    // These trigger onSubChange events that re-run sidebuttons_enable.
-                    // Store the display mode on the player for later use (e.g., when opening interfaces)
-                    p.displayMode = displayMode;
-
-                    // Check which tabs to show based on account stage and tutorial progress:
-                    // - accountStage 0 (char creation): NO tabs
-                    // - accountStage 1, step 0 (welcome screen): NO tabs (Quest tab opens on "Get Started")
-                    // - accountStage 1, step >= 1 (in tutorial): Quest tab only
-                    // - accountStage 2 (tutorial complete): all tabs
-                    const accountStage = p.accountStage;
-                    const tutorialActive = this.gamemode.isTutorialActive(p);
-                    const tutorialMode = accountStage >= 1 && tutorialActive;
-                    const charCreationMode = accountStage === 0;
-                    // Hide ALL tabs until the player starts the tutorial
-                    const preStartMode = charCreationMode || (this.gamemode.isTutorialPreStart?.(p) ?? false);
-
-                    const interfaces = getDefaultInterfaces(displayMode, {
-                        tutorialMode: tutorialMode || charCreationMode,
-                    });
-                    // During char creation or welcome screen, don't open even the Quest tab
-                    const filteredInterfaces = preStartMode
-                        ? interfaces.filter((i: { groupId: number }) => i.groupId !== 629)
-                        : interfaces;
-                    const xpDropsEnabled = p.getVarbitValue(VARBIT_XPDROPS_ENABLED) === 1;
-                    for (const intf of filteredInterfaces) {
-                        // For quest tab (group 629 - side_journal), send quest progress varps/varbits
-                        // These varps control quest visibility and list height
-                        const questVarps: Record<number, number> = {};
-                        const questVarbits: Record<number, number> = {};
-                        if (intf.groupId === SIDE_JOURNAL_GROUP_ID) {
-                            // Quest progress varps would come from player save data in a real implementation.
-                            // We no longer blindly set varps 0-499 to 1, as this overwrites many
-                            // non-quest varps (e.g., varp 83 = PRAYER0, and others affecting prayerbook state).
-
-                            // Include gamemode-specific varps/varbits in the open_sub payload
-                            // so they're applied synchronously BEFORE the interface's CS2 scripts run.
-                            const gamemodeSideJournalBootstrap =
-                                this.gamemodeUi?.getSideJournalBootstrapState(p)
-                                ?? { varps: {}, varbits: {} };
-                            Object.assign(questVarps, gamemodeSideJournalBootstrap.varps);
-                            Object.assign(questVarbits, gamemodeSideJournalBootstrap.varbits);
-
-                            // Quest count varbits - these control the "Completed: X/Y" and "Quest Points: X/Y" display
-                            // Varbit 6347 = QUESTS_COMPLETED_COUNT - number of completed quests
-                            // Varbit 11877 = QUESTS_TOTAL_COUNT - total number of quests available
-                            // Varbit 1782 = QP_MAX - maximum quest points available
-                            // In a real implementation, these would be calculated from player save data.
-                            // For now, set reasonable defaults so the UI displays properly.
-                            questVarbits[6347] = 0; // quests_completed_count (0 completed)
-                            questVarbits[11877] = 158; // quests_total_count (158 total quests in OSRS)
-                            questVarbits[1782] = 300; // qp_max (300 max quest points)
-
-                            // Varp 101 = QP (current quest points)
-                            // Varp 904 = QP_TOTAL (triggers UI update for quest points display)
-                            questVarps[101] = 0; // qp (0 current quest points)
-                            questVarps[904] = 300; // qp_total (triggers questlist_qp script)
-                        }
-                        // Merge interface-defined varbits with quest varbits
-                        const mergedVarbits = {
-                            ...(intf.varbits ?? {}),
-                            ...questVarbits,
-                        };
-                        const mergedVarps = {
-                            ...(intf.varps ?? {}),
-                            ...questVarps,
-                        };
-                        // XP counter visibility must be applied after mount on login.
-                        // If sent early as a standalone set_hidden, the target widget may not exist yet.
-                        const hideXpCounterOnOpen = intf.groupId === 122 && !xpDropsEnabled;
-                        this.queueWidgetEvent(p.id, {
-                            action: "open_sub",
-                            targetUid: intf.targetUid,
-                            groupId: intf.groupId,
-                            type: intf.type,
-                            ...(Array.isArray(intf.postScripts) &&
-                            intf.postScripts.length > 0
-                                ? { postScripts: intf.postScripts }
-                                : {}),
-                            ...(hideXpCounterOnOpen
-                                ? { hiddenUids: [intf.targetUid] }
-                                : {}),
-                            ...(Object.keys(mergedVarps).length > 0
-                                ? { varps: mergedVarps }
-                                : {}),
-                            ...(Object.keys(mergedVarbits).length > 0
-                                ? { varbits: mergedVarbits }
-                                : {}),
-                        });
-
-                        // Side journal (quest tab) content is mounted onto 629:43.
-                        if (intf.groupId === SIDE_JOURNAL_GROUP_ID) {
-                            this.queueSideJournalGamemodeUi(p);
-                        }
-                    }
-                    if (tutorialMode && !preStartMode) {
-                        // Run once after all IF_OPENSUB mounts so toplevel state is ready.
-                        this.queueActivateQuestSideTab(p.id);
-                    }
-                    // Gamemode tutorial overlay (shown while tutorial is active).
-                    //
-                    // Project behavior: do not show the overlay over PlayerDesign (accountStage=0).
-                    if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {
-                        this.gamemodeUi?.queueTutorialOverlay(p);
-                    }
-
-                    // ============================================================
-                    // OSRS Parity: IF_SETEVENTS for inventory widget slots
-                    // ============================================================
-                    // The server must send IF_SETEVENTS to enable item operations.
-                    // Without this, clicking "Drop" shows the menu but never
-                    // transmits the packet to the server.
-                    //
-                    // Flags breakdown (1181694 = 0x120BFE):
-                    //   Bits 1-7:  1111111 - transmit ops 1-7 (Use, Wield, Drop, etc.)
-                    //   Bit 9:     1       - transmit op 9
-                    //   Bit 11:    1       - can target ground items
-                    //   Bits 17-19: 001    - drag depth 1 (for inventory swapping)
-                    //   Bit 20:    1       - drop target (can receive dragged items)
-                    //
-                    // Reference: RSMod Bank.kt line 136, player.setInterfaceEvents
-                    const INVENTORY_GROUP_ID = 149;
-                    const INVENTORY_CONTAINER_COMPONENT = 0;
-                    const INVENTORY_SLOT_COUNT = 28;
-                    const INVENTORY_FLAGS = 1181694; // Enables ops 1-7, 9 + drag/drop
-
-                    this.queueWidgetEvent(p.id, {
-                        action: "set_flags_range",
-                        uid: (INVENTORY_GROUP_ID << 16) | INVENTORY_CONTAINER_COMPONENT,
-                        fromSlot: 0,
-                        toSlot: INVENTORY_SLOT_COUNT - 1,
-                        flags: INVENTORY_FLAGS,
-                    });
-                    // ============================================================
-                    // OSRS Parity: IF_SETEVENTS for prayer filter dynamic rows
-                    // ============================================================
-                    // Prayer filters menu rows are dynamic children of 541:42 created via CC_CREATE.
-                    // Rows use OP1 ("Change"), so send transmit-op1 for slots 0..4.
-                    const PRAYER_GROUP_ID = 541;
-                    const PRAYER_FILTER_COMPONENT = 42;
-                    const PRAYER_FILTER_SLOT_START = 0;
-                    const PRAYER_FILTER_SLOT_END = 4;
-                    const PRAYER_FILTER_FLAGS = 1 << 1; // transmit op1
-
-                    this.queueWidgetEvent(p.id, {
-                        action: "set_flags_range",
-                        uid: (PRAYER_GROUP_ID << 16) | PRAYER_FILTER_COMPONENT,
-                        fromSlot: PRAYER_FILTER_SLOT_START,
-                        toSlot: PRAYER_FILTER_SLOT_END,
-                        flags: PRAYER_FILTER_FLAGS,
-                    });
-                    // ============================================================
-                    // OSRS Parity: IF_SETEVENTS for equipment widget slots
-                    // ============================================================
-                    // Equipment slots (387:15-25) need transmit flags for Remove action.
-                    // These are STATIC widgets (loaded from cache) with childIndex=-1.
-                    // OSRS client: class405.getWidgetFlags uses (childIndex + (id << 32)) as key.
-                    // Static widgets have childIndex=-1 (from Widget.java constructor).
-                    // To set flags on a static widget, use fromSlot=-1, toSlot=-1.
-                    //
-                    // Flags: 62 = 0b111110 (transmit ops 1-5 for Remove, etc.)
-                    const EQUIPMENT_GROUP_ID = 387;
-                    const EQUIPMENT_SLOT_START = 15;
-                    const EQUIPMENT_SLOT_END = 25;
-                    const EQUIPMENT_FLAGS = 62; // Ops 1-5 transmit
-
-                    for (
-                        let comp = EQUIPMENT_SLOT_START;
-                        comp <= EQUIPMENT_SLOT_END;
-                        comp++
-                    ) {
-                        this.queueWidgetEvent(p.id, {
-                            action: "set_flags_range",
-                            uid: (EQUIPMENT_GROUP_ID << 16) | comp,
-                            fromSlot: -1,
-                            toSlot: -1, // Static widget (childIndex=-1) - NOT dynamic children
-                            flags: EQUIPMENT_FLAGS,
-                        });
-                    }
-
-                    // ============================================================
-                    // OSRS Parity: IF_SETEVENTS for quest list dynamic children
-                    // ============================================================
-                    // Quest list (399:7) dynamic children need transmit flags for
-                    // ops 1-6 (View info, Read journal, Show on map, Wiki guide,
-                    // Wiki quick guide, Pin journal).
-                    // Without this, clicking a quest entry doesn't send a packet.
-                    const QUEST_LIST_GROUP_ID = 399;
-                    const QUEST_LIST_COMPONENT = 7;
-                    const QUEST_LIST_MAX_SLOT = 199; // generous upper bound for all quests
-                    const QUEST_LIST_FLAGS = 0x7e; // ops 1-6 transmit (bits 1-6)
-
-                    this.queueWidgetEvent(p.id, {
-                        action: "set_flags_range",
-                        uid: (QUEST_LIST_GROUP_ID << 16) | QUEST_LIST_COMPONENT,
-                        fromSlot: 0,
-                        toSlot: QUEST_LIST_MAX_SLOT,
-                        flags: QUEST_LIST_FLAGS,
-                    });
-                }
-
-                // Onboarding: open PlayerDesign (679) in mainmodal so the player can choose
-                // gender/body kits. accountStage=0 means the design is required.
-                if (p.accountStage === 0) {
-                    try {
-                        const { getMainmodalUid } = require("../widgets/WidgetManager");
-                        const targetUid = getMainmodalUid(p.displayMode);
-                        p.widgets.open(679, { targetUid, type: 0 });
-                    } catch {}
-                }
-
-                // Gamemode tutorial spawn: while tutorial is active, force the player
-                // into the tutorial area regardless of saved location.
-                try {
-                    if (p.accountStage >= 1 && this.gamemode.isTutorialActive(p)) {
-                        const spawn = this.gamemode.getSpawnLocation(p);
-                        p.teleport(spawn.x, spawn.y, spawn.level);
-                    }
-                } catch {}
-
-                // Let the gamemode restore any feature-specific state (sailing, etc.)
-                this.gamemode.onPlayerRestore?.(p);
-
-                const startTileX = p.tileX;
-                const startTileY = p.tileY;
-                const startLevel = p.level;
-                logger.info(
-                    `Handshake ok id=${p.id} spawn=(${startTileX},${startTileY},L${startLevel})`,
-                );
-                // Now send initial spawn position (after handshake)
-                // OSRS parity: Always send the server-authoritative appearance state (post-persistence,
-                // post refreshAppearanceKits), not the raw handshake payload.
-                const appearanceSnapshot = p.appearance;
-                this.queueAppearanceSnapshot(p, {
-                    x: (startTileX << 7) + 64,
-                    y: (startTileY << 7) + 64,
-                    level: startLevel,
-                    rot: p.rot,
-                    orientation: p.getOrientation() & 2047,
-                    running: false,
-                    appearance: appearanceSnapshot,
-                    name,
-                    moved: true,
-                    turned: false,
-                    snap: true,
-                });
-                p.markSent();
-
-                // Send welcome message
-                this.queueChatMessage({
-                    messageType: "server",
-                    text: "Welcome to Old School Runescape!",
-                    targetPlayerIds: [p.id],
-                });
-
-                if (this.npcManager && p) {
-                    const player = p;
-                    try {
-                        const nearby = this.npcManager.getNearby(
-                            startTileX,
-                            startTileY,
-                            startLevel,
-                            NPC_STREAM_RADIUS_TILES,
-                        );
-                        player.visibleNpcIds.clear();
-                        if (DEBUG_NPC_STREAM) {
-                            logger.debug(
-                                `[npcs] initial snapshot -> player=${player.id} count=${nearby.length}`,
-                            );
-                        }
-                        for (const npc of nearby) {
-                            const snap = this.npcSyncManager.serializeNpcSnapshot(npc);
-                            player.visibleNpcIds.add(snap.id);
-                            this.npcSyncManager.queueNpcSnapshot(player.id, snap);
-                        }
-                    } catch (err) {
-                        logger.warn("[NpcManager] snapshot send failed", err);
-                    }
-                }
-
-                this.maybeReplayDynamicLocState(ws, p, true);
-            }
-        } catch {}
+        this.loginHandshakeService.handleHandshakeMessage(ws, payload);
     }
+
 
     private onConnection(ws: WebSocket) {
-        logger.info("Client connected");
-        this.playerSyncSessions.set(ws, new PlayerSyncSession());
-        // Send welcome
-        this.withDirectSendBypass("welcome_packet", () =>
-            this.sendWithGuard(
-                ws,
-                encodeMessage({
-                    type: "welcome",
-                    payload: { tickMs: this.options.tickMs, serverTime: Date.now() },
-                }),
-                "welcome_packet",
-            ),
-        );
-        // Defer player spawn until after handshake
-
-        ws.on("message", (raw) => {
-            // For new binary protocol messages that need legacy handlers (login, handshake)
-            let binaryParsed: RoutedMessage | null = null;
-
-            // Handle binary packets
-            if (isBinaryData(raw)) {
-                // Check if this is from the new JSON-replacement protocol (opcodes >= 180)
-                if (isNewProtocolPacket(raw as Buffer | ArrayBuffer)) {
-                    const decoded = decodeClientPacket(toUint8Array(raw));
-                    if (decoded) {
-                        // Route through MessageRouter (same as JSON path)
-                        if (this.messageRouter.dispatch(ws, decoded)) {
-                            return;
-                        }
-                        // Fall through to legacy handlers for messages like 'login', 'handshake'
-                        binaryParsed = decoded;
-                    } else {
-                        return;
-                    }
-                } else {
-                    // Handle OSRS-style binary packets (opcodes 1-103)
-                    const data = toUint8Array(raw);
-                    const packets = parsePacketsAsMessages(data);
-                    for (const { msg, packet } of packets) {
-                        if (packet.type === "appearance_set") {
-                            const p = this.players?.get(ws);
-                            if (!p) continue;
-                            const ap = packet as AppearanceSetPacket;
-
-                            const appearance = this.getOrCreateAppearance(p);
-                            appearance.gender = ap.gender === 1 ? 1 : 0;
-                            appearance.kits = new Array<number>(7).fill(-1);
-                            appearance.colors = new Array<number>(5).fill(0);
-                            for (let i = 0; i < 7 && i < ap.kits.length; i++) {
-                                appearance.kits[i] = ap.kits[i];
-                            }
-                            for (let i = 0; i < 5 && i < ap.colors.length; i++) {
-                                appearance.colors[i] = ap.colors[i];
-                            }
-
-                            // Validate / fill defaults against cache (drops invalid kits for the chosen gender).
-                            this.refreshAppearanceKits(p);
-                            p.markAppearanceDirty();
-                            this.queueAppearanceSnapshot(p);
-
-                            // Advance onboarding (required design complete).
-                            p.accountStage = 1;
-                            try {
-                                const key = p.__saveKey;
-                                if (key && key.length > 0) {
-                                    this.playerPersistence.saveSnapshot(key, p);
-                                }
-                            } catch {}
-
-                            // Close PlayerDesign (sub-interface in mainmodal).
-                            try {
-                                p.widgets.close(679);
-                            } catch {}
-
-                            // Apply post-design logic and teleport to spawn.
-                            try {
-                                this.gamemode.onPostDesignComplete?.(p);
-                                const spawn = this.gamemode.getSpawnLocation(p);
-                                this.teleportPlayer(p, spawn.x, spawn.y, spawn.level);
-                                const name = p.name;
-                                const appearanceSnapshot = p.appearance;
-                                this.queueAppearanceSnapshot(p, {
-                                    x: (spawn.x << 7) + 64,
-                                    y: (spawn.y << 7) + 64,
-                                    level: spawn.level,
-                                    rot: p.rot,
-                                    orientation: p.getOrientation() & 2047,
-                                    running: false,
-                                    appearance: appearanceSnapshot,
-                                    name,
-                                    moved: true,
-                                    turned: false,
-                                    snap: true,
-                                });
-                            } catch {}
-
-                            // Gamemode post-design UI (e.g. tutorial overlay)
-                            if (this.gamemode.isTutorialActive(p)) {
-                                this.gamemodeUi?.queueTutorialOverlay(p, { queueFlashsideVarbitOnStep3: true });
-                            } else {
-                                // No tutorial — open all tabs and advance to full account stage.
-                                p.accountStage = 2;
-                                const displayMode = p.displayMode ?? 1;
-                                const { getDefaultInterfaces: getDefIntf } = require("../widgets/WidgetManager");
-                                const allInterfaces = getDefIntf(displayMode);
-                                for (const intf of allInterfaces) {
-                                    this.queueWidgetEvent(p.id, {
-                                        action: "open_sub",
-                                        targetUid: intf.targetUid,
-                                        groupId: intf.groupId,
-                                        type: intf.type,
-                                        ...(Array.isArray(intf.postScripts) && intf.postScripts.length > 0
-                                            ? { postScripts: intf.postScripts }
-                                            : {}),
-                                    });
-                                }
-                            }
-                            continue;
-                        }
-
-                        if (!msg && this.handleExaminePacket(ws, packet)) {
-                            continue;
-                        }
-
-                        // msg is already converted by parsePacketsAsMessages().
-                        // Route through MessageRouter first so OSRS packet-path actions
-                        // (npc/loc/spell/etc.) share the same canonical handlers.
-                        if (msg) {
-                            if (this.messageRouter.dispatch(ws, msg)) {
-                                continue;
-                            }
-                            this.messageRouter.dispatch(ws, msg) || logger.debug?.(`[binary] Unhandled: ${msg.type}`);
-                        }
-                    }
-                    return;
-                }
-                // New protocol message needs legacy handler - don't return, fall through
-            }
-
-            // JSON protocol removed - only binary is supported
-            if (!binaryParsed) {
-                console.warn("[ws] Received non-binary message, ignoring");
-                return;
-            }
-            const parsed = binaryParsed;
-
-            // Try to dispatch via MessageRouter first (handles INTERFACE_CLOSING_ACTIONS internally)
-            // Note: This path is only for new protocol messages that need legacy handlers
-            if (this.messageRouter.dispatch(ws, parsed)) {
-                return; // Handler found and executed
-            }
-
-            // Pre-auth handlers (login/handshake execute before player exists)
-            if (parsed.type === "login") {
-                this.handleLoginMessage(ws, parsed.payload);
-                return;
-            } else if (parsed.type === "handshake") {
-                this.handleHandshakeMessage(ws, parsed.payload);
-                return;
-            } else {
-                this.messageRouter.dispatch(ws, parsed) || logger.debug?.(`[binary] Unhandled: ${parsed.type}`);
-            }
-        });
-
-        ws.on("close", () => {
-            try {
-                this.movementService.getPendingWalkCommands().delete(ws);
-                const player = this.players?.get(ws);
-                const id = player?.id;
-                if (player) {
-                    if (id !== undefined) {
-                        this.groundItemHandler?.clearPlayerState(id);
-                        this.playerDynamicLocSceneKeys.delete(id);
-                    }
-                    // Clean up all interruptible interfaces (level-up popups, dialogs, modals)
-                    this.dismissLevelUpPopupQueue(player.id);
-                    this.clearUiTrackingForPlayer(player.id);
-                    this.tradeManager?.handlePlayerLogout(
-                        player,
-                        "The other player has declined the trade.",
-                    );
-                    if (id !== undefined) {
-                        this.widgetDialogHandler.cleanupPlayerDialogState(id);
-                    }
-                    this.scriptRuntime.getServices().closeShop?.(player);
-                    // Clean up InterfaceService state (handles any open modals)
-                    this.interfaceService?.onPlayerDisconnect(player);
-                    // Close any open widgets before cleanup
-                    try {
-                        const closedWidgets = player.widgets.closeAll({ silent: true });
-                        if (closedWidgets.length > 0) {
-                            logger.info(
-                                `[disconnect] Closed ${
-                                    closedWidgets.length
-                                } widgets for player ${id}: ${closedWidgets
-                                    .map((entry) => entry.groupId)
-                                    .join(", ")}`,
-                            );
-                        }
-                    } catch (err) {
-                        logger.warn(`[disconnect] Failed to close widgets for player ${id}:`, err);
-                    }
-                    player.widgets.setDispatcher(undefined);
-
-                    // Dispose instance NPCs before saving
-                    this.sailingInstanceManager?.disposeInstance(player);
-                    this.worldEntityInfoEncoder.removePlayer(player.id);
-
-                    // Get save key for persistence and orphan tracking
-                    const saveKey =
-                        player.__saveKey ?? this.getPlayerSaveKey(player.name, player.id);
-
-                    // Check if player should be orphaned (in combat) instead of removed
-                    const currentTick = this.options.ticker.currentTick();
-                    const wasOrphaned = this.players?.orphanPlayer(ws, saveKey, currentTick);
-
-                    if (wasOrphaned) {
-                        // Player is in combat - keep them in world, don't save yet
-                        // They'll be saved when orphan expires
-                        logger.info(
-                            `[disconnect] Player ${id} orphaned (in combat) - staying in world`,
-                        );
-                        // Don't unregister from action scheduler - they're still in game
-                    } else {
-                        // Safe to logout - save and remove normally
-                        try {
-                            this.playerPersistence.saveSnapshot(saveKey, player);
-                        } catch (err) {
-                            logger.warn("[persist] failed to save player state", err);
-                        }
-                        this.followerCombatManager?.resetPlayer(player.id);
-                        this.followerManager?.despawnFollowerForPlayer(player.id, false);
-                        this.players?.remove(ws);
-                        if (id != null) this.actionScheduler.unregisterPlayer(id);
-                        if (id != null) logger.info(`Client disconnected id=${id}`);
-                        else logger.info("Client disconnected");
-                    }
-                } else {
-                    // No player found - just clean up
-                    this.players?.remove(ws);
-                    logger.info("Client disconnected (no player)");
-                }
-            } catch {
-                logger.info("Client disconnected");
-            }
-            this.playerSyncSessions.delete(ws);
-            this.npcSyncSessions.delete(ws);
-        });
-        ws.on("error", (err) => logger.warn("Client error:", err));
+        this.loginHandshakeService.onConnection(ws);
     }
+
 
     private handleInventoryUseOnMessage(
         ws: WebSocket,
@@ -9479,11 +5698,11 @@ export class WSServer {
                             text: "Nothing interesting happens.",
                             targetPlayerIds: [p.id],
                         });
-                    } catch {}
+                    } catch (err) { logger.warn("[item] chat message send failed", err); }
                 }
                 return;
             }
-        } catch {}
+        } catch (err) { logger.warn("[item] use validation failed", err); }
         // Schedule server-authoritative walk-to + interaction resolution (Elvarg-style WalkToTask).
         try {
             this.actionScheduler.requestAction(

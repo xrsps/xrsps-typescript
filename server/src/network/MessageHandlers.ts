@@ -372,7 +372,7 @@ export function registerMessageHandlers(
             if (!res?.ok) {
                 logger.info(`interact rejected: ${res?.message || "invalid"}`);
             }
-        } catch {}
+        } catch (err) { logger.warn("Failed to start player interaction", err); }
     });
 
     router.register("player_attack", (ctx) => {
@@ -422,7 +422,7 @@ export function registerMessageHandlers(
                 },
                 services.currentTick(),
             );
-        } catch {}
+        } catch (err) { logger.warn("Failed to start loc interaction", err); }
     });
 
     router.register("trade_action", (ctx) => {
@@ -465,6 +465,7 @@ export function registerMessageHandlers(
     router.register("walk", (ctx) => {
         const to = ctx.payload.to;
         const modifierFlags = normalizeModifierFlags(ctx.payload.modifierFlags);
+        logger.info(`[walk] received walk to (${to?.x}, ${to?.y}) player=${ctx.player?.id}`);
 
         if (!ctx.player) {
             logger.info("walk rejected: player not ready");
@@ -490,11 +491,11 @@ export function registerMessageHandlers(
                 ctx.player.clearInteraction();
                 ctx.player.stopAnimation();
             }
-        } catch {}
+        } catch (err) { logger.warn("Failed to clear woodcutting actions on walk", err); }
 
         try {
             services.clearActionsInGroup(ctx.player.id, "inventory");
-        } catch {}
+        } catch (err) { logger.warn("Failed to clear inventory actions on walk", err); }
     });
 
     router.register("teleport", (ctx) => {
@@ -530,7 +531,7 @@ export function registerMessageHandlers(
                 }
                 return;
             }
-        } catch {}
+        } catch (err) { logger.warn("Failed to process teleport request", err); }
     });
 
     router.register("face", (ctx) => {
@@ -548,7 +549,7 @@ export function registerMessageHandlers(
                     ctx.player.faceTile(tx, ty);
                 }
             }
-        } catch {}
+        } catch (err) { logger.warn("Failed to process face direction", err); }
     });
 
     router.register("pathfind", (ctx) => {
@@ -573,7 +574,7 @@ export function registerMessageHandlers(
         const dt = Date.now() - t0;
         try {
             logger.info(`pathfind request: ${dt}ms`);
-        } catch {}
+        } catch (err) { logger.warn("Failed to log pathfind timing", err); }
         services.sendAdminResponse(
             ctx.ws,
             services.encodeMessage({
@@ -719,7 +720,7 @@ export function registerMessageHandlers(
                         if (canBankFromPos) {
                             try {
                                 services.startNpcInteraction(ctx.ws, npc, option, modifierFlags);
-                            } catch {}
+                            } catch (err) { logger.warn("Failed to start NPC bank interaction", err); }
                             return;
                         } else {
                             const isCardinallyAligned =
@@ -782,7 +783,7 @@ export function registerMessageHandlers(
                                         option,
                                         modifierFlags,
                                     );
-                                } catch {}
+                                } catch (err) { logger.warn("Failed to start NPC interaction after walk", err); }
                                 routed = true;
                                 break;
                             }
@@ -1230,7 +1231,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                 if (root === "clear") {
                     try {
                         services.clearActionsInGroup(sender.id, "inventory");
-                    } catch {}
+                    } catch (err) { logger.warn("Failed to clear inventory actions on ::clear command", err); }
 
                     sender.clearInventory();
                     services.queueChatMessage({
@@ -1259,7 +1260,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
 
                     try {
                         services.clearActionsInGroup(sender.id, "inventory");
-                    } catch {}
+                    } catch (err) { logger.warn("Failed to clear inventory actions on ::allrunes command", err); }
 
                     const runeLoadout: InventoryLoadoutEntry[] = ALL_RUNE_ITEM_IDS.map((itemId) => ({
                         itemId,

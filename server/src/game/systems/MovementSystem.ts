@@ -1,3 +1,4 @@
+import { logger } from "../../utils/logger";
 import type { PathService } from "../../pathfinding/PathService";
 import type { PlayerCombatManager } from "../combat";
 import { NpcManager } from "../npcManager";
@@ -28,49 +29,49 @@ export class MovementSystem {
                 bot.followX = bot.tileX;
                 bot.followZ = bot.tileY;
             });
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to update follow positions", err); }
 
         try {
             this.players.updateFollowing(tick);
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to update following", err); }
         try {
             this.players.updateNpcInteractions(tick, (npcId) => this.npcManager?.getById(npcId));
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to update npc interactions (pre)", err); }
         try {
             this.playerCombatManager?.updateNpcCombatMovement({
                 tick,
                 pathService: this.pathService,
                 npcLookup: (npcId) => this.npcManager?.getById(npcId),
             });
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to update npc combat movement (pre)", err); }
         try {
             this.players.updateLocInteractions(tick);
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to update loc interactions", err); }
         try {
             this.players.updateGroundItemInteractions(tick);
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to update ground item interactions (pre)", err); }
         try {
             this.playerCombatManager?.applyPreMovementLocks({
                 tick,
                 pathService: this.pathService,
                 npcLookup: (npcId) => this.npcManager?.getById(npcId),
             });
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to apply pre-movement locks", err); }
     }
 
     runPostMovement(tick: number): void {
         try {
             this.players.updateGroundItemInteractions(tick);
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to update ground item interactions (post)", err); }
         try {
             this.players.updateNpcInteractions(tick, (npcId) => this.npcManager?.getById(npcId));
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to update npc interactions (post)", err); }
         try {
             this.playerCombatManager?.updateNpcCombatMovement({
                 tick,
                 pathService: this.pathService,
                 npcLookup: (npcId) => this.npcManager?.getById(npcId),
             });
-        } catch {}
+        } catch (err) { logger.warn("[movement-system] failed to update npc combat movement (post)", err); }
     }
 }

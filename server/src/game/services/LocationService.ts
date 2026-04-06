@@ -41,8 +41,16 @@ export interface LocationServiceDeps {
  * Manages location changes, loc spawning, adjacency checks, and gathering target facing.
  * Extracted from WSServer.
  */
+export interface LocationServiceDeferredDeps {
+    doorManager?: DoorStateManager;
+}
+
 export class LocationService {
     constructor(private readonly deps: LocationServiceDeps) {}
+
+    setDeferredDeps(deferred: LocationServiceDeferredDeps): void {
+        Object.assign(this.deps, deferred);
+    }
 
     emitLocChange(
         oldId: number,

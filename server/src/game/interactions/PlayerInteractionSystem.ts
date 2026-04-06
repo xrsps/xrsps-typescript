@@ -348,10 +348,10 @@ export class PlayerInteractionSystem {
     private replaceInteractionState(ws: any, player: PlayerState): void {
         try {
             player.interruptQueues();
-        } catch {}
+        } catch (err) { logger.warn("[interaction] failed to interrupt queues", err); }
         try {
             player.resetInteractions();
-        } catch {}
+        } catch (err) { logger.warn("[interaction] failed to reset interactions", err); }
         this.clearAllInteractions(ws);
     }
 
@@ -815,7 +815,7 @@ export class PlayerInteractionSystem {
                     me.clearInteraction();
                     try {
                         this.onTradeHandshake?.(me, target, currentTick);
-                    } catch {}
+                    } catch (err) { logger.warn("[interaction] trade handshake failed", err); }
                     return;
                 }
                 // Otherwise continue to re-route around the obstruction.
@@ -1226,7 +1226,7 @@ export class PlayerInteractionSystem {
                 forced = this.computeOrientationWorld(player.x, player.y, temp.x, temp.y);
                 player._pendingFace = undefined; // consume
             }
-        } catch {}
+        } catch (err) { logger.warn("[interaction] failed to compute pending face", err); }
 
         if (forced !== undefined) {
             player.setForcedOrientation(forced & 2047);
@@ -1256,7 +1256,7 @@ export class PlayerInteractionSystem {
         });
         try {
             me.setInteraction("player", targetPlayerId);
-        } catch {}
+        } catch (err) { logger.warn("[interaction] failed to set player interaction", err); }
         const target = this.players.getById(targetPlayerId);
         me.setCombatTarget(target ?? null);
         me.setInteractingPlayer(target ?? null);
@@ -1539,7 +1539,7 @@ export class PlayerInteractionSystem {
             ) {
                 logger.warn(`[DOOR] No reverse id found for loc ${info.id}`);
             }
-        } catch {}
+        } catch (err) { logger.warn("[interaction] loc action handler failed", err); }
 
         return true;
     }

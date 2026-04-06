@@ -55,6 +55,10 @@ export class MovementService {
 
     constructor(private readonly deps: MovementServiceDeps) {}
 
+    setDeferredDeps(deferred: { interfaceService?: any; players?: any; sailingInstanceManager?: any }): void {
+        Object.assign(this.deps, deferred);
+    }
+
     getPendingWalkCommands(): Map<WebSocket, any> {
         return this.pendingWalkCommands;
     }
@@ -103,7 +107,7 @@ export class MovementService {
             player.clearInteraction();
             player.stopAnimation();
             player.clearWalkDestination();
-        } catch {}
+        } catch (err) { logger.warn("[movement] failed to clear interaction state", err); }
 
         player.teleport(x, y, level);
 
@@ -388,8 +392,8 @@ export class MovementService {
         try {
             player.clearInteraction();
             player.stopAnimation();
-        } catch {}
-        const result = this.deps.players.routePlayer(sock, player, command.destX, command.destY, command.running);
+        } catch (err) { logger.warn("[movement] failed to clear interaction state", err); }
+        const result = this.deps.players.routePlayer(sock, { x: command.to.x, y: command.to.y }, command.run);
         return true;
     }
 }

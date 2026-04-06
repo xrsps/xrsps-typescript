@@ -82,7 +82,7 @@ export class PlayerCombatService {
             const styleSlot = player.combatStyleSlot ?? 0;
             const mapped = getMeleeAttackSequenceForCategory(weaponCategory, styleSlot);
             if (mapped !== undefined && mapped > 0) return mapped;
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to resolve attack sequence", err); }
         return DEFAULT_ATTACK_SEQ;
     }
 
@@ -106,7 +106,7 @@ export class PlayerCombatService {
             } else {
                 return styleSlot === 1 ? UNARMED_KICK_SOUND : UNARMED_PUNCH_SOUND;
             }
-        } catch {}
+        } catch (err) { logger.warn("[combat] failed to resolve combat sound", err); }
         return isHit ? DEFAULT_HIT_SOUND : DEFAULT_MISS_SOUND;
     }
 

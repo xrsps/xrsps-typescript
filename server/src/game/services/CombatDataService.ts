@@ -34,6 +34,10 @@ export class CombatDataService {
 
     constructor(private readonly deps: CombatDataServiceDeps) {}
 
+    setDeferredDeps(deferred: { npcSoundLookup?: NpcSoundLookup }): void {
+        Object.assign(this.deps, deferred);
+    }
+
     // --- NPC combat definitions ---
 
     loadNpcCombatDefs(): void {

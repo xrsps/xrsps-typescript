@@ -32,6 +32,10 @@ export interface CollectionLogServiceDeps {
 export class CollectionLogService {
     constructor(private readonly deps: CollectionLogServiceDeps) {}
 
+    setDeferredDeps(deferred: { interfaceService?: InterfaceService }): void {
+        Object.assign(this.deps, deferred);
+    }
+
     sendCollectionLogSnapshot(player: PlayerState): void {
         const ws = this.deps.getSocketByPlayerId(player.id);
         if (!ws) return;

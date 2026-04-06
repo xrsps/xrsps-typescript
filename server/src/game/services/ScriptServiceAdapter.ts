@@ -1,3 +1,4 @@
+import { logger } from "../../utils/logger";
 import { faceAngleRs } from "../../../../src/rs/utils/rotation";
 import type { SkillId } from "../../../../src/rs/skill/skills";
 import type { PrayerName } from "../../../../src/rs/prayer/prayers";
@@ -127,7 +128,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             try {
                 const equip = deps.equipmentService.ensureEquipArray(player);
                 return equip[slot] ?? -1;
-            } catch { return -1; }
+            } catch (err) { logger.warn("Failed to get equipped item", err); return -1; }
         },
         getEquipArray: (player) => deps.equipmentService.ensureEquipArray(player),
         unequipItem: (player, slot) => {
@@ -138,12 +139,12 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
                 const result = deps.inventoryActionHandler.executeInventoryUnequipAction(player, { slot: slotIndex, playSound: true });
                 if (result.ok && result.effects) deps.effectDispatcher.dispatchActionEffects(result.effects);
                 return result.ok;
-            } catch { return false; }
+            } catch (err) { logger.warn("Failed to unequip item", err); return false; }
         },
 
         // --- SkillServices ---
         addSkillXp: (player, skillId, xp) => {
-            try { deps.skillService.awardSkillXp(player, skillId as SkillId, Number.isFinite(xp) ? xp : 0); } catch {}
+            try { deps.skillService.awardSkillXp(player, skillId as SkillId, Number.isFinite(xp) ? xp : 0); } catch (err) { logger.warn("Failed to award skill XP", err); }
         },
         getSkill: (player, skillId) => {
             const skill = player.getSkill(skillId);
@@ -161,13 +162,13 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         queueVarbit: (playerId, varbitId, value) => deps.variableService.queueVarbit(playerId, varbitId, value),
 
         // --- AnimationServices ---
-        playPlayerSeq: (player, seqId, delay = 0) => { try { player.queueOneShotSeq(seqId, delay); } catch {} },
-        playPlayerSeqImmediate: (player, seqId) => { try { player.queueOneShotSeq(seqId, 0); } catch {} },
+        playPlayerSeq: (player, seqId, delay = 0) => { try { player.queueOneShotSeq(seqId, delay); } catch (err) { logger.warn("Failed to play player sequence", err); } },
+        playPlayerSeqImmediate: (player, seqId) => { try { player.queueOneShotSeq(seqId, 0); } catch (err) { logger.warn("Failed to play immediate player sequence", err); } },
         broadcastPlayerSpot: (player, spotId, height = 0, delay = 0, slotArg?) => {
             try {
                 const slot = slotArg !== undefined && Number.isFinite(slotArg) ? slotArg & 0xff : undefined;
                 deps.enqueueSpotAnimation({ tick: deps.getCurrentTick(), playerId: player.id, spotId, height, delay, slot });
-            } catch {}
+            } catch (err) { logger.warn("Failed to broadcast player spot animation", err); }
         },
         playLocGraphic: (opts) => deps.soundService.playLocGraphic(opts),
         playLocSound: (opts) => deps.soundService.playLocSound(opts),
@@ -178,7 +179,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         getMusicTrackBySlot: (slot) => deps.musicCatalogService?.getBaseListTrackBySlot(slot),
         sendSound: (player, soundId, opts) => deps.soundService.sendSound(player, soundId, opts),
         enqueueSoundBroadcast: (soundId, x, y, level) => deps.enqueueSoundBroadcast(soundId, x, y, level),
-        stopPlayerAnimation: (player) => { try { player.stopAnimation(); } catch {} },
+        stopPlayerAnimation: (player) => { try { player.stopAnimation(); } catch (err) { logger.warn("Failed to stop player animation", err); } },
 
         // --- AppearanceServices ---
         refreshAppearanceKits: (player) => deps.appearanceService.refreshAppearanceKits(player),
@@ -187,13 +188,13 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             try {
                 const key = player.__saveKey;
                 if (key && key.length > 0) deps.playerPersistence.saveSnapshot(key, player);
-            } catch {}
+            } catch (err) { logger.warn("Failed to save player snapshot", err); }
         },
         logoutPlayer: (player, reason) => {
             try {
                 const sock = deps.getPlayers()?.getSocketByPlayerId?.(player.id);
                 if (sock) deps.completeLogout(sock, player, reason);
-            } catch {}
+            } catch (err) { logger.warn("Failed to logout player", err); }
         },
 
         // --- DialogServices ---
@@ -255,7 +256,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
                 if (groups.includes("skill.woodcut")) {
                     deps.actionScheduler.clearActionsInGroup(player.id, "skill.woodcut");
                 }
-            } catch {}
+            } catch (err) { logger.warn("Failed to clear action group before request", err); }
             return deps.actionScheduler.requestAction(
                 player.id, request,
                 Number.isFinite(currentTick) ? (currentTick as number) : deps.getCurrentTick(),
@@ -267,7 +268,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         applyPlayerHitsplat: (player, style, damage, tick) =>
             deps.combatEffectApplicator.applyPlayerHitsplat(player, style, damage, tick),
         stunPlayer: (player, ticks) => { player.timers.set(STUN_TIMER, ticks); },
-        clearPlayerFaceTarget: (player) => { try { player.clearInteraction(); } catch {} },
+        clearPlayerFaceTarget: (player) => { try { player.clearInteraction(); } catch (err) { logger.warn("Failed to clear player face target", err); } },
         scheduleAction: (playerId, request, tick) =>
             deps.actionScheduler.requestAction(playerId, request, tick),
 
@@ -285,10 +286,10 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         isAdjacentToNpc: (player, npc) => deps.locationService.isAdjacentToNpc(player, npc),
         faceGatheringTarget: (player, tile) => deps.locationService.faceGatheringTarget(player, tile),
         stopGatheringInteraction: (player) => {
-            try { player.clearInteraction(); } catch {}
-            try { player.stopAnimation(); } catch {}
-            try { player.clearPath(); } catch {}
-            try { player.clearWalkDestination(); } catch {}
+            try { player.clearInteraction(); } catch (err) { logger.warn("Failed to clear interaction during gathering stop", err); }
+            try { player.stopAnimation(); } catch (err) { logger.warn("Failed to stop animation during gathering stop", err); }
+            try { player.clearPath(); } catch (err) { logger.warn("Failed to clear path during gathering stop", err); }
+            try { player.clearWalkDestination(); } catch (err) { logger.warn("Failed to clear walk destination during gathering stop", err); }
         },
         getWoodcuttingTree: undefined,
         getMiningRock: undefined,

@@ -72,6 +72,10 @@ export class AppearanceService {
 
     constructor(private readonly deps: AppearanceServiceDeps) {}
 
+    setDeferredDeps(deferred: { playerAppearanceManager?: any }): void {
+        Object.assign(this.deps, deferred);
+    }
+
     loadWeaponData(): void {
         const dataMap = new Map<number, WeaponDataEntry>();
         const animOverrides = new Map<number, Record<string, number>>();

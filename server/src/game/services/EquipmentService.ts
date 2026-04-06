@@ -42,8 +42,18 @@ export interface EquipmentServiceDeps {
  * Manages equipment operations: equip/unequip, stat bonuses, weapon categories.
  * Extracted from WSServer.
  */
+export interface EquipmentServiceDeferredDeps {
+    equipmentHandler?: any;
+    scriptRuntime?: any;
+    combatCategoryData?: CombatCategoryData;
+}
+
 export class EquipmentService {
     constructor(private readonly deps: EquipmentServiceDeps) {}
+
+    setDeferredDeps(deferred: EquipmentServiceDeferredDeps): void {
+        Object.assign(this.deps, deferred);
+    }
 
     ensureEquipArray(p: PlayerState): number[] {
         if (this.deps.equipmentHandler) {

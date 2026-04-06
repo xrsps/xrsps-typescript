@@ -96,11 +96,13 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
         );
     }
 
+    const primaryNpcTypeIds = new Set(FOLLOWER_ITEM_DEFINITIONS.map((d) => d.npcTypeId));
     const variantNpcTypeIds = new Set<number>();
     for (const definition of FOLLOWER_ITEM_DEFINITIONS) {
-        variantNpcTypeIds.add(definition.npcTypeId);
         for (const variant of definition.variants ?? []) {
-            variantNpcTypeIds.add(variant.npcTypeId);
+            if (!primaryNpcTypeIds.has(variant.npcTypeId)) {
+                variantNpcTypeIds.add(variant.npcTypeId);
+            }
         }
     }
 
