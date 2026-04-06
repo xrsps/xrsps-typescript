@@ -180,7 +180,7 @@ export function createCombatActionHandler(server: any): CombatActionHandler {
         deriveAttackTypeFromStyle: (style, player) =>
             server.playerCombatService.deriveAttackTypeFromStyle(style, player),
         pickBlockSequence: (player) =>
-            server.playerCombatManager?.pickBlockSequence(player, server.weaponAnimOverrides) ?? -1,
+            server.playerCombatManager?.pickBlockSequence(player, server.appearanceService.getWeaponAnimOverrides()) ?? -1,
 
         // --- NPC Combat ---
         getNpcCombatSequences: (typeId) => server.combatDataService.getNpcCombatSequences(typeId),
@@ -785,7 +785,7 @@ export function createPlayerAppearanceManager(server: any): PlayerAppearanceMana
         getDefaultPlayerAnimMale: () => server.defaultPlayerAnimMale,
         getDefaultPlayerAnimFemale: () => server.defaultPlayerAnimFemale,
         getDefaultPlayerAnim: () => server.defaultPlayerAnim,
-        getWeaponAnimOverrides: () => server.weaponAnimOverrides,
+        getWeaponAnimOverrides: () => server.appearanceService.getWeaponAnimOverrides(),
         applyWeaponAnimOverrides: (player, animTarget) =>
             server.appearanceService.applyWeaponAnimOverrides(player, animTarget),
         log: (level, message) => {
@@ -807,7 +807,7 @@ export function createSoundManager(server: any): SoundManager {
         getMusicUnlockService: () => server.musicUnlockService,
         getNpcTypeLoader: () => server.npcTypeLoader,
         getDbRepository: () => server.dbRepository,
-        getWeaponData: () => server.weaponData,
+        getWeaponData: () => server.appearanceService.getWeaponData(),
         ensureEquipArray: (player) => server.equipmentService.ensureEquipArray(player),
         getCurrentTick: () => server.options.ticker.currentTick(),
         random: () => Math.random(),

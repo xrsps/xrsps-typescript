@@ -26,11 +26,6 @@ async function main() {
     const cacheEnv = initCacheEnv("caches");
     logger.info(`Boot: cache ready (rev=${cacheEnv.info.revision}, name=${cacheEnv.info.name})`);
 
-    // Initialize spell-widget mappings from cache ()
-    logger.info("Boot: initializing spell-widget mappings from cache...");
-    initSpellWidgetMapping(cacheEnv.info, cacheEnv.cacheSystem);
-    logger.info("Boot: spell-widget mappings initialized");
-
     // Build full scenes like the editor (models included) so server has parity
     logger.info("Boot: creating map collision service (precomputed=true)...");
     const mapService = new MapCollisionService(cacheEnv, false, {
@@ -79,6 +74,11 @@ async function main() {
         gamemode,
     });
     logger.info("Boot: WebSocket server constructed");
+
+    // Initialize spell-widget mappings from cache (must happen after gamemode registers SpellDataProvider)
+    logger.info("Boot: initializing spell-widget mappings from cache...");
+    initSpellWidgetMapping(cacheEnv.info, cacheEnv.cacheSystem);
+    logger.info("Boot: spell-widget mappings initialized");
 
     // Start the game tick
     ticker.start();

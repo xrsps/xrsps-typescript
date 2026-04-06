@@ -1,28 +1,32 @@
-export type CombatStyleSlot = 0 | 1 | 2 | 3;
-
 /**
- * Melee attack sequences depend on weapon category + combat style slot.
- *
- * These sequences are not exposed via DB table 78 (combat styles); that table describes UI buttons
- * (slot/label/tooltip/icon), XP mode, and bonus type inference.
+ * Bridge module: delegates melee attack sequence lookups to the registered CombatStyleSequenceProvider.
+ * The actual sequence definitions live in server/gamemodes/vanilla/combat/CombatStyleSequences.ts.
+ * The vanilla gamemode registers the provider during initialization.
  */
+import type { CombatStyleSequenceProvider } from "./CombatStyleSequenceProvider";
+
+export type { CombatStyleSlot, CombatStyleSequenceProvider } from "./CombatStyleSequenceProvider";
+
+let _provider: CombatStyleSequenceProvider | undefined;
+
+export function registerCombatStyleSequenceProvider(provider: CombatStyleSequenceProvider): void {
+    _provider = provider;
+}
+
+export function getCombatStyleSequenceProvider(): CombatStyleSequenceProvider | undefined {
+    return _provider;
+}
+
+function ensureProvider(): CombatStyleSequenceProvider {
+    if (!_provider) {
+        throw new Error("[CombatStyleSequences] CombatStyleSequenceProvider not registered. Ensure the gamemode has initialized.");
+    }
+    return _provider;
+}
+
 export function getMeleeAttackSequenceForCategory(
     weaponCategory: number | undefined,
     styleSlot: number | undefined,
 ): number | undefined {
-    const category = weaponCategory ?? -1;
-    const slot = Math.max(0, Math.min(styleSlot ?? 0, 3)) as CombatStyleSlot;
-
-    // Unarmed: punch / kick / block.
-    if (category === 0) {
-        if (slot === 0) return 422;
-        if (slot === 1) return 423;
-        if (slot === 2) return 424;
-        return 422;
-    }
-
-    // Staff (including elemental/battlestaves): OSRS uses one melee swing regardless of style slot.
-    if (category === 18) return 393;
-
-    return undefined;
+    return ensureProvider().getMeleeAttackSequenceForCategory(weaponCategory, styleSlot);
 }

@@ -79,8 +79,8 @@ export class NpcSoundLookup {
             }
         }
 
-        this.loadNpcSoundMapFile(path.resolve(__dirname, "../../data/npc-sounds.generated.json"));
-        this.loadNpcSoundMapFile(path.resolve(__dirname, "../../data/npc-sounds.overrides.json"));
+        this.loadNpcSoundMapFile(path.resolve(__dirname, "../../../gamemodes/vanilla/data/npc-sounds.generated.json"));
+        this.loadNpcSoundMapFile(path.resolve(__dirname, "../../../gamemodes/vanilla/data/npc-sounds.overrides.json"));
 
         this.initialized = true;
         logger.info(

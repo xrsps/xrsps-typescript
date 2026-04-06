@@ -20,6 +20,14 @@ import {
     HITMARK_VENOM,
     StatusHitsplat,
 } from "../combat/HitEffects";
+import {
+    computeCombatLevel as computeCombatLevelFromConfig,
+    getSkillRestoreIntervalTicks,
+    getSkillBoostDecayIntervalTicks,
+    getHitpointRegenIntervalTicks,
+    getHitpointOverhealDecayIntervalTicks,
+    getPreserveDecayMultiplier,
+} from "../combat/SkillConfiguration";
 import type { PlayerStatusState } from "./PlayerStatusState";
 
 export interface SkillEntry {
@@ -65,11 +73,6 @@ export const normalizeSkillXpValue = (xp: number): number => {
 };
 
 const MAX_TEMP_HITPOINT_LEVEL = Math.max(MAX_VIRTUAL_LEVEL, 126);
-const HITPOINT_REGEN_INTERVAL_TICKS = 100;
-const HITPOINT_OVERHEAL_DECAY_INTERVAL_TICKS = 100;
-const SKILL_RESTORE_INTERVAL_TICKS = 100;
-const SKILL_BOOST_DECAY_INTERVAL_TICKS = 100;
-const PRESERVE_DECAY_MULTIPLIER = 1.5;
 
 const COMBAT_SKILL_IDS = new Set<SkillId>([
     SkillId.Attack,
@@ -122,18 +125,7 @@ export function computeTotalLevel(skills: SkillEntry[]): number {
 }
 
 export function computeCombatLevel(skills: SkillEntry[]): number {
-    const attack = skills[SkillId.Attack].baseLevel;
-    const defence = skills[SkillId.Defence].baseLevel;
-    const strength = skills[SkillId.Strength].baseLevel;
-    const hitpoints = skills[SkillId.Hitpoints].baseLevel;
-    const prayer = skills[SkillId.Prayer].baseLevel;
-    const ranged = skills[SkillId.Ranged].baseLevel;
-    const magic = skills[SkillId.Magic].baseLevel;
-    const base = 0.25 * (defence + hitpoints + Math.floor(prayer / 2));
-    const melee = 0.325 * (attack + strength);
-    const ranger = 0.325 * Math.floor(ranged * 1.5);
-    const mage = 0.325 * Math.floor(magic * 1.5);
-    return Math.floor(base + Math.max(melee, ranger, mage));
+    return computeCombatLevelFromConfig(skills);
 }
 
 /**
@@ -595,9 +587,10 @@ export class PlayerSkillSystem {
 
     tickSkillRestoration(currentTick: number): void {
         const hasRapidRestore = this.isPrayerActive("rapid_restore");
+        const baseRestoreInterval = getSkillRestoreIntervalTicks();
         const restoreInterval = hasRapidRestore
-            ? Math.max(1, Math.floor(SKILL_RESTORE_INTERVAL_TICKS / 2))
-            : SKILL_RESTORE_INTERVAL_TICKS;
+            ? Math.max(1, Math.floor(baseRestoreInterval / 2))
+            : baseRestoreInterval;
         if (this.nextSkillRestoreTick <= 0) {
             this.nextSkillRestoreTick = currentTick + restoreInterval;
         } else if (currentTick >= this.nextSkillRestoreTick) {
@@ -611,9 +604,10 @@ export class PlayerSkillSystem {
         }
 
         const preserveActive = this.isPrayerActive("preserve");
+        const baseDecayInterval = getSkillBoostDecayIntervalTicks();
         const decayInterval = preserveActive
-            ? Math.max(1, Math.floor(SKILL_BOOST_DECAY_INTERVAL_TICKS * PRESERVE_DECAY_MULTIPLIER))
-            : SKILL_BOOST_DECAY_INTERVAL_TICKS;
+            ? Math.max(1, Math.floor(baseDecayInterval * getPreserveDecayMultiplier()))
+            : baseDecayInterval;
         if (this.nextSkillBoostDecayTick <= 0) {
             this.nextSkillBoostDecayTick = currentTick + decayInterval;
         } else if (currentTick >= this.nextSkillBoostDecayTick) {
@@ -653,9 +647,10 @@ export class PlayerSkillSystem {
         const skill = this.getSkill(SkillId.Hitpoints);
         const baseLevel = Math.max(1, skill.baseLevel);
 
+        const baseRegenInterval = getHitpointRegenIntervalTicks();
         const regenInterval = this.isPrayerActive("rapid_heal")
-            ? Math.max(1, Math.floor(HITPOINT_REGEN_INTERVAL_TICKS / 2))
-            : HITPOINT_REGEN_INTERVAL_TICKS;
+            ? Math.max(1, Math.floor(baseRegenInterval / 2))
+            : baseRegenInterval;
         if (this.status.nextHitpointRegenTick <= 0) {
             this.status.nextHitpointRegenTick = currentTick + regenInterval;
         } else if (currentTick >= this.status.nextHitpointRegenTick) {
@@ -668,11 +663,11 @@ export class PlayerSkillSystem {
         if (skill.boost > 0) {
             if (this.status.nextHitpointOverhealDecayTick <= 0) {
                 this.status.nextHitpointOverhealDecayTick =
-                    currentTick + HITPOINT_OVERHEAL_DECAY_INTERVAL_TICKS;
+                    currentTick + getHitpointOverhealDecayIntervalTicks();
             } else if (currentTick >= this.status.nextHitpointOverhealDecayTick) {
                 const nextBoost = Math.max(0, skill.boost - 1);
                 this.status.nextHitpointOverhealDecayTick =
-                    currentTick + HITPOINT_OVERHEAL_DECAY_INTERVAL_TICKS;
+                    currentTick + getHitpointOverhealDecayIntervalTicks();
                 this.setSkillBoost(SkillId.Hitpoints, baseLevel + nextBoost);
             }
         } else {

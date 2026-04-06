@@ -1347,8 +1347,6 @@ export class WSServer {
         this.scriptAdapterDeps.inventoryActionHandler = this.inventoryActionHandler;
         this.scriptAdapterDeps.effectDispatcher = this.effectDispatcher;
         logger.info("[services] All services initialized");
-
-        this.appearanceService.loadWeaponData();
         if (this.cacheEnv) {
             try {
                 this.dbRepository = new DbRepository(this.cacheEnv.cacheSystem as any);
@@ -1424,6 +1422,8 @@ export class WSServer {
                 }),
             });
             logger.info(`Boot: gamemode "${this.gamemode.id}" initialized`);
+
+            this.appearanceService.loadWeaponData();
 
             // Let gamemode contribute additional ScriptServices methods (banking, etc.)
             if (this.gamemode.contributeScriptServices) {

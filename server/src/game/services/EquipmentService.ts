@@ -6,7 +6,7 @@ import {
     resolveWeaponCategoryFromObj,
 } from "../../../../src/rs/config/player/WeaponCategory";
 import { getItemDefinition } from "../../data/items";
-import type { WeaponDataEntry } from "../../../data/weapons";
+import type { WeaponDataEntry } from "../combat/WeaponDataProvider";
 import { clearAutocastState } from "../combat/AutocastState";
 import { getCategoryForWeaponInterface } from "../combat/WeaponInterfaces";
 import type { CombatCategoryData } from "../combat/CombatCategoryData";

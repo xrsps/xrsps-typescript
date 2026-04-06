@@ -4,10 +4,8 @@ import {
 import {
     AttackStyle,
     type WeaponDataEntry,
-    getAttackStyle,
-    getHitSoundForStyle,
-    getMissSound,
-} from "../../../data/weapons";
+} from "../combat/WeaponDataProvider";
+import { getAttackStyle, getHitSoundForStyle, getMissSound } from "../../../data/weapons";
 import { AttackType } from "../combat/AttackType";
 import { getMeleeAttackSequenceForCategory } from "../combat/CombatStyleSequences";
 import { resolvePlayerAttackReach } from "../combat/CombatRules";

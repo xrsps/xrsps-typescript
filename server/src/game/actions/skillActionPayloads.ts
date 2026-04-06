@@ -29,7 +29,7 @@ export interface SkillBoltEnchantActionData {
 }
 
 export type SkillActionPayloadByKind = {
-    // Skill actions are now registered via extrascripts (vanilla-skills/production).
+    // Skill actions are registered via the vanilla gamemode (skills/production).
     // Data interfaces above are retained for consumers that construct these payloads.
 };
 

@@ -118,15 +118,66 @@ export {
     canUseSpecialAttack,
     consumeSpecialEnergy,
     restoreSpecialEnergy,
+    registerSpecialAttackProvider,
+    getSpecialAttackProvider,
     type SpecialAttackDef,
+    type SpecialAttackProvider,
 } from "./SpecialAttackRegistry";
+
+// Combat formulas
+export {
+    attackRoll,
+    defenceRoll,
+    hitChance,
+    maxHit,
+    rollDamage,
+    effectiveLevel,
+    effectiveMagicDefence,
+    npcEffectiveAttack,
+    npcEffectiveStrength,
+    npcEffectiveDefence,
+    getNpcAttackBonus,
+    getNpcDefenceBonus,
+    npcMaxHit,
+    calculateNpcVsPlayer,
+    registerCombatFormulaProvider,
+    getCombatFormulaProvider,
+    type AttackerStats,
+    type DefenderStats,
+    type MaxHitParams,
+    type CombatFormulaProvider,
+} from "./CombatFormulas";
+
+// Combat style sequences
+export {
+    getMeleeAttackSequenceForCategory,
+    registerCombatStyleSequenceProvider,
+    getCombatStyleSequenceProvider,
+    type CombatStyleSlot,
+    type CombatStyleSequenceProvider,
+} from "./CombatStyleSequences";
+
+// Skill configuration
+export {
+    registerSkillConfiguration,
+    getSkillConfiguration,
+    getSkillRestoreIntervalTicks,
+    getSkillBoostDecayIntervalTicks,
+    getHitpointRegenIntervalTicks,
+    getHitpointOverhealDecayIntervalTicks,
+    getPreserveDecayMultiplier,
+    type SkillConfiguration,
+} from "./SkillConfiguration";
 
 // Equipment bonuses
 export {
     calculateEquipmentBonuses,
+    registerEquipmentBonusProvider,
+    getEquipmentBonusProvider,
     type TargetInfo,
     type SlayerTaskInfo,
     type EquipmentBonusResult,
+    type EquipmentBonusProvider,
 } from "./EquipmentBonuses";
 
 // Ammo system

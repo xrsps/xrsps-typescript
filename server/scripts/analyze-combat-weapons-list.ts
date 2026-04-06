@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 
 import items from "../../server/data/items.json";
-import { weaponDataMap } from "../data/weapons";
+import { weaponDataMap } from "../gamemodes/vanilla/data/weapons";
 
 type RawItem = {
     id: number;

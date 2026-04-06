@@ -4,7 +4,7 @@ import {
     EquipmentSlot,
 } from "../../../../src/rs/config/player/Equipment";
 import type { IdkType } from "../../../../src/rs/config/idktype/IdkType";
-import type { WeaponDataEntry } from "../../../data/weapons";
+import type { WeaponDataEntry } from "../combat/WeaponDataProvider";
 import { weaponDataEntries } from "../../../data/weapons";
 import type { BroadcastScheduler, PlayerAnimSet } from "../systems/BroadcastScheduler";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
@@ -77,16 +77,14 @@ export class AppearanceService {
     }
 
     loadWeaponData(): void {
-        const dataMap = new Map<number, WeaponDataEntry>();
-        const animOverrides = new Map<number, Record<string, number>>();
+        this.weaponData.clear();
+        this.weaponAnimOverrides.clear();
         for (const entry of weaponDataEntries) {
-            dataMap.set(entry.itemId, entry);
+            this.weaponData.set(entry.itemId, entry);
             if (entry.animOverrides) {
-                animOverrides.set(entry.itemId, { ...entry.animOverrides });
+                this.weaponAnimOverrides.set(entry.itemId, { ...entry.animOverrides });
             }
         }
-        this.weaponData = dataMap;
-        this.weaponAnimOverrides = animOverrides;
         if (this.weaponData.size > 0) {
             logger.info(`[appearance] loaded ${this.weaponData.size} weapon data entries`);
         }

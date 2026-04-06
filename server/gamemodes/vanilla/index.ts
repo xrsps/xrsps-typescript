@@ -8,7 +8,8 @@ import { registerBankInterfaceHooks } from "./banking";
 import { registerEquipmentHandlers } from "./equipment/equipment";
 import { registerEquipmentWidgetHandlers } from "./equipment/equipmentWidgets";
 import { registerEquipmentStatsInterfaceHooks } from "./equipment/EquipmentStatsInterfaceHooks";
-import { isPlayerOnDockedSailingBoat, restoreDockedSailingState, restoreSailingInstanceUi } from "../../extrascripts/vanilla-skills/sailing";
+import { isPlayerOnDockedSailingBoat, restoreDockedSailingState, restoreSailingInstanceUi } from "./skills/sailing";
+import { register as registerSkillHandlers } from "./skills";
 import { ShopManager, type ShopStockEntry, type ShopOpenData } from "./shops";
 import { registerShopInterfaceHooks } from "./shops";
 import { registerShopInteractionHandlers } from "./shops/shopInteractions";
@@ -115,8 +116,10 @@ export class VanillaGamemode implements GamemodeDefinition {
     }
 
     getGamemodeServices(): Record<string, unknown> {
+        const { getWeaponDataProvider } = require("../../data/weapons") as typeof import("../../data/weapons");
         return {
             banking: this.bankingManager,
+            weaponDataProvider: getWeaponDataProvider(),
         };
     }
 
@@ -207,11 +210,68 @@ export class VanillaGamemode implements GamemodeDefinition {
         registerQuestJournalWidgetHandlers(registry, services);
         registerAccountSummaryWidgetHandlers(registry, services);
         registerCollectionLogWidgetHandlers(registry, services);
+
+        // Skills
+        registerSkillHandlers(registry, services);
     }
 
     initialize(context: GamemodeInitContext): void {
         const ss = context.serverServices;
         this.serverServices = ss;
+
+        // === Weapon Data ===
+        const { createWeaponDataProvider } = require("./data/weapons") as typeof import("./data/weapons");
+        const { registerWeaponDataProvider } = require("../../data/weapons") as typeof import("../../data/weapons");
+        const weaponProvider = createWeaponDataProvider();
+        registerWeaponDataProvider(weaponProvider);
+
+        // === Special Attacks ===
+        const { createSpecialAttackProvider } = require("./combat/SpecialAttackRegistry") as typeof import("./combat/SpecialAttackRegistry");
+        const { registerSpecialAttackProvider } = require("../../src/game/combat/SpecialAttackRegistry") as typeof import("../../src/game/combat/SpecialAttackRegistry");
+        const specialAttackProvider = createSpecialAttackProvider();
+        registerSpecialAttackProvider(specialAttackProvider);
+
+        // === Combat Formulas ===
+        const { createCombatFormulaProvider } = require("./combat/CombatFormulas") as typeof import("./combat/CombatFormulas");
+        const { registerCombatFormulaProvider } = require("../../src/game/combat/CombatFormulas") as typeof import("../../src/game/combat/CombatFormulas");
+        const combatFormulaProvider = createCombatFormulaProvider();
+        registerCombatFormulaProvider(combatFormulaProvider);
+
+        // === Combat Style Sequences ===
+        const { createCombatStyleSequenceProvider } = require("./combat/CombatStyleSequences") as typeof import("./combat/CombatStyleSequences");
+        const { registerCombatStyleSequenceProvider } = require("../../src/game/combat/CombatStyleSequences") as typeof import("../../src/game/combat/CombatStyleSequences");
+        const combatStyleSequenceProvider = createCombatStyleSequenceProvider();
+        registerCombatStyleSequenceProvider(combatStyleSequenceProvider);
+
+        // === Skill Configuration ===
+        const { createSkillConfiguration } = require("./combat/SkillConfiguration") as typeof import("./combat/SkillConfiguration");
+        const { registerSkillConfiguration } = require("../../src/game/combat/SkillConfiguration") as typeof import("../../src/game/combat/SkillConfiguration");
+        const skillConfig = createSkillConfiguration();
+        registerSkillConfiguration(skillConfig);
+
+        // === Equipment Bonuses ===
+        const { createEquipmentBonusProvider } = require("./combat/EquipmentBonuses") as typeof import("./combat/EquipmentBonuses");
+        const { registerEquipmentBonusProvider } = require("../../src/game/combat/EquipmentBonuses") as typeof import("../../src/game/combat/EquipmentBonuses");
+        const equipmentBonusProvider = createEquipmentBonusProvider();
+        registerEquipmentBonusProvider(equipmentBonusProvider);
+
+        // === Projectile Params ===
+        const { createProjectileParamsProvider } = require("./data/projectileParams") as typeof import("./data/projectileParams");
+        const { registerProjectileParamsProvider } = require("../../src/data/projectileParams") as typeof import("../../src/data/projectileParams");
+        const projectileParamsProvider = createProjectileParamsProvider();
+        registerProjectileParamsProvider(projectileParamsProvider);
+
+        // === Spell Data ===
+        const { createSpellDataProvider } = require("./data/spells") as typeof import("./data/spells");
+        const { registerSpellDataProvider } = require("../../src/data/spells") as typeof import("../../src/data/spells");
+        const spellDataProvider = createSpellDataProvider();
+        registerSpellDataProvider(spellDataProvider);
+
+        // === Rune Data ===
+        const { createRuneDataProvider } = require("./data/runes") as typeof import("./data/runes");
+        const { registerRuneDataProvider } = require("../../src/data/runes") as typeof import("../../src/data/runes");
+        const runeDataProvider = createRuneDataProvider();
+        registerRuneDataProvider(runeDataProvider);
 
         // === Banking ===
         const bankingServices: BankingProviderServices = {

@@ -1,7 +1,8 @@
 import { logger } from "../../../utils/logger";
 import { EquipmentSlot } from "../../../../../src/rs/config/player/Equipment";
 import { SkillId } from "../../../../../src/rs/skill/skills";
-import { XpMode, getCombatStyle } from "../../../../data/weapons";
+import { XpMode } from "../../combat/WeaponDataProvider";
+import { getCombatStyle } from "../../../../data/weapons";
 import { type ItemDefinition, getItemDefinition } from "../../../data/items";
 import {
     ProjectileParams,
