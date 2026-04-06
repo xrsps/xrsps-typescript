@@ -535,6 +535,9 @@ export class SpellActionHandler {
                     delay: 0,
                     height: 100,
                 });
+            }
+            // Cast sound plays regardless of whether there's a cast spot anim
+            if (timing) {
                 const sfx = this.services.pickSpellSound(spellId, "cast");
                 if (sfx !== undefined) {
                     this.services.withDirectSendBypass("combat_cast_sound", () =>

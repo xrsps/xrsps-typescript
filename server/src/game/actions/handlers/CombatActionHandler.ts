@@ -388,7 +388,7 @@ export interface CombatActionServices {
     tryActivateRedemption(player: PlayerState): void;
     /** Close interruptible interfaces on damage. */
     closeInterruptibleInterfaces(player: PlayerState): void;
-    /** Apply multi-target spell damage. */
+    /** Apply multi-target spell damage. Returns total secondary target damage dealt. */
     applyMultiTargetSpellDamage(params: {
         player: PlayerState;
         primary: NpcState;
@@ -398,7 +398,7 @@ export interface CombatActionServices {
         hitsplatTick: number;
         currentTick: number;
         effects: ActionEffect[];
-    }): void;
+    }): number;
 
     // --- XP Awards ---
     /** Award combat XP on hit. */
@@ -1167,6 +1167,7 @@ export class CombatActionHandler {
                 hitsplatTick,
                 effects,
                 resolvedSpellId,
+                targetHitsplat.amount,
             );
         }
 
@@ -1876,6 +1877,7 @@ export class CombatActionHandler {
         hitsplatTick: number,
         effects: ActionEffect[],
         spellIdOverride?: number,
+        damageDealt?: number,
     ): void {
         const spellId =
             (Number.isFinite(spellIdOverride) ? spellIdOverride : undefined) ??
@@ -1931,13 +1933,27 @@ export class CombatActionHandler {
                 playerId: targetId,
                 spotId: spotId,
                 delay: 0,
-                height: 100,
+                height: landed ? (spell?.impactSpotAnimHeight ?? 100) : 100,
             });
         }
 
         // Freeze
         if (spell?.freezeDuration && landed) {
             target.applyFreeze(spell.freezeDuration, hitsplatTick);
+        }
+
+        // Blood spell healing: heal caster for 25% of damage dealt
+        const dealt = Math.max(0, damageDealt ?? 0);
+        if (spell?.healPercent && landed && dealt > 0) {
+            const healAmount = Math.floor(dealt * spell.healPercent);
+            if (healAmount > 0) {
+                player.applyHitpointsHeal(healAmount);
+            }
+        }
+
+        // Smoke spell poison: apply poison to target on hit
+        if (spell?.poisonDamage && landed && dealt > 0) {
+            target.inflictPoison(spell.poisonDamage, hitsplatTick);
         }
     }
 
@@ -2079,7 +2095,7 @@ export class CombatActionHandler {
                 npcId: npc.id,
                 spotId: spotId,
                 delay: 0,
-                height: 100,
+                height: landed ? (spell?.impactSpotAnimHeight ?? 100) : 100,
             });
         }
 
@@ -2103,8 +2119,20 @@ export class CombatActionHandler {
         if (spell?.freezeDuration && landed) {
             npc.applyFreeze(spell.freezeDuration, tick);
         }
+
+        // Blood spell healing: heal caster for 25% of damage dealt
+        let primaryDamageForHeal = 0;
+        if (spell?.healPercent && landed && npcHitsplat.amount > 0) {
+            primaryDamageForHeal = npcHitsplat.amount;
+        }
+
+        // Smoke spell poison: apply poison to target on hit
+        if (spell?.poisonDamage && landed && npcHitsplat.amount > 0) {
+            npc.inflictPoison(spell.poisonDamage, tick);
+        }
+
         if (spell?.maxTargets && spell.maxTargets > 1 && landed && npcHitsplat.amount > 0) {
-            this.services.applyMultiTargetSpellDamage({
+            const multiResult = this.services.applyMultiTargetSpellDamage({
                 player,
                 primary: npc,
                 spell,
@@ -2114,6 +2142,18 @@ export class CombatActionHandler {
                 currentTick: tick,
                 effects,
             });
+            // Accumulate secondary target damage for blood spell healing
+            if (spell.healPercent && typeof multiResult === "number" && multiResult > 0) {
+                primaryDamageForHeal += multiResult;
+            }
+        }
+
+        // Apply blood spell heal from all targets combined (primary + secondaries)
+        if (spell?.healPercent && primaryDamageForHeal > 0) {
+            const healAmount = Math.floor(primaryDamageForHeal * spell.healPercent);
+            if (healAmount > 0) {
+                player.applyHitpointsHeal(healAmount);
+            }
         }
     }
 

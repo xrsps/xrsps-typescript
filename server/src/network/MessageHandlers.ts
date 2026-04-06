@@ -11,6 +11,7 @@ import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../src/shared/input/modifierFlags";
+import { VARBIT_ACTIVE_SPELLBOOK } from "../../../src/shared/vars";
 import { getItemDefinition } from "../data/items";
 import { ALL_RUNE_ITEM_IDS, RUNE_IDS } from "../data/runes";
 import { getSpellData } from "../data/spells";
@@ -1579,7 +1580,6 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     // 0 = standard, 1 = ancient, 2 = lunar, 3 = arceuus
                     // Note: "::normal" is intercepted client-side by the OSRS CS2 chatbox
                     // script (it toggles display mode), so we use "::standard" instead.
-                    const VARBIT_ACTIVE_SPELLBOOK = 4070;
                     const SPELLBOOK_VALUES: Record<string, number> = {
                         standard: 0,
                         ancient: 1,

@@ -424,6 +424,14 @@ export const VARBIT_AUTOCAST_DEFMODE = 2668;
  */
 export const VARP_AUTOCAST_SPELLPOS = 664;
 
+// ========== SPELLBOOK ==========
+
+/**
+ * Active spellbook (0 = standard, 1 = ancient, 2 = lunar, 3 = arceuus).
+ * Drives CS2 script 2610 (`MAGIC_SPELLBOOK_REDRAW`) to show the correct spellbook tab.
+ */
+export const VARBIT_ACTIVE_SPELLBOOK = 4070;
+
 // ========== MUSIC UNLOCK VARBITS/VARPS ==========
 
 /**

@@ -6,7 +6,6 @@ import {
     VARP_SPECIAL_ATTACK,
 } from "../../../../../src/shared/vars";
 import {
-    buildVisibleAutocastIndices,
     canWeaponAutocastSpell,
     getAutocastCompatibilityMessage,
     getSpellIdFromAutocastIndex,
@@ -54,8 +53,7 @@ const DEFENSIVE_AUTOCAST_BUTTON_COMPONENT = 23; // "Defensive autocast" choose s
 const SPECIAL_ATTACK_BUTTON_COMPONENT = 39; // "Use Special Attack" button
 
 // Autocast popup (201) components
-const AUTOCAST_CANCEL_COMPONENT = 0; // Cancel button
-const AUTOCAST_SPELL_CONTAINER_COMPONENT = 1; // Layer where CS2 CC_CREATEs dynamic spell icons
+const AUTOCAST_SPELL_CONTAINER_COMPONENT = 1; // Layer where CS2 CC_CREATEs cancel button (child 0) and spell icons (children 1–58)
 
 // Special weapons that use their item id as the autocast "spellpos" selector (script 243 switch table).
 // For normal staves, passing the raw weapon id causes script 243 to return (-1,-1) for all spells,
@@ -292,45 +290,34 @@ export const combatWidgetModule: ScriptModule = {
             openAutocastPopup(event.player, true, services);
         });
 
-        // ============ AUTOCAST POPUP SPELL SELECTION (201:1 dynamic children) ============
-        // The CS2 autocast_setup script creates spell icon widgets via CC_CREATE under
-        // component 1 (the spell grid layer). Clicks on dynamic children arrive with
-        // group=201, child=1 (the parent layer), and slot = CC_CREATE childIndex.
-        // We map the sequential slot back to the autocast spell index using the same
-        // weapon-based visible spell list that the CS2 script builds.
+        // ============ AUTOCAST POPUP (201:1 dynamic children) ============
+        // The CS2 autocast_setup script creates children via CC_CREATE under component 1:
+        //   - Child 0: "Cancel" text button
+        //   - Children 1–58: spell icons (hidden if not applicable to current weapon)
+        // Clicks arrive with group=201, component=1, slot=childIndex.
         registry.onButton(AUTOCAST_POPUP_GROUP_ID, AUTOCAST_SPELL_CONTAINER_COMPONENT, (event) => {
             const slot = event.slot;
-            if (slot === undefined || slot < 1 || slot === 0xffff) {
-                // Background click on the layer or slot 0 header — ignore
+            if (slot === undefined || slot > 58) {
                 return;
             }
-            const weaponId = event.player.pendingAutocastWeaponId ?? 0;
-            const visibleSpells = buildVisibleAutocastIndices(weaponId);
-            // CC_CREATE childIndex is 1-based (slot 0 is a header/spacer), so subtract 1
-            const arrayIndex = slot - 1;
-            if (arrayIndex >= visibleSpells.length) {
-                services.logger?.warn?.(
-                    `[script:combat-widgets] Autocast slot=${slot} out of range ` +
-                        `(visible=${visibleSpells.length}) for player=${event.player.id}`,
+
+            // Slot 0 = Cancel button (dynamic child 0 under the spell grid layer)
+            if (slot === 0) {
+                const player = event.player;
+                player.pendingAutocastDefensive = undefined;
+                player.pendingAutocastWeaponId = undefined;
+
+                const combatTabUid = getCombatTabUid(player);
+                services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
+                services.logger?.info?.(
+                    `[script:combat-widgets] Autocast popup cancelled for player=${player.id}`,
                 );
                 return;
             }
-            const autocastIndex = visibleSpells[arrayIndex];
+
+            // Slots 1–58 = autocast spell index directly from enum_1986
+            const autocastIndex = slot;
             handleAutocastSpellSelection(event.player, autocastIndex, services);
-        });
-
-        // ============ AUTOCAST POPUP CANCEL (201:0) ============
-        registry.onButton(AUTOCAST_POPUP_GROUP_ID, AUTOCAST_CANCEL_COMPONENT, (event) => {
-            const player = event.player;
-            // Clear temporary state
-            player.pendingAutocastDefensive = undefined;
-            player.pendingAutocastWeaponId = undefined;
-
-            const combatTabUid = getCombatTabUid(player);
-            services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
-            services.logger?.info?.(
-                `[script:combat-widgets] Autocast popup cancelled for player=${player.id}`,
-            );
         });
     },
 };
@@ -362,22 +349,13 @@ function openAutocastPopup(player: any, isDefensive: boolean, services: any): vo
     // IMPORTANT: Flags must be sent AFTER openSubInterface because opening resets flags.
     const IF_SETEVENTS_TRANSMIT_OP1 = 1 << 1;
 
-    // Enable transmission for dynamic spell icon children under the spell container (201:1).
-    // The CS2 creates children at sequential childIndex 0..N for each visible spell.
+    // Enable transmission for all dynamic children under the spell container (201:1).
+    // The CS2 creates child 0 (Cancel button) and children 1–58 (spell icons).
     services.queueWidgetEvent?.(player.id, {
         action: "set_flags_range",
         uid: (AUTOCAST_POPUP_GROUP_ID << 16) | AUTOCAST_SPELL_CONTAINER_COMPONENT,
         fromSlot: 0,
-        toSlot: 64, // generous upper bound for all possible spell slots
-        flags: IF_SETEVENTS_TRANSMIT_OP1,
-    });
-
-    // Enable transmission for the cancel button (201:0, static widget).
-    services.queueWidgetEvent?.(player.id, {
-        action: "set_flags_range",
-        uid: (AUTOCAST_POPUP_GROUP_ID << 16) | AUTOCAST_CANCEL_COMPONENT,
-        fromSlot: -1,
-        toSlot: -1,
+        toSlot: 64, // covers Cancel (0) + all possible spell slots (1–58)
         flags: IF_SETEVENTS_TRANSMIT_OP1,
     });
 

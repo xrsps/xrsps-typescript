@@ -60,6 +60,7 @@ import {
 import {
     MUSIC_UNLOCK_VARPS,
     VARBIT_ACCOUNT_TYPE,
+    VARBIT_ACTIVE_SPELLBOOK,
     VARBIT_ARCEUUS_FAVOR,
     VARBIT_ARCEUUS_SPELLBOOK_UNLOCKED,
     VARBIT_AUTOCAST_DEFMODE,
@@ -611,6 +612,24 @@ const SPELL_CAST_SEQUENCE_OVERRIDES: Record<number, number> = {
     9078: 726, // Charge Fire Orb
     9079: 726, // Charge Water Orb
     9001: 722, // Bones to Bananas
+    // Ancient Magicks – Rush / Blitz (single target)
+    4629: 1978, // Smoke Rush
+    4630: 1978, // Shadow Rush
+    4632: 1978, // Blood Rush
+    4633: 1978, // Ice Rush
+    4641: 1978, // Smoke Blitz
+    4642: 1978, // Shadow Blitz
+    4644: 1978, // Blood Blitz
+    4645: 1978, // Ice Blitz
+    // Ancient Magicks – Burst / Barrage (multi-target)
+    4635: 1979, // Smoke Burst
+    4636: 1979, // Shadow Burst
+    4638: 1979, // Blood Burst
+    4639: 1979, // Ice Burst
+    4647: 1979, // Smoke Barrage
+    4648: 1979, // Shadow Barrage
+    4650: 1979, // Blood Barrage
+    4651: 1979, // Ice Barrage
 };
 
 // Special attack visual overrides (RuneLite gameval anchors)
@@ -6775,6 +6794,41 @@ export class WSServer {
     }
 
     /**
+     * Restore the active spellbook on login/reconnect.
+     * Sends varbit 4070 and runs CS2 script 2610 to redraw the spellbook tab
+     * so the client shows the correct spellbook (ancient/lunar/arceuus/standard).
+     */
+    private sendSavedSpellbookState(sock: WebSocket, player: PlayerState): void {
+        const spellbook = player.getVarbitValue(VARBIT_ACTIVE_SPELLBOOK);
+        if (spellbook === 0) return; // Standard is the default, no need to send
+
+        this.withDirectSendBypass("varbit", () =>
+            this.sendWithGuard(
+                sock,
+                encodeMessage({
+                    type: "varbit",
+                    payload: { varbitId: VARBIT_ACTIVE_SPELLBOOK, value: spellbook },
+                }),
+                "varbit",
+            ),
+        );
+
+        // Run CS2 script 2610 (MAGIC_SPELLBOOK_REDRAW) to update the spellbook tab UI.
+        const SCRIPT_MAGIC_SPELLBOOK_REDRAW = 2610;
+        const SPELLBOOK_REDRAW_ARGS: (number | string)[] = [
+            14286851, 14287045, 14287054, 14286849, 14287051,
+            14287052, 14287053, 14286850, 14287047, 14287050,
+            0, "Info", "Filters",
+        ];
+        this.queueWidgetEvent(player.id, {
+            action: "run_script",
+            scriptId: SCRIPT_MAGIC_SPELLBOOK_REDRAW,
+            args: SPELLBOOK_REDRAW_ARGS,
+            varbits: { [VARBIT_ACTIVE_SPELLBOOK]: spellbook },
+        });
+    }
+
+    /**
      * Send saved transmit varps to the client on login/reconnect.
      * This restores persisted varp state (combat toggles, XP drops setup, audio, attack options).
      */
@@ -9172,34 +9226,59 @@ export class WSServer {
         hitsplatTick: number;
         currentTick: number;
         effects: ActionEffect[];
-    }): void {
+    }): number {
         if (
             !this.npcManager ||
             !opts.spell.maxTargets ||
             opts.spell.maxTargets <= 1 ||
             !(opts.baseDamage > 0)
         ) {
-            return;
+            return 0;
         }
         const extras = this.npcManager
             .getNearby(opts.primary.tileX, opts.primary.tileY, opts.primary.level, 1)
             .filter((npc) => npc.id !== opts.primary.id);
-        if (extras.length === 0) return;
+        if (extras.length === 0) return 0;
         let remaining = Math.max(0, opts.spell.maxTargets - 1);
-        const splashDamage = Math.max(1, Math.floor(opts.baseDamage / 2));
-        if (!(splashDamage > 0)) return;
+        let totalSecondaryDamage = 0;
         for (const extra of extras) {
             if (remaining <= 0) break;
+            if (extra.isPlayerFollower?.() === true) continue;
+            if (extra.getHitpoints() <= 0 || extra.isDead(opts.currentTick)) continue;
+
+            // OSRS parity: independent accuracy + damage roll per secondary target
+            let hitLanded = false;
+            let damage = 0;
+            try {
+                const engine = new CombatEngine();
+                const magicCaster = Object.create(opts.player) as PlayerState;
+                (magicCaster as any).combatSpellId = opts.spell.id;
+                (magicCaster as any).autocastEnabled = false;
+                (magicCaster as any).autocastMode = null;
+                (magicCaster as any).getCurrentAttackType = () => "magic";
+                const res = engine.planPlayerAttack({
+                    player: magicCaster,
+                    npc: extra,
+                    attackSpeed: this.pickAttackSpeed(opts.player),
+                });
+                hitLanded = !!res.hitLanded;
+                damage = Math.max(0, res.damage);
+            } catch {
+                hitLanded = false;
+                damage = 0;
+            }
+
             const result = this.applyPlayerDamageToNpc(
                 opts.player,
                 extra,
-                splashDamage,
-                opts.style,
+                damage,
+                hitLanded ? opts.style : HITMARK_BLOCK,
                 opts.currentTick,
                 "magic",
             );
             if (!result) continue;
             remaining--;
+            totalSecondaryDamage += result.amount;
             const hpFields =
                 result.amount > 0 ? { hpCurrent: result.hpCurrent, hpMax: result.hpMax } : {};
             opts.effects.push({
@@ -9214,9 +9293,15 @@ export class WSServer {
                 tick: opts.hitsplatTick,
                 ...hpFields,
             });
+            // Freeze secondary targets
             if (opts.spell.freezeDuration && result.amount > 0) {
                 extra.applyFreeze(opts.spell.freezeDuration, opts.currentTick);
             }
+            // Smoke poison on secondary targets
+            if (opts.spell.poisonDamage && result.amount > 0) {
+                extra.inflictPoison(opts.spell.poisonDamage, opts.currentTick);
+            }
+            // Spot animation on secondary targets
             const spotId =
                 result.amount > 0
                     ? opts.spell.impactSpotAnim ?? opts.spell.splashSpotAnim
@@ -9227,10 +9312,11 @@ export class WSServer {
                     npcId: extra.id,
                     spotId: spotId,
                     delay: 0,
-                    height: 100,
+                    height: result.amount > 0 ? (opts.spell.impactSpotAnimHeight ?? 100) : 100,
                 });
             }
         }
+        return totalSecondaryDamage;
     }
 
     private applyPlayerDamageToNpc(
@@ -12758,6 +12844,8 @@ export class WSServer {
                         this.sendSavedTransmitVarps(ws, p);
                         this.sendCollectionLogDisplayVarps(ws, p);
                         this.sendSavedAutocastTransmitVarbits(ws, p);
+                        // Restore active spellbook (varbit 4070) and redraw the spellbook tab.
+                        this.sendSavedSpellbookState(ws, p);
                         // Account type (varbit 1777) drives ownership filtering for ground items.
                         this.syncAccountTypeVarbit(ws, p);
                         const sideJournalState = this.normalizeSideJournalState(p);

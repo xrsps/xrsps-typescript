@@ -829,6 +829,23 @@ export class SoundManager {
             9078: 117,
             9079: 118,
             9001: 114,
+            // Ancient Magicks – all ancient combat spells share cast sound
+            4629: 6589, // Smoke Rush (ancient_spell_activate)
+            4630: 6589, // Shadow Rush
+            4632: 6589, // Blood Rush
+            4633: 6589, // Ice Rush
+            4635: 6589, // Smoke Burst
+            4636: 6589, // Shadow Burst
+            4638: 6589, // Blood Burst
+            4639: 6589, // Ice Burst
+            4641: 6589, // Smoke Blitz
+            4642: 6589, // Shadow Blitz
+            4644: 6589, // Blood Blitz
+            4645: 6589, // Ice Blitz
+            4647: 6589, // Smoke Barrage
+            4648: 6589, // Shadow Barrage
+            4650: 6589, // Blood Barrage
+            4651: 6589, // Ice Barrage
         };
 
         const impactMap: Record<number, number> = {
@@ -870,6 +887,23 @@ export class SoundManager {
             // Utility
             3293: 124,
             9100: 3007,
+            // Ancient Magicks – impact sounds
+            4629: 185, // Smoke Rush (smoke_rush_impact)
+            4630: 179, // Shadow Rush (shadow_rush_impact)
+            4632: 110, // Blood Rush (blood_rush_impact)
+            4633: 173, // Ice Rush (ice_rush_impact)
+            4635: 182, // Smoke Burst (smoke_burst_impact)
+            4636: 177, // Shadow Burst (shadow_burst_impact)
+            4638: 105, // Blood Burst (blood_burst_impact)
+            4639: 170, // Ice Burst (ice_burst_impact)
+            4641: 181, // Smoke Blitz (smoke_blitz_impact)
+            4642: 176, // Shadow Blitz (shadow_blitz_impact)
+            4644: 104, // Blood Blitz (blood_blitz_impact)
+            4645: 169, // Ice Blitz (ice_blitz_impact)
+            4647: 180, // Smoke Barrage (smoke_barrage_impact)
+            4648: 175, // Shadow Barrage (shadow_barrage_impact)
+            4650: 102, // Blood Barrage (blood_barrage_impact)
+            4651: 168, // Ice Barrage (ice_barrage_impact)
         };
 
         if (stage === "cast") {

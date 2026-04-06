@@ -84,6 +84,7 @@ const PROJECTILE_PARAMS: Record<number, ProjectileParams> = {
     // Ancient spellbook projectiles
     384: buildProjectileParamsFromArchetype("MAGIC", { slope: 32 }),
     378: buildProjectileParamsFromArchetype("MAGIC", { slope: 32 }),
+    372: buildProjectileParamsFromArchetype("MAGIC", { slope: 32 }),
     373: buildProjectileParamsFromArchetype("MAGIC", { slope: 32 }),
     360: buildProjectileParamsFromArchetype("MAGIC", { slope: 32 }),
     389: buildProjectileParamsFromArchetype("MAGIC", { slope: 32 }),
