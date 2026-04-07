@@ -9,12 +9,10 @@ export * from "./constants";
 export * from "./types";
 export {
     NpcPacketEncoder,
-    type NpcPacketEncoderServices,
     type NpcTickFrameData,
 } from "./NpcPacketEncoder";
 export {
     PlayerPacketEncoder,
-    type PlayerPacketEncoderServices,
     type PlayerTickFrameData,
     type MovementInfo,
 } from "./PlayerPacketEncoder";

@@ -2,7 +2,6 @@ import type { WebSocket } from "ws";
 
 import { logger } from "../../utils/logger";
 import type { SkillId } from "../../../../src/rs/skill/skills";
-import type { GameEventBus } from "../events/GameEventBus";
 import { getSpellBaseXp } from "../combat/SpellXpProvider";
 import {
     type AttackType as CombatXpAttackType,
@@ -10,43 +9,24 @@ import {
     calculateCombatXp,
 } from "../combat/CombatXp";
 import { encodeMessage } from "../../network/messages";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
-import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import type { PlayerState, SkillSyncUpdate } from "../player";
 import type { ActionEffect, ActionExecutionResult } from "../actions";
-import type { TickFrame } from "../tick/TickPhaseOrchestrator";
-
-export interface LevelUpPopup {
-    kind: "skill" | "combat" | "hunter";
-    skillId?: SkillId;
-    newLevel: number;
-    levelIncrement: number;
-}
-
-export interface SkillServiceDeps {
-    getActiveFrame: () => TickFrame | undefined;
-    broadcastScheduler: BroadcastScheduler;
-    networkLayer: PlayerNetworkLayer;
-    gamemode: GamemodeDefinition;
-    enqueueLevelUpPopup: (player: PlayerState, popup: LevelUpPopup) => void;
-    eventBus?: GameEventBus;
-}
+import type { ServerServices } from "../ServerServices";
 
 /**
  * Manages skill XP awards, level-up detection, and skill snapshot broadcasting.
  * Extracted from WSServer.
  */
 export class SkillService {
-    constructor(private readonly deps: SkillServiceDeps) {}
+    constructor(private readonly services: ServerServices) {}
 
     queueSkillSnapshot(playerId: number, update: SkillSyncUpdate): void {
-        const frame = this.deps.getActiveFrame();
+        const frame = this.services.activeFrame;
         if (frame) {
             frame.skillSnapshots.push({ playerId, update });
             return;
         }
-        this.deps.broadcastScheduler.queueSkillSnapshot(playerId, update);
+        this.services.broadcastScheduler.queueSkillSnapshot(playerId, update);
     }
 
     sendSkillsSnapshotImmediate(
@@ -62,8 +42,8 @@ export class SkillService {
             totalLevel: sync.totalLevel,
             combatLevel: sync.combatLevel,
         };
-        this.deps.networkLayer.withDirectSendBypass("skills_snapshot_immediate", () =>
-            this.deps.networkLayer.sendWithGuard(
+        this.services.networkLayer.withDirectSendBypass("skills_snapshot_immediate", () =>
+            this.services.networkLayer.sendWithGuard(
                 ws,
                 encodeMessage({ type: "skills", payload }),
                 "skills_snapshot_immediate",
@@ -74,7 +54,7 @@ export class SkillService {
     awardSkillXp(player: PlayerState, skillId: SkillId, xp: number): void {
         if (!(xp > 0)) return;
         try {
-            const gamemode = this.deps.gamemode;
+            const gamemode = this.services.gamemode;
             const skill = player.skillSystem.getSkill(skillId);
             const prev = skill.xp;
             const oldLevel = skill.baseLevel;
@@ -86,7 +66,7 @@ export class SkillService {
             if (!(delta > 0)) return;
             player.skillSystem.setSkillXp(skillId, prev + delta);
             const newXp = player.skillSystem.getSkill(skillId).xp;
-            this.deps.eventBus?.emit("skill:xpGain", {
+            this.services.eventBus.emit("skill:xpGain", {
                 player,
                 skillId,
                 xpGained: delta,
@@ -95,13 +75,13 @@ export class SkillService {
             });
             const newLevel = player.skillSystem.getSkill(skillId).baseLevel;
             if (newLevel > oldLevel) {
-                this.deps.enqueueLevelUpPopup(player, {
+                this.services.interfaceManager.enqueueLevelUpPopup(player, {
                     kind: "skill",
                     skillId,
                     newLevel,
                     levelIncrement: Math.max(1, newLevel - oldLevel),
                 });
-                this.deps.eventBus?.emit("skill:levelUp", {
+                this.services.eventBus.emit("skill:levelUp", {
                     player,
                     skillId,
                     oldLevel,
@@ -110,12 +90,12 @@ export class SkillService {
             }
             const newCombatLevel = player.skillSystem.combatLevel;
             if (newCombatLevel > oldCombatLevel) {
-                this.deps.enqueueLevelUpPopup(player, {
+                this.services.interfaceManager.enqueueLevelUpPopup(player, {
                     kind: "combat",
                     newLevel: newCombatLevel,
                     levelIncrement: Math.max(1, newCombatLevel - oldCombatLevel),
                 });
-                this.deps.eventBus?.emit("combat:levelUp", {
+                this.services.eventBus.emit("combat:levelUp", {
                     player,
                     oldLevel: oldCombatLevel,
                     newLevel: newCombatLevel,
@@ -161,7 +141,7 @@ export class SkillService {
 
         let xpChanged = false;
         const oldCombatLevel = player.skillSystem.combatLevel;
-        const gamemode = this.deps.gamemode;
+        const gamemode = this.services.gamemode;
         const MAX_XP = 200_000_000;
         for (const award of awards) {
             const skill = player.skillSystem.getSkill(award.skillId);

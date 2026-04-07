@@ -1,24 +1,12 @@
-import type { WebSocket } from "ws";
-
 import { SkillId } from "../../../../src/rs/skill/skills";
 import { encodeMessage } from "../../network/messages";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import { getItemDefinition } from "../../data/items";
 import { RUN_ENERGY_MAX } from "../actor";
-import type { ActionScheduler } from "../actions";
 import type { EmotePlayActionData, MovementTeleportActionData } from "../actions/actionPayloads";
 import { getEmoteSeq } from "../emotes";
 import { LockState } from "../model/LockState";
-import type { InventoryEntry, PlayerState } from "../player";
-import type { TickFrame } from "../tick/TickPhaseOrchestrator";
-import type { InterfaceService } from "../../widgets/InterfaceService";
-import type { SailingInstanceManager } from "../sailing/SailingInstanceManager";
-import type { WorldEntityInfoEncoder } from "../../network/encoding/WorldEntityInfoEncoder";
-import type { CacheEnv } from "../../world/CacheEnv";
-import type { PlayerManager } from "../PlayerManager";
-import type { WidgetEvent } from "../../network/wsServerTypes";
-import type { ChatMessageRequest } from "../actions/handlers/CombatActionHandler";
+import type { PlayerState } from "../player";
+import type { ServerServices } from "../ServerServices";
 import { logger } from "../../utils/logger";
 
 export interface RunEnergyPayload {
@@ -58,30 +46,6 @@ export interface TeleportActionRequest {
 const TELEPORT_ACTION_GROUP = "movement.teleport";
 const SAILING_WORLD_ENTITY_INDEX = 0;
 
-export interface MovementServiceDeps {
-    getActiveFrame: () => TickFrame | undefined;
-    getSocketByPlayerId: (id: number) => WebSocket | undefined;
-    networkLayer: PlayerNetworkLayer;
-    broadcastScheduler: BroadcastScheduler;
-    actionScheduler: ActionScheduler;
-    getCurrentTick: () => number;
-    getTickMs: () => number;
-    getInventory: (player: PlayerState) => InventoryEntry[];
-    ensureEquipArray: (player: PlayerState) => number[];
-    queueWidgetEvent: (playerId: number, event: WidgetEvent) => void;
-    queueVarbit: (playerId: number, varbitId: number, value: number) => void;
-    queueChatMessage: (msg: ChatMessageRequest) => void;
-    spawnLocForPlayer: (player: PlayerState, locId: number, tile: { x: number; y: number }, level: number, shape: number, rotation: number) => void;
-    closeInterruptibleInterfaces: (player: PlayerState) => void;
-    enqueueSpotAnimation: (anim: { tick: number; playerId: number; spotId: number; height?: number; delay?: number }) => void;
-    playAreaSound: (opts: { soundId: number; tile: { x: number; y: number }; level: number; radius?: number; volume?: number }) => void;
-    sailingInstanceManager: SailingInstanceManager | undefined;
-    worldEntityInfoEncoder: WorldEntityInfoEncoder;
-    interfaceService: InterfaceService | undefined;
-    cacheEnv: CacheEnv;
-    players: PlayerManager | undefined;
-}
-
 // Graceful item ID sets for run energy calculation
 const GRACEFUL_HOODS = new Set([11850, 13579, 13591, 13603, 13615, 13627, 13667, 21061, 24743, 25069]);
 const GRACEFUL_TOPS = new Set([11854, 13583, 13595, 13607, 13619, 13631, 13671, 21067, 24749, 25075]);
@@ -95,15 +59,11 @@ const GRACEFUL_CAPES = new Set([11852, 13581, 13593, 13605, 13617, 13629, 13669,
  * Extracted from WSServer.
  */
 export class MovementService {
-    private pendingWalkCommands = new Map<WebSocket, { to: { x: number; y: number }; run: boolean }>();
+    private pendingWalkCommands = new Map<import("ws").WebSocket, { to: { x: number; y: number }; run: boolean }>();
 
-    constructor(private readonly deps: MovementServiceDeps) {}
+    constructor(private readonly services: ServerServices) {}
 
-    setDeferredDeps(deferred: { interfaceService?: InterfaceService; players?: PlayerManager; sailingInstanceManager?: SailingInstanceManager }): void {
-        Object.assign(this.deps, deferred);
-    }
-
-    getPendingWalkCommands(): Map<WebSocket, { to: { x: number; y: number }; run: boolean }> {
+    getPendingWalkCommands(): Map<import("ws").WebSocket, { to: { x: number; y: number }; run: boolean }> {
         return this.pendingWalkCommands;
     }
 
@@ -118,20 +78,20 @@ export class MovementService {
     ): void {
         if (
             player.worldViewId === SAILING_WORLD_ENTITY_INDEX &&
-            this.deps.worldEntityInfoEncoder.isEntityActive(player.id, SAILING_WORLD_ENTITY_INDEX)
+            this.services.worldEntityInfoEncoder.isEntityActive(player.id, SAILING_WORLD_ENTITY_INDEX)
         ) {
-            this.deps.sailingInstanceManager?.disposeInstance(player);
-            this.deps.worldEntityInfoEncoder.removeEntity(player.id, SAILING_WORLD_ENTITY_INDEX);
-            this.deps.actionScheduler.clearActionsInGroup(player.id, "sailing.boarding");
+            this.services.sailingInstanceManager?.disposeInstance(player);
+            this.services.worldEntityInfoEncoder.removeEntity(player.id, SAILING_WORLD_ENTITY_INDEX);
+            this.services.actionScheduler.clearActionsInGroup(player.id, "sailing.boarding");
 
             for (const groupId of [937, 345]) {
                 const closed = player.widgets.close(groupId);
-                if (this.deps.interfaceService && closed.length > 0) {
-                    this.deps.interfaceService.triggerCloseHooksForEntries(player, closed);
+                if (this.services.interfaceService && closed.length > 0) {
+                    this.services.interfaceService.triggerCloseHooksForEntries(player, closed);
                 }
             }
 
-            this.deps.queueWidgetEvent(player.id, {
+            this.services.queueWidgetEvent(player.id, {
                 action: "open_sub",
                 targetUid: (161 << 16) | 76,
                 groupId: 593,
@@ -141,13 +101,13 @@ export class MovementService {
             const sailingVarbits = [19136, 19137, 19122, 19104, 19151, 19153, 19176, 19175, 19118];
             for (const id of sailingVarbits) {
                 player.varps.setVarbitValue(id, 0);
-                this.deps.queueVarbit(player.id, id, 0);
+                this.services.variableService.queueVarbit(player.id, id, 0);
             }
         }
 
         try {
-            this.deps.actionScheduler.clearActionsInGroup(player.id, "skill.woodcut");
-            this.deps.actionScheduler.clearActionsInGroup(player.id, "inventory");
+            this.services.actionScheduler.clearActionsInGroup(player.id, "skill.woodcut");
+            this.services.actionScheduler.clearActionsInGroup(player.id, "inventory");
             player.clearInteraction();
             player.stopAnimation();
             player.clearWalkDestination();
@@ -158,7 +118,7 @@ export class MovementService {
         const worldX = (x << 7) + 64;
         const worldY = (y << 7) + 64;
 
-        const frame = this.deps.getActiveFrame();
+        const frame = this.services.activeFrame;
         if (frame) {
             const view = frame.playerViews.get(player.id);
             if (view) {
@@ -184,7 +144,7 @@ export class MovementService {
         extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
     ): void {
         logger.info(`[teleportToInstance] Player ${player.id} -> (${x}, ${y}, ${level})`);
-        const ws = this.deps.getSocketByPlayerId(player.id);
+        const ws = this.services.players?.getSocketByPlayerId(player.id);
         if (!ws) {
             logger.warn(`[teleportToInstance] No websocket for player ${player.id}`);
             return;
@@ -194,17 +154,17 @@ export class MovementService {
         const regionY = y >> 3;
 
         const { buildRebuildRegionPayload } = require("../../network/encoding/RebuildRegionEncoder");
-        const payload = buildRebuildRegionPayload(regionX, regionY, templateChunks, this.deps.cacheEnv, false);
+        const payload = buildRebuildRegionPayload(regionX, regionY, templateChunks, this.services.cacheEnv, false);
         const packet = encodeMessage({ type: "rebuild_region", payload } as Parameters<typeof encodeMessage>[0]);
-        this.deps.networkLayer.withDirectSendBypass("rebuild_region", () =>
-            this.deps.networkLayer.sendWithGuard(ws, packet, "rebuild_region"),
+        this.services.networkLayer.withDirectSendBypass("rebuild_region", () =>
+            this.services.networkLayer.sendWithGuard(ws, packet, "rebuild_region"),
         );
 
         this.teleportPlayer(player, x, y, level);
 
         if (extraLocs) {
             for (const loc of extraLocs) {
-                this.deps.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
+                this.services.locationService.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
             }
         }
     }
@@ -217,12 +177,12 @@ export class MovementService {
 
         const replacePending = request.replacePending === true;
         if (replacePending) {
-            this.deps.actionScheduler.clearActionsInGroup(playerId, TELEPORT_ACTION_GROUP);
+            this.services.actionScheduler.clearActionsInGroup(playerId, TELEPORT_ACTION_GROUP);
             this.tryReleaseTeleportDelayLock(player, LockState.DELAY_ACTIONS);
         }
 
         const rejectIfPending = request.rejectIfPending !== false;
-        if (rejectIfPending && this.deps.actionScheduler.hasPendingActionInGroup(playerId, TELEPORT_ACTION_GROUP)) {
+        if (rejectIfPending && this.services.actionScheduler.hasPendingActionInGroup(playerId, TELEPORT_ACTION_GROUP)) {
             return { ok: false, reason: "cooldown" };
         }
 
@@ -257,10 +217,10 @@ export class MovementService {
         if (request.arriveFaceTileY !== undefined) data.arriveFaceTileY = request.arriveFaceTileY;
         if (request.preserveAnimation) data.preserveAnimation = true;
 
-        const result = this.deps.actionScheduler.requestAction(
+        const result = this.services.actionScheduler.requestAction(
             playerId,
             { kind: "movement.teleport", data, delayTicks, cooldownTicks, groups: [TELEPORT_ACTION_GROUP] },
-            this.deps.getCurrentTick(),
+            this.services.ticker.currentTick(),
         );
         if (!result.ok) {
             this.tryReleaseTeleportDelayLock(player, LockState.DELAY_ACTIONS);
@@ -271,7 +231,7 @@ export class MovementService {
 
     tryReleaseTeleportDelayLock(player: PlayerState, expected: LockState): void {
         if (player.lock !== expected) return;
-        if (this.deps.actionScheduler.hasPendingActionInGroup(player.id, TELEPORT_ACTION_GROUP)) return;
+        if (this.services.actionScheduler.hasPendingActionInGroup(player.id, TELEPORT_ACTION_GROUP)) return;
         player.lock = LockState.NONE;
     }
 
@@ -291,11 +251,11 @@ export class MovementService {
             return weight * qty;
         };
         let total = 0;
-        const inv = this.deps.getInventory(player);
+        const inv = this.services.inventoryService.getInventory(player);
         for (const entry of inv) {
             total += addWeight(entry.itemId, entry.quantity);
         }
-        const equip = this.deps.ensureEquipArray(player);
+        const equip = this.services.equipmentService.ensureEquipArray(player);
         for (const itemId of equip) {
             total += addWeight(itemId, 1);
         }
@@ -318,7 +278,7 @@ export class MovementService {
     }
 
     countGracefulPieces(player: PlayerState): number {
-        const equip = this.deps.ensureEquipArray(player);
+        const equip = this.services.equipmentService.ensureEquipArray(player);
         let count = 0;
         for (const itemId of equip) {
             if (itemId <= 0) continue;
@@ -366,7 +326,7 @@ export class MovementService {
     buildRunEnergyPayload(player: PlayerState | undefined): RunEnergyPayload | undefined {
         if (!player) return undefined;
         player.energy.syncInfiniteRunEnergy();
-        const currentTick = this.deps.getCurrentTick();
+        const currentTick = this.services.ticker.currentTick();
         const staminaEffectTicks = player.energy.getStaminaEffectRemainingTicks(currentTick) ?? 0;
         const staminaMultiplier = player.energy.getRunEnergyDrainMultiplier(currentTick) ?? 1;
         const staminaActive = staminaEffectTicks > 0;
@@ -382,7 +342,7 @@ export class MovementService {
         if (staminaActive) {
             payload.staminaTicks = staminaEffectTicks;
             payload.staminaMultiplier = staminaMultiplier;
-            payload.staminaTickMs = this.deps.getTickMs();
+            payload.staminaTickMs = this.services.tickMs;
         }
         return payload;
     }
@@ -390,21 +350,21 @@ export class MovementService {
     queueRunEnergySnapshot(player: PlayerState | undefined): void {
         const payload = this.buildRunEnergyPayload(player);
         if (!payload || !player) return;
-        const frame = this.deps.getActiveFrame();
+        const frame = this.services.activeFrame;
         if (frame) {
             frame.runEnergySnapshots.push({ playerId: player.id, ...payload });
             player.energy.markRunEnergySynced();
             return;
         }
-        this.deps.broadcastScheduler.queueRunEnergySnapshot({ playerId: player.id, ...payload });
+        this.services.broadcastScheduler.queueRunEnergySnapshot({ playerId: player.id, ...payload });
         player.energy.markRunEnergySynced();
     }
 
-    sendRunEnergyState(sock: WebSocket, player: PlayerState): void {
+    sendRunEnergyState(sock: import("ws").WebSocket, player: PlayerState): void {
         const payload = this.buildRunEnergyPayload(player);
         if (!payload) return;
-        this.deps.networkLayer.withDirectSendBypass("run_energy", () =>
-            this.deps.networkLayer.sendWithGuard(sock, encodeMessage({ type: "run_energy", payload }), "run_energy"),
+        this.services.networkLayer.withDirectSendBypass("run_energy", () =>
+            this.services.networkLayer.sendWithGuard(sock, encodeMessage({ type: "run_energy", payload }), "run_energy"),
         );
         player.energy.markRunEnergySynced();
     }
@@ -445,7 +405,7 @@ export class MovementService {
             }
 
             if (data.endSpotAnim !== undefined && data.endSpotAnim > 0) {
-                this.deps.enqueueSpotAnimation({
+                this.services.broadcastService.enqueueSpotAnimation({
                     tick,
                     playerId: player.id,
                     spotId: data.endSpotAnim,
@@ -455,7 +415,7 @@ export class MovementService {
             }
 
             if (data.arriveSoundId !== undefined && data.arriveSoundId > 0) {
-                this.deps.playAreaSound({
+                this.services.soundService.playAreaSound({
                     soundId: data.arriveSoundId,
                     tile: { x, y },
                     level,
@@ -471,7 +431,7 @@ export class MovementService {
             }
 
             if (data.arriveMessage) {
-                this.deps.queueChatMessage({
+                this.services.messagingService.queueChatMessage({
                     messageType: "game",
                     text: data.arriveMessage,
                     targetPlayerIds: [player.id],
@@ -579,19 +539,19 @@ export class MovementService {
     // --- Walk Commands ---
 
     flushPendingWalkCommands(currentTick: number, stage: "pre" | "movement" = "pre"): void {
-        if (!this.deps.players || this.pendingWalkCommands.size === 0) return;
+        if (!this.services.players || this.pendingWalkCommands.size === 0) return;
         for (const [sock, command] of Array.from(this.pendingWalkCommands.entries())) {
             const handled = this.routeOrRejectWalkCommand(sock, command, currentTick, stage);
             if (handled) this.pendingWalkCommands.delete(sock);
         }
     }
 
-    routeOrRejectWalkCommand(sock: WebSocket, command: { to: { x: number; y: number }; run: boolean }, currentTick: number, context: string): boolean {
-        const player = this.deps.players?.get(sock);
+    routeOrRejectWalkCommand(sock: import("ws").WebSocket, command: { to: { x: number; y: number }; run: boolean }, currentTick: number, context: string): boolean {
+        const player = this.services.players?.get(sock);
         if (!player) return true;
         if (!player.canMove()) {
             if (player.lock === LockState.FULL) {
-                this.deps.queueChatMessage({
+                this.services.messagingService.queueChatMessage({
                     messageType: "game",
                     text: "You can't do that right now.",
                     targetPlayerIds: [player.id],
@@ -599,12 +559,12 @@ export class MovementService {
             }
             return true;
         }
-        this.deps.closeInterruptibleInterfaces(player);
+        this.services.interfaceManager.closeInterruptibleInterfaces(player);
         try {
             player.clearInteraction();
             player.stopAnimation();
         } catch (err) { logger.warn("[movement] failed to clear interaction state", err); }
-        const result = this.deps.players.routePlayer(sock, { x: command.to.x, y: command.to.y }, command.run);
+        const result = this.services.players.routePlayer(sock, { x: command.to.x, y: command.to.y }, command.run);
         return true;
     }
 }

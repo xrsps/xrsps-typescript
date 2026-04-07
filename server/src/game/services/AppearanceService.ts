@@ -6,12 +6,9 @@ import {
 import type { IdkType } from "../../../../src/rs/config/idktype/IdkType";
 import type { WeaponDataEntry } from "../combat/WeaponDataProvider";
 import { weaponDataEntries } from "../combat/WeaponDataProvider";
-import type { BroadcastScheduler, PlayerAnimSet } from "../systems/BroadcastScheduler";
-import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
+import type { PlayerAnimSet } from "../systems/BroadcastScheduler";
 import type { PlayerState, PlayerAppearance as PlayerAppearanceState } from "../player";
-import type { PlayerAppearanceManager } from "../../network/managers/PlayerAppearanceManager";
-import type { DataLoaderService } from "./DataLoaderService";
-import type { TickFrame } from "../tick/TickPhaseOrchestrator";
+import type { ServerServices } from "../ServerServices";
 import { logger } from "../../utils/logger";
 
 const EQUIP_SLOT_COUNT = 14;
@@ -51,15 +48,6 @@ function ensureCorePlayerAnimSet(
     return result;
 }
 
-export interface AppearanceServiceDeps {
-    dataLoaders: DataLoaderService;
-    gamemode: GamemodeDefinition;
-    playerAppearanceManager: PlayerAppearanceManager;
-    broadcastScheduler: BroadcastScheduler;
-    getActiveFrame: () => TickFrame | undefined;
-    isAdminPlayer: (player: PlayerState | undefined) => boolean;
-}
-
 /**
  * Manages player appearance, animation sets, body kits, and weapon data.
  * Extracted from WSServer.
@@ -78,11 +66,7 @@ export class AppearanceService {
     private weaponData = new Map<number, WeaponDataEntry>();
     private readonly defaultBodyKitCache = new Map<number, number[]>();
 
-    constructor(private readonly deps: AppearanceServiceDeps) {}
-
-    setDeferredDeps(deferred: { playerAppearanceManager?: PlayerAppearanceManager }): void {
-        Object.assign(this.deps, deferred);
-    }
+    constructor(private readonly services: ServerServices) {}
 
     loadWeaponData(): void {
         this.weaponData.clear();
@@ -107,7 +91,7 @@ export class AppearanceService {
     }
 
     initDefaultAnims(): void {
-        const basLoader = this.deps.dataLoaders.getBasTypeLoader();
+        const basLoader = this.services.dataLoaderService.getBasTypeLoader();
         if (!basLoader) return;
 
         this.defaultPlayerAnimMale =
@@ -137,11 +121,11 @@ export class AppearanceService {
     }
 
     refreshAppearanceKits(p: PlayerState): void {
-        this.deps.playerAppearanceManager.refreshAppearanceKits(p);
+        this.services.playerAppearanceManager!.refreshAppearanceKits(p);
     }
 
     queueAppearanceSnapshot(player: PlayerState, overrides?: Record<string, unknown>): void {
-        this.deps.playerAppearanceManager.queueAppearanceSnapshot(player, overrides);
+        this.services.playerAppearanceManager!.queueAppearanceSnapshot(player, overrides);
     }
 
     getOrCreateAppearance(player: PlayerState): PlayerAppearanceState {
@@ -177,7 +161,7 @@ export class AppearanceService {
         const cached = this.defaultBodyKitCache.get(key);
         if (cached) return cached.slice();
 
-        const loader = this.deps.dataLoaders.getIdkTypeLoader();
+        const loader = this.services.dataLoaderService.getIdkTypeLoader();
         const defaults = new Array<number>(7).fill(-1);
         const count = loader?.getCount() ?? 0;
         const expectedPart = (part: number) => part + (key === 1 ? 7 : 0);
@@ -244,7 +228,7 @@ export class AppearanceService {
 
         const basId = this.guessBasIdForAppearance(appearance);
         if (basId !== undefined) {
-            const basLoader = this.deps.dataLoaders.getBasTypeLoader();
+            const basLoader = this.services.dataLoaderService.getBasTypeLoader();
             if (basLoader) {
                 const fromBas = this.loadAnimSetFromBas(() => basLoader.load(basId));
                 if (fromBas) return ensureCorePlayerAnimSet(fromBas, genderFallback);
@@ -256,7 +240,7 @@ export class AppearanceService {
     guessBasIdForAppearance(
         appearance: { gender?: number } | undefined,
     ): number | undefined {
-        if (!this.deps.dataLoaders.getBasTypeLoader()) return undefined;
+        if (!this.services.dataLoaderService.getBasTypeLoader()) return undefined;
         const gender = appearance?.gender === 1 ? 1 : 0;
         return gender === 1 ? 1 : 0;
     }
@@ -307,12 +291,12 @@ export class AppearanceService {
 
     queueAnimSnapshot(playerId: number, anim: PlayerAnimSet | undefined): void {
         if (!anim) return;
-        const frame = this.deps.getActiveFrame();
+        const frame = this.services.activeFrame;
         if (frame) {
             frame.animSnapshots.push({ playerId, anim });
             return;
         }
-        this.deps.broadcastScheduler.queueAnimSnapshot(playerId, anim);
+        this.services.broadcastScheduler.queueAnimSnapshot(playerId, anim);
     }
 
     sendAppearanceUpdate(p: PlayerState): void {
@@ -321,10 +305,10 @@ export class AppearanceService {
 
     getAppearanceDisplayName(player: PlayerState | undefined): string {
         const baseName = player?.name ?? "";
-        return this.deps.gamemode.getDisplayName(
+        return this.services.gamemode.getDisplayName(
             player as PlayerState,
             baseName,
-            this.deps.isAdminPlayer(player),
+            this.services.authService.isAdminPlayer(player),
         );
     }
 }

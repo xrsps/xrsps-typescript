@@ -1,15 +1,10 @@
 import type { PlayerState } from "../game/player";
-import type { WidgetAction } from "../widgets/WidgetManager";
+import type { ServerServices } from "../game/ServerServices";
 
 export const REPORT_GAME_TIME_GROUP_ID = 162;
 const REPORT_GAME_TIME_TEXT_CHILD_ID = 33;
 const REPORT_GAME_TIME_TEXT_UID =
     ((REPORT_GAME_TIME_GROUP_ID & 0xffff) << 16) | (REPORT_GAME_TIME_TEXT_CHILD_ID & 0xffff);
-
-export interface ReportGameTimeServices {
-    queueWidgetEvent: (playerId: number, action: WidgetAction) => void;
-    isWidgetGroupOpenInLedger: (playerId: number, groupId: number) => boolean;
-}
 
 export function formatReportGameTime(totalSeconds: number): string {
     const safeTotalSeconds = Math.max(
@@ -27,7 +22,7 @@ export function formatReportGameTime(totalSeconds: number): string {
 export class ReportGameTimeTracker {
     private readonly lastTextByPlayer = new Map<number, string>();
 
-    constructor(private readonly services: ReportGameTimeServices) {}
+    constructor(private readonly svc: ServerServices) {}
 
     clearPlayer(playerIdRaw: number): void {
         const playerId = playerIdRaw;
@@ -37,7 +32,7 @@ export class ReportGameTimeTracker {
 
     syncPlayer(player: PlayerState, nowMs: number = Date.now(), force: boolean = false): void {
         const playerId = player.id;
-        if (!this.services.isWidgetGroupOpenInLedger(playerId, REPORT_GAME_TIME_GROUP_ID)) {
+        if (!this.svc.interfaceManager.isWidgetGroupOpenInLedger(playerId, REPORT_GAME_TIME_GROUP_ID)) {
             this.lastTextByPlayer.delete(playerId);
             return;
         }
@@ -48,7 +43,7 @@ export class ReportGameTimeTracker {
         }
 
         this.lastTextByPlayer.set(playerId, text);
-        this.services.queueWidgetEvent(playerId, {
+        this.svc.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: REPORT_GAME_TIME_TEXT_UID,
             text,

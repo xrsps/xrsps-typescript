@@ -1,31 +1,9 @@
 import type { ActionExecutionResult, ScheduledAction } from "../actions";
 import type { PlayerState } from "../player";
-import type { ScriptServices } from "../scripts/types";
-
-export interface ActionDispatchServiceDeps {
-    inventoryActionHandler: {
-        executeInventoryUseOnAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
-        executeInventoryEquipAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
-        executeInventoryConsumeAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
-        executeScriptedConsumeAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
-        executeInventoryMoveAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
-        executeInventoryUnequipAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
-    };
-    combatActionHandler: {
-        executeCombatAttackAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
-        executeCombatAutocastAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
-        executeCombatPlayerHitAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
-        executeCombatNpcRetaliateAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
-        executeCombatCompanionHitAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
-    };
-    executeMovementTeleportAction: (player: PlayerState, data: Record<string, unknown>, tick: number) => ActionExecutionResult;
-    executeEmotePlayAction: (player: PlayerState, data: Record<string, unknown>) => ActionExecutionResult;
-    getScriptServices: () => ScriptServices;
-    findActionHandler: (kind: string) => ((event: Record<string, unknown>) => ActionExecutionResult) | undefined;
-}
+import type { ServerServices } from "../ServerServices";
 
 export class ActionDispatchService {
-    constructor(private readonly deps: ActionDispatchServiceDeps) {}
+    constructor(private readonly services: ServerServices) {}
 
     dispatch(
         player: PlayerState,
@@ -34,66 +12,66 @@ export class ActionDispatchService {
     ): ActionExecutionResult {
         switch (action.kind) {
             case "inventory.use_on":
-                return this.deps.inventoryActionHandler.executeInventoryUseOnAction(
+                return this.services.inventoryActionHandler!.executeInventoryUseOnAction(
                     player, action.data, tick,
                 );
             case "inventory.equip":
-                return this.deps.inventoryActionHandler.executeInventoryEquipAction(
+                return this.services.inventoryActionHandler!.executeInventoryEquipAction(
                     player, action.data,
                 );
             case "inventory.consume":
-                return this.deps.inventoryActionHandler.executeInventoryConsumeAction(
+                return this.services.inventoryActionHandler!.executeInventoryConsumeAction(
                     player, action.data,
                 );
             case "inventory.consume_script":
-                return this.deps.inventoryActionHandler.executeScriptedConsumeAction(
+                return this.services.inventoryActionHandler!.executeScriptedConsumeAction(
                     player, action.data, tick,
                 );
             case "inventory.move":
-                return this.deps.inventoryActionHandler.executeInventoryMoveAction(
+                return this.services.inventoryActionHandler!.executeInventoryMoveAction(
                     player, action.data,
                 );
             case "inventory.unequip":
-                return this.deps.inventoryActionHandler.executeInventoryUnequipAction(
+                return this.services.inventoryActionHandler!.executeInventoryUnequipAction(
                     player, action.data,
                 );
             case "combat.attack":
-                return this.deps.combatActionHandler.executeCombatAttackAction(
+                return this.services.combatActionHandler!.executeCombatAttackAction(
                     player, action.data, tick,
                 );
             case "combat.autocast":
-                return this.deps.combatActionHandler.executeCombatAutocastAction(
+                return this.services.combatActionHandler!.executeCombatAutocastAction(
                     player, action.data, tick,
                 );
             case "combat.playerHit":
-                return this.deps.combatActionHandler.executeCombatPlayerHitAction(
+                return this.services.combatActionHandler!.executeCombatPlayerHitAction(
                     player, action.data, tick,
                 );
             case "combat.npcRetaliate":
-                return this.deps.combatActionHandler.executeCombatNpcRetaliateAction(
+                return this.services.combatActionHandler!.executeCombatNpcRetaliateAction(
                     player, action.data, tick,
                 );
             case "combat.companionHit":
-                return this.deps.combatActionHandler.executeCombatCompanionHitAction(
+                return this.services.combatActionHandler!.executeCombatCompanionHitAction(
                     player, action.data, tick,
                 );
             case "movement.teleport":
-                return this.deps.executeMovementTeleportAction(player, action.data, tick);
+                return this.services.movementService.executeMovementTeleportAction(player, action.data, tick);
             case "emote.play":
-                return this.deps.executeEmotePlayAction(player, action.data);
+                return this.services.movementService.executeEmotePlayAction(player, action.data);
             case "npc.trade": {
                 const tradeData = action.data as { npcTypeId?: number; shopId?: string };
-                this.deps.getScriptServices().openShop?.(player, tradeData);
+                this.services.scriptRuntime.getServices().openShop?.(player, tradeData);
                 return { ok: true, effects: [] };
             }
             default: {
-                const scriptHandler = this.deps.findActionHandler(action.kind);
+                const scriptHandler = this.services.scriptRegistry.findActionHandler(action.kind);
                 if (scriptHandler) {
                     return scriptHandler({
                         player,
                         data: action.data,
                         tick,
-                        services: this.deps.getScriptServices(),
+                        services: this.services.scriptRuntime.getServices(),
                     });
                 }
                 return {

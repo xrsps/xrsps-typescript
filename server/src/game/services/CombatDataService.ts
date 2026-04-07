@@ -1,17 +1,10 @@
 import path from "path";
 
 import type { EnumTypeLoader } from "../../../../src/rs/config/enumtype/EnumTypeLoader";
-import type { NpcSoundLookup, NpcSoundType } from "../../audio/NpcSoundLookup";
-import type { NpcManager } from "../npcManager";
+import type { NpcSoundType } from "../../audio/NpcSoundLookup";
 import type { NpcCombatProfile, NpcState } from "../npc";
-import type { DataLoaderService } from "./DataLoaderService";
+import type { ServerServices } from "../ServerServices";
 import { logger } from "../../utils/logger";
-
-export interface CombatDataServiceDeps {
-    dataLoaders: DataLoaderService;
-    npcManager: NpcManager | undefined;
-    npcSoundLookup: NpcSoundLookup | undefined;
-}
 
 /**
  * Loads and provides NPC combat definitions, stats, special attack data,
@@ -32,11 +25,7 @@ export class CombatDataService {
     private specialAttackDescriptionByWeapon?: Map<number, string>;
     private specialAttackDefaultDescription?: string;
 
-    constructor(private readonly deps: CombatDataServiceDeps) {}
-
-    setDeferredDeps(deferred: { npcSoundLookup?: NpcSoundLookup }): void {
-        Object.assign(this.deps, deferred);
-    }
+    constructor(private readonly services: ServerServices) {}
 
     // --- NPC combat definitions ---
 
@@ -107,7 +96,7 @@ export class CombatDataService {
 
     getNpcParamValue(npc: NpcState, paramKey: number): number | undefined {
         try {
-            const npcType = this.deps.npcManager?.getNpcType?.(npc.typeId);
+            const npcType = this.services.npcManager?.getNpcType?.(npc.typeId);
             const params = npcType?.params;
             if (!params) return undefined;
             const val = params.get(paramKey);
@@ -160,16 +149,26 @@ export class CombatDataService {
     // --- NPC sound methods ---
 
     getNpcSoundFromTable88(typeId: number, soundType: NpcSoundType): number | undefined {
-        if (!this.deps.npcSoundLookup) return undefined;
+        if (!this.services.npcSoundLookup) return undefined;
         try {
-            const npcTypeLoader = this.deps.dataLoaders.getNpcTypeLoader();
+            const npcTypeLoader = this.services.dataLoaderService.getNpcTypeLoader();
             if (!npcTypeLoader) return undefined;
             const npcType = npcTypeLoader.load(typeId);
             if (!npcType) return undefined;
-            return this.deps.npcSoundLookup.getSoundForNpc(npcType, soundType);
+            return this.services.npcSoundLookup.getSoundForNpc(npcType, soundType);
         } catch {
             return undefined;
         }
+    }
+
+    getNpcDeathSoundFromDefs(typeId: number): { deathSound?: number } | undefined {
+        this.loadNpcCombatDefs();
+        return this.npcCombatDefs?.[String(typeId)];
+    }
+
+    getNpcCombatDefaultDeathSound(): number {
+        this.loadNpcCombatDefs();
+        return this.npcCombatDefaults?.death ?? 836;
     }
 
     getNpcDeathSoundId(npc: NpcState): number | undefined {

@@ -11,36 +11,10 @@ import {
 import type { PlayerState } from "../player";
 import { SpellCaster } from "../spells/SpellCaster";
 import { logger } from "../../utils/logger";
-
-export interface SpellCastingServiceDeps {
-    getPlayerBySocket: (ws: WebSocket) => PlayerState | undefined;
-    getSocketByPlayerId: (id: number) => WebSocket | undefined;
-    getInventory: (player: PlayerState) => Array<{ itemId: number; quantity: number }>;
-    setInventorySlot: (player: PlayerState, slot: number, itemId: number, quantity: number) => void;
-    addItemToInventory: (player: PlayerState, itemId: number, quantity: number) => void;
-    sendInventorySnapshot: (ws: WebSocket, player: PlayerState) => void;
-    queueChatMessage: (msg: { messageType: string; playerId?: number; text: string; targetPlayerIds?: number[] }) => void;
-    queueSpellResult: (playerId: number, payload: {
-        casterId: number;
-        spellId: number;
-        outcome: "success" | "failure";
-        reason?: string;
-        targetType: "npc" | "player" | "loc" | "obj" | "tile" | "item";
-    }) => void;
-    awardSkillXp: (player: PlayerState, skillId: SkillId, xp: number) => void;
-    enqueueSpotAnimation: (event: {
-        tick: number;
-        playerId: number;
-        spotId: number;
-        delay: number;
-        height: number;
-    }) => void;
-    getCurrentTick: () => number;
-    getActiveFrameTick: () => number | undefined;
-}
+import type { ServerServices } from "../ServerServices";
 
 export class SpellCastingService {
-    constructor(private readonly deps: SpellCastingServiceDeps) {}
+    constructor(private readonly svc: ServerServices) {}
 
     handleSpellCastOnItem(
         ws: WebSocket,
@@ -56,7 +30,7 @@ export class SpellCastingService {
             widgetId?: number;
         },
     ): void {
-        const player = this.deps.getPlayerBySocket(ws);
+        const player = this.svc.players?.get(ws);
         if (!player) return;
 
         const slot = payload.slot;
@@ -91,7 +65,7 @@ export class SpellCastingService {
         const magicSkill = player.skillSystem.getSkill(SkillId.Magic);
         const magicLevel = Math.max(1, magicSkill.baseLevel + magicSkill.boost);
         if (spellData.levelRequired && magicLevel < spellData.levelRequired) {
-            this.deps.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 playerId: player.id,
                 text: `You need a Magic level of ${spellData.levelRequired} to cast this spell.`,
@@ -100,7 +74,7 @@ export class SpellCastingService {
             return;
         }
 
-        const inventory = this.deps.getInventory(player);
+        const inventory = this.svc.inventoryService.getInventory(player);
         const invSlot = inventory[slot];
         if (!invSlot || invSlot.itemId !== targetItemId || invSlot.quantity <= 0) {
             this.sendSpellFailure(player, spellId, "invalid_target");
@@ -113,7 +87,7 @@ export class SpellCastingService {
                 spellId,
             });
             if (!validation.success) {
-                this.deps.queueChatMessage({
+                this.svc.messagingService.queueChatMessage({
                     messageType: "game",
                     playerId: player.id,
                     text: "You don't have the required runes.",
@@ -130,7 +104,7 @@ export class SpellCastingService {
         if (spellId === HIGH_ALCH_ID || spellId === LOW_ALCH_ID) {
             const itemDef = getItemDefinition(targetItemId);
             if (!itemDef) {
-                this.deps.queueChatMessage({
+                this.svc.messagingService.queueChatMessage({
                     messageType: "game",
                     playerId: player.id,
                     text: "You cannot alchemise this item.",
@@ -141,7 +115,7 @@ export class SpellCastingService {
 
             const alchValue = spellId === HIGH_ALCH_ID ? itemDef.highAlch : itemDef.lowAlch;
             if (alchValue <= 0) {
-                this.deps.queueChatMessage({
+                this.svc.messagingService.queueChatMessage({
                     messageType: "game",
                     playerId: player.id,
                     text: "You cannot alchemise this item.",
@@ -151,7 +125,7 @@ export class SpellCastingService {
             }
 
             if (targetItemId === COINS_ID) {
-                this.deps.queueChatMessage({
+                this.svc.messagingService.queueChatMessage({
                     messageType: "game",
                     playerId: player.id,
                     text: "You cannot alchemise coins.",
@@ -172,20 +146,20 @@ export class SpellCastingService {
             }
 
             if (invSlot.quantity > 1) {
-                this.deps.setInventorySlot(player, slot, targetItemId, invSlot.quantity - 1);
+                this.svc.inventoryService.setInventorySlot(player, slot, targetItemId, invSlot.quantity - 1);
             } else {
-                this.deps.setInventorySlot(player, slot, 0, 0);
+                this.svc.inventoryService.setInventorySlot(player, slot, 0, 0);
             }
 
-            this.deps.addItemToInventory(player, COINS_ID, alchValue);
+            this.svc.inventoryService.addItemToInventory(player, COINS_ID, alchValue);
 
             const xpAward = spellId === HIGH_ALCH_ID ? 65 : 31;
-            this.deps.awardSkillXp(player, SkillId.Magic, xpAward);
+            this.svc.skillService.awardSkillXp(player, SkillId.Magic, xpAward);
 
             const animId = spellId === HIGH_ALCH_ID ? 713 : 712;
             player.queueOneShotSeq(animId);
-            const tick = this.deps.getActiveFrameTick() ?? this.deps.getCurrentTick();
-            this.deps.enqueueSpotAnimation({
+            const tick = this.svc.activeFrame?.tick ?? this.svc.ticker.currentTick();
+            this.svc.broadcastService.enqueueSpotAnimation({
                 tick: tick,
                 playerId: player.id,
                 spotId: spellData.castSpotAnim ?? 113,
@@ -193,10 +167,10 @@ export class SpellCastingService {
                 height: 100,
             });
 
-            const sock = this.deps.getSocketByPlayerId(player.id);
-            if (sock) this.deps.sendInventorySnapshot(sock, player);
+            const sock = this.svc.players?.getSocketByPlayerId(player.id);
+            if (sock) this.svc.inventoryService.sendInventorySnapshot(sock, player);
 
-            this.deps.queueSpellResult(player.id, {
+            this.svc.broadcastService.queueSpellResult(player.id, {
                 casterId: player.id,
                 spellId: spellId,
                 outcome: "success",
@@ -209,7 +183,7 @@ export class SpellCastingService {
             return;
         }
 
-        this.deps.queueChatMessage({
+        this.svc.messagingService.queueChatMessage({
             messageType: "game",
             playerId: player.id,
             text: "Nothing interesting happens.",
@@ -218,7 +192,7 @@ export class SpellCastingService {
     }
 
     sendSpellFailure(player: PlayerState, spellId: number, reason: string): void {
-        this.deps.queueSpellResult(player.id, {
+        this.svc.broadcastService.queueSpellResult(player.id, {
             casterId: player.id,
             spellId: spellId,
             outcome: "failure",
@@ -296,7 +270,7 @@ export class SpellCastingService {
                 text = sd?.category === "utility" ? "Nothing interesting happens." : undefined;
         }
         if (text) {
-            this.deps.queueChatMessage({ messageType: "game", text });
+            this.svc.messagingService.queueChatMessage({ messageType: "game", text });
         }
     }
 }

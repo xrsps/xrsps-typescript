@@ -1,6 +1,7 @@
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import { resolvePlayerAttackType } from "../combat/CombatRules";
 import type { PlayerState } from "../player";
+import type { ServerServices } from "../ServerServices";
 import type { WidgetAction } from "./InterfaceManager";
 
 export const EQUIPMENT_STATS_GROUP_ID = 84;
@@ -51,27 +52,15 @@ const IMBUED_SLAYER_HELM_IDS = new Set<number>([
     25912, // Tzkal slayer helmet (i)
 ]);
 
-export interface EquipmentStatsUiServiceDeps {
-    queueWidgetEvent: (playerId: number, action: WidgetAction) => void;
-    computeEquipmentStatBonuses: (player: PlayerState) => number[];
-    ensureEquipArray: (player: PlayerState) => number[];
-    formatEquipmentSignedInt: (value: number) => string;
-    formatEquipmentSignedPercent: (value: number) => string;
-    formatEquipmentSignedIntPercent: (value: number) => string;
-    formatEquipmentAttackSpeedSeconds: (ticks: number) => string;
-    resolveBaseAttackSpeed: (player: PlayerState) => number;
-    pickAttackSpeed: (player: PlayerState) => number;
-}
-
 export class EquipmentStatsUiService {
-    constructor(private readonly deps: EquipmentStatsUiServiceDeps) {}
+    constructor(private readonly services: ServerServices) {}
 
     private equipmentStatsUid(childId: number): number {
         return ((EQUIPMENT_STATS_GROUP_ID & 0xffff) << 16) | (childId & 0xffff);
     }
 
     private queueEquipmentStatsWidgetText(playerId: number, childId: number, text: string): void {
-        this.deps.queueWidgetEvent(playerId, {
+        this.services.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: this.equipmentStatsUid(childId),
             text,
@@ -82,7 +71,7 @@ export class EquipmentStatsUiService {
         undeadPercent: number;
         slayerPercent: number;
     } {
-        const equip = this.deps.ensureEquipArray(player);
+        const equip = this.services.equipmentService.ensureEquipArray(player);
         const amuletId = equip[EquipmentSlot.AMULET];
         const headId = equip[EquipmentSlot.HEAD];
         const attackType = resolvePlayerAttackType(player.combat);
@@ -128,7 +117,7 @@ export class EquipmentStatsUiService {
 
     queueEquipmentStatsWidgetTexts(player: PlayerState): void {
         const playerId = player.id;
-        const bonuses = this.deps.computeEquipmentStatBonuses(player);
+        const bonuses = this.services.equipmentService.computeEquipmentStatBonuses(player);
         const attackLabels = ["Stab", "Slash", "Crush", "Magic", "Ranged"] as const;
         const defenceLabels = ["Stab", "Slash", "Crush", "Magic", "Ranged"] as const;
         const otherLabels = [
@@ -142,60 +131,60 @@ export class EquipmentStatsUiService {
             this.queueEquipmentStatsWidgetText(
                 playerId,
                 EQUIPMENT_STATS_ATTACK_CHILD_BY_INDEX[i],
-                `${attackLabels[i]}: ${this.deps.formatEquipmentSignedInt(bonuses[i] ?? 0)}`,
+                `${attackLabels[i]}: ${this.services.equipmentService.formatEquipmentSignedInt(bonuses[i] ?? 0)}`,
             );
         }
         for (let i = 0; i < EQUIPMENT_STATS_DEFENCE_CHILD_BY_INDEX.length; i++) {
             this.queueEquipmentStatsWidgetText(
                 playerId,
                 EQUIPMENT_STATS_DEFENCE_CHILD_BY_INDEX[i],
-                `${defenceLabels[i]}: ${this.deps.formatEquipmentSignedInt(bonuses[i + 5] ?? 0)}`,
+                `${defenceLabels[i]}: ${this.services.equipmentService.formatEquipmentSignedInt(bonuses[i + 5] ?? 0)}`,
             );
         }
         this.queueEquipmentStatsWidgetText(
             playerId,
             EQUIPMENT_STATS_OTHER_CHILD_BY_INDEX[0],
-            `${otherLabels[0]}: ${this.deps.formatEquipmentSignedInt(bonuses[10] ?? 0)}`,
+            `${otherLabels[0]}: ${this.services.equipmentService.formatEquipmentSignedInt(bonuses[10] ?? 0)}`,
         );
         this.queueEquipmentStatsWidgetText(
             playerId,
             EQUIPMENT_STATS_OTHER_CHILD_BY_INDEX[1],
-            `${otherLabels[1]}: ${this.deps.formatEquipmentSignedInt(bonuses[11] ?? 0)}`,
+            `${otherLabels[1]}: ${this.services.equipmentService.formatEquipmentSignedInt(bonuses[11] ?? 0)}`,
         );
         this.queueEquipmentStatsWidgetText(
             playerId,
             EQUIPMENT_STATS_OTHER_CHILD_BY_INDEX[2],
-            `${otherLabels[2]}: ${this.deps.formatEquipmentSignedIntPercent(bonuses[12] ?? 0)}`,
+            `${otherLabels[2]}: ${this.services.equipmentService.formatEquipmentSignedIntPercent(bonuses[12] ?? 0)}`,
         );
         this.queueEquipmentStatsWidgetText(
             playerId,
             EQUIPMENT_STATS_OTHER_CHILD_BY_INDEX[3],
-            `${otherLabels[3]}: ${this.deps.formatEquipmentSignedInt(bonuses[13] ?? 0)}`,
+            `${otherLabels[3]}: ${this.services.equipmentService.formatEquipmentSignedInt(bonuses[13] ?? 0)}`,
         );
 
         const targetSpecific = this.computeEquipmentTargetSpecificBonusPercentages(player);
         this.queueEquipmentStatsWidgetText(
             playerId,
             EQUIPMENT_STATS_TARGET_UNDEAD_CHILD,
-            `Undead: ${this.deps.formatEquipmentSignedPercent(targetSpecific.undeadPercent)}`,
+            `Undead: ${this.services.equipmentService.formatEquipmentSignedPercent(targetSpecific.undeadPercent)}`,
         );
         this.queueEquipmentStatsWidgetText(
             playerId,
             EQUIPMENT_STATS_TARGET_SLAYER_CHILD,
-            `Slayer task: ${this.deps.formatEquipmentSignedPercent(targetSpecific.slayerPercent)}`,
+            `Slayer task: ${this.services.equipmentService.formatEquipmentSignedPercent(targetSpecific.slayerPercent)}`,
         );
 
-        const baseAttackSpeed = this.deps.resolveBaseAttackSpeed(player);
-        const actualAttackSpeed = this.deps.pickAttackSpeed(player);
+        const baseAttackSpeed = this.services.playerCombatService!.resolveBaseAttackSpeed(player);
+        const actualAttackSpeed = this.services.playerCombatService!.pickAttackSpeed(player);
         this.queueEquipmentStatsWidgetText(
             playerId,
             EQUIPMENT_STATS_WEAPON_SPEED_BASE_CHILD,
-            `Base: ${this.deps.formatEquipmentAttackSpeedSeconds(baseAttackSpeed)}`,
+            `Base: ${this.services.equipmentService.formatEquipmentAttackSpeedSeconds(baseAttackSpeed)}`,
         );
         this.queueEquipmentStatsWidgetText(
             playerId,
             EQUIPMENT_STATS_WEAPON_SPEED_ACTUAL_CHILD,
-            `Current: ${this.deps.formatEquipmentAttackSpeedSeconds(actualAttackSpeed)}`,
+            `Current: ${this.services.equipmentService.formatEquipmentAttackSpeedSeconds(actualAttackSpeed)}`,
         );
     }
 }

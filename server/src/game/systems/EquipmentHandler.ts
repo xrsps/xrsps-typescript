@@ -1,4 +1,3 @@
-import type { ObjType } from "../../../../src/rs/config/objtype/ObjType";
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import {
     ensureEquipArrayOn,
@@ -8,33 +7,10 @@ import {
     pickEquipSound,
     unequipItemApply,
 } from "../equipment";
-import type { GameEventBus } from "../events/GameEventBus";
-import type { InventoryAddResult, PlayerAppearance, PlayerState } from "../player";
+import type { PlayerAppearance, PlayerState } from "../player";
+import type { ServerServices } from "../ServerServices";
 
 const EQUIP_SLOT_COUNT = 14;
-
-export interface EquipmentHandlerServices {
-    getInventory: (player: PlayerState) => Array<{ itemId: number; quantity: number }>;
-    getObjType: (itemId: number) => ObjType | undefined;
-    addItemToInventory: (
-        player: PlayerState,
-        itemId: number,
-        quantity: number,
-    ) => InventoryAddResult;
-    closeInterruptibleInterfaces: (player: PlayerState) => void;
-    refreshCombatWeaponCategory: (player: PlayerState) => {
-        categoryChanged: boolean;
-        weaponItemChanged: boolean;
-    };
-    refreshAppearanceKits: (player: PlayerState) => void;
-    resetAutocast: (player: PlayerState) => void;
-    playLocSound: (opts: {
-        soundId: number;
-        tile: { x: number; y: number };
-        level: number;
-    }) => void;
-    eventBus?: GameEventBus;
-}
 
 export interface EquipResult {
     ok: boolean;
@@ -48,11 +24,7 @@ export interface EquipResult {
  * Encapsulates the equipment logic that was previously inline in wsServer.
  */
 export class EquipmentHandler {
-    private services: EquipmentHandlerServices;
-
-    constructor(services: EquipmentHandlerServices) {
-        this.services = services;
-    }
+    constructor(private readonly svc: ServerServices) {}
 
     /**
      * Equip an item from inventory to an equipment slot.
@@ -65,9 +37,9 @@ export class EquipmentHandler {
         opts?: { playSound?: boolean },
     ): EquipResult {
         // Equipping closes interruptible interfaces
-        this.services.closeInterruptibleInterfaces(player);
+        this.svc.interfaceManager.closeInterruptibleInterfaces(player);
 
-        const inv = this.services.getInventory(player);
+        const inv = this.svc.inventoryService.getInventory(player);
         const appearance = this.ensureAppearance(player);
 
         const res = equipItemApply({
@@ -76,8 +48,8 @@ export class EquipmentHandler {
             slotIndex,
             itemId,
             equipSlot,
-            getObjType: (id) => this.services.getObjType(id),
-            addItemToInventory: (id, qty) => this.services.addItemToInventory(player, id, qty),
+            getObjType: (id) => this.svc.dataLoaderService.getObjType(id),
+            addItemToInventory: (id, qty) => this.svc.inventoryService.addItemToInventory(player, id, qty),
             slotCount: EQUIP_SLOT_COUNT,
         });
 
@@ -92,10 +64,10 @@ export class EquipmentHandler {
 
         // Play equip sound if requested
         if (opts?.playSound) {
-            const itemDef = this.services.getObjType(itemId);
+            const itemDef = this.svc.dataLoaderService.getObjType(itemId);
             const itemName = itemDef?.name ?? "";
             const equipSoundId = pickEquipSound(equipSlot, itemName);
-            this.services.playLocSound({
+            this.svc.soundService.playLocSound({
                 soundId: equipSoundId,
                 tile: { x: player.tileX, y: player.tileY },
                 level: player.level,
@@ -107,15 +79,15 @@ export class EquipmentHandler {
         player.markEquipmentDirty();
 
         const { categoryChanged, weaponItemChanged } =
-            this.services.refreshCombatWeaponCategory(player);
-        this.services.refreshAppearanceKits(player);
+            this.svc.equipmentService.refreshCombatWeaponCategory(player);
+        this.svc.appearanceService.refreshAppearanceKits(player);
 
         // Reset autocast when weapon changes
         if (weaponItemChanged && player.combat.autocastEnabled) {
-            this.services.resetAutocast(player);
+            this.svc.equipmentService.resetAutocast(player);
         }
 
-        this.services.eventBus?.emit("equipment:equip", {
+        this.svc.eventBus.emit("equipment:equip", {
             player,
             itemId,
             slot: equipSlot,
@@ -129,7 +101,7 @@ export class EquipmentHandler {
      */
     unequipItem(player: PlayerState, equipSlot: number): boolean {
         // Unequipping closes interruptible interfaces
-        this.services.closeInterruptibleInterfaces(player);
+        this.svc.interfaceManager.closeInterruptibleInterfaces(player);
 
         const appearance = this.ensureAppearance(player);
         const removedItemId = ensureEquipArrayOn(appearance, EQUIP_SLOT_COUNT)[equipSlot] ?? -1;
@@ -137,22 +109,22 @@ export class EquipmentHandler {
         const result = unequipItemApply({
             appearance,
             equipSlot,
-            addItemToInventory: (id, qty) => this.services.addItemToInventory(player, id, qty),
+            addItemToInventory: (id, qty) => this.svc.inventoryService.addItemToInventory(player, id, qty),
             slotCount: EQUIP_SLOT_COUNT,
         });
 
         if (result.ok) {
             player.markInventoryDirty();
             player.markEquipmentDirty();
-            this.services.refreshCombatWeaponCategory(player);
-            this.services.refreshAppearanceKits(player);
+            this.svc.equipmentService.refreshCombatWeaponCategory(player);
+            this.svc.appearanceService.refreshAppearanceKits(player);
 
             // Unequipping the weapon clears autocast state
             if (equipSlot === EquipmentSlot.WEAPON && player.combat.autocastEnabled) {
-                this.services.resetAutocast(player);
+                this.svc.equipmentService.resetAutocast(player);
             }
 
-            this.services.eventBus?.emit("equipment:unequip", {
+            this.svc.eventBus.emit("equipment:unequip", {
                 player,
                 itemId: removedItemId,
                 slot: equipSlot,
@@ -182,7 +154,7 @@ export class EquipmentHandler {
      * Resolve the equipment slot for an item based on its definition.
      */
     resolveEquipSlot(itemId: number): number {
-        const slot = inferEquipSlot(itemId, this.services.getObjType);
+        const slot = inferEquipSlot(itemId, (id) => this.svc.dataLoaderService.getObjType(id));
         return slot ?? -1;
     }
 

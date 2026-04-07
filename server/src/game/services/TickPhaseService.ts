@@ -1,9 +1,6 @@
-import type { WebSocket } from "ws";
+import { WebSocket } from "ws";
 
-import type { ActionScheduler } from "../actions";
-import type { EffectDispatcher } from "../actions";
 import { DEBUG_PLAYER_IDS } from "../actor";
-import type { PlayerCombatManager } from "../combat";
 import {
     getWildernessLevel,
     isInLMS,
@@ -12,54 +9,15 @@ import {
     isInWilderness,
     multiCombatSystem,
 } from "../combat/MultiCombatZones";
-import type { PlayerDeathService } from "../death";
-import type { FollowerCombatManager } from "../followers/FollowerCombatManager";
-import type { FollowerManager } from "../followers/FollowerManager";
 import { deriveInteractionIndex } from "../interactions/InteractionViewBuilder";
-import type { GroundItemManager } from "../items/GroundItemManager";
-import type { NpcState, NpcUpdateDelta } from "../npc";
-import type { NpcManager } from "../npcManager";
-import type { InventoryEntry, PlayerManager, PlayerState, SkillSyncUpdate } from "../player";
-import type { PrayerSystemProvider } from "../prayer/PrayerSystemProvider";
-import type { ScriptRuntime } from "../scripts/ScriptRuntime";
-import type {
-    BroadcastScheduler,
-    PendingSpotAnimation,
-    PlayerAnimSet,
-} from "../systems/BroadcastScheduler";
-import type { GatheringSystemManager } from "../systems/GatheringSystemManager";
-import type { MovementSystem } from "../systems/MovementSystem";
-import type { ScriptScheduler } from "../systems/ScriptScheduler";
-import type { StatusEffectSystem } from "../systems/StatusEffectSystem";
+import type { NpcUpdateDelta } from "../npc";
+import type { PlayerState } from "../player";
 import type { TickFrame, TickPhaseProvider } from "../tick/TickPhaseOrchestrator";
-import type { TradeManager } from "../trade/TradeManager";
-import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 
 import type { BroadcastContext } from "../../network/broadcast/BroadcastDomain";
-import type { MovementService } from "./MovementService";
-import type { InventoryService } from "./InventoryService";
-import type { AppearanceService } from "./AppearanceService";
-import type { PlayerCombatService } from "./PlayerCombatService";
-import type { CombatDataService } from "./CombatDataService";
-import type { CombatEffectService } from "./CombatEffectService";
-import type { VariableService } from "./VariableService";
-import type { VarpSyncService } from "./VarpSyncService";
-import type { EquipmentStatsUiService } from "./EquipmentStatsUiService";
-import type { InterfaceManager } from "./InterfaceManager";
-import type { SoundManager } from "../../network/managers";
-import type { NpcSyncManager } from "../../network/managers";
-import type { PlayerAppearanceManager } from "../../network/managers/PlayerAppearanceManager";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { PlayerPacketEncoder, PlayerTickFrameData } from "../../network/encoding";
-import type { NpcPacketEncoder } from "../../network/encoding";
-import type { WorldEntityInfoEncoder } from "../../network/encoding/WorldEntityInfoEncoder";
-import type { PlayerSyncSession } from "../../network/PlayerSyncSession";
-import type { NpcSyncSession } from "../../network/NpcSyncSession";
-import type { AccountSummaryTracker } from "../../network/accountSummary";
-import type { ReportGameTimeTracker } from "../../network/reportGameTime";
-import type { WidgetAction } from "../../widgets/WidgetManager";
-import type { SpellActionHandler } from "../actions";
-import type { PathService } from "../../pathfinding/PathService";
+import type { PlayerTickFrameData } from "../../network/encoding";
+import { PlayerSyncSession } from "../../network/PlayerSyncSession";
+import { NpcSyncSession } from "../../network/NpcSyncSession";
 
 import { faceAngleRs } from "../../../../src/rs/utils/rotation";
 import { encodeMessage } from "../../network/messages";
@@ -70,10 +28,10 @@ import {
     VARBIT_MULTICOMBAT_AREA,
     VARBIT_PVP_SPEC_ORB,
     VARBIT_RAID_STATE,
-    VARP_COMBAT_TARGET_PLAYER_INDEX,
 } from "../../../../src/shared/vars";
 
 import { logger } from "../../utils/logger";
+import type { ServerServices } from "../ServerServices";
 
 type StepRecord = {
     x: number;
@@ -106,118 +64,6 @@ interface StepSummary {
 }
 
 /**
- * Dependencies required by TickPhaseService.
- * Grouped by domain for readability.
- */
-export interface TickPhaseServiceDeps {
-    // --- Managers ---
-    players: PlayerManager | undefined;
-    npcManager: NpcManager | undefined;
-    followerManager: FollowerManager | undefined;
-    followerCombatManager: FollowerCombatManager | undefined;
-    playerCombatManager: PlayerCombatManager | undefined;
-    actionScheduler: ActionScheduler;
-
-    // --- Services ---
-    movementService: MovementService;
-    movementSystem: MovementSystem | undefined;
-    soundManager: SoundManager;
-    scriptRuntime: ScriptRuntime;
-    scriptScheduler: ScriptScheduler;
-    statusEffects: StatusEffectSystem;
-    prayerSystem: PrayerSystemProvider;
-    playerDeathService: PlayerDeathService | undefined;
-    gatheringSystem: GatheringSystemManager | undefined;
-    groundItems: GroundItemManager;
-    tradeManager: TradeManager | undefined;
-    effectDispatcher: EffectDispatcher;
-    inventoryService: InventoryService;
-    accountSummary: AccountSummaryTracker;
-    reportGameTime: ReportGameTimeTracker;
-    gamemode: GamemodeDefinition;
-    playerPersistence: { saveSnapshot(key: string, player: PlayerState): void };
-
-    // --- Sync encoders ---
-    npcSyncManager: NpcSyncManager;
-    playerPacketEncoder: PlayerPacketEncoder;
-    npcPacketEncoder: NpcPacketEncoder;
-    worldEntityInfoEncoder: WorldEntityInfoEncoder;
-    enableBinaryNpcSync: boolean;
-
-    // --- Network ---
-    networkLayer: PlayerNetworkLayer;
-    pendingDirectSends: Map<WebSocket, { message: string | Uint8Array; context: string }>;
-    sendWithGuard: (sock: WebSocket | undefined, msg: string | Uint8Array, context: string) => void;
-    broadcast: (msg: string | Uint8Array, context?: string) => void;
-
-    // --- Broadcasters ---
-    skillBroadcaster: { flush(frame: TickFrame, ctx: BroadcastContext): void };
-    varBroadcaster: { flush(frame: TickFrame, ctx: BroadcastContext): void };
-    chatBroadcaster: { flush(frame: TickFrame, ctx: BroadcastContext): void };
-    inventoryBroadcaster: { flush(frame: TickFrame, ctx: BroadcastContext): void };
-    widgetBroadcaster: {
-        flushCloseEvents(frame: TickFrame, ctx: BroadcastContext): void;
-        flushOpenEvents(frame: TickFrame, ctx: BroadcastContext): void;
-    };
-    combatBroadcaster: { flush(frame: TickFrame, ctx: BroadcastContext): void };
-    miscBroadcaster: {
-        flushLocChanges(frame: TickFrame, ctx: BroadcastContext): void;
-        flushPostWidgetEvents(frame: TickFrame, ctx: BroadcastContext): void;
-    };
-    actorSyncBroadcaster: { flush(frame: TickFrame, ctx: BroadcastContext): void };
-
-    // --- Gamemode tick callbacks ---
-    gamemodeTickCallbacks: Array<(tick: number) => void>;
-
-    // --- Options ---
-    tickMs: number;
-    pathService: PathService;
-
-    // --- Extracted services (accessed directly instead of via wsServer delegates) ---
-    appearanceService: AppearanceService;
-    playerCombatService: PlayerCombatService;
-    combatDataService: CombatDataService;
-    combatEffectService: CombatEffectService;
-    variableService: VariableService;
-    varpSyncService: VarpSyncService;
-    equipmentStatsUiService: EquipmentStatsUiService;
-    interfaceManager: InterfaceManager;
-    playerAppearanceManager: PlayerAppearanceManager;
-
-    // --- Remaining wsServer callbacks (have real logic beyond simple delegation) ---
-    queueWidgetEvent: (playerId: number, action: WidgetAction) => void;
-    queueClientScript: (playerId: number, scriptId: number, ...args: number[]) => void;
-    queueCombatSnapshot: (
-        playerId: number,
-        weaponCategory: number,
-        weaponItemId: number,
-        autoRetaliate: boolean,
-        activeStyle: number,
-        activePrayers: string[],
-        activeSpellId?: number,
-    ) => void;
-    queueDirectSend: (
-        sock: WebSocket,
-        msg: string | Uint8Array,
-        context: string,
-    ) => void;
-    withDirectSendBypass: <T>(context: string, fn: () => T) => T;
-    sendSkillsMessage: (ws: WebSocket, player: PlayerState, update?: SkillSyncUpdate) => void;
-    sendCombatState: (ws: WebSocket, player: PlayerState) => void;
-    enqueueSpotAnimation: (event: PendingSpotAnimation) => void;
-    ensurePlayerSyncSession: (ws: WebSocket) => PlayerSyncSession;
-    getOrCreateNpcSyncSession: (ws: WebSocket) => NpcSyncSession;
-    maybeReplayDynamicLocState: (sock: WebSocket, player: PlayerState) => void;
-    maybeSendGroundItemSnapshot: (sock: WebSocket, player: PlayerState) => void;
-
-    /** The current active frame reference (mutable, set externally). */
-    getActiveFrame: () => TickFrame | undefined;
-
-    /** Magic attack handling for combat phase */
-    spellActionHandler: SpellActionHandler;
-}
-
-/**
  * NPC simulation radius - must match wsServer constant.
  */
 const NPC_STREAM_RADIUS_TILES = 15;
@@ -229,7 +75,7 @@ const NPC_SIM_RADIUS_TILES = NPC_STREAM_EXIT_RADIUS_TILES + 12;
  * Implements TickPhaseProvider so the TickPhaseOrchestrator can call each phase.
  */
 export class TickPhaseService implements TickPhaseProvider {
-    constructor(private readonly deps: TickPhaseServiceDeps) {}
+    constructor(private readonly svc: ServerServices) {}
 
     broadcastTick(_frame: TickFrame): void {
         // broadcastTick is handled separately by the BroadcastScheduler in wsServer.
@@ -239,7 +85,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
     runPreMovementPhase(frame: TickFrame): void {
         const { npcManager, players, followerManager, followerCombatManager, npcSyncManager } =
-            this.deps;
+            this.svc;
 
         if (npcManager) {
             try {
@@ -365,7 +211,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
                 if (players) {
                     players.forEach((_client, player) => {
-                        npcSyncManager.updateNpcViewForPlayer(player);
+                        npcSyncManager!.updateNpcViewForPlayer(player);
                     });
                 }
             } catch (err) {
@@ -374,11 +220,11 @@ export class TickPhaseService implements TickPhaseProvider {
         }
         if (!players) return;
         this.flushPendingWalkCommands(frame.tick, "pre");
-        this.deps.movementSystem?.runPreMovement(frame.tick);
+        this.svc.movementSystem?.runPreMovement(frame.tick);
     }
 
     runMovementPhase(frame: TickFrame): void {
-        const { players, npcManager } = this.deps;
+        const { players, npcManager } = this.svc;
         if (!players) return;
         this.flushPendingWalkCommands(frame.tick, "movement");
         const playerLookup = (id: number) => players.getById(id);
@@ -399,8 +245,8 @@ export class TickPhaseService implements TickPhaseProvider {
                 const walkUpdate = players.continueWalkToDestination(player, frame.tick);
                 if (walkUpdate?.destinationCorrection) {
                     const corrected = walkUpdate.destinationCorrection;
-                    this.deps.withDirectSendBypass("destination_correction_repath", () =>
-                        this.deps.sendWithGuard(
+                    this.svc.networkLayer.withDirectSendBypass("destination_correction_repath", () =>
+                        this.svc.networkLayer.sendWithGuard(
                             sock,
                             encodeMessage({
                                 type: "destination",
@@ -423,26 +269,28 @@ export class TickPhaseService implements TickPhaseProvider {
                         const message = dest
                             ? `walk segment (repath) dest=(${dest.x},${dest.y}) run=${!!dest.run}`
                             : "walk segment (repath)";
-                        this.deps.queueDirectSend(
-                            sock,
-                            encodeMessage({
-                                type: "path",
-                                payload: {
-                                    id: -2000 - player.id,
-                                    ok: true,
-                                    waypoints: Array.isArray(steps)
-                                        ? steps.map((t) => ({ x: t.x, y: t.y }))
-                                        : [],
-                                    message,
-                                },
-                            }),
-                            "walk_path_debug_repath",
-                        );
+                        const debugMsg = encodeMessage({
+                            type: "path",
+                            payload: {
+                                id: -2000 - player.id,
+                                ok: true,
+                                waypoints: Array.isArray(steps)
+                                    ? steps.map((t) => ({ x: t.x, y: t.y }))
+                                    : [],
+                                message,
+                            },
+                        });
+                        if (sock && (sock as WebSocket).readyState === WebSocket.OPEN) {
+                            if (this.svc.pendingDirectSends.size > 512) {
+                                this.svc.pendingDirectSends.clear();
+                            }
+                            this.svc.pendingDirectSends.set(sock, { message: debugMsg, context: "walk_path_debug_repath" });
+                        }
                     } catch (err) { logger.warn("Failed to send walk path debug repath", err); }
                 }
             } catch (err) { logger.warn("Failed to process player movement phase", err); }
 
-            const statusHits = this.deps.statusEffects.processPlayer(player, frame.tick);
+            const statusHits = this.svc.statusEffects.processPlayer(player, frame.tick);
             if (statusHits && statusHits.length > 0) {
                 for (const event of statusHits) {
                     if (!(event.amount > 0)) continue;
@@ -457,9 +305,9 @@ export class TickPhaseService implements TickPhaseProvider {
                     });
                 }
             }
-            const prayerTick = this.deps.prayerSystem.processPlayer(player);
+            const prayerTick = this.svc.prayerSystem.processPlayer(player);
             if (prayerTick?.prayerDepleted) {
-                this.deps.combatEffectService.handlePrayerDepleted(player);
+                this.svc.combatEffectService.handlePrayerDepleted(player);
             }
         }
 
@@ -474,7 +322,7 @@ export class TickPhaseService implements TickPhaseProvider {
             if (steps && steps.length > 0) {
                 frame.playerSteps.set(player.id, steps);
             }
-            const summary = this.deps.movementService.summarizeSteps(player, steps);
+            const summary = this.svc.movementService.summarizeSteps(player, steps);
             const interactionState = players.getInteractionState(sock);
             const interactionIndex = deriveInteractionIndex({
                 player,
@@ -491,14 +339,14 @@ export class TickPhaseService implements TickPhaseProvider {
                 }
             }
 
-            this.deps.movementService.updateRunEnergy(
+            this.svc.movementService.updateRunEnergy(
                 player,
                 { ran: summary.ran, moved, runSteps: summary.runSteps },
                 frame.tick,
             );
 
             if (player.energy.hasRunEnergyUpdate()) {
-                this.deps.movementService.queueRunEnergySnapshot(player);
+                this.svc.movementService.queueRunEnergySnapshot(player);
             }
 
             const tileX = player.x / 128;
@@ -514,23 +362,23 @@ export class TickPhaseService implements TickPhaseProvider {
                 const WILDERNESS_LEVEL_WIDGET_UID = (90 << 16) | 50;
 
                 if (currentWildyLevel > 0 && previousWildyLevel === 0) {
-                    this.deps.queueWidgetEvent(player.id, {
+                    this.svc.queueWidgetEvent(player.id, {
                         action: "open_sub",
                         targetUid: PVP_ICONS_CONTAINER_UID,
                         groupId: PVP_INTERFACE_ID,
                         type: 1,
                     });
-                    this.deps.variableService.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 1);
+                    this.svc.variableService.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 1);
                 } else if (currentWildyLevel === 0 && previousWildyLevel > 0) {
-                    this.deps.queueWidgetEvent(player.id, {
+                    this.svc.queueWidgetEvent(player.id, {
                         action: "close_sub",
                         targetUid: PVP_ICONS_CONTAINER_UID,
                     });
-                    this.deps.variableService.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 0);
+                    this.svc.variableService.queueVarbit(player.id, VARBIT_IN_WILDERNESS, 0);
                 }
 
                 if (currentWildyLevel > 0) {
-                    this.deps.queueClientScript(player.id, 388, WILDERNESS_LEVEL_WIDGET_UID);
+                    this.svc.broadcastService.queueClientScript(player.id, 388, WILDERNESS_LEVEL_WIDGET_UID);
                 }
             }
 
@@ -539,7 +387,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
             if (currentInMulti !== previousInMulti) {
                 player.combat.lastInMultiCombat = currentInMulti;
-                this.deps.variableService.queueVarbit(player.id, VARBIT_MULTICOMBAT_AREA, currentInMulti ? 1 : 0);
+                this.svc.variableService.queueVarbit(player.id, VARBIT_MULTICOMBAT_AREA, currentInMulti ? 1 : 0);
             }
 
             const currentInPvP = isInPvPArea(tileX, tileY, player.level);
@@ -547,7 +395,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
             if (currentInPvP !== previousInPvP) {
                 player.combat.lastInPvPArea = currentInPvP;
-                this.deps.variableService.queueVarbit(player.id, VARBIT_PVP_SPEC_ORB, currentInPvP ? 1 : 0);
+                this.svc.variableService.queueVarbit(player.id, VARBIT_PVP_SPEC_ORB, currentInPvP ? 1 : 0);
             }
 
             const currentInRaid = isInRaid(tileX, tileY, player.level);
@@ -555,9 +403,9 @@ export class TickPhaseService implements TickPhaseProvider {
 
             if (currentInRaid !== previousInRaid) {
                 player.combat.lastInRaid = currentInRaid;
-                this.deps.variableService.queueVarbit(player.id, VARBIT_IN_RAID, currentInRaid ? 1 : 0);
+                this.svc.variableService.queueVarbit(player.id, VARBIT_IN_RAID, currentInRaid ? 1 : 0);
                 if (!currentInRaid) {
-                    this.deps.variableService.queueVarbit(player.id, VARBIT_RAID_STATE, 0);
+                    this.svc.variableService.queueVarbit(player.id, VARBIT_RAID_STATE, 0);
                 }
             }
 
@@ -566,7 +414,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
             if (currentInLMS !== previousInLMS) {
                 player.combat.lastInLMS = currentInLMS;
-                this.deps.variableService.queueVarbit(player.id, VARBIT_IN_LMS, currentInLMS ? 1 : 0);
+                this.svc.variableService.queueVarbit(player.id, VARBIT_IN_LMS, currentInLMS ? 1 : 0);
             }
 
             player.skillSystem.tickSkillRestoration(frame.tick);
@@ -576,15 +424,7 @@ export class TickPhaseService implements TickPhaseProvider {
             }
 
             if (specialUpdated) {
-                this.deps.queueCombatSnapshot(
-                    player.id,
-                    player.combat.weaponCategory,
-                    player.combat.weaponItemId,
-                    !!player.combat.autoRetaliate,
-                    player.combat.styleSlot,
-                    Array.from(player.prayer.activePrayers ?? []),
-                    player.combat.spellId > 0 ? player.combat.spellId : undefined,
-                );
+                this.svc.queueCombatState(player);
             }
             const snap = player.wasTeleported() ?? false;
             const turned = player.didTurn() ?? false;
@@ -601,7 +441,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 rot: summary.finalRot,
                 orientation: summary.finalOrientation,
                 running: summary.ran,
-                name: this.deps.appearanceService.getAppearanceDisplayName(player),
+                name: this.svc.appearanceService.getAppearanceDisplayName(player),
                 appearance: player.appearance,
                 interactionIndex: interactionIndex >= 0 ? interactionIndex : undefined,
                 seq: summary.finalSeq,
@@ -610,7 +450,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 snap,
                 directions: summary.directions.length > 0 ? summary.directions : undefined,
                 traversals: summary.traversals.length > 0 ? summary.traversals : undefined,
-                anim: this.deps.appearanceService.buildAnimPayload(player),
+                anim: this.svc.appearanceService.buildAnimPayload(player),
                 shouldSendPos: shouldSendMovement,
                 worldViewId: player.worldViewId >= 0 ? player.worldViewId : undefined,
             });
@@ -621,7 +461,7 @@ export class TickPhaseService implements TickPhaseProvider {
             }
             const skillUpdate = player.skillSystem.takeSkillSync();
             if (skillUpdate) {
-                this.deps.sendSkillsMessage(sock, player, skillUpdate);
+                this.svc.skillService.queueSkillSnapshot(player.id, skillUpdate);
             }
         }
         try {
@@ -632,12 +472,12 @@ export class TickPhaseService implements TickPhaseProvider {
             if (botSteps && botSteps.length > 0) {
                 frame.playerSteps.set(bot.id, botSteps);
             }
-            const summary = this.deps.movementService.summarizeSteps(bot, botSteps);
+            const summary = this.svc.movementService.summarizeSteps(bot, botSteps);
             const snap = bot.wasTeleported() ?? false;
             const moved = bot.didMove() ?? false;
             const turned = bot.didTurn() ?? false;
             try {
-                this.deps.movementService.updateRunEnergy(
+                this.svc.movementService.updateRunEnergy(
                     bot,
                     { ran: summary.ran, moved, runSteps: summary.runSteps },
                     frame.tick,
@@ -651,7 +491,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 rot: summary.finalRot,
                 orientation: summary.finalOrientation,
                 running: summary.ran,
-                name: this.deps.appearanceService.getAppearanceDisplayName(bot),
+                name: this.svc.appearanceService.getAppearanceDisplayName(bot),
                 appearance: bot.appearance,
                 seq: summary.finalSeq,
                 moved: moved || snap,
@@ -659,7 +499,7 @@ export class TickPhaseService implements TickPhaseProvider {
                 snap,
                 directions: summary.directions.length > 0 ? summary.directions : undefined,
                 traversals: summary.traversals.length > 0 ? summary.traversals : undefined,
-                anim: this.deps.appearanceService.buildAnimPayload(bot),
+                anim: this.svc.appearanceService.buildAnimPayload(bot),
                 shouldSendPos: false,
             });
             if (snap) {
@@ -669,28 +509,28 @@ export class TickPhaseService implements TickPhaseProvider {
             }
         });
         try {
-            this.deps.movementSystem?.runPostMovement(frame.tick);
+            this.svc.movementSystem?.runPostMovement(frame.tick);
         } catch (err) { logger.warn("Failed to run post-movement phase", err); }
     }
 
     runCombatPhase(frame: TickFrame): void {
-        const { players, playerCombatManager, npcManager } = this.deps;
+        const { players, playerCombatManager, npcManager } = this.svc;
         if (!players || !playerCombatManager) return;
         const combatResult = playerCombatManager.processTick({
             tick: frame.tick,
             npcLookup: (npcId) => npcManager?.getById(npcId),
-            pathService: this.deps.pathService,
-            pickAttackSpeed: (player) => this.deps.playerCombatService.pickAttackSpeed(player),
+            pathService: this.svc.pathService!,
+            pickAttackSpeed: (player) => this.svc.playerCombatService!.pickAttackSpeed(player),
             pickNpcHitDelay: (npc, player, attackSpeed) =>
-                this.deps.combatEffectService.pickNpcHitDelay(npc, player, attackSpeed),
+                this.svc.combatEffectService.pickNpcHitDelay(npc, player, attackSpeed),
             getWeaponSpecialCostPercent: (weaponItemId) =>
-                this.deps.combatDataService.getWeaponSpecialCostPercent(weaponItemId),
-            getAttackReach: (player) => this.deps.playerCombatService.getPlayerAttackReach(player),
+                this.svc.combatDataService.getWeaponSpecialCostPercent(weaponItemId),
+            getAttackReach: (player) => this.svc.playerCombatService!.getPlayerAttackReach(player),
             queueSpotAnimation: (event) => {
-                this.deps.enqueueSpotAnimation(event);
+                this.svc.broadcastService.enqueueSpotAnimation(event);
             },
             onMagicAttack: ({ player, npc, plan, tick }) =>
-                this.deps.spellActionHandler.handleAutocastMagicAttack({
+                this.svc.spellActionHandler!.handleAutocastMagicAttack({
                     player,
                     npc,
                     plan,
@@ -709,34 +549,34 @@ export class TickPhaseService implements TickPhaseProvider {
     }
 
     runScriptPhase(frame: TickFrame): void {
-        this.deps.scriptRuntime.queueTick(frame.tick);
-        this.deps.scriptScheduler.process(frame.tick);
+        this.svc.scriptRuntime.queueTick(frame.tick);
+        this.svc.scriptScheduler.process(frame.tick);
     }
 
     runDeathPhase(_frame: TickFrame): void {
-        if (this.deps.playerDeathService) {
-            this.deps.playerDeathService.tick();
+        if (this.svc.playerDeathService) {
+            this.svc.playerDeathService.tick();
         }
     }
 
     runPostScriptPhase(frame: TickFrame): void {
-        this.deps.scriptScheduler.process(frame.tick);
+        this.svc.scriptScheduler.process(frame.tick);
     }
 
     runPostEffectsPhase(frame: TickFrame): void {
-        if (this.deps.gatheringSystem) {
-            this.deps.gatheringSystem.processTick(frame.tick);
+        if (this.svc.gatheringSystem) {
+            this.svc.gatheringSystem.processTick(frame.tick);
         }
-        this.deps.groundItems.tick(frame.tick);
+        this.svc.groundItems.tick(frame.tick);
         if (frame.actionEffects.length > 0) {
-            this.deps.effectDispatcher.dispatchActionEffects(frame.actionEffects, frame);
+            this.svc.effectDispatcher!.dispatchActionEffects(frame.actionEffects, frame);
         }
-        if (this.deps.players) {
+        if (this.svc.players) {
             const nowMs = Date.now();
-            this.deps.players.forEach((_, player) => {
-                this.deps.accountSummary.syncPlayer(player, nowMs);
-                this.deps.gamemode.onPlayerTick?.(player, nowMs);
-                this.deps.reportGameTime.syncPlayer(player, nowMs);
+            this.svc.players.forEach((_, player) => {
+                this.svc.accountSummary.syncPlayer(player, nowMs);
+                this.svc.gamemode.onPlayerTick?.(player, nowMs);
+                this.svc.reportGameTime.syncPlayer(player, nowMs);
                 const seqData = player.popPendingSeq() as
                     | { seqId: number; delay: number }
                     | undefined;
@@ -751,10 +591,10 @@ export class TickPhaseService implements TickPhaseProvider {
                         view.shouldSendPos = true;
                     }
                 }
-                this.deps.varpSyncService.syncCombatTargetPlayerVarp(player);
-                player.combat.attackDelay = this.deps.playerCombatService.pickAttackSpeed(player);
+                this.svc.varpSyncService.syncCombatTargetPlayerVarp(player);
+                player.combat.attackDelay = this.svc.playerCombatService!.pickAttackSpeed(player);
             });
-            this.deps.players.forEachBot((bot) => {
+            this.svc.players.forEachBot((bot) => {
                 const seqData = bot.popPendingSeq() as { seqId: number; delay: number } | undefined;
                 if (seqData && seqData.seqId >= 0) {
                     frame.pendingSequences.set(bot.id, {
@@ -769,75 +609,75 @@ export class TickPhaseService implements TickPhaseProvider {
                 }
             });
         }
-        this.deps.tradeManager?.tick(frame.tick);
+        this.svc.tradeManager?.tick(frame.tick);
     }
 
     runOrphanedPlayersPhase(frame: TickFrame): void {
-        const { players } = this.deps;
+        const { players } = this.svc;
         if (!players) return;
 
         players.processOrphanedPlayers(frame.tick, (player, saveKey) => {
             try {
-                this.deps.playerPersistence.saveSnapshot(saveKey, player);
+                this.svc.playerPersistence.saveSnapshot(saveKey, player);
                 logger.info(`[orphan] Saved and removed expired orphan: ${saveKey}`);
             } catch (err) {
                 logger.warn(`[orphan] Failed to save expired orphan ${saveKey}:`, err);
             }
-            this.deps.followerCombatManager?.resetPlayer(player.id);
-            this.deps.followerManager?.despawnFollowerForPlayer(player.id, false);
-            this.deps.actionScheduler.unregisterPlayer(player.id);
+            this.svc.followerCombatManager?.resetPlayer(player.id);
+            this.svc.followerManager?.despawnFollowerForPlayer(player.id, false);
+            this.svc.actionScheduler.unregisterPlayer(player.id);
         });
     }
 
     runBroadcastPhase(frame: TickFrame): void {
-        this.deps.scriptScheduler.process(frame.tick);
-        this.deps.networkLayer.setBroadcastPhase(true);
+        this.svc.scriptScheduler.process(frame.tick);
+        this.svc.networkLayer.setBroadcastPhase(true);
         try {
             const ctx = this.buildBroadcastContext();
-            if (this.deps.pendingDirectSends.size > 0) {
-                const entries = Array.from(this.deps.pendingDirectSends.entries());
-                this.deps.pendingDirectSends.clear();
+            if (this.svc.pendingDirectSends.size > 0) {
+                const entries = Array.from(this.svc.pendingDirectSends.entries());
+                this.svc.pendingDirectSends.clear();
                 for (const [ws, entry] of entries) {
                     try {
-                        this.deps.sendWithGuard(ws, entry.message, entry.context);
+                        this.svc.networkLayer.sendWithGuard(ws, entry.message, entry.context);
                     } catch (err) { logger.warn("Failed to flush pending direct send", err); }
                 }
             }
-            this.deps.miscBroadcaster.flushLocChanges(frame, ctx);
-            this.deps.skillBroadcaster.flush(frame, ctx);
-            this.deps.combatBroadcaster.flush(frame, ctx);
-            this.deps.actorSyncBroadcaster.flush(frame, ctx);
-            this.deps.widgetBroadcaster.flushCloseEvents(frame, ctx);
-            this.deps.varBroadcaster.flush(frame, ctx);
-            this.deps.widgetBroadcaster.flushOpenEvents(frame, ctx);
-            this.deps.miscBroadcaster.flushPostWidgetEvents(frame, ctx);
-            this.deps.chatBroadcaster.flush(frame, ctx);
-            this.deps.inventoryBroadcaster.flush(frame, ctx);
+            this.svc.miscBroadcaster.flushLocChanges(frame, ctx);
+            this.svc.skillBroadcaster.flush(frame, ctx);
+            this.svc.combatBroadcaster.flush(frame, ctx);
+            this.svc.actorSyncBroadcaster.flush(frame, ctx);
+            this.svc.widgetBroadcaster.flushCloseEvents(frame, ctx);
+            this.svc.varBroadcaster.flush(frame, ctx);
+            this.svc.widgetBroadcaster.flushOpenEvents(frame, ctx);
+            this.svc.miscBroadcaster.flushPostWidgetEvents(frame, ctx);
+            this.svc.chatBroadcaster.flush(frame, ctx);
+            this.svc.inventoryBroadcaster.flush(frame, ctx);
             this.flushPerPlayerDirtyState(frame);
             this.flushAnimSnapshots(frame, ctx);
         } finally {
-            this.deps.networkLayer.flushAllMessageBatches();
-            this.deps.networkLayer.setBroadcastPhase(false);
-            this.deps.networkLayer.flushDirectSendWarnings("broadcast");
+            this.svc.networkLayer.flushAllMessageBatches();
+            this.svc.networkLayer.setBroadcastPhase(false);
+            this.svc.networkLayer.flushDirectSendWarnings("broadcast");
         }
     }
 
     runMusicPhase(_frame: TickFrame): void {
-        this.deps.soundManager.runMusicPhase(_frame);
+        this.svc.soundManager!.runMusicPhase(_frame);
     }
 
     checkAndSendSnapshots(player: PlayerState, sock?: WebSocket): void {
-        if (this.deps.getActiveFrame()) {
+        if (this.svc.activeFrame) {
             return;
         }
 
-        const ws = sock ?? this.deps.players?.getSocketByPlayerId(player.id);
+        const ws = sock ?? this.svc.players?.getSocketByPlayerId(player.id);
         if (!ws || ws.readyState !== 1 /* WebSocket.OPEN */) return;
 
         if (player.hasInventoryUpdate()) {
             const snapshot = player.takeInventorySnapshot();
             if (snapshot) {
-                this.deps.inventoryService.sendInventorySnapshotImmediate(ws, player);
+                this.svc.inventoryService.sendInventorySnapshotImmediate(ws, player);
             }
         }
         if (player.hasAppearanceUpdate()) {
@@ -845,7 +685,7 @@ export class TickPhaseService implements TickPhaseProvider {
         }
         if (player.hasCombatStateUpdate()) {
             player.takeCombatStateSnapshot();
-            this.deps.sendCombatState(ws, player);
+            this.svc.queueCombatState(player);
         }
     }
 
@@ -856,13 +696,13 @@ export class TickPhaseService implements TickPhaseProvider {
         targetPlayerId: number,
         currentTick: number,
     ): void {
-        const player = this.deps.players?.getById(targetPlayerId);
+        const player = this.svc.players?.getById(targetPlayerId);
         if (!player) return;
 
-        const npc = this.deps.npcManager?.getById(npcId);
+        const npc = this.svc.npcManager?.getById(npcId);
         if (!npc || npc.isDead?.(currentTick)) return;
 
-        const result = this.deps.actionScheduler.requestAction(
+        const result = this.svc.actionScheduler.requestAction(
             player.id,
             {
                 kind: "combat.npcRetaliate",
@@ -889,11 +729,11 @@ export class TickPhaseService implements TickPhaseProvider {
         currentTick: number,
         stage: "pre" | "movement" = "pre",
     ): void {
-        this.deps.movementService.flushPendingWalkCommands(currentTick, stage);
+        this.svc.movementService.flushPendingWalkCommands(currentTick, stage);
     }
 
     private refreshInteractionFacing(frame: TickFrame): void {
-        const { players, npcManager } = this.deps;
+        const { players, npcManager } = this.svc;
         if (!players) return;
         const playerLookup = (id: number) => players.getById(id);
         const npcLookup = (npcId: number) => npcManager?.getById(npcId);
@@ -955,7 +795,7 @@ export class TickPhaseService implements TickPhaseProvider {
     }
 
     private processGamemodeTickCallbacks(frame: TickFrame): void {
-        for (const callback of this.deps.gamemodeTickCallbacks) {
+        for (const callback of this.svc.gamemodeTickCallbacks) {
             try {
                 callback(frame.tick);
             } catch (err) {
@@ -965,17 +805,17 @@ export class TickPhaseService implements TickPhaseProvider {
     }
 
     private buildBroadcastContext(): BroadcastContext {
-        const tickMs = Math.max(1, this.deps.tickMs);
+        const tickMs = Math.max(1, this.svc.tickMs);
         return {
-            sendWithGuard: (sock, msg, context) => this.deps.sendWithGuard(sock, msg, context),
-            broadcast: (msg, context) => this.deps.broadcast(msg, context),
-            getSocketByPlayerId: (id) => this.deps.players?.getSocketByPlayerId(id),
+            sendWithGuard: (sock, msg, context) => this.svc.networkLayer.sendWithGuard(sock, msg, context),
+            broadcast: (msg, context) => this.svc.broadcastService.broadcast(msg, context),
+            getSocketByPlayerId: (id) => this.svc.players?.getSocketByPlayerId(id),
             cyclesPerTick: Math.max(1, Math.round(tickMs / 20)),
         };
     }
 
     private flushPerPlayerDirtyState(frame: TickFrame): void {
-        const { players } = this.deps;
+        const { players } = this.svc;
         if (!players) return;
         players.forEach((_, player) => {
             player.clearTeleportFlag();
@@ -984,22 +824,22 @@ export class TickPhaseService implements TickPhaseProvider {
             bot.clearTeleportFlag();
         });
         players.forEach((sock, player) => {
-            this.deps.maybeReplayDynamicLocState(sock, player);
+            this.svc.locationService.maybeReplayDynamicLocState(sock, player, false);
         });
         players.forEach((sock, player) => {
-            this.deps.maybeSendGroundItemSnapshot(sock, player);
+            this.svc.groundItemHandler?.maybeSendGroundItemSnapshot(sock, player);
         });
         players.forEach((sock, player) => {
             if (player.hasInventoryUpdate()) {
                 const snapshot = player.takeInventorySnapshot();
                 if (snapshot) {
-                    const inv = this.deps.inventoryService.getInventory(player);
+                    const inv = this.svc.inventoryService.getInventory(player);
                     const slots = inv.map((entry, idx) => ({
                         slot: idx,
                         itemId: entry.itemId,
                         quantity: entry.quantity,
                     }));
-                    this.deps.sendWithGuard(
+                    this.svc.networkLayer.sendWithGuard(
                         sock,
                         encodeMessage({
                             type: "inventory",
@@ -1012,8 +852,8 @@ export class TickPhaseService implements TickPhaseProvider {
             const appearanceDirty = player.hasAppearanceUpdate();
             if (appearanceDirty) {
                 player.takeAppearanceSnapshot();
-                this.deps.playerAppearanceManager.queueAppearanceSnapshot(player);
-                this.deps.appearanceService.queueAnimSnapshot(player.id, this.deps.appearanceService.buildAnimPayload(player));
+                this.svc.playerAppearanceManager!.queueAppearanceSnapshot(player);
+                this.svc.appearanceService.queueAnimSnapshot(player.id, this.svc.appearanceService.buildAnimPayload(player));
             }
             const hasCombatUpdate = player.hasCombatStateUpdate();
             if (hasCombatUpdate) {
@@ -1030,7 +870,7 @@ export class TickPhaseService implements TickPhaseProvider {
                     quickPrayers = Array.from(quickSet);
                     quickPrayersEnabled = player.prayer.areQuickPrayersEnabled();
                 } catch (err) { logger.warn("Failed to read combat UI state", err); }
-                this.deps.sendWithGuard(
+                this.svc.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "combat",
@@ -1053,9 +893,9 @@ export class TickPhaseService implements TickPhaseProvider {
             }
             if (
                 (appearanceDirty || hasCombatUpdate) &&
-                this.deps.interfaceManager.isWidgetGroupOpenInLedger(player.id, EQUIPMENT_STATS_GROUP_ID)
+                this.svc.interfaceManager.isWidgetGroupOpenInLedger(player.id, EQUIPMENT_STATS_GROUP_ID)
             ) {
-                this.deps.equipmentStatsUiService.queueEquipmentStatsWidgetTexts(player);
+                this.svc.equipmentStatsUiService.queueEquipmentStatsWidgetTexts(player);
             }
         });
     }
@@ -1103,10 +943,14 @@ export class TickPhaseService implements TickPhaseProvider {
         frame: TickFrame,
         ctx: BroadcastContext,
     ): void {
-        const session = this.deps.ensurePlayerSyncSession(sock);
+        let session = this.svc.playerSyncSessions.get(sock);
+        if (!session) {
+            session = new PlayerSyncSession();
+            this.svc.playerSyncSessions.set(sock, session);
+        }
         const playerFrame: PlayerTickFrameData = {
             tick: frame.tick,
-            tickMs: this.deps.tickMs,
+            tickMs: this.svc.tickMs,
             playerViews: frame.playerViews,
             playerSteps: frame.playerSteps,
             hitsplats: frame.hitsplats,
@@ -1119,7 +963,7 @@ export class TickPhaseService implements TickPhaseProvider {
             pendingFaceDirs: frame.pendingFaceDirs,
             colorOverrides: frame.colorOverrides,
         };
-        const packet = this.deps.playerPacketEncoder.buildPlayerSyncPacket(
+        const packet = this.svc.playerPacketEncoder!.buildPlayerSyncPacket(
             session,
             player,
             playerFrame,
@@ -1140,19 +984,23 @@ export class TickPhaseService implements TickPhaseProvider {
             "player_sync",
         );
 
-        if (this.deps.enableBinaryNpcSync && this.deps.npcManager) {
+        if (this.svc.enableBinaryNpcSync && this.svc.npcManager) {
             try {
-                const npcSession = this.deps.getOrCreateNpcSyncSession(sock);
+                let npcSession = this.svc.npcSyncSessions.get(sock);
+                if (!npcSession) {
+                    npcSession = new NpcSyncSession();
+                    this.svc.npcSyncSessions.set(sock, npcSession);
+                }
                 const npcFrame = {
                     tick: frame.tick,
-                    tickMs: this.deps.tickMs,
+                    tickMs: this.svc.tickMs,
                     npcUpdates: frame.npcUpdates,
                     hitsplats: frame.hitsplats,
                     npcEffectEvents: frame.npcEffectEvents,
                     spotAnimations: frame.spotAnimations,
                     colorOverrides: frame.npcColorOverrides,
                 };
-                const built = this.deps.npcPacketEncoder.buildNpcSyncPacket(
+                const built = this.svc.npcPacketEncoder!.buildNpcSyncPacket(
                     player,
                     npcFrame,
                     npcSession,
@@ -1175,8 +1023,8 @@ export class TickPhaseService implements TickPhaseProvider {
                 logger.warn("[npc_info] encode failed", err);
             }
         }
-        if (this.deps.worldEntityInfoEncoder.needsUpdate(player.id)) {
-            const wePacket = this.deps.worldEntityInfoEncoder.encode(player.id);
+        if (this.svc.worldEntityInfoEncoder.needsUpdate(player.id)) {
+            const wePacket = this.svc.worldEntityInfoEncoder.encode(player.id);
             if (wePacket) {
                 ctx.sendWithGuard(sock, wePacket, "worldentity_info");
             }

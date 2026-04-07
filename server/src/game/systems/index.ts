@@ -3,7 +3,6 @@ export { ScriptScheduler } from "./ScriptScheduler";
 export { StatusEffectSystem } from "./StatusEffectSystem";
 export {
     ProjectileSystem,
-    type ProjectileSystemServices,
     type RangedProjectileParams,
     type SpellProjectileParams,
 } from "./ProjectileSystem";
@@ -22,6 +21,5 @@ export {
 export { GatheringSystemManager, type GatheringSystemServices } from "./GatheringSystemManager";
 export {
     EquipmentHandler,
-    type EquipmentHandlerServices,
     type EquipResult,
 } from "./EquipmentHandler";

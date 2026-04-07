@@ -6,15 +6,13 @@
  * - Dialog selection and continue handling
  * - Widget action normalization and routing
  * - Dialog close state management
- *
- * Uses dependency injection via services interface to avoid tight coupling.
- * Optionally uses InterfaceService for unified chatbox modal management.
  */
-import type { InterfaceService } from "../../../widgets/InterfaceService";
 import {
     setOptionsDialogFlags,
     setSpriteDialogFlags,
 } from "../../../widgets/hooks/DialogInterfaceHooks";
+import { logger } from "../../../utils/logger";
+import type { ServerServices } from "../../ServerServices";
 import type { PlayerState } from "../../player";
 
 // ============================================================================
@@ -137,55 +135,8 @@ const DOUBLE_SPRITE_TEXT_COMPONENT = 2;
 const DOUBLE_SPRITE_RIGHT_ITEM_COMPONENT = 3;
 const DOUBLE_SPRITE_CONTINUE_COMPONENT = 4;
 
-// ============================================================================
-// Services Interface
-// ============================================================================
-
-/**
- * Services interface for widget/dialog handling.
- */
-export interface WidgetDialogServices {
-    // --- Entity Access ---
-    getPlayer(id: number): PlayerState | undefined;
-    getPlayerFromSocket(ws: WebSocketRef): PlayerState | undefined;
-
-    // --- Tick ---
-    getCurrentTick(): number;
-
-    // --- Widget Events ---
-    queueWidgetEvent(playerId: number, action: WidgetAction): void;
-    queueClientScript(playerId: number, scriptId: number, ...args: (number | string)[]): void;
-    queueVarbit(playerId: number, varbitId: number, value: number): void;
-
-    // --- Script Runtime ---
-    queueWidgetAction(request: {
-        tick: number;
-        player: PlayerState;
-        widgetId: number;
-        groupId: number;
-        childId: number;
-        option?: string;
-        target?: string;
-        opId?: number;
-        slot?: number;
-        itemId?: number;
-        isPrimary?: boolean;
-        cursorX?: number;
-        cursorY?: number;
-    }): boolean;
-
-    // --- Shop/Smithing/Bank ---
-    closeShopInterface(player: PlayerState, options?: { silent?: boolean }): void;
-    closeBank(player: PlayerState): void;
-    queueSmithingInterfaceMessage(playerId: number, payload: { kind: string }): void;
-
-    // --- Constants ---
-    getShopGroupId(): number;
-    getBankGroupId(): number;
-
-    // --- Logging ---
-    log(level: "info" | "warn" | "error" | "debug", message: string, error?: unknown): void;
-}
+const SHOP_GROUP_ID = 300;
+const BANK_GROUP_ID = 12;
 
 // ============================================================================
 // WidgetDialogHandler
@@ -197,10 +148,7 @@ export interface WidgetDialogServices {
 export class WidgetDialogHandler {
     private activeChatboxDialogs = new Map<number, ActiveChatboxDialogState>();
 
-    constructor(
-        private readonly services: WidgetDialogServices,
-        private readonly interfaceService: InterfaceService,
-    ) {}
+    constructor(private readonly svc: ServerServices) {}
 
     // ========================================================================
     // Public Methods
@@ -338,7 +286,7 @@ export class WidgetDialogHandler {
                       },
                   ]
                 : undefined;
-        this.interfaceService.openChatboxModal(
+        this.svc.interfaceService!.openChatboxModal(
             player,
             groupId,
             { dialogId, ...payload },
@@ -390,34 +338,34 @@ export class WidgetDialogHandler {
                     : payload.playerName || trimmedTitle || "";
 
             if (request.kind === "npc" && payload.npcId != null) {
-                this.services.queueWidgetEvent(playerId, {
+                this.svc.queueWidgetEvent(playerId, {
                     action: "set_npc_head",
                     uid: headUid,
                     npcId: payload.npcId,
                 });
             } else if (request.kind === "player") {
-                this.services.queueWidgetEvent(playerId, {
+                this.svc.queueWidgetEvent(playerId, {
                     action: "set_player_head",
                     uid: headUid,
                 });
             }
 
-            this.services.queueWidgetEvent(playerId, {
+            this.svc.queueWidgetEvent(playerId, {
                 action: "set_animation",
                 uid: headUid,
                 animationId: payload.animationId ?? 588,
             });
-            this.services.queueWidgetEvent(playerId, {
+            this.svc.queueWidgetEvent(playerId, {
                 action: "set_text",
                 uid: titleUid,
                 text: titleText,
             });
-            this.services.queueWidgetEvent(playerId, {
+            this.svc.queueWidgetEvent(playerId, {
                 action: "set_text",
                 uid: textUid,
                 text: lines.join("<br>"),
             });
-            this.services.queueWidgetEvent(playerId, {
+            this.svc.queueWidgetEvent(playerId, {
                 action: "set_text",
                 uid: continueUid,
                 text: payload.clickToContinue !== false ? "Click here to continue" : "",
@@ -437,7 +385,7 @@ export class WidgetDialogHandler {
             if (payload.itemId != null && payload.itemId >= 0) {
                 const SPRITE_DIALOG_AMOUNT_CAP = 250;
                 const amountOrZoom = Math.min(payload.itemQuantity ?? 1, SPRITE_DIALOG_AMOUNT_CAP);
-                this.services.queueWidgetEvent(playerId, {
+                this.svc.queueWidgetEvent(playerId, {
                     action: "set_item",
                     uid: (DIALOG_GROUP_SPRITE << 16) | 1,
                     itemId: payload.itemId,
@@ -445,16 +393,16 @@ export class WidgetDialogHandler {
                 });
             }
             // Set message text on component 2 (RSMod: setComponentText(193, 2, message))
-            this.services.queueWidgetEvent(playerId, {
+            this.svc.queueWidgetEvent(playerId, {
                 action: "set_text",
                 uid: (DIALOG_GROUP_SPRITE << 16) | 2,
                 text: lines.join("<br>"),
             });
             // Run script 2868 (objbox_setbuttons) to set up continue button
             if (payload.clickToContinue !== false) {
-                this.services.queueClientScript(playerId, 2868, "Click here to continue");
+                this.svc.broadcastService.queueClientScript(playerId, 2868, "Click here to continue");
                 // Set flags AFTER script 2868 creates the continue button
-                setSpriteDialogFlags(this.interfaceService, player);
+                setSpriteDialogFlags(this.svc.interfaceService!, player);
             }
             return;
         }
@@ -463,7 +411,7 @@ export class WidgetDialogHandler {
             const bodyLines = payload.title ? [payload.title, ...lines] : lines;
 
             if (payload.leftItemId != null && payload.leftItemId >= 0) {
-                this.services.queueWidgetEvent(playerId, {
+                this.svc.queueWidgetEvent(playerId, {
                     action: "set_item",
                     uid: (DIALOG_GROUP_DOUBLE_SPRITE << 16) | DOUBLE_SPRITE_LEFT_ITEM_COMPONENT,
                     itemId: payload.leftItemId,
@@ -471,19 +419,19 @@ export class WidgetDialogHandler {
                 });
             }
             if (payload.rightItemId != null && payload.rightItemId >= 0) {
-                this.services.queueWidgetEvent(playerId, {
+                this.svc.queueWidgetEvent(playerId, {
                     action: "set_item",
                     uid: (DIALOG_GROUP_DOUBLE_SPRITE << 16) | DOUBLE_SPRITE_RIGHT_ITEM_COMPONENT,
                     itemId: payload.rightItemId,
                     quantity: payload.rightItemQuantity ?? 1,
                 });
             }
-            this.services.queueWidgetEvent(playerId, {
+            this.svc.queueWidgetEvent(playerId, {
                 action: "set_text",
                 uid: (DIALOG_GROUP_DOUBLE_SPRITE << 16) | DOUBLE_SPRITE_TEXT_COMPONENT,
                 text: bodyLines.join("<br>"),
             });
-            this.services.queueWidgetEvent(playerId, {
+            this.svc.queueWidgetEvent(playerId, {
                 action: "set_text",
                 uid: (DIALOG_GROUP_DOUBLE_SPRITE << 16) | DOUBLE_SPRITE_CONTINUE_COMPONENT,
                 text: payload.clickToContinue !== false ? "Click here to continue" : "",
@@ -508,10 +456,10 @@ export class WidgetDialogHandler {
         const pipeOptions = options.join("|");
 
         // Set varbit 5983 = 1 (dialog mode) - required before opening
-        this.services.queueVarbit(playerId, 5983, 1);
+        this.svc.variableService.queueVarbit(playerId, 5983, 1);
 
         // Open chatbox modal with preScripts for background reset
-        this.interfaceService.openChatboxModal(
+        this.svc.interfaceService!.openChatboxModal(
             player,
             DIALOG_GROUP_OPTIONS,
             { dialogId },
@@ -521,10 +469,10 @@ export class WidgetDialogHandler {
         );
 
         // Run script 58 (chatbox_multi_init) to create option buttons
-        this.services.queueClientScript(playerId, 58, title, pipeOptions);
+        this.svc.broadcastService.queueClientScript(playerId, 58, title, pipeOptions);
 
         // Set flags for option buttons using helper
-        setOptionsDialogFlags(this.interfaceService, player, options.length);
+        setOptionsDialogFlags(this.svc.interfaceService!, player, options.length);
 
         this.activeChatboxDialogs.set(player.id, {
             dialogId,
@@ -535,8 +483,7 @@ export class WidgetDialogHandler {
                 try {
                     request.onSelect?.(choice);
                 } catch (err) {
-                    this.services.log(
-                        "warn",
+                    logger.warn(
                         `[dialog] handler failed player=${player.id} dialog=${dialogId}`,
                         err,
                     );
@@ -568,7 +515,7 @@ export class WidgetDialogHandler {
         // InterfaceService.closeChatboxModal handles:
         // - Executing onClose hooks (which reset varbits)
         // - Sending close_sub and set_hidden widget events
-        this.interfaceService.closeChatboxModal(player);
+        this.svc.interfaceService!.closeChatboxModal(player);
     }
 
     /**
@@ -582,7 +529,7 @@ export class WidgetDialogHandler {
 
         // Also check InterfaceService state
         const hasInterfaceModal =
-            this.interfaceService.getCurrentChatboxModal(player) !== undefined;
+            this.svc.interfaceService!.getCurrentChatboxModal(player) !== undefined;
 
         if (!hasDialogs && !hasInterfaceModal) {
             return; // Nothing to close, skip sending widget events
@@ -591,7 +538,7 @@ export class WidgetDialogHandler {
         this.triggerAndClearActiveDialogCloseHandler(playerId);
 
         // InterfaceService.closeChatboxModal handles all cleanup
-        this.interfaceService.closeChatboxModal(player);
+        this.svc.interfaceService!.closeChatboxModal(player);
     }
 
     /**
@@ -607,12 +554,12 @@ export class WidgetDialogHandler {
      * The childIndex from the widget click is the option index.
      */
     handleDialogOptionClick(ws: WebSocketRef, playerId: number, childIndex: number): void {
-        const player = this.services.getPlayer(playerId);
+        const player = this.svc.players?.getById(playerId);
         if (!player) return;
 
         const active = this.activeChatboxDialogs.get(playerId);
         if (!active || active.groupId !== DIALOG_GROUP_OPTIONS || !active.onSelect) {
-            this.services.log("debug", `[dialog] no active options dialog for player=${playerId}`);
+            logger.info(`[dialog] no active options dialog for player=${playerId}`);
             return;
         }
         const dialogId = active.dialogId;
@@ -620,7 +567,7 @@ export class WidgetDialogHandler {
 
         // Close the dialog interface
         this.activeChatboxDialogs.delete(playerId);
-        this.interfaceService.closeChatboxModal(player);
+        this.svc.interfaceService!.closeChatboxModal(player);
 
         // Call the handler with the selected option index
         // childIndex from CS2 scripts (script 58/59) is 1-based:
@@ -629,14 +576,12 @@ export class WidgetDialogHandler {
         // Convert to 0-based for handler callbacks.
         const optionIndex = Math.max(0, Math.min(optionCount - 1, childIndex - 1));
         try {
-            this.services.log(
-                "info",
+            logger.info(
                 `[dialog] option selected player=${playerId} choice=${optionIndex} (childIndex=${childIndex})`,
             );
             active.onSelect(optionIndex);
         } catch (err) {
-            this.services.log(
-                "warn",
+            logger.warn(
                 `[dialog] handler execution failed player=${playerId} dialog=${dialogId}`,
                 err,
             );
@@ -652,7 +597,7 @@ export class WidgetDialogHandler {
         widgetId: number,
         childIndex: number,
     ): boolean {
-        const player = this.services.getPlayer(playerId);
+        const player = this.svc.players?.getById(playerId);
         if (!player) return false;
         const active = this.activeChatboxDialogs.get(playerId);
         if (!active) return false;
@@ -676,15 +621,13 @@ export class WidgetDialogHandler {
             return true;
         }
         if (!active.onContinue) {
-            this.services.log(
-                "info",
+            logger.info(
                 `[dialog] continue with no handler player=${player.id} dialogId=${active.dialogId}`,
             );
             return true;
         }
 
-        this.services.log(
-            "info",
+        logger.info(
             `[dialog] continue handler firing player=${player.id} dialogId=${active.dialogId} widget=${widgetId} child=${childIndex}`,
         );
         this.activeChatboxDialogs.delete(playerId);
@@ -692,8 +635,7 @@ export class WidgetDialogHandler {
         try {
             onContinue();
         } catch (err) {
-            this.services.log(
-                "warn",
+            logger.warn(
                 `[dialog] continue handler execution failed player=${player.id} dialog=${active.dialogId}`,
                 err,
             );
@@ -707,13 +649,13 @@ export class WidgetDialogHandler {
      */
     handleWidgetActionMessage(ws: WebSocketRef, payload: WidgetActionRequest): void {
         try {
-            const player = this.services.getPlayerFromSocket(ws);
+            const player = this.svc.players?.get(ws as any);
             if (!player) return;
             const normalized = this.normalizeWidgetActionPayload(payload);
             if (!normalized) return;
 
-            const tick = this.services.getCurrentTick();
-            const dispatched = this.services.queueWidgetAction({
+            const tick = this.svc.ticker.currentTick();
+            const dispatched = this.svc.scriptRuntime.queueWidgetAction({
                 tick,
                 player,
                 widgetId: normalized.widgetId,
@@ -730,15 +672,13 @@ export class WidgetDialogHandler {
             });
             const opLabel = normalized.opId !== undefined ? normalized.opId.toString() : "na";
             if (!dispatched) {
-                this.services.log(
-                    "debug",
+                logger.info(
                     `[widget_action] no handler player=${player.id} widget=${
                         normalized.widgetId
                     } op=${opLabel} option=${normalized.option ?? ""}`,
                 );
             } else {
-                this.services.log(
-                    "info",
+                logger.info(
                     `[widget_action] dispatched player=${player.id} widget=${
                         normalized.widgetId
                     } op=${opLabel} option=${normalized.option ?? ""} slot=${
@@ -747,7 +687,7 @@ export class WidgetDialogHandler {
                 );
             }
         } catch (err) {
-            this.services.log("warn", "[widget_action] failed to handle widget action", err);
+            logger.warn("[widget_action] failed to handle widget action", err);
         }
     }
 
@@ -788,12 +728,12 @@ export class WidgetDialogHandler {
         if (active && active.groupId === groupId) {
             this.triggerAndClearActiveDialogCloseHandler(player.id, groupId);
         }
-        if (groupId === this.services.getShopGroupId()) {
-            this.services.closeShopInterface(player, { silent: true });
-        } else if (groupId === this.services.getBankGroupId()) {
-            this.services.closeBank(player);
+        if (groupId === SHOP_GROUP_ID) {
+            this.svc.scriptRuntime.getServices().closeShop?.(player);
+        } else if (groupId === BANK_GROUP_ID) {
+            this.svc.interfaceService?.closeModal(player);
         } else if (groupId === 312) {
-            this.services.queueSmithingInterfaceMessage(player.id, { kind: "close" });
+            this.svc.broadcastService.queueSmithingInterfaceMessage(player.id, { kind: "close" } as any);
         }
     }
 
@@ -814,8 +754,7 @@ export class WidgetDialogHandler {
         try {
             active.onClose();
         } catch (err) {
-            this.services.log(
-                "warn",
+            logger.warn(
                 `[dialog] close handler failed player=${playerId} dialog=${active.dialogId}`,
                 err,
             );

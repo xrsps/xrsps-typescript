@@ -2,6 +2,7 @@ import type { WebSocket } from "ws";
 
 import { encodeMessage } from "../../network/messages";
 import type { PlayerState } from "../player";
+import type { ServerServices } from "../ServerServices";
 import {
     MUSIC_UNLOCK_VARPS,
     VARBIT_ACTIVE_SPELLBOOK,
@@ -42,37 +43,11 @@ import {
     XPDROPS_TRANSMIT_VARPS,
 } from "../../../../src/shared/vars";
 
-export interface VarpSyncServiceDeps {
-    withDirectSendBypass: (context: string, fn: () => void) => void;
-    sendWithGuard: (ws: WebSocket, msg: string | Uint8Array, context: string) => void;
-    authService: {
-        syncAccountTypeVarbit: (
-            player: PlayerState,
-            cb: (varbitId: number, value: number) => void,
-        ) => void;
-    };
-    soundManager: {
-        syncMusicUnlockVarps: (player: PlayerState, trackId: number) => void;
-    };
-    queueVarp: (playerId: number, varpId: number, value: number) => void;
-    queueWidgetEvent: (playerId: number, event: Record<string, unknown>) => void;
-    musicUnlockService: { initializeDefaults: (player: PlayerState) => void } | undefined;
-}
-
-export interface VarpSyncServiceDeferredDeps {
-    soundManager?: { syncMusicUnlockVarps: (player: PlayerState, trackId: number) => void };
-    musicUnlockService?: { initializeDefaults: (player: PlayerState) => void };
-}
-
 export class VarpSyncService {
-    constructor(private readonly deps: VarpSyncServiceDeps) {}
-
-    setDeferredDeps(deferred: VarpSyncServiceDeferredDeps): void {
-        Object.assign(this.deps, deferred);
-    }
+    constructor(private readonly services: ServerServices) {}
 
     syncMusicUnlockVarps(player: PlayerState, trackId: number): void {
-        this.deps.soundManager.syncMusicUnlockVarps(player, trackId);
+        this.services.soundManager!.syncMusicUnlockVarps(player, trackId);
     }
 
     getCombatTargetPlayerVarpValue(player: PlayerState): number {
@@ -90,13 +65,13 @@ export class VarpSyncService {
         }
 
         player.varps.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
-        this.deps.queueVarp(player.id, VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
+        this.services.variableService.queueVarp(player.id, VARP_COMBAT_TARGET_PLAYER_INDEX, nextValue);
     }
 
     syncAccountTypeVarbit(sock: WebSocket, player: PlayerState): void {
-        this.deps.authService.syncAccountTypeVarbit(player, (varbitId, value) => {
-            this.deps.withDirectSendBypass("varbit", () =>
-                this.deps.sendWithGuard(
+        this.services.authService.syncAccountTypeVarbit(player, (varbitId, value) => {
+            this.services.networkLayer.withDirectSendBypass("varbit", () =>
+                this.services.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "varbit",
@@ -116,8 +91,8 @@ export class VarpSyncService {
         ] as const;
         for (const varbitId of autocastVarbits) {
             const value = player.varps.getVarbitValue(varbitId);
-            this.deps.withDirectSendBypass("varbit", () =>
-                this.deps.sendWithGuard(
+            this.services.networkLayer.withDirectSendBypass("varbit", () =>
+                this.services.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "varbit",
@@ -133,8 +108,8 @@ export class VarpSyncService {
         const spellbook = player.varps.getVarbitValue(VARBIT_ACTIVE_SPELLBOOK);
         if (spellbook === 0) return;
 
-        this.deps.withDirectSendBypass("varbit", () =>
-            this.deps.sendWithGuard(
+        this.services.networkLayer.withDirectSendBypass("varbit", () =>
+            this.services.networkLayer.sendWithGuard(
                 sock,
                 encodeMessage({
                     type: "varbit",
@@ -150,7 +125,7 @@ export class VarpSyncService {
             14287052, 14287053, 14286850, 14287047, 14287050,
             0, "Info", "Filters",
         ];
-        this.deps.queueWidgetEvent(player.id, {
+        this.services.queueWidgetEvent(player.id, {
             action: "run_script",
             scriptId: SCRIPT_MAGIC_SPELLBOOK_REDRAW,
             args: SPELLBOOK_REDRAW_ARGS,
@@ -178,8 +153,8 @@ export class VarpSyncService {
             }
 
             if (varpId === VARP_OPTION_RUN || varpId === VARP_AUTO_RETALIATE || value !== 0) {
-                this.deps.withDirectSendBypass("varp", () =>
-                    this.deps.sendWithGuard(
+                this.services.networkLayer.withDirectSendBypass("varp", () =>
+                    this.services.networkLayer.sendWithGuard(
                         sock,
                         encodeMessage({
                             type: "varp",
@@ -194,8 +169,8 @@ export class VarpSyncService {
         for (const varpId of XPDROPS_TRANSMIT_VARPS) {
             const value = player.varps.getVarpValue(varpId);
             if (value === 0) continue;
-            this.deps.withDirectSendBypass("varp", () =>
-                this.deps.sendWithGuard(
+            this.services.networkLayer.withDirectSendBypass("varp", () =>
+                this.services.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "varp",
@@ -225,8 +200,8 @@ export class VarpSyncService {
         ];
         for (const varpId of soundVarps) {
             const value = player.varps.getVarpValue(varpId);
-            this.deps.withDirectSendBypass("varp", () =>
-                this.deps.sendWithGuard(
+            this.services.networkLayer.withDirectSendBypass("varp", () =>
+                this.services.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "varp",
@@ -243,8 +218,8 @@ export class VarpSyncService {
         ];
         for (const varpId of attackOptionVarps) {
             const value = player.varps.getVarpValue(varpId);
-            this.deps.withDirectSendBypass("varp", () =>
-                this.deps.sendWithGuard(
+            this.services.networkLayer.withDirectSendBypass("varp", () =>
+                this.services.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "varp",
@@ -257,8 +232,8 @@ export class VarpSyncService {
 
         const combatTargetPlayerIndex = this.getCombatTargetPlayerVarpValue(player);
         player.varps.setVarpValue(VARP_COMBAT_TARGET_PLAYER_INDEX, combatTargetPlayerIndex);
-        this.deps.withDirectSendBypass("varp", () =>
-            this.deps.sendWithGuard(
+        this.services.networkLayer.withDirectSendBypass("varp", () =>
+            this.services.networkLayer.sendWithGuard(
                 sock,
                 encodeMessage({
                     type: "varp",
@@ -271,8 +246,8 @@ export class VarpSyncService {
             ),
         );
 
-        this.deps.withDirectSendBypass("varp", () =>
-            this.deps.sendWithGuard(
+        this.services.networkLayer.withDirectSendBypass("varp", () =>
+            this.services.networkLayer.sendWithGuard(
                 sock,
                 encodeMessage({
                     type: "varp",
@@ -282,8 +257,8 @@ export class VarpSyncService {
             ),
         );
 
-        this.deps.withDirectSendBypass("varp", () =>
-            this.deps.sendWithGuard(
+        this.services.networkLayer.withDirectSendBypass("varp", () =>
+            this.services.networkLayer.sendWithGuard(
                 sock,
                 encodeMessage({
                     type: "varp",
@@ -306,8 +281,8 @@ export class VarpSyncService {
         ];
 
         for (const { varpId, value } of spellUnlockVarps) {
-            this.deps.withDirectSendBypass("varp", () =>
-                this.deps.sendWithGuard(
+            this.services.networkLayer.withDirectSendBypass("varp", () =>
+                this.services.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "varp",
@@ -327,8 +302,8 @@ export class VarpSyncService {
         ];
 
         for (const { varbitId, value } of spellUnlockVarbits) {
-            this.deps.withDirectSendBypass("varbit", () =>
-                this.deps.sendWithGuard(
+            this.services.networkLayer.withDirectSendBypass("varbit", () =>
+                this.services.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "varbit",
@@ -342,8 +317,8 @@ export class VarpSyncService {
         for (const varpId of MUSIC_UNLOCK_VARPS) {
             const value = player.varps.getVarpValue(varpId);
             if (value !== 0) {
-                this.deps.withDirectSendBypass("varp", () =>
-                    this.deps.sendWithGuard(
+                this.services.networkLayer.withDirectSendBypass("varp", () =>
+                    this.services.networkLayer.sendWithGuard(
                         sock,
                         encodeMessage({
                             type: "varp",
@@ -355,12 +330,12 @@ export class VarpSyncService {
             }
         }
 
-        if (this.deps.musicUnlockService) {
-            this.deps.musicUnlockService.initializeDefaults(player);
+        if (this.services.musicUnlockService) {
+            this.services.musicUnlockService.initializeDefaults(player);
         }
         const musicUnlockMsgValue = player.varps.getVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE);
-        this.deps.withDirectSendBypass("varbit", () =>
-            this.deps.sendWithGuard(
+        this.services.networkLayer.withDirectSendBypass("varbit", () =>
+            this.services.networkLayer.sendWithGuard(
                 sock,
                 encodeMessage({
                     type: "varbit",
@@ -374,8 +349,8 @@ export class VarpSyncService {
         );
 
         const xpDropsEnabledValue = player.varps.getVarbitValue(VARBIT_XPDROPS_ENABLED);
-        this.deps.withDirectSendBypass("varbit", () =>
-            this.deps.sendWithGuard(
+        this.services.networkLayer.withDirectSendBypass("varbit", () =>
+            this.services.networkLayer.sendWithGuard(
                 sock,
                 encodeMessage({
                     type: "varbit",

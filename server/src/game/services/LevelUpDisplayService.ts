@@ -1,7 +1,7 @@
 import { MAX_REAL_LEVEL, SkillId, getSkillName } from "../../../../src/rs/skill/skills";
 import type { PlayerState } from "../player";
-import type { PendingSpotAnimation } from "../systems/BroadcastScheduler";
 import type { LevelUpPopup, WidgetAction } from "./InterfaceManager";
+import type { ServerServices } from "../ServerServices";
 import {
     LEVELUP_INTERFACE_ID,
     LEVELUP_CONTINUE_COMPONENT,
@@ -53,16 +53,12 @@ const LEVELUP_JINGLE_BY_SKILL: Partial<Record<number, number>> = {
     [SkillId.Woodcutting]: 53,
 };
 
-export interface LevelUpDisplayServiceDeps {
-    queueWidgetEvent: (playerId: number, action: WidgetAction) => void;
-    enqueueSpotAnimation: (event: PendingSpotAnimation) => void;
-    sendJingle: (player: PlayerState, jingleId: number, delay?: number) => void;
-    sendSound: (player: PlayerState, soundId: number) => void;
-    getCurrentTick: () => number;
-}
-
 export class LevelUpDisplayService {
-    constructor(private readonly deps: LevelUpDisplayServiceDeps) {}
+    constructor(private readonly services: ServerServices) {}
+
+    private queueWidgetEvent(playerId: number, action: WidgetAction): void {
+        this.services.queueWidgetEvent(playerId, action);
+    }
 
     showLevelUpPopup(player: PlayerState, popup: LevelUpPopup): boolean {
         if (popup.kind === "skill") {
@@ -80,15 +76,15 @@ export class LevelUpDisplayService {
         const playerId = playerIdRaw;
         const chatboxTargetUid = (CHATBOX_GROUP_ID << 16) | CHATBOX_CHILD_ID;
 
-        this.deps.queueWidgetEvent(playerId, { action: "close_sub", targetUid: chatboxTargetUid });
+        this.queueWidgetEvent(playerId, { action: "close_sub", targetUid: chatboxTargetUid });
 
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_varbit",
             varbitId: VARBIT_CHATMODAL_UNCLAMP,
             value: 0,
         });
 
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_hidden",
             uid: chatboxTargetUid,
             hidden: true,
@@ -99,13 +95,13 @@ export class LevelUpDisplayService {
         const playerId = playerIdRaw;
         const chatboxTargetUid = (CHATBOX_GROUP_ID << 16) | CHATBOX_CHILD_ID;
 
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_hidden",
             uid: chatboxTargetUid,
             hidden: false,
         });
 
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "open_sub",
             targetUid: chatboxTargetUid,
             groupId,
@@ -139,7 +135,7 @@ export class LevelUpDisplayService {
 
         this.openLevelUpChatboxOverlay(playerId, LEVELUP_INTERFACE_ID);
 
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_flags",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT,
             flags: 1,
@@ -148,36 +144,36 @@ export class LevelUpDisplayService {
         for (const componentId of Object.values(LEVELUP_SKILL_COMPONENT_BY_SKILL)) {
             const comp = componentId;
             if (typeof comp !== "number") continue;
-            this.deps.queueWidgetEvent(playerId, {
+            this.queueWidgetEvent(playerId, {
                 action: "set_hidden",
                 uid: (LEVELUP_INTERFACE_ID << 16) | (comp & 0xffff),
                 hidden: true,
             });
         }
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_hidden",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_COMBAT_COMPONENT,
             hidden: false,
         });
 
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_TEXT1_COMPONENT,
             text: `<col=000080>Congratulations, you just advanced ${levelFormat} ${noun} level${pluralSuffix}.`,
         });
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_TEXT2_COMPONENT,
             text: `Your ${noun} level is now ${newLevel}.`,
         });
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT,
             text: "Click here to continue",
         });
 
-        const tick = this.deps.getCurrentTick();
-        this.deps.enqueueSpotAnimation({
+        const tick = this.services.ticker.currentTick();
+        this.services.broadcastService.enqueueSpotAnimation({
             tick,
             playerId,
             spotId: LEVELUP_SPOT_ID,
@@ -185,9 +181,9 @@ export class LevelUpDisplayService {
             height: 120,
         });
 
-        this.deps.sendJingle(player, LEVELUP_COMBAT_JINGLE_ID, LEVELUP_JINGLE_DELAY);
+        this.services.soundManager?.sendJingle(player, LEVELUP_COMBAT_JINGLE_ID, LEVELUP_JINGLE_DELAY);
 
-        this.deps.sendSound(player, LEVELUP_FIREWORK_SOUND);
+        this.services.soundManager?.sendSound(player, LEVELUP_FIREWORK_SOUND);
 
         return true;
     }
@@ -207,12 +203,12 @@ export class LevelUpDisplayService {
 
         this.openLevelUpChatboxOverlay(playerId, OBJECTBOX_INTERFACE_ID);
 
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_item",
             uid: (OBJECTBOX_INTERFACE_ID << 16) | 1,
             itemId: HUNTER_LEVELUP_ICON_ITEM_ID,
         });
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: (OBJECTBOX_INTERFACE_ID << 16) | 2,
             text:
@@ -221,8 +217,8 @@ export class LevelUpDisplayService {
         });
 
         const spotId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_SPOT_ID : LEVELUP_SPOT_ID;
-        const tick = this.deps.getCurrentTick();
-        this.deps.enqueueSpotAnimation({
+        const tick = this.services.ticker.currentTick();
+        this.services.broadcastService.enqueueSpotAnimation({
             tick,
             playerId,
             spotId,
@@ -232,9 +228,9 @@ export class LevelUpDisplayService {
 
         const hunterJingle = LEVELUP_JINGLE_BY_SKILL[SkillId.Hunter] ?? LEVELUP_JINGLE_ID;
         const jingleId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_JINGLE_ID : hunterJingle;
-        this.deps.sendJingle(player, jingleId, LEVELUP_JINGLE_DELAY);
+        this.services.soundManager?.sendJingle(player, jingleId, LEVELUP_JINGLE_DELAY);
 
-        this.deps.sendSound(player, LEVELUP_FIREWORK_SOUND);
+        this.services.soundManager?.sendSound(player, LEVELUP_FIREWORK_SOUND);
 
         return true;
     }
@@ -272,7 +268,7 @@ export class LevelUpDisplayService {
 
         this.openLevelUpChatboxOverlay(playerId, LEVELUP_INTERFACE_ID);
 
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_flags",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT,
             flags: 1,
@@ -281,37 +277,37 @@ export class LevelUpDisplayService {
         for (const componentId of Object.values(LEVELUP_SKILL_COMPONENT_BY_SKILL)) {
             const comp = componentId;
             if (typeof comp !== "number") continue;
-            this.deps.queueWidgetEvent(playerId, {
+            this.queueWidgetEvent(playerId, {
                 action: "set_hidden",
                 uid: (LEVELUP_INTERFACE_ID << 16) | (comp & 0xffff),
                 hidden: comp !== targetComponentId,
             });
         }
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_hidden",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_COMBAT_COMPONENT,
             hidden: true,
         });
 
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_TEXT1_COMPONENT,
             text: `<col=000080>Congratulations, you just advanced ${levelFormat} ${skillName} level${pluralSuffix}.`,
         });
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_TEXT2_COMPONENT,
             text: `Your ${skillName} level is now ${newLevel}.`,
         });
-        this.deps.queueWidgetEvent(playerId, {
+        this.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT,
             text: "Click here to continue",
         });
 
         const spotId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_SPOT_ID : LEVELUP_SPOT_ID;
-        const tick = this.deps.getCurrentTick();
-        this.deps.enqueueSpotAnimation({
+        const tick = this.services.ticker.currentTick();
+        this.services.broadcastService.enqueueSpotAnimation({
             tick,
             playerId,
             spotId,
@@ -321,9 +317,9 @@ export class LevelUpDisplayService {
 
         const skillJingle = LEVELUP_JINGLE_BY_SKILL[skillId] ?? LEVELUP_JINGLE_ID;
         const jingleId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_JINGLE_ID : skillJingle;
-        this.deps.sendJingle(player, jingleId, LEVELUP_JINGLE_DELAY);
+        this.services.soundManager?.sendJingle(player, jingleId, LEVELUP_JINGLE_DELAY);
 
-        this.deps.sendSound(player, LEVELUP_FIREWORK_SOUND);
+        this.services.soundManager?.sendSound(player, LEVELUP_FIREWORK_SOUND);
 
         return true;
     }

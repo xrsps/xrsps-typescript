@@ -1,9 +1,6 @@
 import { MAX_REAL_LEVEL, getSkillName } from "../../../../src/rs/skill/skills";
-import type { BroadcastScheduler, ChatMessageSnapshot } from "../systems/BroadcastScheduler";
-import type { ActionScheduler } from "../actions";
-import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import type { PlayerState } from "../player";
-import type { TickFrame } from "../tick/TickPhaseOrchestrator";
+import type { ServerServices } from "../ServerServices";
 import { logger } from "../../utils/logger";
 
 export interface PlayerWidgetOpenLedger {
@@ -26,33 +23,6 @@ export interface WidgetAction {
     [key: string]: unknown;
 }
 
-export interface InterfaceManagerDeps {
-    getActiveFrame: () => TickFrame | undefined;
-    getIsBroadcastPhase: () => boolean;
-    broadcastScheduler: BroadcastScheduler;
-    actionScheduler: ActionScheduler;
-    queueChatMessage: (msg: ChatMessageSnapshot) => void;
-    showLevelUpPopup: (player: PlayerState, popup: LevelUpPopup) => boolean;
-    closeChatboxModalOverlay: (playerId: number) => void;
-    getPlayerById: (id: number) => PlayerState | undefined;
-    interfaceService?: {
-        triggerCloseHooksForEntries(player: PlayerState, entries: Array<{ groupId: number; targetUid?: number }>): void;
-    };
-    widgetDialogHandler?: {
-        closeAllPlayerDialogs(player: PlayerState): void;
-    };
-    cs2ModalManager?: {
-        clearPlayerState(player: PlayerState): void;
-    };
-    accountSummary?: {
-        clearPlayer(playerId: number): void;
-    };
-    gamemode?: GamemodeDefinition;
-    reportGameTime?: {
-        clearPlayer(playerId: number): void;
-    };
-}
-
 /**
  * Manages widget open/close ledger tracking, level-up popup queue,
  * widget event queuing, and client script queuing.
@@ -62,7 +32,7 @@ export class InterfaceManager {
     private readonly widgetOpenLedgerByPlayer = new Map<number, PlayerWidgetOpenLedger>();
     private readonly levelUpPopupQueue = new Map<number, LevelUpPopup[]>();
 
-    constructor(private readonly deps: InterfaceManagerDeps) {}
+    constructor(private readonly svc: ServerServices) {}
 
     // --- Widget Ledger ---
 
@@ -154,9 +124,9 @@ export class InterfaceManager {
 
     clearUiTrackingForPlayer(playerId: number): void {
         this.widgetOpenLedgerByPlayer.delete(playerId);
-        this.deps.accountSummary?.clearPlayer(playerId);
-        this.deps.gamemode?.onPlayerDisconnect?.(playerId);
-        this.deps.reportGameTime?.clearPlayer(playerId);
+        this.svc.accountSummary?.clearPlayer(playerId);
+        this.svc.gamemode?.onPlayerDisconnect?.(playerId);
+        this.svc.reportGameTime?.clearPlayer(playerId);
     }
 
     /**
@@ -176,21 +146,21 @@ export class InterfaceManager {
 
         const closedEntries = player.widgets.closeModalInterfaces();
 
-        if (this.deps.interfaceService && closedEntries.length > 0) {
-            this.deps.interfaceService.triggerCloseHooksForEntries(player, closedEntries);
+        if (this.svc.interfaceService && closedEntries.length > 0) {
+            this.svc.interfaceService.triggerCloseHooksForEntries(player, closedEntries);
         }
 
         this.dismissLevelUpPopupQueue(playerId);
 
-        this.deps.widgetDialogHandler?.closeAllPlayerDialogs(player);
-        this.deps.cs2ModalManager?.clearPlayerState(player);
+        this.svc.widgetDialogHandler?.closeAllPlayerDialogs(player);
+        this.svc.cs2ModalManager?.clearPlayerState(player);
     }
 
     // --- Client Script Queuing ---
 
     queueClientScript(playerId: number, scriptId: number, ...args: (number | string)[]): void {
         logger.info?.(`[clientScript] queue player=${playerId} script=${scriptId} args=${JSON.stringify(args)}`);
-        this.deps.broadcastScheduler.queueClientScript(playerId, scriptId, args);
+        this.svc.broadcastScheduler.queueClientScript(playerId, scriptId, args);
     }
 
     // --- Level-Up Popup Queue ---
@@ -215,7 +185,7 @@ export class InterfaceManager {
                 popup.newLevel === MAX_REAL_LEVEL
                     ? `Congratulations, you've reached the highest possible ${skillName} level of 99.`
                     : `Congratulations, you've just advanced your ${skillName} level. You are now level ${popup.newLevel}.`;
-            this.deps.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 playerId,
                 text: levelUpMessage,
@@ -224,7 +194,7 @@ export class InterfaceManager {
         }
 
         if (queue.length === 1) {
-            const shown = this.deps.showLevelUpPopup(player, popup);
+            const shown = this.svc.levelUpDisplayService.showLevelUpPopup(player, popup);
             if (!shown) {
                 queue.shift();
                 if (queue.length < 1) {
@@ -242,25 +212,25 @@ export class InterfaceManager {
         queue.shift();
 
         while (queue.length > 0) {
-            if (this.deps.showLevelUpPopup(player, queue[0])) {
+            if (this.svc.levelUpDisplayService.showLevelUpPopup(player, queue[0])) {
                 return;
             }
             queue.shift();
         }
 
         this.levelUpPopupQueue.delete(playerId);
-        this.deps.closeChatboxModalOverlay(playerId);
+        this.svc.levelUpDisplayService.closeChatboxModalOverlay(playerId);
     }
 
     dismissLevelUpPopupQueue(playerId: number): boolean {
         const queue = this.levelUpPopupQueue.get(playerId);
         if (!queue || queue.length === 0) return false;
         this.levelUpPopupQueue.delete(playerId);
-        this.deps.closeChatboxModalOverlay(playerId);
+        this.svc.levelUpDisplayService.closeChatboxModalOverlay(playerId);
         return true;
     }
 
     interruptPlayerSkillActions(playerId: number): void {
-        this.deps.actionScheduler.cancelInterruptibleActions(playerId);
+        this.svc.actionScheduler.cancelInterruptibleActions(playerId);
     }
 }

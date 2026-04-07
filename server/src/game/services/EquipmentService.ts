@@ -6,10 +6,8 @@ import {
     resolveWeaponCategoryFromObj,
 } from "../../../../src/rs/config/player/WeaponCategory";
 import { getItemDefinition } from "../../data/items";
-import type { WeaponDataEntry } from "../combat/WeaponDataProvider";
 import { clearAutocastState } from "../combat/AutocastState";
 import { getCategoryForWeaponInterface } from "../combat/WeaponInterfaces";
-import type { CombatCategoryData } from "../combat/CombatCategoryData";
 import {
     ensureEquipArrayOn,
     ensureEquipQtyArrayOn,
@@ -18,60 +16,36 @@ import {
     getSkillcapeSpotId,
 } from "../equipment";
 import type { PlayerState, PlayerAppearance as PlayerAppearanceState } from "../player";
-import type { EquipmentHandler } from "../systems/EquipmentHandler";
-import type { ScriptRuntime } from "../scripts/ScriptRuntime";
-import type { ChatMessageRequest } from "../actions/handlers/CombatActionHandler";
-import type { DataLoaderService } from "./DataLoaderService";
+import type { ServerServices } from "../ServerServices";
+
 import { logger } from "../../utils/logger";
 
 const EQUIP_SLOT_COUNT = 14;
 const EQUIPMENT_STATS_BONUS_COUNT = 14;
 
-export interface EquipmentServiceDeps {
-    dataLoaders: DataLoaderService;
-    equipmentHandler: EquipmentHandler | undefined;
-    weaponData: Map<number, WeaponDataEntry>;
-    combatCategoryData: CombatCategoryData | undefined;
-    queueVarbit: (playerId: number, varbitId: number, value: number) => void;
-    queueCombatState: (player: PlayerState) => void;
-    queueChatMessage: (msg: ChatMessageRequest) => void;
-    enqueueSpotAnimation: (anim: { tick: number; playerId: number; spotId: number; delay?: number; height?: number }) => void;
-    scriptRuntime: ScriptRuntime | undefined;
-    getCurrentTick: () => number;
-    getOrCreateAppearance: (player: PlayerState) => PlayerAppearanceState;
-}
-
 /**
  * Manages equipment operations: equip/unequip, stat bonuses, weapon categories.
  * Extracted from WSServer.
  */
-export interface EquipmentServiceDeferredDeps {
-    equipmentHandler?: EquipmentHandler;
-    scriptRuntime?: ScriptRuntime;
-    combatCategoryData?: CombatCategoryData;
-}
-
 export class EquipmentService {
-    constructor(private readonly deps: EquipmentServiceDeps) {}
-
-    setDeferredDeps(deferred: EquipmentServiceDeferredDeps): void {
-        Object.assign(this.deps, deferred);
-    }
+    constructor(private readonly services: ServerServices) {}
 
     ensureEquipArray(p: PlayerState): number[] {
-        if (this.deps.equipmentHandler) {
-            return this.deps.equipmentHandler.ensureEquipArray(p);
+        const handler = this.services.equipmentHandler;
+        if (handler) {
+            return handler.ensureEquipArray(p);
         }
-        const appearance = this.deps.getOrCreateAppearance(p);
+        const appearance = this.services.appearanceService.getOrCreateAppearance(p);
         ensureEquipQtyArrayOn(appearance, EQUIP_SLOT_COUNT);
         return ensureEquipArrayOn(appearance, EQUIP_SLOT_COUNT);
     }
 
     ensureEquipQtyArray(p: PlayerState): number[] {
-        if (this.deps.equipmentHandler) {
-            return this.deps.equipmentHandler.ensureEquipQtyArray(p);
+        const handler = this.services.equipmentHandler;
+        if (handler) {
+            return handler.ensureEquipQtyArray(p);
         }
-        const appearance = this.deps.getOrCreateAppearance(p);
+        const appearance = this.services.appearanceService.getOrCreateAppearance(p);
         return ensureEquipQtyArrayOn(appearance, EQUIP_SLOT_COUNT);
     }
 
@@ -81,7 +55,7 @@ export class EquipmentService {
     }
 
     resolveEquipSlot(itemId: number): number | undefined {
-        return inferEquipSlot(itemId, (id) => this.deps.dataLoaders.getObjType(id));
+        return inferEquipSlot(itemId, (id) => this.services.dataLoaderService.getObjType(id));
     }
 
     equipItem(
@@ -91,7 +65,8 @@ export class EquipmentService {
         equipSlot: number,
         opts?: { playSound?: boolean },
     ): { ok: boolean; reason?: string; categoryChanged: boolean; weaponItemChanged: boolean } {
-        if (!this.deps.equipmentHandler) {
+        const handler = this.services.equipmentHandler;
+        if (!handler) {
             return {
                 ok: false,
                 reason: "equipment_handler_missing",
@@ -99,7 +74,7 @@ export class EquipmentService {
                 weaponItemChanged: false,
             };
         }
-        return this.deps.equipmentHandler.equipItem(p, slotIndex, itemId, equipSlot, opts);
+        return handler.equipItem(p, slotIndex, itemId, equipSlot, opts);
     }
 
     refreshCombatWeaponCategory(p: PlayerState): {
@@ -111,8 +86,9 @@ export class EquipmentService {
         const normalizedWeaponId = weaponId > 0 ? weaponId : -1;
         const previousWeaponId = p.combat.weaponItemId ?? -1;
 
-        const dataEntry = this.deps.weaponData.get(normalizedWeaponId);
-        const obj = normalizedWeaponId > 0 ? this.deps.dataLoaders.getObjType(normalizedWeaponId) : undefined;
+        const weaponData = this.services.appearanceService.getWeaponData();
+        const dataEntry = weaponData.get(normalizedWeaponId);
+        const obj = normalizedWeaponId > 0 ? this.services.dataLoaderService.getObjType(normalizedWeaponId) : undefined;
         const def = normalizedWeaponId > 0 ? getItemDefinition(normalizedWeaponId) : undefined;
         let derived: number | undefined = getCategoryForWeaponInterface(def?.weaponInterface);
         if (dataEntry?.combatCategory !== undefined) {
@@ -151,12 +127,13 @@ export class EquipmentService {
             p.combat.styleCategory = normalizedCategory;
         }
 
-        if (this.deps.combatCategoryData) {
+        const combatCategoryData = this.services.combatCategoryData;
+        if (combatCategoryData) {
             p.setCombatCategoryAttackTypes(
-                this.deps.combatCategoryData.getAttackTypes(normalizedCategory),
+                combatCategoryData.getAttackTypes(normalizedCategory),
             );
             p.setCombatCategoryMeleeBonusIndices(
-                this.deps.combatCategoryData.getMeleeBonusIndices(normalizedCategory),
+                combatCategoryData.getMeleeBonusIndices(normalizedCategory),
             );
         } else {
             p.setCombatCategoryAttackTypes(undefined);
@@ -169,8 +146,8 @@ export class EquipmentService {
     resetAutocast(p: PlayerState): void {
         clearAutocastState(p, {
             sendVarbit: (player: PlayerState, varbitId: number, value: number) =>
-                this.deps.queueVarbit(player.id, varbitId, value),
-            queueCombatState: (player: PlayerState) => this.deps.queueCombatState(player),
+                this.services.variableService.queueVarbit(player.id, varbitId, value),
+            queueCombatState: (player: PlayerState) => this.queueCombatState(player),
         });
         logger.info(`[autocast] Reset autocast for player=${p.id} due to weapon change`);
     }
@@ -227,10 +204,10 @@ export class EquipmentService {
     }
 
     private tryHandleCheckAction(player: PlayerState, slot: number, itemId: number): boolean {
-        const obj = this.deps.dataLoaders.getObjType(itemId);
+        const obj = this.services.dataLoaderService.getObjType(itemId);
         const name = obj?.name && obj.name.length > 0 ? obj.name : "item";
         const examine = obj?.examine && obj.examine.length > 0 ? obj.examine : "It looks ordinary.";
-        this.deps.queueChatMessage({
+        this.services.messagingService.queueChatMessage({
             messageType: "game",
             text: `You check the ${name.toLowerCase()}. ${examine}`,
             targetPlayerIds: [player.id],
@@ -259,17 +236,17 @@ export class EquipmentService {
             }
         }
         if (spotIdResolved >= 0) {
-            this.deps.enqueueSpotAnimation({
-                tick: this.deps.getCurrentTick(),
+            this.services.broadcastService.enqueueSpotAnimation({
+                tick: this.services.ticker.currentTick(),
                 playerId: player.id,
                 spotId: spotIdResolved,
                 delay: 0,
                 height: 120,
             });
         }
-        const obj = this.deps.dataLoaders.getObjType(capeItemId);
+        const obj = this.services.dataLoaderService.getObjType(capeItemId);
         const capeName = obj?.name && obj.name.length > 0 ? obj.name : "cape";
-        this.deps.queueChatMessage({
+        this.services.messagingService.queueChatMessage({
             messageType: "game",
             text: `You operate the ${capeName}.`,
             targetPlayerIds: [player.id],
@@ -288,8 +265,8 @@ export class EquipmentService {
         optionLower: string,
     ): boolean {
         try {
-            const tick = this.deps.getCurrentTick();
-            return this.deps.scriptRuntime.queueEquipmentAction({
+            const tick = this.services.ticker.currentTick();
+            return this.services.scriptRuntime.queueEquipmentAction({
                 tick,
                 player,
                 slot: action.slot,
@@ -301,6 +278,10 @@ export class EquipmentService {
             logger.warn("[equipment] failed to dispatch equipment action to scripts", err);
             return false;
         }
+    }
+
+    private queueCombatState(player: PlayerState): void {
+        this.services.queueCombatState(player);
     }
 
     // Format utilities

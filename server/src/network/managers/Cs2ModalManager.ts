@@ -34,8 +34,8 @@ import {
     SMITHING_BAR_MODAL_GROUP_ID,
 } from "../../../../src/shared/ui/widgets";
 import { FONT_BOLD_12 } from "../../../../src/ui/fonts";
+import type { ServerServices } from "../../game/ServerServices";
 import type { PlayerState } from "../../game/player";
-import type { WidgetAction } from "../../widgets/WidgetManager";
 
 type SmithingBarOption = {
     barType: number;
@@ -59,15 +59,6 @@ type IndexedMenuState = {
     onSelect?: (player: PlayerState, optionIndex: number, optionLabel: string) => void;
 };
 
-export interface Cs2ModalManagerServices {
-    openModal: (player: PlayerState, interfaceId: number, data?: unknown) => void;
-    closeModal: (player: PlayerState) => void;
-    getCurrentModal: (player: PlayerState) => number | undefined;
-    queueWidgetEvent: (playerId: number, event: WidgetAction) => void;
-    queueGameMessage: (playerId: number, text: string) => void;
-    setSmithingBarType: (player: PlayerState, barType: number) => void;
-    openSmithingForgeInterface: (player: PlayerState) => void;
-}
 
 const SCRIPT_STEELBORDER_NOCLOSE = 3737;
 const SCRIPT_STONEBUTTON_INIT = 2424;
@@ -132,12 +123,12 @@ export class Cs2ModalManager {
     private readonly activeSmithingBarModalPlayers = new Set<number>();
     private readonly activeIndexedMenus = new Map<number, IndexedMenuState>();
 
-    constructor(private readonly services: Cs2ModalManagerServices) {}
+    constructor(private readonly svc: ServerServices) {}
 
     openSmithingBarModal(player: PlayerState): void {
         const playerId = player.id;
         this.activeSmithingBarModalPlayers.add(playerId);
-        this.services.openModal(player, SMITHING_BAR_MODAL_GROUP_ID);
+        this.svc.interfaceService?.openModal(player, SMITHING_BAR_MODAL_GROUP_ID);
         this.applySmithingBarModalLayout(player);
     }
 
@@ -157,7 +148,7 @@ export class Cs2ModalManager {
             onSelect: request.onSelect,
         };
         this.activeIndexedMenus.set(player.id, state);
-        this.services.openModal(player, INDEXED_MENU_GROUP_ID);
+        this.svc.interfaceService?.openModal(player, INDEXED_MENU_GROUP_ID);
         this.redrawIndexedMenu(player, state);
     }
 
@@ -167,7 +158,7 @@ export class Cs2ModalManager {
             return false;
         }
 
-        const currentModal = this.services.getCurrentModal(player);
+        const currentModal = this.svc.interfaceService?.getCurrentModal(player);
         if (currentModal !== INDEXED_MENU_GROUP_ID) {
             this.activeIndexedMenus.delete(player.id);
             return false;
@@ -206,7 +197,7 @@ export class Cs2ModalManager {
             return this.handleSmithingBarModalAction(player, componentId, option);
         }
         const playerId = player.id;
-        const currentModal = this.services.getCurrentModal(player);
+        const currentModal = this.svc.interfaceService?.getCurrentModal(player);
         if (currentModal !== SMITHING_BAR_MODAL_GROUP_ID) {
             this.activeSmithingBarModalPlayers.delete(playerId);
         }
@@ -234,18 +225,18 @@ export class Cs2ModalManager {
 
     private closeIndexedMenu(player: PlayerState): void {
         this.activeIndexedMenus.delete(player.id);
-        if (this.services.getCurrentModal(player) === INDEXED_MENU_GROUP_ID) {
-            this.services.closeModal(player);
+        if (this.svc.interfaceService?.getCurrentModal(player) === INDEXED_MENU_GROUP_ID) {
+            this.svc.interfaceService?.closeModal(player);
         }
     }
 
     private redrawIndexedMenu(player: PlayerState, state: IndexedMenuState): void {
-        this.services.queueWidgetEvent(player.id, {
+        this.svc.queueWidgetEvent(player.id, {
             action: "run_script",
             scriptId: INDEXED_MENU_SCRIPT_ID,
             args: [state.title, state.options.join("|")],
         });
-        this.services.queueWidgetEvent(player.id, {
+        this.svc.queueWidgetEvent(player.id, {
             action: "set_flags_range",
             uid: INDEXED_MENU_LIST_UID,
             fromSlot: 0,
@@ -280,10 +271,10 @@ export class Cs2ModalManager {
             return false;
         }
 
-        this.services.setSmithingBarType(player, selected.barType);
+        player.varps.setVarbitValue(3216, selected.barType);
         this.activeSmithingBarModalPlayers.delete(playerId);
-        this.services.closeModal(player);
-        this.services.openSmithingForgeInterface(player);
+        this.svc.interfaceService?.closeModal(player);
+        this.svc.scriptRuntime.getServices().production?.openForgeInterface?.(player);
         return true;
     }
 
@@ -319,7 +310,7 @@ export class Cs2ModalManager {
     private closeSmithingBarModal(player: PlayerState): void {
         const playerId = player.id;
         this.activeSmithingBarModalPlayers.delete(playerId);
-        this.services.closeModal(player);
+        this.svc.interfaceService?.closeModal(player);
     }
 
     private drawStoneButtonInGroup(
@@ -337,7 +328,7 @@ export class Cs2ModalManager {
     }
 
     private runScript(playerId: number, scriptId: number, args: Array<number | string>): void {
-        this.services.queueWidgetEvent(playerId, {
+        this.svc.queueWidgetEvent(playerId, {
             action: "run_script",
             scriptId: scriptId,
             args,
@@ -350,7 +341,7 @@ export class Cs2ModalManager {
         componentId: number,
         text: string,
     ): void {
-        this.services.queueWidgetEvent(playerId, {
+        this.svc.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: this.getWidgetUidInGroup(groupId, componentId),
             text: String(text ?? ""),

@@ -6,9 +6,11 @@
  */
 import type { WebSocket } from "ws";
 import { logger } from "../../utils/logger";
-import type { GroundItemManager } from "../../game/items/GroundItemManager";
-import type { InventoryAddResult, PlayerState } from "../../game/player";
-import type { ServerToClient } from "../messages";
+import type { ServerServices } from "../../game/ServerServices";
+import type { PlayerState } from "../../game/player";
+import { encodeMessage } from "../messages";
+import { isInWilderness } from "../../game/combat/MultiCombatZones";
+import { getItemDefinition } from "../../data/items";
 
 /** Pickup radius in tiles */
 const GROUND_ITEM_PICKUP_RADIUS_TILES = 2;
@@ -56,76 +58,6 @@ export type GroundItemsServerPayload =
           removes: number[];
       };
 
-/** WebSocket reference */
-export interface WebSocketRef {
-    readyState: number;
-}
-
-/** Player collection reference */
-export interface PlayerCollectionRef {
-    get(ws: WebSocket): PlayerState | undefined;
-    startGroundItemInteraction(
-        ws: WebSocket,
-        interaction: {
-            itemId: number;
-            stackId: number;
-            tileX: number;
-            tileY: number;
-            tileLevel: number;
-            option: string;
-            modifierFlags?: number;
-        },
-    ): void;
-}
-
-/** Item definition */
-export interface ItemDefinition {
-    examine?: string;
-    groundActions?: Array<string | null | undefined>;
-    stackable?: boolean;
-}
-
-/** Services required by GroundItemHandler */
-export interface GroundItemHandlerServices {
-    /** Get ground items manager */
-    getGroundItems(): GroundItemManager;
-    /** Get players collection */
-    getPlayers(): PlayerCollectionRef;
-    /** Get current tick */
-    getCurrentTick(): number;
-    /** Get player ground serial map */
-    getPlayerGroundSerial(): Map<number, number>;
-    /** Get player ground chunk map */
-    getPlayerGroundChunk(): Map<number, number>;
-    /** @deprecated Use GroundItemHandler.getGroundChunkKey instead */
-    getGroundChunkKey?(player: PlayerState): number;
-    /** Add item to player inventory */
-    addItemToInventory(player: PlayerState, itemId: number, quantity: number): InventoryAddResult;
-    /** Get item definition */
-    getItemDefinition(itemId: number): ItemDefinition | undefined;
-    /** Check if tile is in wilderness */
-    isInWilderness(x: number, y: number): boolean;
-    /** Send pickup sound */
-    sendPickupSound(player: PlayerState): void;
-    /** Send loot notification */
-    sendLootNotification(player: PlayerState, itemId: number, quantity: number): void;
-    /** Track collection log item */
-    trackCollectionLogItem(player: PlayerState, itemId: number): void;
-    /** Queue chat message */
-    queueChatMessage(request: {
-        messageType: string;
-        text: string;
-        targetPlayerIds: number[];
-    }): void;
-    /** Send with guard */
-    sendWithGuard(sock: WebSocket, message: string | Uint8Array, context: string): void;
-    /** Encode message */
-    encodeMessage(msg: ServerToClient): Uint8Array;
-    /** Execute with direct send bypass */
-    withDirectSendBypass(context: string, fn: () => void): void;
-    /** Log a message */
-    log(level: "info" | "warn" | "error" | "debug", message: string): void;
-}
 
 /** Debug configuration */
 interface DebugConfig {
@@ -143,7 +75,7 @@ export class GroundItemHandler {
         Map<number, GroundItemStackPayload>
     >();
 
-    constructor(private readonly services: GroundItemHandlerServices) {}
+    constructor(private readonly svc: ServerServices) {}
 
     static getGroundChunkKey(player: PlayerState): number {
         const mapX = player.tileX >> 6;
@@ -155,8 +87,8 @@ export class GroundItemHandler {
         const playerId = playerIdRaw;
         if (playerId < 0) return;
         this.lastVisibleStacksByPlayer.delete(playerId);
-        this.services.getPlayerGroundSerial().delete(playerId);
-        this.services.getPlayerGroundChunk().delete(playerId);
+        this.svc.playerGroundSerial.delete(playerId);
+        this.svc.playerGroundChunk.delete(playerId);
     }
 
     private toPayloadStack(
@@ -225,7 +157,7 @@ export class GroundItemHandler {
 
     private getInventoryInsertCapacity(player: PlayerState, itemId: number): number {
         const inventory = player.getInventoryEntries();
-        const itemDef = this.services.getItemDefinition(itemId);
+        const itemDef = this.svc.dataLoaderService.getObjType(itemId) ?? getItemDefinition(itemId);
         const stackable = itemDef?.stackable === true;
 
         if (stackable) {
@@ -258,11 +190,11 @@ export class GroundItemHandler {
         if (!ws || ws.readyState !== 1) return; // WebSocket.OPEN = 1
 
         const playerId = player.id;
-        const groundItems = this.services.getGroundItems();
+        const groundItems = this.svc.groundItems;
         const currentSerial = groundItems.getSerial();
-        const currentTick = this.services.getCurrentTick();
-        const playerGroundSerial = this.services.getPlayerGroundSerial();
-        const playerGroundChunk = this.services.getPlayerGroundChunk();
+        const currentTick = this.svc.ticker.currentTick();
+        const playerGroundSerial = this.svc.playerGroundSerial;
+        const playerGroundChunk = this.svc.playerGroundChunk;
 
         const lastSerial = playerGroundSerial.get(playerId);
         // Include worldViewId in chunk key so switching views forces a snapshot
@@ -299,9 +231,9 @@ export class GroundItemHandler {
                 serial: currentSerial,
                 stacks,
             };
-            this.services.sendWithGuard(
+            this.svc.networkLayer.sendWithGuard(
                 ws,
-                this.services.encodeMessage({ type: "ground_items", payload }),
+                encodeMessage({ type: "ground_items", payload }),
                 "ground_items",
             );
         } else {
@@ -327,9 +259,9 @@ export class GroundItemHandler {
                     upserts,
                     removes,
                 };
-                this.services.sendWithGuard(
+                this.svc.networkLayer.sendWithGuard(
                     ws,
-                    this.services.encodeMessage({ type: "ground_items", payload }),
+                    encodeMessage({ type: "ground_items", payload }),
                     "ground_items",
                 );
             }
@@ -344,24 +276,23 @@ export class GroundItemHandler {
      * Spawn debug ground item stack.
      */
     spawnDebugGroundItemStack(config: DebugConfig): void {
-        const groundItems = this.services.getGroundItems();
+        const groundItems = this.svc.groundItems;
         if (!groundItems) return;
 
         try {
-            const nowTick = this.services.getCurrentTick();
+            const nowTick = this.svc.ticker.currentTick();
             const tile = config.logTile;
             const stack = groundItems.spawn(config.logItemId, config.logStackQty, tile, nowTick, {
                 durationTicks: 0,
                 privateTicks: 0,
             });
             if (stack) {
-                this.services.log(
-                    "info",
+                logger.info(
                     `[ground] spawned debug log stack item=${stack.itemId} qty=${stack.quantity} tile=(${tile.x},${tile.y},${tile.level})`,
                 );
             }
         } catch (err) {
-            this.services.log("warn", "[ground] failed to spawn debug log stack");
+            logger.warn("[ground] failed to spawn debug log stack");
         }
     }
 
@@ -371,7 +302,7 @@ export class GroundItemHandler {
     handleGroundItemAction(ws: WebSocket, payload: GroundItemActionPayload | undefined): void {
         if (!payload) return;
 
-        const players = this.services.getPlayers();
+        const players = this.svc.players!;
         const player = players.get(ws);
         if (!player) return;
 
@@ -391,7 +322,7 @@ export class GroundItemHandler {
         };
 
         const opNum = payload.opNum ?? -1;
-        const itemDef = this.services.getItemDefinition(itemId);
+        const itemDef = this.svc.dataLoaderService.getObjType(itemId) ?? getItemDefinition(itemId);
         let option = payload.option?.trim().toLowerCase() ?? "";
         if (!option && opNum > 0) {
             const idx = opNum - 1;
@@ -411,7 +342,7 @@ export class GroundItemHandler {
 
         if (option === "examine") {
             if (itemDef?.examine) {
-                this.services.queueChatMessage({
+                this.svc.messagingService.queueChatMessage({
                     messageType: "game",
                     text: itemDef.examine,
                     targetPlayerIds: [player.id],
@@ -429,7 +360,7 @@ export class GroundItemHandler {
                     tile.y,
                     tile.level,
                     0,
-                    this.services.getCurrentTick(),
+                    this.svc.ticker.currentTick(),
                     player.id,
                     player.worldViewId,
                 );
@@ -465,7 +396,7 @@ export class GroundItemHandler {
         requestedQuantity?: number,
     ): void {
         if (player.level !== tile.level) {
-            this.services.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 text: "You can't reach that.",
                 targetPlayerIds: [player.id],
@@ -477,7 +408,7 @@ export class GroundItemHandler {
         const dy = Math.abs(player.tileY - tile.y);
 
         if (Math.max(dx, dy) > GROUND_ITEM_PICKUP_RADIUS_TILES) {
-            this.services.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 text: "You are too far away to pick that up.",
                 targetPlayerIds: [player.id],
@@ -487,14 +418,14 @@ export class GroundItemHandler {
 
         const qty = requestedQuantity !== undefined ? Math.max(1, requestedQuantity) : 2147483647;
 
-        const nowTick = this.services.getCurrentTick();
-        const groundItems = this.services.getGroundItems();
+        const nowTick = this.svc.ticker.currentTick();
+        const groundItems = this.svc.groundItems;
         const targetStack = groundItems
             .queryArea(tile.x, tile.y, tile.level, 0, nowTick, player.id, player.worldViewId)
             .find((stack) => stack.id === stackId && stack.itemId === itemId);
 
         if (!targetStack) {
-            this.services.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 text: "There is nothing interesting there.",
                 targetPlayerIds: [player.id],
@@ -504,7 +435,7 @@ export class GroundItemHandler {
 
         const inventoryCapacity = this.getInventoryInsertCapacity(player, itemId);
         if (inventoryCapacity <= 0) {
-            this.services.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 text: "Your inventory is too full to pick that up.",
                 targetPlayerIds: [player.id],
@@ -517,7 +448,7 @@ export class GroundItemHandler {
             Math.min(qty, Math.max(0, targetStack.quantity), inventoryCapacity),
         );
         if (quantityToTake <= 0) {
-            this.services.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 text: "Your inventory is too full to pick that up.",
                 targetPlayerIds: [player.id],
@@ -528,7 +459,7 @@ export class GroundItemHandler {
         const removed = groundItems.removeById(stackId, quantityToTake, nowTick, player.id);
 
         if (!removed) {
-            this.services.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 text: "There is nothing interesting there.",
                 targetPlayerIds: [player.id],
@@ -536,37 +467,36 @@ export class GroundItemHandler {
             return;
         }
 
-        const addResult = this.services.addItemToInventory(player, itemId, removed.removed);
+        const addResult = this.svc.inventoryService.addItemToInventory(player, itemId, removed.removed);
         const added = Math.max(0, addResult.added);
 
         if (added <= 0) {
-            this.services.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 text: "Your inventory is too full to pick that up.",
                 targetPlayerIds: [player.id],
             });
 
             // Respawn item - immediately visible in wilderness
-            const inWilderness = this.services.isInWilderness(tile.x, tile.y);
+            const inWilderness = isInWilderness(tile.x, tile.y);
             groundItems.spawn(itemId, removed.removed, tile, nowTick, {
                 privateTicks: inWilderness ? 0 : undefined,
             }, player.worldViewId);
             return;
         }
 
-        this.services.withDirectSendBypass("pickup_sound", () =>
-            this.services.sendPickupSound(player),
+        this.svc.networkLayer.withDirectSendBypass("pickup_sound", () =>
+            this.svc.soundService.sendSound(player, 2582),
         );
 
         // Track for collection log (sends "new item" notification only for new collection log items)
-        this.services.trackCollectionLogItem(player, itemId);
+        this.svc.collectionLogService.trackCollectionLogItem(player, itemId);
 
         // Force ground item update for this player
-        this.services.getPlayerGroundSerial().delete(player.id);
+        this.svc.playerGroundSerial.delete(player.id);
 
         try {
-            this.services.log(
-                "debug",
+            logger.info(
                 `[ground] pickup player=${player.id} item=${itemId} qty=${added} tile=(${tile.x},${tile.y},${tile.level})`,
             );
         } catch (err) { logger.warn("[ground-item] failed to log pickup debug", err); }

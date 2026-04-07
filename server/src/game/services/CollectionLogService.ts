@@ -10,37 +10,21 @@ import {
     trackCollectionLogItem,
 } from "../collectionlog";
 import { encodeMessage } from "../../network/messages";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { PlayerState } from "../player";
 import type { WidgetEvent } from "../../network/wsServerTypes";
 import type { ChatMessageRequest } from "../actions/handlers/CombatActionHandler";
 import { logger } from "../../utils/logger";
-
-export interface CollectionLogServiceDeps {
-    getSocketByPlayerId: (id: number) => WebSocket | undefined;
-    networkLayer: PlayerNetworkLayer;
-    interfaceService: InterfaceService | undefined;
-    queueVarp: (playerId: number, varpId: number, value: number) => void;
-    queueVarbit: (playerId: number, varbitId: number, value: number) => void;
-    queueWidgetEvent: (playerId: number, event: WidgetEvent) => void;
-    queueNotification: (playerId: number, payload: Record<string, unknown>) => void;
-    queueChatMessage: (request: ChatMessageRequest) => void;
-}
+import type { ServerServices } from "../ServerServices";
 
 /**
  * Manages collection log snapshots, opening, category population, and item tracking.
  * Extracted from WSServer.
  */
 export class CollectionLogService {
-    constructor(private readonly deps: CollectionLogServiceDeps) {}
-
-    setDeferredDeps(deferred: { interfaceService?: InterfaceService }): void {
-        Object.assign(this.deps, deferred);
-    }
+    constructor(private readonly services: ServerServices) {}
 
     sendCollectionLogSnapshot(player: PlayerState): void {
-        const ws = this.deps.getSocketByPlayerId(player.id);
+        const ws = this.services.players?.getSocketByPlayerId(player.id);
         if (!ws) return;
 
         const items = player.collectionLog.getObtainedItems();
@@ -50,8 +34,8 @@ export class CollectionLogService {
             quantity: item.quantity,
         }));
 
-        this.deps.networkLayer.withDirectSendBypass("collection_log_snapshot", () =>
-            this.deps.networkLayer.sendWithGuard(
+        this.services.networkLayer.withDirectSendBypass("collection_log_snapshot", () =>
+            this.services.networkLayer.sendWithGuard(
                 ws,
                 encodeMessage({
                     type: "collection_log",
@@ -66,14 +50,14 @@ export class CollectionLogService {
         const { getMainmodalUid } = require("../../widgets/viewport");
         return {
             queueVarp: (playerId: number, varpId: number, value: number) =>
-                this.deps.queueVarp(playerId, varpId, value),
+                this.services.variableService.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId: number, varbitId: number, value: number) =>
-                this.deps.queueVarbit(playerId, varbitId, value),
+                this.services.variableService.queueVarbit(playerId, varbitId, value),
             queueWidgetEvent: (playerId: number, event: WidgetEvent) =>
-                this.deps.queueWidgetEvent(playerId, event),
+                this.services.queueWidgetEvent(playerId, event),
             queueNotification: (playerId: number, payload: Record<string, unknown>) =>
-                this.deps.queueNotification(playerId, payload),
-            queueChatMessage: (request: ChatMessageRequest) => this.deps.queueChatMessage(request),
+                this.services.messagingService.queueNotification(playerId, payload),
+            queueChatMessage: (request: ChatMessageRequest) => this.services.messagingService.queueChatMessage(request),
             sendCollectionLogSnapshot: (player: PlayerState) =>
                 this.sendCollectionLogSnapshot(player),
             getMainmodalUid,
@@ -85,19 +69,19 @@ export class CollectionLogService {
         const hookData = {
             sendCollectionLogSnapshot: (p: PlayerState) => this.sendCollectionLogSnapshot(p),
             queueVarp: (playerId: number, varpId: number, value: number) =>
-                this.deps.queueVarp(playerId, varpId, value),
+                this.services.variableService.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId: number, varbitId: number, value: number) =>
-                this.deps.queueVarbit(playerId, varbitId, value),
+                this.services.variableService.queueVarbit(playerId, varbitId, value),
             queueWidgetEvent: (playerId: number, event: WidgetEvent) =>
-                this.deps.queueWidgetEvent(playerId, event),
+                this.services.queueWidgetEvent(playerId, event),
             logger,
         };
-        this.deps.interfaceService?.openModal(player, COLLECTION_LOG_GROUP_ID, hookData);
+        this.services.interfaceService?.openModal(player, COLLECTION_LOG_GROUP_ID, hookData);
     }
 
     openCollectionOverview(player: PlayerState): void {
         const openState = buildCollectionOverviewOpenState(player);
-        this.deps.interfaceService?.openModal(
+        this.services.interfaceService?.openModal(
             player,
             COLLECTION_OVERVIEW_GROUP_ID,
             undefined,
@@ -123,8 +107,8 @@ export class CollectionLogService {
     sendCollectionLogDisplayVarps(sock: WebSocket, player: PlayerState): void {
         const displayVarps = syncCollectionDisplayVarps(player);
         for (const [varpIdRaw, valueRaw] of Object.entries(displayVarps)) {
-            this.deps.networkLayer.withDirectSendBypass("varp", () =>
-                this.deps.networkLayer.sendWithGuard(
+            this.services.networkLayer.withDirectSendBypass("varp", () =>
+                this.services.networkLayer.sendWithGuard(
                     sock,
                     encodeMessage({
                         type: "varp",

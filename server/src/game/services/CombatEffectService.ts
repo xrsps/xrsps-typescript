@@ -16,17 +16,8 @@ import type { DamageType, DropEligibility } from "../combat/DamageTracker";
 import { logger } from "../../utils/logger";
 import type { PlayerState } from "../player";
 import type { NpcState } from "../npc";
-import type { NpcManager, PendingNpcDrop } from "../npcManager";
-import type { PlayerManager } from "../PlayerManager";
-import type { ActionScheduler } from "../actions/ActionScheduler";
-import type { ChatMessageSnapshot, PendingSpotAnimation } from "../systems/BroadcastScheduler";
-import type { TickFrame } from "../tick/TickPhaseOrchestrator";
-import type { PlayerCombatManager } from "../combat/PlayerCombatManager";
-import type { CombatDataService } from "./CombatDataService";
-import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
-import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { GroundItemManager } from "../items/GroundItemManager";
+import type { PendingNpcDrop } from "../npcManager";
+import type { ServerServices } from "../ServerServices";
 
 export const COMBAT_SOUND_DELAY_MS = 50;
 const RESPAWN_DELAY_TICKS = 17;
@@ -40,57 +31,18 @@ export const PROTECTION_PRAYER_MAP: Record<AttackType, PrayerName> = {
 export const NPC_PROTECTION_REDUCTION = 1.0;
 export const PVP_PROTECTION_REDUCTION = 0.4;
 
-interface SeqTypeLoader {
-    load(id: number): { forcedPriority?: number; frameLengths?: number[]; isSkeletalSeq?: () => boolean; getSkeletalDuration?: () => number } | undefined;
-}
-
-interface NpcTypeLoader {
-    load(id: number): { name?: string; params?: Map<number, unknown> } | undefined;
-}
-
-interface SoundBroadcastRequest {
-    soundId: number;
-    x: number;
-    y: number;
-    level: number;
-    delay?: number;
-}
-
-export interface CombatEffectServiceDeps {
-    getActiveFrame: () => TickFrame | undefined;
-    getCurrentTick: () => number;
-    getPlayer: (id: number) => PlayerState | undefined;
-    getNpcManager: () => NpcManager | undefined;
-    getPlayerCombatManager: () => PlayerCombatManager | undefined;
-    getCombatDataService: () => CombatDataService;
-    getActionScheduler: () => ActionScheduler;
-    getSeqTypeLoader: () => SeqTypeLoader | undefined;
-    getNpcTypeLoader: () => NpcTypeLoader | undefined;
-    getGamemode: () => GamemodeDefinition;
-    getBroadcastScheduler: () => BroadcastScheduler;
-    getNetworkLayer: () => PlayerNetworkLayer;
-    getPlayers: () => PlayerManager | undefined;
-    getGroundItems: () => GroundItemManager;
-    queueCombatSnapshot: (playerId: number, weaponCategory: number, weaponItemId: number, autoRetaliate: boolean, activeStyle?: number, activePrayers?: string[], activeSpellId?: number) => void;
-    enqueueSpotAnimation: (event: PendingSpotAnimation) => void;
-    broadcastSound: (request: SoundBroadcastRequest, tag: string) => void;
-    withDirectSendBypass: <T>(tag: string, fn: () => T) => T;
-    messagingService: { queueChatMessage: (msg: ChatMessageSnapshot) => void };
-    pickAttackSpeed: (player: PlayerState) => number;
-}
-
 export class CombatEffectService {
     private npcDropRegistry?: NpcDropRegistry;
     private npcDropRollService?: DropRollService;
 
-    constructor(private readonly deps: CombatEffectServiceDeps) {}
+    constructor(private readonly svc: ServerServices) {}
 
     // ── Prayer Effects ──────────────────────────────────────────────
 
     handlePrayerDepleted(player: PlayerState, opts: { message?: string } = {}): void {
         const message =
             opts.message ?? "You have run out of Prayer points, you need to recharge at an altar.";
-        this.deps.messagingService.queueChatMessage({
+        this.svc.messagingService.queueChatMessage({
             messageType: "game",
             text: message,
             targetPlayerIds: [player.id],
@@ -99,15 +51,7 @@ export class CombatEffectService {
         const hadPrayers = (player.prayer.getActivePrayers()?.size ?? 0) > 0;
         if (hadPrayers) {
             player.prayer.clearActivePrayers();
-            this.deps.queueCombatSnapshot(
-                player.id,
-                player.combat.weaponCategory,
-                player.combat.weaponItemId,
-                !!player.combat.autoRetaliate,
-                player.combat.styleSlot,
-                Array.from(player.prayer.getActivePrayers() ?? []),
-                player.combat.spellId > 0 ? player.combat.spellId : undefined,
-            );
+            this.svc.queueCombatState(player);
         }
     }
 
@@ -151,7 +95,7 @@ export class CombatEffectService {
         const playerY = player.tileY;
         const playerLevel = player.level;
 
-        const npcManager = this.deps.getNpcManager();
+        const npcManager = this.svc.npcManager;
         if (npcManager) {
             const nearbyNpcs = npcManager.getNearby(playerX, playerY, playerLevel, 1);
             for (const npc of nearbyNpcs) {
@@ -165,7 +109,7 @@ export class CombatEffectService {
                     baseDamage,
                 );
                 if (!result) continue;
-                const activeFrame = this.deps.getActiveFrame();
+                const activeFrame = this.svc.activeFrame;
                 if (activeFrame) {
                     activeFrame.hitsplats.push({
                         targetType: "npc",
@@ -181,7 +125,7 @@ export class CombatEffectService {
             }
         }
 
-        const players = this.deps.getPlayers();
+        const players = this.svc.players;
         if (players) {
             players.forEach((_sock: unknown, target: PlayerState) => {
                 if (target.id === player.id) return;
@@ -190,7 +134,7 @@ export class CombatEffectService {
                 const dy = Math.abs(target.tileY - playerY);
                 if (dx > 1 || dy > 1) return;
                 const result = target.skillSystem.applyHitpointsDamage(baseDamage);
-                const activeFrame = this.deps.getActiveFrame();
+                const activeFrame = this.svc.activeFrame;
                 if (activeFrame) {
                     activeFrame.hitsplats.push({
                         targetType: "player",
@@ -206,7 +150,7 @@ export class CombatEffectService {
             });
         }
 
-        this.deps.enqueueSpotAnimation({
+        this.svc.broadcastService.enqueueSpotAnimation({
             tick,
             playerId: player.id,
             spotId: 437,
@@ -240,7 +184,7 @@ export class CombatEffectService {
         currentTick: number;
         effects: ActionEffect[];
     }): number {
-        const npcManager = this.deps.getNpcManager();
+        const npcManager = this.svc.npcManager;
         if (
             !npcManager ||
             !opts.spell.maxTargets ||
@@ -272,7 +216,7 @@ export class CombatEffectService {
                 const res = engine.planPlayerAttack({
                     player: magicCaster,
                     npc: extra,
-                    attackSpeed: this.deps.pickAttackSpeed(opts.player),
+                    attackSpeed: this.svc.playerCombatService!.pickAttackSpeed(opts.player),
                 });
                 hitLanded = !!res.hitLanded;
                 damage = Math.max(0, res.damage);
@@ -317,7 +261,7 @@ export class CombatEffectService {
                     ? opts.spell.impactSpotAnim ?? opts.spell.splashSpotAnim
                     : opts.spell.splashSpotAnim ?? opts.spell.impactSpotAnim;
             if (spotId !== undefined && spotId >= 0) {
-                this.deps.enqueueSpotAnimation({
+                this.svc.broadcastService.enqueueSpotAnimation({
                     tick: opts.hitsplatTick,
                     npcId: extra.id,
                     spotId: spotId,
@@ -343,7 +287,7 @@ export class CombatEffectService {
 
         const result = combatEffectApplicator.applyNpcHitsplat(npc, style, damage, tick, maxHit);
         if (result.amount > 0) {
-            this.deps.getPlayerCombatManager()?.recordDamage(player, npc, result.amount, damageType, tick);
+            this.svc.playerCombatManager?.recordDamage(player, npc, result.amount, damageType, tick);
         }
         if (result.hpCurrent <= 0) {
             this.handleNpcDeathOutsidePrimaryCombat(player, npc, tick);
@@ -365,7 +309,7 @@ export class CombatEffectService {
         logger.info(`[combat] NPC ${npc.id} (type ${npc.typeId}) died`);
         npc.clearInteractionTarget();
 
-        const playerCombatManager = this.deps.getPlayerCombatManager();
+        const playerCombatManager = this.svc.playerCombatManager;
         const eligibility = playerCombatManager?.getDropEligibility?.(npc);
         const inWilderness = isInWilderness(npc.tileX, npc.tileY);
         const pendingDrops = this.rollNpcDrops(npc, eligibility).map((drop) => ({
@@ -373,7 +317,7 @@ export class CombatEffectService {
             isWilderness: inWilderness,
         }));
 
-        const combatDataService = this.deps.getCombatDataService();
+        const combatDataService = this.svc.combatDataService;
         const deathSeq = combatDataService.getNpcCombatSequences(npc.typeId)?.death;
         if (deathSeq !== undefined && deathSeq >= 0) {
             npc.queueOneShotSeq(deathSeq);
@@ -383,8 +327,8 @@ export class CombatEffectService {
 
         const deathSoundId = combatDataService.getNpcDeathSoundId(npc.typeId);
         if (deathSoundId !== undefined && deathSoundId > 0) {
-            this.deps.withDirectSendBypass("combat_npc_death_sound", () =>
-                this.deps.broadcastSound(
+            this.svc.networkLayer.withDirectSendBypass("combat_npc_death_sound", () =>
+                this.svc.broadcastService.broadcastSound(
                     {
                         soundId: deathSoundId,
                         x: npc.tileX,
@@ -397,7 +341,7 @@ export class CombatEffectService {
             );
         }
 
-        const players = this.deps.getPlayers();
+        const players = this.svc.players;
         players?.clearInteractionsWithNpc(npc.id);
 
         const affectedPlayerIds = new Set<number>([player.id]);
@@ -405,7 +349,7 @@ export class CombatEffectService {
         if (npcTargetPlayerId !== undefined && npcTargetPlayerId >= 0) {
             affectedPlayerIds.add(npcTargetPlayerId);
         }
-        const actionScheduler = this.deps.getActionScheduler();
+        const actionScheduler = this.svc.actionScheduler;
         for (const affectedPlayerId of affectedPlayerIds) {
             actionScheduler?.cancelActions(affectedPlayerId, (action: ScheduledAction) => {
                 const actionData = action.data as Record<string, unknown> | undefined;
@@ -430,7 +374,7 @@ export class CombatEffectService {
         try {
             npc.markDeadUntil(despawnTick, tick);
         } catch (err) { logger.warn("[npc] mark dead failed", err); }
-        const npcManager = this.deps.getNpcManager();
+        const npcManager = this.svc.npcManager;
         const queued =
             npcManager?.queueDeath?.(npc.id, despawnTick, respawnTick, pendingDrops) ?? false;
         if (!queued) {
@@ -442,7 +386,7 @@ export class CombatEffectService {
         playerCombatManager?.cleanupNpc?.(npc);
 
         const killerId = eligibility?.primaryLooter?.id ?? player.id;
-        this.deps.getGamemode().onNpcKill(killerId, npc.typeId);
+        this.svc.gamemode.onNpcKill(killerId, npc.typeId);
     }
 
     // ── NPC Combat Resolution ───────────────────────────────────────
@@ -487,7 +431,7 @@ export class CombatEffectService {
     }
 
     pickNpcAttackSpeed(npc: NpcState, _player?: PlayerState): number {
-        const paramSpeed = this.deps.getCombatDataService().getNpcParamValue(npc, 14);
+        const paramSpeed = this.svc.combatDataService.getNpcParamValue(npc, 14);
         if (paramSpeed !== undefined && paramSpeed > 0) {
             return Math.max(1, paramSpeed);
         }
@@ -495,7 +439,7 @@ export class CombatEffectService {
     }
 
     pickNpcHitDelay(npc: NpcState, _player: PlayerState, _attackSpeed: number): number {
-        const paramHitDelay = this.deps.getCombatDataService().getNpcParamValue(npc, 286);
+        const paramHitDelay = this.svc.combatDataService.getNpcParamValue(npc, 286);
         if (paramHitDelay !== undefined && paramHitDelay > 0) {
             return Math.max(1, paramHitDelay);
         }
@@ -507,7 +451,7 @@ export class CombatEffectService {
 
     broadcastNpcSequence(npc: NpcState, seqId: number | undefined): void {
         if (seqId === undefined || seqId < 0) return;
-        const frame = this.deps.getActiveFrame();
+        const frame = this.svc.activeFrame;
         if (!frame) return;
         const id = npc.id;
         const existing = frame.npcUpdates.find((d: { id?: number; seq?: number }) => d?.id === id);
@@ -526,7 +470,7 @@ export class CombatEffectService {
 
     estimateNpcDespawnDelayTicksFromSeq(seqId: number | undefined): number {
         if (seqId === undefined || seqId < 0) return 1;
-        const loader = this.deps.getSeqTypeLoader();
+        const loader = this.svc.dataLoaderService.getSeqTypeLoader();
         if (!loader) return 1;
         try {
             const seq = loader.load(seqId);
@@ -551,13 +495,13 @@ export class CombatEffectService {
     }
 
     getSeqForcedPriority(seqId: number): number {
-        return this.deps.getSeqTypeLoader()?.load?.(seqId)?.forcedPriority ?? 5;
+        return this.svc.dataLoaderService.getSeqTypeLoader()?.load?.(seqId)?.forcedPriority ?? 5;
     }
 
     // ── NPC Drops ───────────────────────────────────────────────────
 
     getNpcDropRollService(): DropRollService | undefined {
-        const npcTypeLoader = this.deps.getNpcTypeLoader();
+        const npcTypeLoader = this.svc.npcTypeLoader;
         if (!this.npcDropRollService && npcTypeLoader) {
             this.npcDropRegistry = new NpcDropRegistry(npcTypeLoader);
             this.npcDropRollService = new DropRollService(this.npcDropRegistry);
@@ -577,7 +521,7 @@ export class CombatEffectService {
             dropRateMultiplier: number;
         }> = [];
         const seen = new Set<number>();
-        const gamemode = this.deps.getGamemode();
+        const gamemode = this.svc.gamemode;
         for (const looter of eligibility?.eligibleLooters ?? []) {
             const playerId = looter.id;
             if (seen.has(playerId)) continue;
@@ -608,7 +552,7 @@ export class CombatEffectService {
                 dropRateMultiplier: 1,
             });
         }
-        const npcTypeLoader = this.deps.getNpcTypeLoader();
+        const npcTypeLoader = this.svc.npcTypeLoader;
         let npcName = "";
         try {
             npcName = npcTypeLoader?.load(npc.typeId)?.name ?? "";

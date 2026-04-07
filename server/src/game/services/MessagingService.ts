@@ -1,23 +1,15 @@
-import type { BroadcastScheduler, ChatMessageSnapshot, ForcedChatBroadcast } from "../systems/BroadcastScheduler";
-import type { DataLoaderService } from "./DataLoaderService";
+import type { ChatMessageSnapshot, ForcedChatBroadcast } from "../systems/BroadcastScheduler";
 import { createLootPickupNotification } from "../notifications/LootPickupNotification";
 import type { PlayerState } from "../player";
-import type { TickFrame } from "../tick/TickPhaseOrchestrator";
+import type { ServerServices } from "../ServerServices";
 
 export type { ChatMessageSnapshot, ForcedChatBroadcast };
 
-export interface MessagingServiceDeps {
-    getActiveFrame: () => TickFrame | undefined;
-    broadcastScheduler: BroadcastScheduler;
-    dataLoaders: DataLoaderService;
-}
-
 /**
  * Manages game messages, chat, notifications, and forced chat.
- * Extracted from WSServer.
  */
 export class MessagingService {
-    constructor(private readonly deps: MessagingServiceDeps) {}
+    constructor(private readonly services: ServerServices) {}
 
     sendGameMessageToPlayer(player: PlayerState, text: string): void {
         this.queueChatMessage({
@@ -49,25 +41,25 @@ export class MessagingService {
                     ? message.messageType
                     : "game",
         };
-        const frame = this.deps.getActiveFrame();
+        const frame = this.services.activeFrame;
         if (frame) {
             frame.chatMessages.push(normalized);
         } else {
-            this.deps.broadcastScheduler.queueChatMessage(normalized);
+            this.services.broadcastScheduler.queueChatMessage(normalized);
         }
     }
 
     enqueueForcedChat(event: ForcedChatBroadcast): void {
-        const frame = this.deps.getActiveFrame();
+        const frame = this.services.activeFrame;
         if (frame) {
             frame.forcedChats.push(event);
         } else {
-            this.deps.broadcastScheduler.queueForcedChat(event);
+            this.services.broadcastScheduler.queueForcedChat(event);
         }
     }
 
     queueNotification(playerId: number, payload: Record<string, unknown>): void {
-        this.deps.broadcastScheduler.queueNotification(playerId, payload);
+        this.services.broadcastScheduler.queueNotification(playerId, payload);
     }
 
     queuePlayerGameMessage(player: PlayerState, text: string | undefined): void {
@@ -81,7 +73,7 @@ export class MessagingService {
     }
 
     sendLootNotification(player: PlayerState, itemId: number, quantity: number): void {
-        const objType = this.deps.dataLoaders.getObjType(itemId);
+        const objType = this.services.dataLoaderService.getObjType(itemId);
         const itemName = objType?.name ?? `Item ${itemId}`;
         this.queueNotification(
             player.id,

@@ -2,30 +2,20 @@ import type { WebSocket } from "ws";
 
 import { logger } from "../../utils/logger";
 import { encodeMessage } from "../../network/messages";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
 import { getItemDefinition } from "../../data/items";
 import {
     type OwnedItemLocation,
     findOwnedItemLocation as findOwnedItemLocationInSnapshot,
 } from "../items/playerItemOwnership";
 import type { PlayerState, InventoryEntry, InventoryAddResult } from "../player";
-import type { TickFrame } from "../tick/TickPhaseOrchestrator";
-
-export interface InventoryServiceDeps {
-    getActiveFrame: () => TickFrame | undefined;
-    getSocketByPlayerId: (id: number) => WebSocket | undefined;
-    broadcastScheduler: BroadcastScheduler;
-    networkLayer: PlayerNetworkLayer;
-    getEquipArray: (player: PlayerState) => number[];
-}
+import type { ServerServices } from "../ServerServices";
 
 /**
  * Manages player inventory operations: get/set/add/consume/find/snapshot.
  * Extracted from WSServer.
  */
 export class InventoryService {
-    constructor(private readonly deps: InventoryServiceDeps) {}
+    constructor(private readonly svc: ServerServices) {}
 
     getInventory(p: PlayerState): InventoryEntry[] {
         return p.getInventoryEntries();
@@ -91,7 +81,7 @@ export class InventoryService {
 
     collectCarriedItemIds(player: PlayerState): number[] {
         const ids: number[] = [];
-        const equip = this.deps.getEquipArray(player);
+        const equip = this.svc.equipmentService.ensureEquipArray(player);
         for (const itemId of equip) {
             if (itemId > 0) ids.push(itemId);
         }
@@ -109,7 +99,7 @@ export class InventoryService {
         try {
             return findOwnedItemLocationInSnapshot(itemId, {
                 inventory: this.getInventory(player),
-                equipment: this.deps.getEquipArray(player),
+                equipment: this.svc.equipmentService.ensureEquipArray(player),
                 bank: player.bank.getBankEntries(),
             });
         } catch {
@@ -134,13 +124,13 @@ export class InventoryService {
     }
 
     queueInventorySnapshot(playerId: number): void {
-        const frame = this.deps.getActiveFrame();
+        const frame = this.svc.activeFrame;
         if (frame) {
             if (frame.inventorySnapshots.some((s: { playerId: number }) => s.playerId === playerId)) return;
             frame.inventorySnapshots.push({ playerId });
             return;
         }
-        this.deps.broadcastScheduler.queueInventorySnapshot({ playerId });
+        this.svc.broadcastScheduler.queueInventorySnapshot({ playerId });
     }
 
     sendInventorySnapshot(ws: WebSocket, p: PlayerState): void {
@@ -150,7 +140,7 @@ export class InventoryService {
             itemId: entry.itemId,
             quantity: entry.quantity,
         }));
-        this.deps.broadcastScheduler.queueInventorySnapshot({ playerId: p.id, slots });
+        this.svc.broadcastScheduler.queueInventorySnapshot({ playerId: p.id, slots });
     }
 
     sendInventorySnapshotImmediate(ws: WebSocket, p: PlayerState): void {
@@ -160,8 +150,8 @@ export class InventoryService {
             itemId: entry.itemId,
             quantity: entry.quantity,
         }));
-        this.deps.networkLayer.withDirectSendBypass("inventory_snapshot_immediate", () =>
-            this.deps.networkLayer.sendWithGuard(
+        this.svc.networkLayer.withDirectSendBypass("inventory_snapshot_immediate", () =>
+            this.svc.networkLayer.sendWithGuard(
                 ws,
                 encodeMessage({
                     type: "inventory",
@@ -174,7 +164,7 @@ export class InventoryService {
 
     snapshotInventory(player: PlayerState): void {
         try {
-            const sock = this.deps.getSocketByPlayerId(player.id);
+            const sock = this.svc.players?.getSocketByPlayerId(player.id);
             if (sock) this.sendInventorySnapshot(sock, player);
         } catch (err) { logger.warn("[inventory] failed to snapshot inventory", err); }
     }

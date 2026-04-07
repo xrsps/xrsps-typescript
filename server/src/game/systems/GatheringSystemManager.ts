@@ -1,4 +1,5 @@
 import type { IResourceNodeTracker, TrackedNode } from "./ResourceNodeTypes";
+import type { ServerServices } from "../ServerServices";
 
 export interface GatheringSystemServices {
     emitLocChange: (
@@ -26,11 +27,8 @@ interface RegisteredTracker {
 
 export class GatheringSystemManager {
     private registeredTrackers = new Map<string, RegisteredTracker>();
-    private services: GatheringSystemServices;
 
-    constructor(services: GatheringSystemServices) {
-        this.services = services;
-    }
+    constructor(private readonly svc: ServerServices) {}
 
     registerTracker<T>(name: string, tracker: IResourceNodeTracker<T>, onExpire: TrackerExpireCallback<T>): void {
         this.registeredTrackers.set(name, { tracker, onExpire });
@@ -41,8 +39,14 @@ export class GatheringSystemManager {
     }
 
     processTick(tick: number): void {
+        const services: GatheringSystemServices = {
+            emitLocChange: (oldId, newId, tile, level, opts) =>
+                this.svc.locationService.emitLocChange(oldId, newId, tile, level, opts),
+            spawnGroundItem: (itemId, quantity, tile, currentTick, opts) =>
+                this.svc.groundItems.spawn(itemId, quantity, tile, currentTick, opts),
+        };
         for (const { tracker, onExpire } of this.registeredTrackers.values()) {
-            tracker.processExpired(tick, (node) => onExpire(node, this.services));
+            tracker.processExpired(tick, (node) => onExpire(node, services));
         }
     }
 }

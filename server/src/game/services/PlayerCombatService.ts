@@ -9,9 +9,9 @@ import { getAttackStyle, getHitSoundForStyle, getMissSound } from "../combat/Wea
 import { AttackType } from "../combat/AttackType";
 import { getMeleeAttackSequenceForCategory } from "../combat/CombatStyleSequenceProvider";
 import { resolvePlayerAttackReach } from "../combat/CombatRules";
-import type { DataLoaderService } from "./DataLoaderService";
 import type { PlayerState } from "../player";
 import type { NpcState } from "../npc";
+import type { ServerServices } from "../ServerServices";
 import { logger } from "../../utils/logger";
 
 const DEFAULT_ATTACK_SEQ = 422;
@@ -65,20 +65,21 @@ const SPELL_CAST_SEQUENCE_OVERRIDES: Record<number, number> = {
     4651: 1979, // Ice Barrage
 };
 
-export interface PlayerCombatServiceDeps {
-    dataLoaders: DataLoaderService;
-    weaponData: Map<number, WeaponDataEntry>;
-    ensureEquipArray: (player: PlayerState) => number[];
-}
-
 /**
  * Player-side combat resolution: attack sequences, speeds, sounds, hit delays.
- * Extracted from WSServer.
  */
 export class PlayerCombatService {
     private weaponWarningsLogged = new Set<number>();
 
-    constructor(private readonly deps: PlayerCombatServiceDeps) {}
+    constructor(private readonly services: ServerServices) {}
+
+    private get weaponData(): Map<number, WeaponDataEntry> {
+        return this.services.appearanceService.getWeaponData();
+    }
+
+    private ensureEquipArray(player: PlayerState): number[] {
+        return this.services.equipmentService.ensureEquipArray(player);
+    }
 
     pickAttackSequence(player: PlayerState): number {
         try {
@@ -94,11 +95,11 @@ export class PlayerCombatService {
             }
 
             const weaponCategory = player.combat.weaponCategory ?? 0;
-            const equip = this.deps.ensureEquipArray(player);
+            const equip = this.ensureEquipArray(player);
             const weaponId = equip[EquipmentSlot.WEAPON];
 
             if (weaponId > 0) {
-                const dataEntry = this.deps.weaponData.get(weaponId);
+                const dataEntry = this.weaponData.get(weaponId);
                 if (dataEntry) {
                     const styleSlot = player.combat.styleSlot ?? 0;
                     const attackSequences = dataEntry?.attackSequences;
@@ -131,7 +132,7 @@ export class PlayerCombatService {
                 if (spellSound !== undefined) return spellSound;
             }
             if (!isHit) return getMissSound();
-            const equip = this.deps.ensureEquipArray(player);
+            const equip = this.ensureEquipArray(player);
             const weaponId = equip[EquipmentSlot.WEAPON];
             const styleSlot = player.combat.styleSlot ?? 0;
             if (weaponId > 0) {
@@ -172,10 +173,10 @@ export class PlayerCombatService {
 
     pickHitDelay(player: PlayerState): number {
         try {
-            const equip = this.deps.ensureEquipArray(player);
+            const equip = this.ensureEquipArray(player);
             const weaponId = equip[EquipmentSlot.WEAPON];
             if (weaponId > 0) {
-                const dataEntry = this.deps.weaponData.get(weaponId);
+                const dataEntry = this.weaponData.get(weaponId);
                 if (dataEntry?.hitDelay !== undefined && dataEntry.hitDelay > 0) return dataEntry.hitDelay;
             }
         } catch (err) { logger.warn("[combat] failed to resolve hit delay", err); }
@@ -184,13 +185,13 @@ export class PlayerCombatService {
 
     resolveBaseAttackSpeed(player: PlayerState): number {
         try {
-            const equip = this.deps.ensureEquipArray(player);
+            const equip = this.ensureEquipArray(player);
             const weaponId = equip[EquipmentSlot.WEAPON];
             if (weaponId > 0) {
-                const dataEntry = this.deps.weaponData.get(weaponId);
+                const dataEntry = this.weaponData.get(weaponId);
                 const overrideSpeed = dataEntry?.attackSpeed;
                 if (overrideSpeed !== undefined && overrideSpeed > 0) return overrideSpeed;
-                const obj = this.deps.dataLoaders.getObjType(weaponId);
+                const obj = this.services.dataLoaderService.getObjType(weaponId);
                 if (!obj) return DEFAULT_ATTACK_SPEED;
                 const rawSpeed = obj.params?.get(WEAPON_SPEED_PARAM) as number | undefined;
                 if (rawSpeed !== undefined && rawSpeed > 0) return rawSpeed;
@@ -200,7 +201,7 @@ export class PlayerCombatService {
     }
 
     pickAttackSpeed(player: PlayerState): number {
-        const equip = this.deps.ensureEquipArray(player);
+        const equip = this.ensureEquipArray(player);
         const weaponId = equip[EquipmentSlot.WEAPON];
         const baseSpeed = this.resolveBaseAttackSpeed(player);
         const weaponCategory = player.combat.weaponCategory ?? 0;
@@ -215,10 +216,10 @@ export class PlayerCombatService {
     getPlayerAttackReach(player: PlayerState): number {
         let baseRange: number | undefined;
         try {
-            const equip = this.deps.ensureEquipArray(player);
+            const equip = this.ensureEquipArray(player);
             const weaponId = equip[EquipmentSlot.WEAPON];
             if (weaponId > 0) {
-                const obj = this.deps.dataLoaders.getObjType(weaponId);
+                const obj = this.services.dataLoaderService.getObjType(weaponId);
                 const rawRange = obj?.params?.get(13) as number | undefined;
                 if (rawRange !== undefined && rawRange > 0) baseRange = rawRange;
             }
@@ -243,7 +244,6 @@ export class PlayerCombatService {
             return MAGIC_CAST_STAFF_SEQ;
         }
 
-        // Preserve existing fallback behavior for impossible autocast states.
         if (isAutocast) {
             return this.pickAttackSequence(player);
         }

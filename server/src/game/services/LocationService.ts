@@ -2,13 +2,9 @@ import { WebSocket } from "ws";
 
 import { faceAngleRs } from "../../../../src/rs/utils/rotation";
 import { encodeMessage } from "../../network/messages";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
-import type { DoorStateManager } from "../../world/DoorStateManager";
 import type { NpcState } from "../npc";
 import type { PlayerState } from "../player";
-import type { DataLoaderService } from "./DataLoaderService";
-import type { TickFrame } from "../tick/TickPhaseOrchestrator";
+import type { ServerServices } from "../ServerServices";
 import { CollisionFlag } from "../../pathfinding/legacy/pathfinder/flag/CollisionFlag";
 import { logger } from "../../utils/logger";
 
@@ -26,37 +22,8 @@ export interface LocChangePayload {
     newShape?: number;
 }
 
-export interface LocationServiceDeps {
-    getActiveFrame: () => TickFrame | undefined;
-    getIsBroadcastPhase: () => boolean;
-    getSocketByPlayerId: (id: number) => WebSocket | undefined;
-    broadcastScheduler: BroadcastScheduler;
-    networkLayer: PlayerNetworkLayer;
-    doorManager: DoorStateManager | undefined;
-    dynamicLocState: { observeLocChange(change: Record<string, unknown>): void; queryScene(baseX: number, baseY: number, level: number): Array<{ oldId: number; newId: number; level: number; oldTile: { x: number; y: number }; newTile: { x: number; y: number }; oldRotation?: number; newRotation?: number }> };
-    dataLoaders: DataLoaderService;
-    broadcast: (msg: string | Uint8Array, context: string) => void;
-    locTypeLoader?: { load(id: number): { sizeX: number; sizeY: number } | undefined };
-    pathService?: { getCollisionFlagAt(x: number, y: number, level: number): number | undefined };
-    playerSyncSessions?: Map<WebSocket, { baseTileX: number; baseTileY: number }>;
-    playerDynamicLocSceneKeys?: Map<number, string>;
-    withDirectSendBypass?: (context: string, fn: () => void) => void;
-}
-
-/**
- * Manages location changes, loc spawning, adjacency checks, and gathering target facing.
- * Extracted from WSServer.
- */
-export interface LocationServiceDeferredDeps {
-    doorManager?: DoorStateManager;
-}
-
 export class LocationService {
-    constructor(private readonly deps: LocationServiceDeps) {}
-
-    setDeferredDeps(deferred: LocationServiceDeferredDeps): void {
-        Object.assign(this.deps, deferred);
-    }
+    constructor(private readonly services: ServerServices) {}
 
     emitLocChange(
         oldId: number,
@@ -84,7 +51,7 @@ export class LocationService {
             newShape: opts?.newShape,
         };
         try {
-            this.deps.doorManager?.observeLocChange({
+            this.services.doorManager?.observeLocChange({
                 oldId: payload.oldId, newId: payload.newId, level: payload.level,
                 oldTile: payload.oldTile, newTile: payload.newTile,
             });
@@ -92,7 +59,7 @@ export class LocationService {
             logger.warn("[Door] Failed to observe loc change for runtime mapping capture", err);
         }
         try {
-            this.deps.dynamicLocState.observeLocChange({
+            this.services.dynamicLocState.observeLocChange({
                 oldId: payload.oldId, newId: payload.newId, level: payload.level,
                 oldTile: payload.oldTile, newTile: payload.newTile,
                 oldRotation: payload.oldRotation, newRotation: payload.newRotation,
@@ -100,18 +67,18 @@ export class LocationService {
         } catch (err) {
             logger.warn("[loc] Failed to update dynamic loc state store", err);
         }
-        const frame = this.deps.getActiveFrame();
-        if (frame && !this.deps.getIsBroadcastPhase()) {
+        const frame = this.services.activeFrame;
+        if (frame && !this.services.networkLayer.getIsBroadcastPhase()) {
             frame.locChanges.push(payload);
             return;
         }
         if (frame) {
-            this.deps.broadcastScheduler.queueLocChange(payload);
+            this.services.broadcastScheduler.queueLocChange(payload);
             return;
         }
         const msg = encodeMessage({ type: "loc_change", payload });
-        this.deps.networkLayer.withDirectSendBypass("loc_change", () =>
-            this.deps.broadcast(msg, "loc_change"),
+        this.services.networkLayer.withDirectSendBypass("loc_change", () =>
+            this.services.broadcastService.broadcast(msg, "loc_change"),
         );
     }
 
@@ -128,11 +95,11 @@ export class LocationService {
             oldTile: { x: tile.x, y: tile.y },
             newTile: { x: tile.x, y: tile.y },
         };
-        const ws = this.deps.getSocketByPlayerId(player.id);
+        const ws = this.services.players?.getSocketByPlayerId(player.id);
         if (!ws) return;
         const msg = encodeMessage({ type: "loc_change", payload });
-        this.deps.networkLayer.withDirectSendBypass("loc_change_player", () =>
-            this.deps.networkLayer.sendWithGuard(ws, msg, "loc_change"),
+        this.services.networkLayer.withDirectSendBypass("loc_change_player", () =>
+            this.services.networkLayer.sendWithGuard(ws, msg, "loc_change"),
         );
     }
 
@@ -144,14 +111,14 @@ export class LocationService {
         shape: number,
         rotation: number,
     ): void {
-        const ws = this.deps.getSocketByPlayerId(player.id);
+        const ws = this.services.players?.getSocketByPlayerId(player.id);
         if (!ws) return;
         const msg = encodeMessage({
             type: "loc_add_change",
             payload: { locId, tile, level, shape, rotation },
         } as unknown as Parameters<typeof encodeMessage>[0]);
-        this.deps.networkLayer.withDirectSendBypass("loc_add_change", () =>
-            this.deps.networkLayer.sendWithGuard(ws, msg, "loc_add_change"),
+        this.services.networkLayer.withDirectSendBypass("loc_add_change", () =>
+            this.services.networkLayer.sendWithGuard(ws, msg, "loc_add_change"),
         );
     }
 
@@ -224,7 +191,7 @@ export class LocationService {
     }
 
     getLocSize(locId: number): { sizeX: number; sizeY: number } | undefined {
-        const loader = this.deps.locTypeLoader;
+        const loader = this.services.locTypeLoader;
         if (!loader?.load) return undefined;
         try {
             const loc = loader.load(locId);
@@ -243,7 +210,7 @@ export class LocationService {
         sizeY: number,
         level: number,
     ): { tile: { x: number; y: number }; sizeX: number; sizeY: number } | undefined {
-        const pathService = this.deps.pathService;
+        const pathService = this.services.pathService;
         if (!pathService?.getCollisionFlagAt) {
             return undefined;
         }
@@ -293,7 +260,7 @@ export class LocationService {
         ws: WebSocket | undefined,
         player: PlayerState,
     ): { key: string; baseX: number; baseY: number } {
-        const session = ws ? this.deps.playerSyncSessions?.get(ws) : undefined;
+        const session = ws ? this.services.playerSyncSessions?.get(ws) : undefined;
         const baseX = this.resolveSceneBaseCoordinate(session?.baseTileX ?? -1, player.tileX);
         const baseY = this.resolveSceneBaseCoordinate(session?.baseTileY ?? -1, player.tileY);
         return {
@@ -317,21 +284,21 @@ export class LocationService {
             return;
         }
 
-        const sceneKeys = this.deps.playerDynamicLocSceneKeys;
+        const sceneKeys = this.services.playerDynamicLocSceneKeys;
         const scene = this.getDynamicLocSceneKey(ws, player);
         const lastSceneKey = sceneKeys?.get(playerId);
         if (!force && lastSceneKey === scene.key) {
             return;
         }
 
-        const visibleStates = this.deps.dynamicLocState.queryScene(
+        const visibleStates = this.services.dynamicLocState.queryScene(
             scene.baseX,
             scene.baseY,
             player.level,
         );
         const doSend = () => {
             for (const state of visibleStates) {
-                this.deps.networkLayer.sendWithGuard(
+                this.services.networkLayer.sendWithGuard(
                     ws,
                     encodeMessage({
                         type: "loc_change",
@@ -350,11 +317,7 @@ export class LocationService {
                 );
             }
         };
-        if (this.deps.withDirectSendBypass) {
-            this.deps.withDirectSendBypass("loc_change_replay", doSend);
-        } else {
-            doSend();
-        }
+        this.services.networkLayer.withDirectSendBypass("loc_change_replay", doSend);
 
         sceneKeys?.set(playerId, scene.key);
     }

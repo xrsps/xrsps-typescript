@@ -11,6 +11,7 @@
  */
 import { logger } from "../../utils/logger";
 import { NO_INTERACTION } from "../../game/interactionIndex";
+import type { ServerServices } from "../../game/ServerServices";
 import type { NpcState, NpcUpdateDelta } from "../../game/npc";
 import type { PlayerState } from "../../game/player";
 
@@ -104,33 +105,6 @@ const DEBUG_NPC_STREAM =
 // Services Interface
 // ============================================================================
 
-/** NPC Manager interface for NPC queries. */
-export interface NpcManagerRef {
-    getNearby(x: number, y: number, level: number, radius: number): NpcState[];
-    getById(id: number): NpcState | undefined;
-}
-
-/** Health bar definition loader interface. */
-export interface HealthBarDefLoaderRef {
-    load(id: number): { width?: number } | undefined;
-}
-
-/**
- * Services interface for NPC sync management.
- */
-export interface NpcSyncManagerServices {
-    // --- NPC Access ---
-    getNpcManager(): NpcManagerRef | undefined;
-
-    // --- Health Bar Definitions ---
-    getHealthBarDefLoader(): HealthBarDefLoaderRef | undefined;
-
-    // --- Packet Buffer Access ---
-    getPendingNpcPackets(): Map<number, NpcPacketBuffer>;
-
-    // --- Logging ---
-    log(level: "info" | "warn" | "error" | "debug", message: string): void;
-}
 
 // ============================================================================
 // NpcSyncManager
@@ -140,7 +114,7 @@ export interface NpcSyncManagerServices {
  * Handles NPC synchronization and streaming for players.
  */
 export class NpcSyncManager {
-    constructor(private readonly services: NpcSyncManagerServices) {}
+    constructor(private readonly svc: ServerServices) {}
 
     // ========================================================================
     // Public Methods
@@ -166,7 +140,7 @@ export class NpcSyncManager {
      */
     queueNpcSnapshot(playerId: number, snapshot: NpcViewSnapshot): void {
         const buffer = this.getOrCreateNpcPacketBuffer(
-            this.services.getPendingNpcPackets(),
+            this.svc.pendingNpcPackets,
             playerId,
         );
         buffer.snapshots.push(snapshot);
@@ -177,7 +151,7 @@ export class NpcSyncManager {
      */
     queueNpcUpdate(playerId: number, update: NpcUpdatePayload): void {
         const buffer = this.getOrCreateNpcPacketBuffer(
-            this.services.getPendingNpcPackets(),
+            this.svc.pendingNpcPackets,
             playerId,
         );
         buffer.updates.push(update);
@@ -188,7 +162,7 @@ export class NpcSyncManager {
      */
     queueNpcDespawn(playerId: number, npcId: number): void {
         const buffer = this.getOrCreateNpcPacketBuffer(
-            this.services.getPendingNpcPackets(),
+            this.svc.pendingNpcPackets,
             playerId,
         );
         buffer.despawns.push(npcId);
@@ -199,7 +173,7 @@ export class NpcSyncManager {
      * Uses a 15-tile radius (same as player sync).
      */
     updateNpcViewForPlayer(player: PlayerState): void {
-        const npcManager = this.services.getNpcManager();
+        const npcManager = this.svc.npcManager;
         if (!npcManager) return;
 
         const NPC_VIEW_DISTANCE_TILES = 15;
@@ -221,13 +195,13 @@ export class NpcSyncManager {
      * Handles spawns, updates, despawns, and health bar synchronization.
      */
     pushNpcUpdatesForPlayer(player: PlayerState, frame: NpcTickFrame): void {
-        const npcManager = this.services.getNpcManager();
+        const npcManager = this.svc.npcManager;
         if (!npcManager) return;
 
         const updates = frame.npcUpdates;
         const npcViews = frame.npcViews;
         const packetBuffer = this.getOrCreateNpcPacketBuffer(
-            this.services.getPendingNpcPackets(),
+            this.svc.pendingNpcPackets,
             player.id,
         );
         const serverCycle = frame.tick;
@@ -240,7 +214,7 @@ export class NpcSyncManager {
             if (cached !== undefined) return cached;
             let width = 30;
             try {
-                const loader = this.services.getHealthBarDefLoader();
+                const loader = this.svc.healthBarDefLoader;
                 const def = loader?.load?.(key);
                 width = Math.max(1, Math.min(255, def?.width ?? 30));
             } catch {
@@ -287,8 +261,7 @@ export class NpcSyncManager {
         }
 
         if (DEBUG_NPC_STREAM) {
-            this.services.log(
-                "debug",
+            logger.info(
                 `[npcs] stream window -> player=${player.id} pos=(${player.tileX},${player.tileY},L${player.level}) enter=${nearbyEnterIds.size} exit=${nearbyExitIds.size}`,
             );
         }
@@ -298,8 +271,7 @@ export class NpcSyncManager {
         for (const npc of nearbyEnter) {
             if (!player.visibleNpcIds.has(npc.id)) {
                 if (DEBUG_NPC_STREAM) {
-                    this.services.log(
-                        "debug",
+                    logger.info(
                         `[npcs] spawn -> player=${player.id} npc=${npc.id} type=${npc.typeId} pos=(${npc.tileX},${npc.tileY},L${npc.level})`,
                     );
                 }
@@ -473,8 +445,7 @@ export class NpcSyncManager {
                 const typeId = npc?.typeId;
                 const pos = npc ? `${npc.tileX},${npc.tileY},L${npc.level}` : "unknown";
                 if (DEBUG_NPC_STREAM) {
-                    this.services.log(
-                        "debug",
+                    logger.info(
                         `[npcs] despawn -> player=${player.id} npc=${id} type=${
                             typeId ?? "unknown"
                         } pos=${pos}`,

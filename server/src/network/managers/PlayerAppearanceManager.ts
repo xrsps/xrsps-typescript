@@ -6,7 +6,6 @@
  */
 import type { BasType } from "../../../../src/rs/config/bastype/BasType";
 import type { IdkType } from "../../../../src/rs/config/idktype/IdkType";
-import type { ObjType } from "../../../../src/rs/config/objtype/ObjType";
 import {
     EquipmentSlot,
     HeadCoverage,
@@ -14,6 +13,7 @@ import {
     getHeadCoverage,
 } from "../../../../src/rs/config/player/Equipment";
 import { DEFAULT_EQUIP_SLOT_COUNT } from "../../game/equipment";
+import type { ServerServices } from "../../game/ServerServices";
 import type { PlayerAppearance as PlayerAppearanceState, PlayerState } from "../../game/player";
 import { buildAnimSetFromBas, ensureCorePlayerAnimSet } from "../anim/playerAnim";
 import type { Appearance as HandshakeAppearance } from "../messages";
@@ -69,61 +69,12 @@ export interface AppearanceSnapshotEntry {
     };
 }
 
-/** ObjType loader reference */
-export interface ObjTypeLoaderRef {
-    load(id: number): ObjType;
-}
-
-/** BasType loader reference for base animation sets */
-export interface BasTypeLoaderRef {
-    load(id: number): BasType;
-}
-
-/** IdkType loader reference for identity kits */
-export interface IdkTypeLoaderRef {
-    load(id: number): IdkType;
-}
-
-/** Services required by PlayerAppearanceManager */
-export interface PlayerAppearanceServices {
-    /** Get pending appearance snapshots array (mutable) */
-    getPendingAppearanceSnapshots(): AppearanceSnapshotEntry[];
-    /** Get ObjType loader */
-    getObjTypeLoader(): ObjTypeLoaderRef | undefined;
-    /** Get BasType loader */
-    getBasTypeLoader(): BasTypeLoaderRef | undefined;
-    /** Get IdkType loader */
-    getIdkTypeLoader(): IdkTypeLoaderRef | undefined;
-    /** Get default body kits for gender */
-    getDefaultBodyKits(gender: number): number[];
-    /** Ensure equipment array exists on player */
-    ensureEquipArray(player: PlayerState): number[];
-    /** Get ObjType by ID */
-    getObjType(id: number): ObjType | undefined;
-    /** Build animation payload for player */
-    buildAnimPayload(player: PlayerState): PlayerAnimSet | undefined;
-    /** Get default player animation (male) */
-    getDefaultPlayerAnimMale(): PlayerAnimSet | undefined;
-    /** Get default player animation (female) */
-    getDefaultPlayerAnimFemale(): PlayerAnimSet | undefined;
-    /** Get default player animation (fallback) */
-    getDefaultPlayerAnim(): PlayerAnimSet;
-    /** Get weapon animation overrides map */
-    getWeaponAnimOverrides(): Map<number, Record<string, number>>;
-    /** Apply weapon animation overrides to player */
-    applyWeaponAnimOverrides(
-        player: PlayerState,
-        animTarget: Record<string, number | undefined>,
-    ): void;
-    /** Log a message */
-    log(level: "info" | "warn" | "error" | "debug", message: string): void;
-}
 
 /**
  * Manager for player appearance, equipment visuals, and animation sets.
  */
 export class PlayerAppearanceManager {
-    constructor(private readonly services: PlayerAppearanceServices) {}
+    constructor(private readonly svc: ServerServices) {}
 
     /**
      * Queue an appearance snapshot for a player.
@@ -147,7 +98,7 @@ export class PlayerAppearanceManager {
             worldViewId?: number;
         }>,
     ): void {
-        const pendingSnapshots = this.services.getPendingAppearanceSnapshots();
+        const pendingSnapshots = this.svc.broadcastScheduler.getPendingAppearanceSnapshots();
 
         const base = () => ({
             x: player.x,
@@ -158,7 +109,7 @@ export class PlayerAppearanceManager {
             running: false,
             appearance: player.appearance,
             name: player.name,
-            anim: this.services.buildAnimPayload(player),
+            anim: this.svc.appearanceService.buildAnimPayload(player),
             moved: false,
             turned: false,
             snap: false,
@@ -177,7 +128,7 @@ export class PlayerAppearanceManager {
         Object.assign(entry.payload, {
             appearance: player.appearance,
             name: player.name,
-            anim: this.services.buildAnimPayload(player), // Update anim on refresh (e.g., after death clears equipment)
+            anim: this.svc.appearanceService.buildAnimPayload(player), // Update anim on refresh (e.g., after death clears equipment)
         });
         if (overrides) Object.assign(entry.payload, overrides);
     }
@@ -211,13 +162,14 @@ export class PlayerAppearanceManager {
         if (kits.length < 7) kits.length = 7;
 
         // Drop any kit IDs that don't match the current gender's bodyPartId set.
-        const idkLoader = this.services.getIdkTypeLoader?.();
+        const idkLoader = this.svc.idkTypeLoader;
         if (idkLoader) {
             for (let part = 0; part < 7; part++) {
                 const kitId = kits[part] ?? -1;
                 if (kitId < 0) continue;
                 try {
                     const kit = idkLoader.load(kitId);
+                    if (!kit) { kits[part] = -1; continue; }
                     const bodyPartId = this.getIdkBodyPartId(kit);
                     if (bodyPartId !== expectedBodyPartId(part)) {
                         kits[part] = -1;
@@ -227,18 +179,18 @@ export class PlayerAppearanceManager {
                 }
             }
         }
-        const defaults = this.services.getDefaultBodyKits(gender);
+        const defaults = this.svc.appearanceService.getDefaultBodyKits(gender);
         for (let part = 0; part < 7; part++) {
             if ((kits[part] ?? -1) < 0 && defaults[part] !== -1) {
                 kits[part] = defaults[part];
             }
         }
 
-        const equip = this.services.ensureEquipArray(player);
+        const equip = this.svc.equipmentService.ensureEquipArray(player);
         for (let slot = 0; slot < equip.length; slot++) {
             const itemId = equip[slot];
             if (!(itemId > 0)) continue;
-            const obj = this.services.getObjType(itemId);
+            const obj = this.svc.dataLoaderService.getObjType(itemId);
             const metaSlot = deriveEquipSlotFromParams(obj) ?? (slot as EquipmentSlot);
             switch (metaSlot) {
                 case EquipmentSlot.HEAD: {
@@ -296,7 +248,7 @@ export class PlayerAppearanceManager {
             const value = resolved[key];
             if (value !== undefined) animTarget[key] = value;
         }
-        this.services.applyWeaponAnimOverrides(player, animTarget);
+        this.svc.appearanceService.applyWeaponAnimOverrides(player, animTarget);
         return resolved;
     }
 
@@ -307,25 +259,25 @@ export class PlayerAppearanceManager {
         const gender = appearance?.gender === 1 ? 1 : 0;
         const genderFallback =
             gender === 1
-                ? this.services.getDefaultPlayerAnimFemale() ?? this.services.getDefaultPlayerAnim()
-                : this.services.getDefaultPlayerAnimMale() ?? this.services.getDefaultPlayerAnim();
+                ? this.svc.defaultPlayerAnimFemale ?? this.svc.defaultPlayerAnim
+                : this.svc.defaultPlayerAnimMale ?? this.svc.defaultPlayerAnim;
 
         const basId = this.guessBasIdForAppearance(appearance);
         if (basId !== undefined) {
-            const basLoader = this.services.getBasTypeLoader();
+            const basLoader = this.svc.basTypeLoader;
             if (basLoader) {
                 const fromBas = this.loadAnimSetFromBas(() => basLoader.load(basId));
                 if (fromBas) return ensureCorePlayerAnimSet(fromBas, genderFallback);
             }
         }
-        return ensureCorePlayerAnimSet(genderFallback, this.services.getDefaultPlayerAnim());
+        return ensureCorePlayerAnimSet(genderFallback, this.svc.defaultPlayerAnim);
     }
 
     /**
      * Guess BAS ID for appearance based on gender.
      */
     guessBasIdForAppearance(appearance: { gender?: number } | undefined): number | undefined {
-        if (!this.services.getBasTypeLoader()) return undefined;
+        if (!this.svc.basTypeLoader) return undefined;
         const gender = appearance?.gender === 1 ? 1 : 0;
         if (gender === 1) return 1;
         return 0;

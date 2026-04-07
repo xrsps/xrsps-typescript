@@ -1,30 +1,10 @@
 import { performance } from "perf_hooks";
 import { logger } from "../../utils/logger";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
-import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
-import type { ProjectileSystem } from "../systems/ProjectileSystem";
-import type { TickPhaseOrchestrator } from "../tick/TickPhaseOrchestrator";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { PersistenceProvider } from "../state/PersistenceProvider";
-import type { PlayerManager, PlayerState } from "../player";
-import type { NpcUpdateDelta } from "../npc";
+import type { ServerServices } from "../ServerServices";
+import type { PlayerState } from "../player";
+import { upsertNpcUpdateDelta } from "../../network/NpcExternalSync";
 import { buildPlayerSaveKey } from "../state/PlayerSessionKeys";
-
-export interface TickFrameServiceDeps {
-    getBroadcastScheduler: () => BroadcastScheduler;
-    getPendingNpcUpdates: () => NpcUpdateDelta[];
-    setPendingNpcUpdates: (updates: NpcUpdateDelta[]) => void;
-    getPendingNpcPackets: () => Map<number, { snapshots: unknown[]; updates: unknown[]; despawns: number[] }>;
-    setPendingNpcPackets: (packets: Map<number, { snapshots: unknown[]; updates: unknown[]; despawns: number[] }>) => void;
-    getProjectileSystem: () => ProjectileSystem | undefined;
-    getTickOrchestrator: () => TickPhaseOrchestrator;
-    getNetworkLayer: () => PlayerNetworkLayer;
-    getPlayerPersistence: () => PersistenceProvider;
-    getPlayers: () => PlayerManager | undefined;
-    getTickMs: () => number;
-    currentTick: () => number;
-    upsertNpcUpdateDelta: (arr: NpcUpdateDelta[], delta: NpcUpdateDelta) => void;
-}
 
 export class TickFrameService {
     private autosaveIntervalTicks: number;
@@ -32,7 +12,7 @@ export class TickFrameService {
     private autosaveRunning = false;
 
     constructor(
-        private readonly deps: TickFrameServiceDeps,
+        private readonly svc: ServerServices,
         autosaveIntervalTicks: number,
     ) {
         this.autosaveIntervalTicks = autosaveIntervalTicks;
@@ -41,20 +21,20 @@ export class TickFrameService {
     }
 
     async handleTick(data: { tick: number; time: number }): Promise<void> {
-        const orchestrator = this.deps.getTickOrchestrator();
+        const orchestrator = this.svc.tickOrchestrator;
         if (orchestrator) {
             await orchestrator.processTick(data.tick, data.time);
         }
     }
 
     createTickFrame(data: { tick: number; time: number }): TickFrame {
-        const npcUpdates = this.deps.getPendingNpcUpdates();
-        const npcPackets = new Map(this.deps.getPendingNpcPackets());
-        const projectilePackets = this.deps.getProjectileSystem()?.drainPendingPackets() ?? new Map();
-        this.deps.setPendingNpcPackets(new Map());
-        this.deps.setPendingNpcUpdates([]);
+        const npcUpdates = this.svc.pendingNpcUpdates;
+        const npcPackets = new Map(this.svc.pendingNpcPackets);
+        const projectilePackets = this.svc.projectileSystem?.drainPendingPackets() ?? new Map();
+        this.svc.pendingNpcPackets.clear();
+        this.svc.pendingNpcUpdates = [];
 
-        const scheduler = this.deps.getBroadcastScheduler();
+        const scheduler = this.svc.broadcastScheduler;
         const widgetEvents = scheduler.drainWidgetEvents();
         const notifications = scheduler.drainNotifications();
         const keyedMessages = scheduler.drainAllKeyedMessages();
@@ -116,16 +96,14 @@ export class TickFrameService {
     }
 
     restorePendingFrame(frame: TickFrame): void {
-        const upsertNpcUpdateDelta = this.deps.upsertNpcUpdateDelta;
-
         if (frame.npcUpdates.length > 0) {
-            const pendingNpcUpdates = this.deps.getPendingNpcUpdates();
+            const pendingNpcUpdates = this.svc.pendingNpcUpdates;
             for (const update of frame.npcUpdates) {
                 upsertNpcUpdateDelta(pendingNpcUpdates, update);
             }
         }
         if (frame.npcPackets.size > 0) {
-            const pendingNpcPackets = this.deps.getPendingNpcPackets();
+            const pendingNpcPackets = this.svc.pendingNpcPackets;
             for (const [playerId, packet] of frame.npcPackets.entries()) {
                 const existing = pendingNpcPackets.get(playerId);
                 if (existing) {
@@ -139,10 +117,10 @@ export class TickFrameService {
         }
         const projectilePackets = frame.projectilePackets ?? new Map();
         if (projectilePackets.size > 0) {
-            this.deps.getProjectileSystem()?.restorePackets(projectilePackets);
+            this.svc.projectileSystem?.restorePackets(projectilePackets);
         }
 
-        const scheduler = this.deps.getBroadcastScheduler();
+        const scheduler = this.svc.broadcastScheduler;
         if (frame.widgetEvents.length > 0) {
             scheduler.restoreWidgetEvents(frame.widgetEvents);
         }
@@ -220,7 +198,7 @@ export class TickFrameService {
     }
 
     async runAutosave(triggerTick: number): Promise<void> {
-        const players = this.deps.getPlayers();
+        const players = this.svc.players;
         if (!players) return;
         const entries: Array<{ key: string; player: PlayerState }> = [];
         players.forEach((_ws, player) => {
@@ -232,7 +210,7 @@ export class TickFrameService {
         if (entries.length === 0) return;
         const started = performance.now();
         try {
-            this.deps.getPlayerPersistence().savePlayers(entries);
+            this.svc.playerPersistence.savePlayers(entries);
         } catch (err) {
             logger.warn(`[autosave] bulk save failed tick=${triggerTick}`, err);
         }
@@ -263,6 +241,6 @@ export class TickFrameService {
         await new Promise<void>((resolve) => {
             setImmediate(resolve);
         });
-        this.deps.getNetworkLayer().flushDirectSendWarnings(stage);
+        this.svc.networkLayer.flushDirectSendWarnings(stage);
     }
 }

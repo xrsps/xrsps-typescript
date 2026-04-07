@@ -2,7 +2,6 @@
  * SoundManager - Handles sound effects, music, and jingles.
  *
  * Extracted from wsServer.ts for better organization and testability.
- * Uses a service interface pattern to avoid circular dependencies.
  */
 import {
     MUSIC_GROUP_ID,
@@ -11,11 +10,13 @@ import {
     MUSIC_NOW_PLAYING_FLAGS,
     MUSIC_NOW_PLAYING_TEXT_UID,
 } from "../../../../src/shared/ui/music";
+import { VARP_MUSICPLAY, VARP_MUSIC_CURRENT_TRACK } from "../../../../src/shared/vars";
 import { MISS_SOUND, getHitSoundForStyle, getMissSound } from "../../game/combat/WeaponDataProvider";
+import { encodeMessage } from "../messages";
 import type { WebSocket } from "ws";
 import type { NpcSoundType } from "../../audio/NpcSoundLookup";
 import type { PlayerState } from "../../game/player";
-import type { ServerToClient } from "../messages";
+import type { ServerServices } from "../../game/ServerServices";
 
 /** Default sound IDs */
 const DEFAULT_HIT_SOUND = 1979;
@@ -67,135 +68,23 @@ export interface TickFrameRef {
     tick: number;
 }
 
-/** NPC Sound lookup reference */
-export interface NpcSoundLookupRef {
-    getSoundForNpc(npcType: unknown, soundType: NpcSoundType): number | undefined;
-}
-
-/** Music region service reference */
-export interface MusicRegionServiceRef {
-    getMusicForRegion(regionId: number): { trackId: number; trackName: string } | undefined;
-}
-
 export interface MusicCatalogTrackRef {
     rowId: number;
     trackId: number;
     trackName: string;
 }
 
-/** Music catalog service reference */
-export interface MusicCatalogServiceRef {
-    getBaseTrackCount(): number;
-    getBaseListTrackBySlot(slot: number): MusicCatalogTrackRef | undefined;
-    getTrackByMidiId(trackId: number): MusicCatalogTrackRef | undefined;
-    getTrackByName(trackName: string): MusicCatalogTrackRef | undefined;
-    getTrackByRowId(rowId: number): MusicCatalogTrackRef | undefined;
-}
-
-/** Music unlock service reference */
-export interface MusicUnlockServiceRef {
-    isTrackUnlocked(player: PlayerState, trackId: number): boolean;
-    unlockTrack(player: PlayerState, trackId: number): boolean;
-    getUnlockVarpId(trackId: number): number | undefined;
-    shouldShowUnlockMessage(player: PlayerState): boolean;
-    initializeDefaults(player: PlayerState): void;
-}
-
-/** NPC type loader reference */
-export interface NpcTypeLoaderRef {
-    load(id: number): unknown;
-}
-
-/** DB repository reference */
-export interface DbRepositoryRef {
-    getRows(tableId: number): Iterable<unknown>;
-}
-
-/** Player collection reference */
-export interface PlayerCollectionRef {
-    forEach(callback: (sock: WebSocket, player: PlayerState) => void): void;
-    getSocketByPlayerId(playerId: number): WebSocket | undefined;
-}
-
-/** WebSocket reference */
-export interface WebSocketRef {
-    readyState: number;
-    send(data: string): void;
-}
-
-/** Services required by SoundManager */
-export interface SoundManagerServices {
-    /** Get players collection */
-    getPlayers(): PlayerCollectionRef | undefined;
-    /** Get NPC sound lookup */
-    getNpcSoundLookup(): NpcSoundLookupRef | undefined;
-    /** Get music region service */
-    getMusicRegionService(): MusicRegionServiceRef | undefined;
-    /** Get music catalog service */
-    getMusicCatalogService(): MusicCatalogServiceRef | undefined;
-    /** Get music unlock service */
-    getMusicUnlockService(): MusicUnlockServiceRef | undefined;
-    /** Get NPC type loader */
-    getNpcTypeLoader(): NpcTypeLoaderRef | undefined;
-    /** Get DB repository */
-    getDbRepository(): DbRepositoryRef | undefined;
-    /** Get weapon data map */
-    getWeaponData(): Map<number, { hitSound?: number; missSound?: number }>;
-    /** Ensure equipment array for player */
-    ensureEquipArray(player: PlayerState): number[];
-    /** Get current tick */
-    getCurrentTick(): number;
-    /** Random source */
-    random(): number;
-    /** VARP for music play mode */
-    getVarpMusicPlay(): number;
-    /** VARP for current music DB row */
-    getVarpMusicCurrentTrack(): number;
-    /** Send message with guard */
-    sendWithGuard(sock: WebSocket, message: Uint8Array, context: string): void;
-    /** Encode message to binary */
-    encodeMessage(msg: ServerToClient): Uint8Array;
-    /** Queue chat message */
-    queueChatMessage(request: {
-        messageType: string;
-        text: string;
-        targetPlayerIds: number[];
-    }): void;
-    /** Queue a clientscript */
-    queueClientScript?(playerId: number, scriptId: number, ...args: (number | string)[]): void;
-    /** Queue varp update */
-    queueVarp(playerId: number, varpId: number, value: number): void;
-    /** Broadcast to nearby players */
-    broadcastToNearby(
-        x: number,
-        y: number,
-        level: number,
-        radius: number,
-        message: string | Uint8Array,
-        context: string,
-    ): void;
-    /** Execute with direct send bypass */
-    withDirectSendBypass(context: string, fn: () => void): void;
-    /** Get NPC combat defs and defaults */
-    getNpcCombatDefs(): Record<string, { deathSound?: number }> | undefined;
-    getNpcCombatDefaults(): { deathSound: number };
-    /** Load NPC combat defs if needed */
-    loadNpcCombatDefs(): void;
-    /** Log a message */
-    log(level: "info" | "warn" | "error" | "debug", message: string): void;
-}
-
 /**
  * Manager for sound effects, music, and jingles.
  */
 export class SoundManager {
-    constructor(private readonly services: SoundManagerServices) {}
+    constructor(private readonly svc: ServerServices) {}
 
     /**
      * Enqueue a sound broadcast to nearby players.
      */
     enqueueSoundBroadcast(soundId: number, x: number, y: number, level: number): void {
-        this.services.withDirectSendBypass("broadcast", () =>
+        this.svc.networkLayer.withDirectSendBypass("broadcast", () =>
             this.broadcastSound({ soundId, x, y, level }, "sound"),
         );
     }
@@ -208,7 +97,7 @@ export class SoundManager {
         soundId: number,
         opts?: { delay?: number; loops?: number },
     ): void {
-        const sock = this.services.getPlayers()?.getSocketByPlayerId(player.id);
+        const sock = this.svc.players?.getSocketByPlayerId(player.id);
         if (!sock) return;
         const payload: { soundId: number; delay?: number; loops?: number } = {
             soundId: soundId,
@@ -219,10 +108,10 @@ export class SoundManager {
         if (opts?.loops !== undefined && opts.loops > 0) {
             payload.loops = opts.loops;
         }
-        this.services.withDirectSendBypass("sound", () =>
-            this.services.sendWithGuard(
+        this.svc.networkLayer.withDirectSendBypass("sound", () =>
+            this.svc.networkLayer.sendWithGuard(
                 sock,
-                this.services.encodeMessage({ type: "sound", payload }),
+                encodeMessage({ type: "sound", payload }),
                 "sound",
             ),
         );
@@ -232,12 +121,12 @@ export class SoundManager {
      * Send a jingle (short music fanfare) to a player.
      */
     sendJingle(player: PlayerState, jingleId: number, delay: number = 0): void {
-        const sock = this.services.getPlayers()?.getSocketByPlayerId(player.id);
+        const sock = this.svc.players?.getSocketByPlayerId(player.id);
         if (!sock) return;
-        this.services.withDirectSendBypass("play_jingle", () =>
-            this.services.sendWithGuard(
+        this.svc.networkLayer.withDirectSendBypass("play_jingle", () =>
+            this.svc.networkLayer.sendWithGuard(
                 sock,
-                this.services.encodeMessage({
+                encodeMessage({
                     type: "play_jingle",
                     payload: {
                         jingleId: jingleId,
@@ -254,14 +143,13 @@ export class SoundManager {
      */
     broadcastSound(payload: SoundBroadcastRequest, context = "sound", radiusTiles = 15): void {
         if (!payload || !(payload.soundId > 0)) return;
-        const players = this.services.getPlayers();
+        const players = this.svc.players;
         if (!players) return;
 
         const x = payload.x;
         const y = payload.y;
         const level = payload.level;
 
-        // Build the message payload, including SOUND_AREA fields if present
         const msgPayload: {
             soundId: number;
             x: number;
@@ -277,11 +165,9 @@ export class SoundManager {
             level,
         };
 
-        // Include delay if specified (in milliseconds)
         if (payload.delay !== undefined && payload.delay > 0) {
             msgPayload.delay = payload.delay;
         }
-        // SOUND_AREA: Include radius/volume if specified
         if (payload.radius !== undefined) {
             msgPayload.radius = Math.max(0, Math.min(15, payload.radius));
         }
@@ -289,8 +175,8 @@ export class SoundManager {
             msgPayload.volume = Math.max(0, Math.min(255, payload.volume));
         }
 
-        const message = this.services.encodeMessage({ type: "sound", payload: msgPayload });
-        this.services.broadcastToNearby(x, y, level, radiusTiles, message, context);
+        const message = encodeMessage({ type: "sound", payload: msgPayload });
+        this.svc.broadcastService.broadcastToNearby(x, y, level, radiusTiles, message, context);
     }
 
     /**
@@ -322,7 +208,6 @@ export class SoundManager {
             msgPayload.loops = opts.loops;
         }
 
-        // SOUND_AREA fields
         if (opts.radius !== undefined) {
             msgPayload.radius = Math.max(0, Math.min(15, opts.radius));
         }
@@ -330,7 +215,7 @@ export class SoundManager {
             msgPayload.volume = Math.max(0, Math.min(255, opts.volume));
         }
 
-        this.services.withDirectSendBypass("script_loc_sound", () =>
+        this.svc.networkLayer.withDirectSendBypass("script_loc_sound", () =>
             this.broadcastSound(msgPayload as SoundBroadcastRequest, "script_loc_sound"),
         );
     }
@@ -359,17 +244,15 @@ export class SoundManager {
             level,
         };
 
-        // SOUND_AREA: radius is 0-15 tiles
         if (opts.radius !== undefined) {
             msgPayload.radius = Math.max(0, Math.min(15, opts.radius));
         }
 
-        // SOUND_AREA: volume is 0-255
         if (opts.volume !== undefined) {
             msgPayload.volume = Math.max(0, Math.min(255, opts.volume));
         }
 
-        this.services.withDirectSendBypass("area_sound", () =>
+        this.svc.networkLayer.withDirectSendBypass("area_sound", () =>
             this.broadcastSound(msgPayload as SoundBroadcastRequest, "area_sound"),
         );
     }
@@ -378,20 +261,19 @@ export class SoundManager {
      * Play a song for a player.
      */
     playSongForPlayer(player: PlayerState, trackId: number, trackName?: string): void {
-        const sock = this.services.getPlayers()?.getSocketByPlayerId(player.id);
+        const sock = this.svc.players?.getSocketByPlayerId(player.id);
         if (!sock) return;
         const resolvedTrack = this.resolveMusicTrack(trackId, trackName);
         const resolvedTrackName = resolvedTrack?.trackName ?? trackName;
         const currentTrackRowId = resolvedTrack?.rowId ?? -1;
 
         player.varps.setLastPlayedMusicTrackId(trackId);
-        player.varps.setVarpValue(this.services.getVarpMusicCurrentTrack(), currentTrackRowId);
+        player.varps.setVarpValue(VARP_MUSIC_CURRENT_TRACK, currentTrackRowId);
 
-        const msg = this.services.encodeMessage({
+        const msg = encodeMessage({
             type: "play_song",
             payload: {
                 trackId: trackId,
-                //  default 
                 fadeOutDelay: 0,
                 fadeOutDuration: 100,
                 fadeInDelay: 100,
@@ -399,18 +281,17 @@ export class SoundManager {
             },
         });
 
-        this.services.withDirectSendBypass("play_song", () => {
-            this.services.sendWithGuard(sock, msg, "play_song");
+        this.svc.networkLayer.withDirectSendBypass("play_song", () => {
+            this.svc.networkLayer.sendWithGuard(sock, msg, "play_song");
         });
 
-        // Send varp for music_current_track (DB row id)
-        this.services.withDirectSendBypass("varp", () =>
-            this.services.sendWithGuard(
+        this.svc.networkLayer.withDirectSendBypass("varp", () =>
+            this.svc.networkLayer.sendWithGuard(
                 sock,
-                this.services.encodeMessage({
+                encodeMessage({
                     type: "varp",
                     payload: {
-                        varpId: this.services.getVarpMusicCurrentTrack(),
+                        varpId: VARP_MUSIC_CURRENT_TRACK,
                         value: currentTrackRowId,
                     },
                 }),
@@ -418,12 +299,11 @@ export class SoundManager {
             ),
         );
 
-        // Send IF_SETTEXT for widget 239:4 (NOW_PLAYING_TEXT)
         if (resolvedTrackName) {
-            this.services.withDirectSendBypass("if_settext", () =>
-                this.services.sendWithGuard(
+            this.svc.networkLayer.withDirectSendBypass("if_settext", () =>
+                this.svc.networkLayer.sendWithGuard(
                     sock,
-                    this.services.encodeMessage({
+                    encodeMessage({
                         type: "widget",
                         payload: {
                             action: "set_text",
@@ -437,7 +317,7 @@ export class SoundManager {
         }
 
         if (currentTrackRowId >= 0) {
-            this.services.queueClientScript?.(player.id, 3932);
+            this.svc.broadcastService.queueClientScript(player.id, 3932);
         }
     }
 
@@ -460,13 +340,13 @@ export class SoundManager {
             return;
         }
 
-        if (player.varps.getVarpValue(this.services.getVarpMusicPlay()) === 0) {
+        if (player.varps.getVarpValue(VARP_MUSICPLAY) === 0) {
             this.playCurrentAreaTrackForPlayer(player);
         }
     }
 
     skipTrackForPlayer(player: PlayerState): boolean {
-        if (player.varps.getVarpValue(this.services.getVarpMusicPlay()) !== 1) {
+        if (player.varps.getVarpValue(VARP_MUSICPLAY) !== 1) {
             return false;
         }
 
@@ -484,8 +364,8 @@ export class SoundManager {
 
         const currentTrack = this.resolveCurrentMusicTrack(player);
         if (!currentTrack) {
-            player.varps.setVarpValue(this.services.getVarpMusicCurrentTrack(), -1);
-            if (player.varps.getVarpValue(this.services.getVarpMusicPlay()) === 0) {
+            player.varps.setVarpValue(VARP_MUSIC_CURRENT_TRACK, -1);
+            if (player.varps.getVarpValue(VARP_MUSICPLAY) === 0) {
                 this.playCurrentAreaTrackForPlayer(player);
                 return;
             }
@@ -493,7 +373,7 @@ export class SoundManager {
             return;
         }
 
-        player.varps.setVarpValue(this.services.getVarpMusicCurrentTrack(), currentTrack.rowId);
+        player.varps.setVarpValue(VARP_MUSIC_CURRENT_TRACK, currentTrack.rowId);
         this.syncCurrentMusicUi(player, currentTrack.rowId, currentTrack.trackName);
     }
 
@@ -501,8 +381,8 @@ export class SoundManager {
      * Run music phase for all players.
      */
     runMusicPhase(frame: TickFrameRef): void {
-        const players = this.services.getPlayers();
-        const musicRegionService = this.services.getMusicRegionService();
+        const players = this.svc.players;
+        const musicRegionService = this.svc.musicRegionService;
         if (!players || !musicRegionService) return;
 
         players.forEach((sock, player) => {
@@ -516,7 +396,7 @@ export class SoundManager {
                     const trackInfo = musicRegionService.getMusicForRegion(currentRegionId);
 
                     if (trackInfo) {
-                        const musicUnlockService = this.services.getMusicUnlockService();
+                        const musicUnlockService = this.svc.musicUnlockService;
                         if (musicUnlockService) {
                             const wasNewlyUnlocked = musicUnlockService.unlockTrack(
                                 player,
@@ -527,7 +407,7 @@ export class SoundManager {
                                 this.syncMusicUnlockVarps(player, trackInfo.trackId);
 
                                 if (musicUnlockService.shouldShowUnlockMessage(player)) {
-                                    this.services.queueChatMessage({
+                                    this.svc.messagingService.queueChatMessage({
                                         messageType: "game",
                                         text: `You have unlocked a new music track: <col=ff0000>${trackInfo.trackName}</col>.`,
                                         targetPlayerIds: [player.id],
@@ -536,8 +416,7 @@ export class SoundManager {
                             }
                         }
 
-                        // Only auto-play if in Area mode (varp = 0)
-                        const musicMode = player.varps.getVarpValue(this.services.getVarpMusicPlay());
+                        const musicMode = player.varps.getVarpValue(VARP_MUSICPLAY);
                         if (musicMode === 0) {
                             this.playCurrentAreaTrackForPlayer(player, trackInfo);
                         }
@@ -553,10 +432,10 @@ export class SoundManager {
      * Sync music unlock varps after unlocking a track.
      */
     syncMusicUnlockVarps(player: PlayerState, trackId: number): void {
-        const varpId = this.services.getMusicUnlockService()?.getUnlockVarpId(trackId);
+        const varpId = this.svc.musicUnlockService?.getUnlockVarpId(trackId);
         if (varpId !== undefined) {
             const value = player.varps.getVarpValue(varpId);
-            this.services.queueVarp(player.id, varpId, value);
+            this.svc.variableService.queueVarp(player.id, varpId, value);
         }
     }
 
@@ -571,7 +450,7 @@ export class SoundManager {
         player: PlayerState,
         trackInfo?: { trackId: number; trackName: string },
     ): void {
-        const musicRegionService = this.services.getMusicRegionService();
+        const musicRegionService = this.svc.musicRegionService;
         if (!musicRegionService) return;
 
         const nextTrack =
@@ -585,12 +464,12 @@ export class SoundManager {
     }
 
     private resolveCurrentMusicTrack(player: PlayerState): MusicCatalogTrackRef | undefined {
-        const musicCatalog = this.services.getMusicCatalogService();
+        const musicCatalog = this.svc.musicCatalogService;
         if (!musicCatalog) {
             return undefined;
         }
 
-        const currentTrackRowId = player.varps.getVarpValue(this.services.getVarpMusicCurrentTrack());
+        const currentTrackRowId = player.varps.getVarpValue(VARP_MUSIC_CURRENT_TRACK);
         if (currentTrackRowId >= 0) {
             const trackByRow = musicCatalog.getTrackByRowId(currentTrackRowId);
             if (trackByRow) {
@@ -610,7 +489,7 @@ export class SoundManager {
         trackId: number,
         trackName?: string,
     ): MusicCatalogTrackRef | undefined {
-        const musicCatalog = this.services.getMusicCatalogService();
+        const musicCatalog = this.svc.musicCatalogService;
         if (!musicCatalog) {
             return undefined;
         }
@@ -622,12 +501,12 @@ export class SoundManager {
     }
 
     private pickNextShuffleTrack(player: PlayerState): MusicCatalogTrackRef | undefined {
-        const musicCatalog = this.services.getMusicCatalogService();
+        const musicCatalog = this.svc.musicCatalogService;
         if (!musicCatalog) {
             return undefined;
         }
 
-        const unlockService = this.services.getMusicUnlockService();
+        const unlockService = this.svc.musicUnlockService;
         const currentTrackId = player.varps.getLastPlayedMusicTrackId();
         const unlockedTracks: MusicCatalogTrackRef[] = [];
 
@@ -652,23 +531,23 @@ export class SoundManager {
             return undefined;
         }
 
-        const random = Math.max(0, Math.min(0.999999999999, this.services.random()));
+        const random = Math.max(0, Math.min(0.999999999999, Math.random()));
         return candidates[Math.floor(random * candidates.length)];
     }
 
     private syncMusicWidgetFlags(player: PlayerState): void {
-        const sock = this.services.getPlayers()?.getSocketByPlayerId(player.id);
+        const sock = this.svc.players?.getSocketByPlayerId(player.id);
         if (!sock) {
             return;
         }
 
-        const musicCatalog = this.services.getMusicCatalogService();
+        const musicCatalog = this.svc.musicCatalogService;
         const baseTrackCount = musicCatalog?.getBaseTrackCount() ?? 0;
         if (baseTrackCount > 0) {
-            this.services.withDirectSendBypass("if_setevents", () =>
-                this.services.sendWithGuard(
+            this.svc.networkLayer.withDirectSendBypass("if_setevents", () =>
+                this.svc.networkLayer.sendWithGuard(
                     sock,
-                    this.services.encodeMessage({
+                    encodeMessage({
                         type: "widget",
                         payload: {
                             action: "set_flags_range",
@@ -683,10 +562,10 @@ export class SoundManager {
             );
         }
 
-        this.services.withDirectSendBypass("if_setevents", () =>
-            this.services.sendWithGuard(
+        this.svc.networkLayer.withDirectSendBypass("if_setevents", () =>
+            this.svc.networkLayer.sendWithGuard(
                 sock,
-                this.services.encodeMessage({
+                encodeMessage({
                     type: "widget",
                     payload: {
                         action: "set_flags",
@@ -700,18 +579,18 @@ export class SoundManager {
     }
 
     private syncCurrentMusicUi(player: PlayerState, trackRowId: number, trackName: string): void {
-        const sock = this.services.getPlayers()?.getSocketByPlayerId(player.id);
+        const sock = this.svc.players?.getSocketByPlayerId(player.id);
         if (!sock) {
             return;
         }
 
-        this.services.withDirectSendBypass("varp", () =>
-            this.services.sendWithGuard(
+        this.svc.networkLayer.withDirectSendBypass("varp", () =>
+            this.svc.networkLayer.sendWithGuard(
                 sock,
-                this.services.encodeMessage({
+                encodeMessage({
                     type: "varp",
                     payload: {
-                        varpId: this.services.getVarpMusicCurrentTrack(),
+                        varpId: VARP_MUSIC_CURRENT_TRACK,
                         value: trackRowId,
                     },
                 }),
@@ -719,10 +598,10 @@ export class SoundManager {
             ),
         );
 
-        this.services.withDirectSendBypass("if_settext", () =>
-            this.services.sendWithGuard(
+        this.svc.networkLayer.withDirectSendBypass("if_settext", () =>
+            this.svc.networkLayer.sendWithGuard(
                 sock,
-                this.services.encodeMessage({
+                encodeMessage({
                     type: "widget",
                     payload: {
                         action: "set_text",
@@ -734,7 +613,7 @@ export class SoundManager {
             ),
         );
 
-        this.services.queueClientScript?.(player.id, 3932);
+        this.svc.broadcastService.queueClientScript(player.id, 3932);
     }
 
     /**
@@ -760,18 +639,16 @@ export class SoundManager {
             }
 
             // Get hit sound based on weapon and combat style
-            const equip = this.services.ensureEquipArray(player);
+            const equip = this.svc.equipmentService.ensureEquipArray(player);
             const weaponId = equip[14]; // EquipmentSlot.WEAPON = 14
             const styleIndex = player.combat.styleSlot ?? 0;
 
             if (weaponId > 0) {
-                // Use attack-type-aware hit sound
                 const hitSound = getHitSoundForStyle(weaponId, styleIndex);
                 if (hitSound !== undefined) {
                     return hitSound;
                 }
             } else {
-                // unarmed punch vs kick uses different sounds by style slot.
                 return styleIndex === 1 ? UNARMED_KICK_SOUND : UNARMED_PUNCH_SOUND;
             }
         } catch {
@@ -831,8 +708,8 @@ export class SoundManager {
             9078: 117,
             9079: 118,
             9001: 114,
-            // Ancient Magicks – all ancient combat spells share cast sound
-            4629: 6589, // Smoke Rush (ancient_spell_activate)
+            // Ancient Magicks
+            4629: 6589, // Smoke Rush
             4630: 6589, // Shadow Rush
             4632: 6589, // Blood Rush
             4633: 6589, // Ice Rush
@@ -889,23 +766,23 @@ export class SoundManager {
             // Utility
             3293: 124,
             9100: 3007,
-            // Ancient Magicks – impact sounds
-            4629: 185, // Smoke Rush (smoke_rush_impact)
-            4630: 179, // Shadow Rush (shadow_rush_impact)
-            4632: 110, // Blood Rush (blood_rush_impact)
-            4633: 173, // Ice Rush (ice_rush_impact)
-            4635: 182, // Smoke Burst (smoke_burst_impact)
-            4636: 177, // Shadow Burst (shadow_burst_impact)
-            4638: 105, // Blood Burst (blood_burst_impact)
-            4639: 170, // Ice Burst (ice_burst_impact)
-            4641: 181, // Smoke Blitz (smoke_blitz_impact)
-            4642: 176, // Shadow Blitz (shadow_blitz_impact)
-            4644: 104, // Blood Blitz (blood_blitz_impact)
-            4645: 169, // Ice Blitz (ice_blitz_impact)
-            4647: 180, // Smoke Barrage (smoke_barrage_impact)
-            4648: 175, // Shadow Barrage (shadow_barrage_impact)
-            4650: 102, // Blood Barrage (blood_barrage_impact)
-            4651: 168, // Ice Barrage (ice_barrage_impact)
+            // Ancient Magicks
+            4629: 185, // Smoke Rush
+            4630: 179, // Shadow Rush
+            4632: 110, // Blood Rush
+            4633: 173, // Ice Rush
+            4635: 182, // Smoke Burst
+            4636: 177, // Shadow Burst
+            4638: 105, // Blood Burst
+            4639: 170, // Ice Burst
+            4641: 181, // Smoke Blitz
+            4642: 176, // Shadow Blitz
+            4644: 104, // Blood Blitz
+            4645: 169, // Ice Blitz
+            4647: 180, // Smoke Barrage
+            4648: 175, // Shadow Barrage
+            4650: 102, // Blood Barrage
+            4651: 168, // Ice Barrage
         };
 
         if (stage === "cast") {
@@ -924,8 +801,8 @@ export class SoundManager {
      * Get NPC sound from Table 88.
      */
     getNpcSoundFromTable88(typeId: number, soundType: NpcSoundType): number | undefined {
-        const npcSoundLookup = this.services.getNpcSoundLookup();
-        const npcTypeLoader = this.services.getNpcTypeLoader();
+        const npcSoundLookup = this.svc.npcSoundLookup;
+        const npcTypeLoader = this.svc.npcTypeLoader;
         if (!npcSoundLookup || !npcTypeLoader) return undefined;
 
         try {
@@ -946,11 +823,8 @@ export class SoundManager {
             return table88Sound;
         }
 
-        this.services.loadNpcCombatDefs();
-        const defaults = this.services.getNpcCombatDefaults();
-        const defs = this.services.getNpcCombatDefs();
-        const def = defs?.[String(typeId)];
-        const soundId = def?.deathSound ?? defaults.deathSound;
+        const def = this.svc.combatDataService.getNpcDeathSoundFromDefs(typeId);
+        const soundId = def?.deathSound ?? this.svc.combatDataService.getNpcCombatDefaultDeathSound();
         return soundId > 0 ? soundId : undefined;
     }
 

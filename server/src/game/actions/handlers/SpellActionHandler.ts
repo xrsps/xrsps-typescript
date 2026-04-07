@@ -1,19 +1,26 @@
 /**
  * Spell action execution handler.
  *
- * Handles execution of spell-related actions extracted from wsServer:
+ * Handles execution of spell-related actions:
  * - processSpellCastRequest (main spell processing)
  * - handleAutocastMagicAttack (autocast combat spells)
  * - Spell payload parsing and normalization
  *
- * Uses dependency injection via services interface to avoid tight coupling.
+ * Uses shared ServerServices for all dependencies.
  */
 import type { WebSocket } from "ws";
 
 import { logger } from "../../../utils/logger";
 import { resolveSelectedSpellPayload } from "../../../../../src/shared/spells/selectedSpellPayload";
 import type { ProjectileParams as CachedProjectileParams } from "../../data/ProjectileParamsProvider";
+import { getProjectileParams } from "../../data/ProjectileParamsProvider";
 import type { SpellDataEntry as CachedSpellDataEntry } from "../../spells/SpellDataProvider";
+import { getSpellData, getSpellDataByWidget, canWeaponAutocastSpell } from "../../spells/SpellDataProvider";
+import { getSpellBaseXp } from "../../combat/SpellXpProvider";
+import { SpellCaster } from "../../spells/SpellCaster";
+import { CombatEngine } from "../../systems/combat/CombatEngine";
+import { testRandFloat, TEST_HIT_FORCE } from "../../testing/TestRng";
+import { faceAngleRs } from "../../../../../src/rs/utils/rotation";
 import { HITMARK_BLOCK, HITMARK_DAMAGE } from "../../combat/HitEffects";
 import type { NpcState } from "../../npc";
 import type { PlayerState } from "../../player";
@@ -22,6 +29,7 @@ import type {
     SpellCastContext as SpellCasterContext,
 } from "../../spells/SpellCaster";
 import type { ActionRequest } from "../types";
+import type { ServerServices } from "../../ServerServices";
 
 // ============================================================================
 // Types
@@ -169,126 +177,6 @@ export interface SpellCastObjPayload extends SpellCastPayloadBase {
 }
 
 // ============================================================================
-// Services Interface
-// ============================================================================
-
-/**
- * Services interface for spell action handling.
- */
-export interface SpellActionServices {
-    // --- Core ---
-    getCurrentTick(): number;
-    getDeliveryTick(): number;
-    getTickMs(): number;
-    getFramesPerTick(): number;
-
-    // --- Entity Access ---
-    getNpc(id: number): NpcState | undefined;
-    getPlayer(id: number): PlayerState | undefined;
-    getPlayerSocket(playerId: number): WebSocketRef | undefined;
-    getNpcType(npc: NpcState): { name?: string } | undefined;
-
-    // --- Spell Data ---
-    getSpellData(spellId: number): SpellDataEntry | undefined;
-    getSpellDataByWidget(groupId: number, childId: number): SpellDataEntry | undefined;
-    getProjectileParams(projectileId: number | undefined): ProjectileParams | undefined;
-    canWeaponAutocastSpell(weaponId: number, spellId: number): { compatible: boolean };
-    getSpellBaseXp(spellId: number): number | undefined;
-
-    // --- Spell Validation/Execution ---
-    validateSpellCast(context: SpellCastContext): SpellValidationResult;
-    executeSpellCast(
-        context: SpellCastContext,
-        validation: SpellValidationResult,
-    ): SpellExecutionResult;
-
-    // --- Projectile ---
-    computeProjectileEndHeight(opts: {
-        projectileDefaults?: ProjectileParams;
-        spellData?: SpellDataEntry;
-        targetNpc?: NpcState;
-        targetPlayer?: PlayerState;
-    }): number | undefined;
-    estimateProjectileTiming(opts: {
-        player: PlayerState;
-        targetX?: number;
-        targetY?: number;
-        projectileDefaults?: ProjectileParams;
-        spellData?: SpellDataEntry;
-    }): ProjectileTiming | undefined;
-    buildAndQueueSpellProjectileLaunch(opts: {
-        player: PlayerState;
-        spellData: SpellDataEntry;
-        projectileDefaults?: ProjectileParams;
-        targetNpc?: NpcState;
-        targetPlayer?: PlayerState;
-        targetTile?: { x: number; y: number; plane: number };
-        timing?: ProjectileTiming;
-        endHeight?: number;
-        impactDelayTicks?: number;
-    }): void;
-
-    // --- Effects ---
-    queueSpellResult(playerId: number, payload: SpellResultPayload): void;
-    enqueueSpotAnimation(request: SpotAnimRequest): void;
-    enqueueSpellFailureChat(player: PlayerState, spellId: number, reason?: string): void;
-    pickSpellSound(spellId: number, stage: "cast" | "impact"): number | undefined;
-    broadcastSound(request: SoundBroadcastRequest, tag: string): void;
-    withDirectSendBypass<T>(tag: string, fn: () => T): T;
-    resetAutocast(player: PlayerState): void;
-
-    // --- Combat State ---
-    queueCombatSnapshot(
-        playerId: number,
-        weaponCategory: number,
-        weaponItemId: number,
-        autoRetaliate: boolean,
-        styleSlot: number,
-        activePrayers: string[],
-        specialPercent?: number,
-    ): void;
-    pickAttackSequence(player: PlayerState): number;
-    pickSpellCastSequence(player: PlayerState, spellId: number, isAutocast: boolean): number;
-    pickAttackSpeed(player: PlayerState): number;
-    clearAllInteractions(socket: WebSocketRef): void;
-    clearActionsInGroup(playerId: number, group: string): number;
-    startNpcCombat(player: PlayerState, npc: NpcState, tick: number, attackSpeed: number): void;
-    stopAutoAttack(playerId: number): void;
-
-    // --- Inventory ---
-    sendInventorySnapshot(socket: WebSocketRef, player: PlayerState): void;
-
-    // --- Action Scheduling ---
-    scheduleAction<K extends SpellScheduledActionKind>(
-        playerId: number,
-        request: ActionScheduleRequest<K>,
-        tick: number,
-    ): ActionScheduleResult;
-
-    // --- XP ---
-    awardSkillXp(player: PlayerState, skillId: number, xp: number): void;
-
-    // --- PvP Combat ---
-    planPlayerVsPlayerMagic(
-        attacker: PlayerState,
-        target: PlayerState,
-    ): { hitLanded: boolean; maxHit: number; damage: number };
-    planPlayerVsNpcMagic(
-        attacker: PlayerState,
-        target: NpcState,
-        spellId: number,
-    ): { hitLanded: boolean; maxHit: number; damage: number };
-
-    // --- Helpers ---
-    faceAngleRs(x1: number, y1: number, x2: number, y2: number): number;
-    testRandFloat(): number;
-    getTestHitForce(): number | undefined;
-
-    // --- Logging ---
-    log(level: "info" | "warn" | "error", message: string, data?: unknown): void;
-}
-
-// ============================================================================
 // Constants
 // ============================================================================
 
@@ -304,12 +192,97 @@ const SkillId = {
  * Handles spell action execution.
  */
 export class SpellActionHandler {
-    constructor(private readonly services: SpellActionServices) {}
+    constructor(private readonly svc: ServerServices) {}
+
+    // ========================================================================
+    // Private helpers (replacing lambda services)
+    // ========================================================================
+
+    private getCurrentTick(): number {
+        return this.svc.ticker.currentTick();
+    }
+
+    private getDeliveryTick(): number {
+        return this.svc.activeFrame ? this.svc.activeFrame.tick : this.svc.ticker.currentTick() + 1;
+    }
+
+    private buildAndQueueSpellProjectileLaunch(opts: {
+        player: PlayerState;
+        spellData: SpellDataEntry;
+        projectileDefaults?: ProjectileParams;
+        targetNpc?: NpcState;
+        targetPlayer?: PlayerState;
+        targetTile?: { x: number; y: number; plane: number };
+        timing?: ProjectileTiming;
+        endHeight?: number;
+        impactDelayTicks?: number;
+    }): void {
+        if (!this.svc.projectileSystem) return;
+        const launch = this.svc.projectileSystem.buildSpellProjectileLaunch({
+            player: opts.player,
+            targetNpc: opts.targetNpc,
+            targetPlayer: opts.targetPlayer,
+            targetTile: opts.targetTile,
+            spellData: opts.spellData,
+            projectileDefaults: opts.projectileDefaults,
+            endHeight: opts.endHeight,
+            timing: opts.timing,
+            impactDelayTicks: opts.impactDelayTicks,
+        });
+        if (launch) {
+            this.svc.projectileTimingService!.queueProjectileForViewers(launch);
+        }
+    }
+
+    private planPlayerVsPlayerMagic(
+        attacker: PlayerState,
+        target: PlayerState,
+    ): { hitLanded: boolean; maxHit: number; damage: number } {
+        try {
+            const engine = new CombatEngine();
+            const res = engine.planPlayerVsPlayerMagic(attacker, target);
+            return {
+                hitLanded: !!res.hitLanded,
+                maxHit: res.maxHit,
+                damage: res.damage,
+            };
+        } catch {
+            return { hitLanded: false, maxHit: 0, damage: 0 };
+        }
+    }
+
+    private planPlayerVsNpcMagic(
+        attacker: PlayerState,
+        target: NpcState,
+        spellId: number,
+    ): { hitLanded: boolean; maxHit: number; damage: number } {
+        try {
+            const engine = new CombatEngine();
+            const magicCaster = Object.create(attacker) as PlayerState;
+            (magicCaster as unknown as { combat: typeof attacker.combat }).combat = Object.create(attacker.combat);
+            magicCaster.combat.spellId = spellId;
+            magicCaster.combat.autocastEnabled = false;
+            magicCaster.combat.autocastMode = null;
+            (magicCaster as unknown as { getCurrentAttackType: () => string }).getCurrentAttackType = () => "magic";
+            const res = engine.planPlayerAttack({
+                player: magicCaster,
+                npc: target,
+                attackSpeed: this.svc.playerCombatService!.pickAttackSpeed(attacker),
+            });
+            return {
+                hitLanded: !!res.hitLanded,
+                maxHit: res.maxHit,
+                damage: res.damage,
+            };
+        } catch {
+            return { hitLanded: false, maxHit: 0, damage: 0 };
+        }
+    }
 
     private beginManualNpcSpellCombat(player: PlayerState, npc: NpcState, tick: number): void {
-        const attackSpeed = Math.max(1, this.services.pickAttackSpeed(player));
-        this.services.startNpcCombat(player, npc, tick, attackSpeed);
-        this.services.stopAutoAttack(player.id);
+        const attackSpeed = Math.max(1, this.svc.playerCombatService!.pickAttackSpeed(player));
+        this.svc.playerCombatManager?.startCombat(player, npc, tick, attackSpeed);
+        this.svc.playerCombatManager?.stopAutoAttack(player.id);
     }
 
     // ========================================================================
@@ -332,20 +305,18 @@ export class SpellActionHandler {
         if (!player.combat.autocastEnabled) return true;
         if (player.combat.lastSpellCastTick >= tick) return true;
 
-        // Autocast only works with a compatible magic weapon equipped.
         const weaponItemId = player.combat.weaponItemId;
-        const weaponCompatibility = this.services.canWeaponAutocastSpell(weaponItemId, spellId);
+        const weaponCompatibility = canWeaponAutocastSpell(weaponItemId, spellId);
         if (!weaponCompatibility.compatible) {
             return true;
         }
 
-        const spellData = this.services.getSpellData(spellId);
+        const spellData = getSpellData(spellId);
         if (!spellData) {
-            this.services.log(
-                "info",
+            logger.info(
                 `[combat] disabling autocast (npc) for player ${player.id}: invalid spellId=${spellId}`,
             );
-            this.services.resetAutocast(player);
+            this.svc.equipmentService.resetAutocast(player);
             return false;
         }
 
@@ -356,16 +327,15 @@ export class SpellActionHandler {
             isAutocast: true,
         };
 
-        const validation = this.services.validateSpellCast(castContext);
+        const validation = SpellCaster.validate(castContext);
         if (!validation.success) {
             const castMode = player.combat.autocastMode ?? "autocast";
-            this.services.log(
-                "info",
+            logger.info(
                 `[combat] disabling autocast (npc) for player ${
                     player.id
                 }: spellId=${spellId} reason=${String(validation.reason ?? "unknown")}`,
             );
-            this.services.resetAutocast(player);
+            this.svc.equipmentService.resetAutocast(player);
             const failurePayload: SpellResultPayload = {
                 casterId: player.id,
                 spellId,
@@ -379,26 +349,18 @@ export class SpellActionHandler {
                 },
                 tile: { x: npc.tileX, y: npc.tileY, plane: npc.level },
             };
-            this.services.queueSpellResult(player.id, failurePayload);
+            this.svc.broadcastService.queueSpellResult(player.id, failurePayload);
             try {
-                this.services.enqueueSpellFailureChat(player, spellId, validation.reason);
+                this.svc.spellCastingService!.enqueueSpellFailureChat(player, spellId, validation.reason);
             } catch (err) { logger.warn("[spell] failed to enqueue spell failure chat", err); }
-            this.services.queueCombatSnapshot(
-                player.id,
-                player.combat.weaponCategory,
-                player.combat.weaponItemId,
-                !!player.combat.autoRetaliate,
-                player.combat.styleSlot,
-                Array.from(player.prayer.activePrayers ?? []),
-                undefined,
-            );
+            this.svc.queueCombatState(player);
             return false;
         }
 
         // Special targeting rules: Crumble Undead (NPC undead only)
         if (spellId === 3293) {
             try {
-                const npcType = this.services.getNpcType(npc);
+                const npcType = this.svc.npcManager?.getNpcType(npc);
                 const name = (npcType?.name || npc.name || "").toLowerCase();
                 const isUndead = /(skeleton|zombie|ghost)/.test(name);
                 if (!isUndead) {
@@ -415,19 +377,21 @@ export class SpellActionHandler {
                             castMode: player.combat.autocastMode ?? "autocast",
                         },
                     };
-                    this.services.queueSpellResult(player.id, failurePayload);
+                    this.svc.broadcastService.queueSpellResult(player.id, failurePayload);
                     try {
-                        this.services.enqueueSpellFailureChat(player, spellId, "immune_target");
+                        this.svc.spellCastingService!.enqueueSpellFailureChat(player, spellId, "immune_target");
                     } catch (err) { logger.warn("[spell] failed to enqueue immune target chat", err); }
                     return false;
                 }
             } catch (err) { logger.warn("[spell] failed to check crumble undead targeting", err); }
         }
 
-        const execution = this.services.executeSpellCast(castContext, validation);
+        const execution = SpellCaster.execute(castContext, validation);
 
-        const projectileDefaults = this.services.getProjectileParams(spellData.projectileId);
-        const targetEndHeight = this.services.computeProjectileEndHeight({
+        const projectileDefaults = spellData.projectileId !== undefined
+            ? getProjectileParams(spellData.projectileId)
+            : undefined;
+        const targetEndHeight = this.svc.projectileTimingService!.computeProjectileEndHeight({
             projectileDefaults,
             spellData,
             targetNpc: npc,
@@ -436,7 +400,7 @@ export class SpellActionHandler {
         const targetTileX = npc.tileX;
         const targetTileY = npc.tileY;
 
-        const timing = this.services.estimateProjectileTiming({
+        const timing = this.svc.projectileTimingService!.estimateProjectileTiming({
             player,
             targetX: targetTileX,
             targetY: targetTileY,
@@ -476,16 +440,16 @@ export class SpellActionHandler {
                     ? Math.max(0, execution.experienceGained)
                     : 0;
             if (xp > 0) {
-                this.services.awardSkillXp(player, SkillId.Magic, xp);
+                this.svc.skillService.awardSkillXp(player, SkillId.Magic, xp);
             }
         } catch (err) { logger.warn("[spell] failed to award autocast xp", err); }
 
-        const sock = this.services.getPlayerSocket(player.id);
+        const sock = this.svc.players?.getSocketByPlayerId(player.id);
         if (sock) {
-            this.services.sendInventorySnapshot(sock, player);
+            this.svc.inventoryService.sendInventorySnapshot(sock, player);
         }
 
-        this.services.queueSpellResult(player.id, payload);
+        this.svc.broadcastService.queueSpellResult(player.id, payload);
 
         // Face the NPC and queue attack animation
         try {
@@ -494,14 +458,14 @@ export class SpellActionHandler {
                 const dyWorld = player.y - npc.y;
                 if (dxWorld !== 0 || dyWorld !== 0) {
                     player.setForcedOrientation(
-                        this.services.faceAngleRs(player.x, player.y, npc.x, npc.y),
+                        faceAngleRs(player.x, player.y, npc.x, npc.y),
                     );
                     player._pendingFace = { x: npc.x, y: npc.y };
                     player.pendingFaceTile = { x: npc.tileX, y: npc.tileY };
                     player.markSent();
                 }
             } catch (err) { logger.warn("[spell] failed to face npc for autocast", err); }
-            const attackSeq = this.services.pickSpellCastSequence(player, spellId, true);
+            const attackSeq = this.svc.playerCombatService!.pickSpellCastSequence(player, spellId, true);
             if (attackSeq >= 0) {
                 player.queueOneShotSeq(attackSeq, 0);
             }
@@ -513,7 +477,7 @@ export class SpellActionHandler {
         const scheduledImpactDelayTicks = timing
             ? Math.max(1, Math.ceil(timing.startDelay + timing.travelTime))
             : undefined;
-        this.services.buildAndQueueSpellProjectileLaunch({
+        this.buildAndQueueSpellProjectileLaunch({
             player,
             spellData,
             projectileDefaults,
@@ -528,8 +492,8 @@ export class SpellActionHandler {
         // Broadcast cast spot and sound
         try {
             if (spellData.castSpotAnim !== undefined && spellData.castSpotAnim >= 0 && timing) {
-                const currentTick = this.services.getCurrentTick();
-                this.services.enqueueSpotAnimation({
+                const currentTick = this.getCurrentTick();
+                this.svc.broadcastService.enqueueSpotAnimation({
                     tick: currentTick,
                     playerId: player.id,
                     spotId: spellData.castSpotAnim,
@@ -539,10 +503,10 @@ export class SpellActionHandler {
             }
             // Cast sound plays regardless of whether there's a cast spot anim
             if (timing) {
-                const sfx = this.services.pickSpellSound(spellId, "cast");
+                const sfx = this.svc.playerCombatService!.pickSpellSound(spellId, "cast");
                 if (sfx !== undefined) {
-                    this.services.withDirectSendBypass("combat_cast_sound", () =>
-                        this.services.broadcastSound(
+                    this.svc.networkLayer.withDirectSendBypass("combat_cast_sound", () =>
+                        this.svc.broadcastService.broadcastSound(
                             {
                                 soundId: sfx,
                                 x: player.tileX,
@@ -638,17 +602,16 @@ export class SpellActionHandler {
         const widgetChildId = resolvedSelection.widgetChildId;
 
         if (spellbookGroupId !== undefined && widgetChildId !== undefined) {
-            spellData = this.services.getSpellDataByWidget(spellbookGroupId, widgetChildId);
+            spellData = getSpellDataByWidget(spellbookGroupId, widgetChildId);
             spellId = spellData?.id ?? -1;
-            this.services.log(
-                "info",
+            logger.info(
                 `[spell] Widget lookup: group=${spellbookGroupId}, child=${widgetChildId} -> spellId=${spellId}, name=${
                     spellData?.name ?? "unknown"
                 }`,
             );
         } else {
             spellId = raw.spellId ?? -1;
-            spellData = spellId > 0 ? this.services.getSpellData(spellId) : undefined;
+            spellData = spellId > 0 ? getSpellData(spellId) : undefined;
         }
 
         const baseResult: SpellResultPayload = {
@@ -661,8 +624,7 @@ export class SpellActionHandler {
 
         if (!(spellId > 0) || !spellData) {
             baseResult.reason = "invalid_spell";
-            this.services.log(
-                "warn",
+            logger.warn(
                 `[spell] Validation failed for spell=${spellId}: invalid_spell`,
             );
             return { ok: false, result: baseResult };
@@ -782,7 +744,7 @@ export class SpellActionHandler {
         let targetTile: { x: number; y: number; plane: number } | undefined;
 
         if (request.target.type === "npc") {
-            const npc = this.services.getNpc(request.target.npcId);
+            const npc = this.svc.npcManager?.getById(request.target.npcId);
             if (!npc) {
                 base.reason = "invalid_target";
                 return base;
@@ -794,31 +756,27 @@ export class SpellActionHandler {
             targetNpc = npc;
             targetTile = { x: npc.tileX, y: npc.tileY, plane: npc.level };
         } else if (request.target.type === "player") {
-            this.services.log(
-                "info",
+            logger.info(
                 `[spell] Looking up player target: ${request.target.playerId}`,
             );
-            const opponent = this.services.getPlayer(request.target.playerId);
+            const opponent = this.svc.players?.getById(request.target.playerId);
             if (!opponent) {
-                this.services.log(
-                    "warn",
+                logger.warn(
                     `[spell] Target player ${request.target.playerId} not found`,
                 );
                 base.reason = "invalid_target";
                 return base;
             }
-            this.services.log(
-                "info",
+            logger.info(
                 `[spell] Found target player: id=${opponent.id}, name=${opponent.name}`,
             );
             if (opponent.id === player.id) {
-                this.services.log("warn", `[spell] Cannot target self`);
+                logger.warn(`[spell] Cannot target self`);
                 base.reason = "invalid_target";
                 return base;
             }
             if (opponent.level !== player.level) {
-                this.services.log(
-                    "warn",
+                logger.warn(
                     `[spell] Target on different level: caster=${player.level}, target=${opponent.level}`,
                 );
                 base.reason = "out_of_range";
@@ -852,22 +810,22 @@ export class SpellActionHandler {
             isAutocast,
         };
 
-        const validation = this.services.validateSpellCast(castContext);
+        const validation = SpellCaster.validate(castContext);
         if (!validation.success) {
             base.reason = validation.reason ?? "server_error";
             try {
-                this.services.enqueueSpellFailureChat(player, spellId, validation.reason);
+                this.svc.spellCastingService!.enqueueSpellFailureChat(player, spellId, validation.reason);
             } catch (err) { logger.warn("[spell] failed to enqueue spell failure chat", err); }
             return base;
         }
 
-        const spellData = this.services.getSpellData(spellId);
+        const spellData = getSpellData(spellId);
         if (!spellData) {
             base.reason = "invalid_spell";
             return base;
         }
 
-        const execution = this.services.executeSpellCast(castContext, validation);
+        const execution = SpellCaster.execute(castContext, validation);
 
         // Award base Magic XP
         try {
@@ -876,7 +834,7 @@ export class SpellActionHandler {
                     ? Math.max(0, execution.experienceGained)
                     : 0;
             if (xp > 0) {
-                this.services.awardSkillXp(player, SkillId.Magic, xp);
+                this.svc.skillService.awardSkillXp(player, SkillId.Magic, xp);
             }
         } catch (err) { logger.warn("[spell] failed to award spell xp", err); }
 
@@ -889,7 +847,7 @@ export class SpellActionHandler {
 
         player.combat.lastSpellCastTick = tick;
 
-        const sock = this.services.getPlayerSocket(player.id);
+        const sock = this.svc.players?.getSocketByPlayerId(player.id);
         if (!sock) {
             base.reason = "server_error";
             return base;
@@ -899,9 +857,9 @@ export class SpellActionHandler {
         // so stale weapon auto-attack loops do not immediately override the cast.
         try {
             if (!isAutocast) {
-                this.services.clearAllInteractions(sock);
-                this.services.clearActionsInGroup(player.id, "combat.attack");
-                this.services.clearActionsInGroup(player.id, "combat.autocast");
+                this.svc.players?.clearAllInteractions(sock);
+                this.svc.actionScheduler.clearActionsInGroup(player.id, "combat.attack");
+                this.svc.actionScheduler.clearActionsInGroup(player.id, "combat.autocast");
             }
         } catch (err) { logger.warn("[spell] failed to clear interactions after manual cast", err); }
 
@@ -918,7 +876,7 @@ export class SpellActionHandler {
                 const dy = player.y - targetNpc.y;
                 if (dx !== 0 || dy !== 0) {
                     player.setForcedOrientation(
-                        this.services.faceAngleRs(player.x, player.y, targetNpc.x, targetNpc.y),
+                        faceAngleRs(player.x, player.y, targetNpc.x, targetNpc.y),
                     );
                     player._pendingFace = { x: targetNpc.x, y: targetNpc.y };
                     player.pendingFaceTile = { x: targetNpc.tileX, y: targetNpc.tileY };
@@ -929,7 +887,7 @@ export class SpellActionHandler {
                 const dy = player.y - targetPlayer.y;
                 if (dx !== 0 || dy !== 0) {
                     player.setForcedOrientation(
-                        this.services.faceAngleRs(
+                        faceAngleRs(
                             player.x,
                             player.y,
                             targetPlayer.x,
@@ -944,7 +902,7 @@ export class SpellActionHandler {
                     player.markSent();
                 }
             }
-            const attackSeq = this.services.pickSpellCastSequence(player, spellId, isAutocast);
+            const attackSeq = this.svc.playerCombatService!.pickSpellCastSequence(player, spellId, isAutocast);
             if (attackSeq >= 0) {
                 player.queueOneShotSeq(attackSeq, 0);
             }
@@ -954,19 +912,21 @@ export class SpellActionHandler {
         if (spellData.impactSpotAnim !== undefined) base.impactSpotAnim = spellData.impactSpotAnim;
         if (spellData.splashSpotAnim !== undefined) base.splashSpotAnim = spellData.splashSpotAnim;
 
-        const projectileDefaults = this.services.getProjectileParams(spellData.projectileId);
+        const projectileDefaults = spellData.projectileId !== undefined
+            ? getProjectileParams(spellData.projectileId)
+            : undefined;
         const resolvedTile = targetTile ?? base.tile;
 
-        const targetEndHeight = this.services.computeProjectileEndHeight({
+        const targetEndHeight = this.svc.projectileTimingService!.computeProjectileEndHeight({
             projectileDefaults,
             spellData,
             targetPlayer,
             targetNpc,
         });
 
-        const deliveryTick = Math.max(tick, this.services.getDeliveryTick());
+        const deliveryTick = Math.max(tick, this.getDeliveryTick());
 
-        const timing = this.services.estimateProjectileTiming({
+        const timing = this.svc.projectileTimingService!.estimateProjectileTiming({
             player,
             targetX: resolvedTile?.x,
             targetY: resolvedTile?.y,
@@ -982,7 +942,7 @@ export class SpellActionHandler {
 
         // Queue projectile for viewers
         if (spellData.projectileId !== undefined) {
-            this.services.buildAndQueueSpellProjectileLaunch({
+            this.buildAndQueueSpellProjectileLaunch({
                 player,
                 spellData,
                 projectileDefaults,
@@ -1004,8 +964,8 @@ export class SpellActionHandler {
         // Broadcast cast spot and sound for player targets
         if (targetPlayer && timing) {
             if (spellData.castSpotAnim !== undefined && spellData.castSpotAnim >= 0) {
-                const currentTick = this.services.getCurrentTick();
-                this.services.enqueueSpotAnimation({
+                const currentTick = this.getCurrentTick();
+                this.svc.broadcastService.enqueueSpotAnimation({
                     tick: currentTick,
                     playerId: player.id,
                     spotId: spellData.castSpotAnim,
@@ -1013,10 +973,10 @@ export class SpellActionHandler {
                     height: 100,
                 });
             }
-            const sfx = this.services.pickSpellSound(spellId, "cast");
+            const sfx = this.svc.playerCombatService!.pickSpellSound(spellId, "cast");
             if (sfx !== undefined) {
-                this.services.withDirectSendBypass("combat_cast_sound", () =>
-                    this.services.broadcastSound(
+                this.svc.networkLayer.withDirectSendBypass("combat_cast_sound", () =>
+                    this.svc.broadcastService.broadcastSound(
                         {
                             soundId: sfx,
                             x: player.tileX,
@@ -1030,8 +990,8 @@ export class SpellActionHandler {
             }
         } else if (targetNpc && timing) {
             if (spellData.castSpotAnim !== undefined && spellData.castSpotAnim >= 0) {
-                const currentTick = this.services.getCurrentTick();
-                this.services.enqueueSpotAnimation({
+                const currentTick = this.getCurrentTick();
+                this.svc.broadcastService.enqueueSpotAnimation({
                     tick: currentTick,
                     playerId: player.id,
                     spotId: spellData.castSpotAnim,
@@ -1039,10 +999,10 @@ export class SpellActionHandler {
                     height: 100,
                 });
             }
-            const sfx2 = this.services.pickSpellSound(spellId, "cast");
+            const sfx2 = this.svc.playerCombatService!.pickSpellSound(spellId, "cast");
             if (sfx2 !== undefined) {
-                this.services.withDirectSendBypass("combat_cast_sound", () =>
-                    this.services.broadcastSound(
+                this.svc.networkLayer.withDirectSendBypass("combat_cast_sound", () =>
+                    this.svc.broadcastService.broadcastSound(
                         {
                             soundId: sfx2,
                             x: player.tileX,
@@ -1061,16 +1021,15 @@ export class SpellActionHandler {
             const impactDelay = scheduledImpactDelayTicks ?? 1;
             const currentTick = deliveryTick;
             let outcome: { landed: boolean; maxHit: number; damage: number };
-            const testHitForce = this.services.getTestHitForce();
-            if (testHitForce !== undefined && testHitForce >= 0) {
+            if (TEST_HIT_FORCE !== undefined && TEST_HIT_FORCE >= 0) {
                 outcome = {
                     landed: true,
                     maxHit: spellData.baseMaxHit ?? 0,
-                    damage: Math.max(0, Math.min(spellData.baseMaxHit ?? 0, testHitForce)),
+                    damage: Math.max(0, Math.min(spellData.baseMaxHit ?? 0, TEST_HIT_FORCE)),
                 };
             } else {
                 try {
-                    const res = this.services.planPlayerVsNpcMagic(player, targetNpc, spellId);
+                    const res = this.planPlayerVsNpcMagic(player, targetNpc, spellId);
                     outcome = {
                         landed: !!res.hitLanded,
                         maxHit: Math.max(0, res.maxHit),
@@ -1078,7 +1037,7 @@ export class SpellActionHandler {
                     };
                 } catch {
                     const damage = Math.floor(
-                        this.services.testRandFloat() * ((spellData.baseMaxHit ?? 0) + 1),
+                        testRandFloat() * ((spellData.baseMaxHit ?? 0) + 1),
                     );
                     outcome = {
                         landed: damage > 0,
@@ -1088,7 +1047,7 @@ export class SpellActionHandler {
                 }
             }
             try {
-                this.services.scheduleAction(
+                this.svc.actionScheduler.requestAction(
                     player.id,
                     {
                         kind: "combat.playerHit",
@@ -1098,9 +1057,8 @@ export class SpellActionHandler {
                             damage: outcome.damage,
                             maxHit: outcome.maxHit,
                             style: outcome.landed ? HITMARK_DAMAGE : HITMARK_BLOCK,
-                            attackDelay: this.services.pickAttackSpeed(player),
+                            attackDelay: this.svc.playerCombatService!.pickAttackSpeed(player),
                             hitDelay: impactDelay,
-                            // retaliateDamage calculated at hit confirm
                             retaliationDelay: 0,
                             expectedHitTick: currentTick + impactDelay,
                             attackType: "magic",
@@ -1113,7 +1071,7 @@ export class SpellActionHandler {
                     currentTick,
                 );
             } catch (err) {
-                this.services.log("warn", "[spell] failed to schedule npc magic hit", err);
+                logger.warn("[spell] failed to schedule npc magic hit", err);
             }
         }
 
@@ -1132,7 +1090,7 @@ export class SpellActionHandler {
             targetPlayer.refreshActiveCombatTimer();
             let outcome: { landed: boolean; maxHit: number; damage: number };
             try {
-                const res = this.services.planPlayerVsPlayerMagic(player, targetPlayer);
+                const res = this.planPlayerVsPlayerMagic(player, targetPlayer);
                 outcome = {
                     landed: !!res.hitLanded,
                     maxHit: res.maxHit,
@@ -1140,7 +1098,7 @@ export class SpellActionHandler {
                 };
             } catch {
                 const dmg = Math.floor(
-                    this.services.testRandFloat() * ((spellData.baseMaxHit ?? 0) + 1),
+                    testRandFloat() * ((spellData.baseMaxHit ?? 0) + 1),
                 );
                 outcome = { landed: dmg > 0, maxHit: spellData.baseMaxHit ?? 0, damage: dmg };
             }
@@ -1148,7 +1106,7 @@ export class SpellActionHandler {
             const hitDelayTicks =
                 scheduledImpactDelayTicks ?? Math.max(1, Math.ceil(timing.hitDelay));
             const expectedHitTick = currentTick + hitDelayTicks;
-            this.services.scheduleAction(
+            this.svc.actionScheduler.requestAction(
                 player.id,
                 {
                     kind: "combat.playerHit",
@@ -1170,7 +1128,7 @@ export class SpellActionHandler {
             );
         }
 
-        this.services.sendInventorySnapshot(sock, player);
+        this.svc.inventoryService.sendInventorySnapshot(sock, player);
 
         base.outcome = "success";
         base.reason = undefined;
@@ -1201,12 +1159,12 @@ export class SpellActionHandler {
             const parsed = this.parseSpellCastPayload(player, raw, kind);
             if (parsed.ok) {
                 const outcome = this.processSpellCastRequest(player, parsed.request, tick);
-                this.services.queueSpellResult(player.id, outcome);
+                this.svc.broadcastService.queueSpellResult(player.id, outcome);
             } else {
-                this.services.queueSpellResult(player.id, parsed.result);
+                this.svc.broadcastService.queueSpellResult(player.id, parsed.result);
             }
         } catch (err) {
-            this.services.log("warn", `[combat] spell_cast_${kind} handling failed`, err);
+            logger.warn(`[combat] spell_cast_${kind} handling failed`, err);
             const fallback: SpellResultPayload = {
                 casterId: player.id,
                 spellId: raw.spellId ?? 0,
@@ -1232,7 +1190,7 @@ export class SpellActionHandler {
                 const tile = this.normalizeSpellTile(objPayload.tile, objPayload.plane);
                 if (tile) fallback.tile = tile;
             }
-            this.services.queueSpellResult(player.id, fallback);
+            this.svc.broadcastService.queueSpellResult(player.id, fallback);
         }
     }
 }

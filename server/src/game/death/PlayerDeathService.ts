@@ -22,11 +22,13 @@
  * - Validate respawn location (no wilderness respawns)
  */
 import { logger } from "../../utils/logger";
+import { getItemDefinition } from "../../data/items";
 import { SKILL_IDS, SkillId } from "../../../../src/rs/skill/skills";
 import { RUN_ENERGY_MAX } from "../actor";
 import { getWildernessLevel, isInWilderness } from "../combat/MultiCombatZones";
 import { LockState } from "../model/LockState";
 import type { PlayerState } from "../player";
+import type { ServerServices } from "../ServerServices";
 import { DeathHookRegistry } from "./DeathHookRegistry";
 import { ItemProtectionCalculator } from "./ItemProtectionCalculator";
 import {
@@ -36,7 +38,6 @@ import {
     DEFAULT_RESPAWN_LOCATIONS,
     type DeathContext,
     DeathType,
-    type PlayerDeathServices,
     type RespawnLocation,
     type ValuedItem,
 } from "./types";
@@ -57,28 +58,24 @@ interface PendingDeath {
     phase: "queued" | "animation" | "complete";
 }
 
-export interface PlayerDeathServiceOptions {
-    services: PlayerDeathServices;
-    hookRegistry?: DeathHookRegistry;
-    defaultRespawnLocation?: RespawnLocation;
-}
-
 export class PlayerDeathService {
-    private readonly services: PlayerDeathServices;
+    private readonly svc: ServerServices;
     private readonly hookRegistry: DeathHookRegistry;
     private defaultRespawn: RespawnLocation;
 
     /** Players currently in death animation - maps playerId to death state */
     private readonly pendingDeaths: Map<number, PendingDeath> = new Map();
 
-    constructor(options: PlayerDeathServiceOptions) {
-        this.services = options.services;
-        this.hookRegistry =
-            options.hookRegistry ??
-            new DeathHookRegistry({
-                log: options.services.log,
-            });
-        this.defaultRespawn = options.defaultRespawnLocation ?? DEFAULT_RESPAWN_LOCATIONS.lumbridge;
+    constructor(svc: ServerServices) {
+        this.svc = svc;
+        this.hookRegistry = new DeathHookRegistry({
+            log: (level, message) => {
+                if (level === "error") logger.error(`[death] ${message}`);
+                else if (level === "warn") logger.warn(`[death] ${message}`);
+                else logger.info(`[death] ${message}`);
+            },
+        });
+        this.defaultRespawn = DEFAULT_RESPAWN_LOCATIONS.lumbridge;
     }
 
     /**
@@ -101,8 +98,6 @@ export class PlayerDeathService {
             customRespawn?: RespawnLocation;
         },
     ): boolean {
-        const log = this.services.log ?? (() => {});
-
         // Skip if already dying
         if (this.pendingDeaths.has(player.id)) {
             return false;
@@ -135,7 +130,7 @@ export class PlayerDeathService {
 
         // Calculate item protection with snapshot state
         const itemProtection = new ItemProtectionCalculator({
-            getItemDefinition: this.services.getItemDefinition,
+            getItemDefinition: (itemId) => getItemDefinition(itemId),
             deathType,
         }).calculate(player, wasSkulled, hadProtectItem);
 
@@ -147,14 +142,13 @@ export class PlayerDeathService {
             hadProtectItem,
             deathLocation: Object.freeze(deathLocation),
             wildernessLevel,
-            deathTick: this.services.getCurrentTick(),
+            deathTick: this.svc.ticker.currentTick(),
             killer: options?.killer ? new WeakRef(options.killer) : undefined,
             itemProtection,
         });
 
-        log(
-            "info",
-            `Player death started: ${player.name ?? player.id} at (${deathLocation.x}, ${
+        logger.info(
+            `[death] Player death started: ${player.name ?? player.id} at (${deathLocation.x}, ${
                 deathLocation.y
             }) - ${deathType}`,
         );
@@ -183,7 +177,9 @@ export class PlayerDeathService {
             // On the first tick after death is queued, play the animation
             // This ensures the death animation plays on the tick AFTER HP reaches 0 (OSRS behavior)
             if (death.phase === "queued") {
-                this.services.playAnimation(death.player, DEATH_ANIMATION_ID);
+                try {
+                    death.player.queueOneShotSeq(DEATH_ANIMATION_ID, 0);
+                } catch (err) { logger.warn("Failed to play death animation", err); }
                 death.phase = "animation";
                 continue; // Don't decrement on the same tick we start the animation
             }
@@ -202,7 +198,6 @@ export class PlayerDeathService {
      */
     private completePlayerDeath(death: PendingDeath): void {
         const { player, context } = death;
-        const log = this.services.log ?? (() => {});
 
         // ========================================
         // Phase 3: Drop Items
@@ -217,30 +212,41 @@ export class PlayerDeathService {
         this.restorePlayerState(player);
 
         // Update inventory/equipment display
-        this.services.sendInventoryUpdate(player);
-        this.services.refreshAppearance(player);
+        const sock = this.svc.players?.getSocketByPlayerId(player.id);
+        if (sock) {
+            this.svc.inventoryService.sendInventorySnapshot(sock, player);
+        }
+        this.svc.appearanceService.refreshAppearanceKits(player);
+        player.markAppearanceDirty();
+        this.svc.playerAppearanceManager?.queueAppearanceSnapshot(player);
 
         // ========================================
         // Phase 5: Teleport to Respawn
         // ========================================
         const respawn = this.validateRespawnLocation(this.defaultRespawn);
-        this.services.teleportPlayer(player, respawn.x, respawn.y, respawn.level);
+        this.svc.movementService.teleportPlayer(player, respawn.x, respawn.y, respawn.level);
 
         // Clear animation
-        this.services.clearAnimation(player);
+        try {
+            player.queueOneShotSeq(-1, 0);
+        } catch (err) { logger.warn("Failed to clear death animation", err); }
 
         // ========================================
         // Phase 6: Jingle, Message & Unlock
         // ========================================
         // Play death jingle on respawn ("You Are Dead!" jingle)
-        this.services.playJingle?.(player, DEATH_JINGLE_ID);
+        this.svc.soundManager?.sendJingle(player, DEATH_JINGLE_ID);
 
-        this.services.sendMessage(player, "Oh dear, you are dead!");
+        this.svc.messagingService.queueChatMessage({
+            messageType: "game",
+            text: "Oh dear, you are dead!",
+            targetPlayerIds: [player.id],
+        });
 
         // Unlock player
         player.lock = LockState.NONE;
 
-        log("info", `Death sequence complete for ${player.name ?? player.id}`);
+        logger.info(`[death] Death sequence complete for ${player.name ?? player.id}`);
 
         // Execute post-death hooks (fire and forget)
         this.hookRegistry.executePostDeathHooks(context).catch(() => {});
@@ -264,7 +270,9 @@ export class PlayerDeathService {
         const death = this.pendingDeaths.get(playerId);
         if (death) {
             death.player.lock = LockState.NONE;
-            this.services.clearAnimation(death.player);
+            try {
+                death.player.queueOneShotSeq(-1, 0);
+            } catch (err) { logger.warn("Failed to clear death animation", err); }
             this.pendingDeaths.delete(playerId);
         }
     }
@@ -326,13 +334,11 @@ export class PlayerDeathService {
      */
     private processItemsOnDeath(player: PlayerState, context: DeathContext): void {
         const { itemProtection, deathLocation, deathType } = context;
-        const currentTick = this.services.getCurrentTick();
+        const currentTick = this.svc.ticker.currentTick();
         const inWilderness = context.wildernessLevel > 0;
-        const log = this.services.log ?? (() => {});
 
-        log(
-            "info",
-            `Processing ${itemProtection.lost.length} lost items, keeping ${itemProtection.kept.length} items`,
+        logger.info(
+            `[death] Processing ${itemProtection.lost.length} lost items, keeping ${itemProtection.kept.length} items`,
         );
 
         // OSRS behavior: All equipment is unequipped on death.
@@ -340,9 +346,8 @@ export class PlayerDeathService {
         for (const item of itemProtection.kept) {
             if (item.source.type === "equipment") {
                 this.moveEquipmentToInventory(player, item);
-                log(
-                    "info",
-                    `Moved kept item ${item.itemId} x${item.quantity} from equipment:${item.source.slot} to inventory`,
+                logger.info(
+                    `[death] Moved kept item ${item.itemId} x${item.quantity} from equipment:${item.source.slot} to inventory`,
                 );
             }
         }
@@ -350,9 +355,8 @@ export class PlayerDeathService {
         // Remove lost items from player
         for (const item of itemProtection.lost) {
             this.removeItemFromPlayer(player, item);
-            log(
-                "info",
-                `Dropped item ${item.itemId} x${item.quantity} from ${item.source.type}:${item.source.slot}`,
+            logger.info(
+                `[death] Dropped item ${item.itemId} x${item.quantity} from ${item.source.type}:${item.source.slot}`,
             );
 
             // Handle untradeable coin conversion in PvP
@@ -376,7 +380,7 @@ export class PlayerDeathService {
                 }
             }
 
-            this.services.groundItemManager.spawn(
+            this.svc.groundItems.spawn(
                 dropItemId,
                 dropQuantity,
                 {
@@ -502,12 +506,27 @@ export class PlayerDeathService {
         player.interruptQueues();
 
         // Clear all combat and interaction state so the player does not auto-re-engage
-        try { this.services.clearCombat?.(player); } catch (err) { logger.warn("[death] failed to clear combat", err); }
+        try {
+            const sock = this.svc.players?.getSocketByPlayerId(player.id);
+            if (sock) {
+                this.svc.players?.clearAllInteractions(sock);
+            }
+        } catch (err) { logger.warn("[death] failed to clear combat", err); }
         try { player.resetInteractions(); } catch (err) { logger.warn("[death] failed to reset interactions", err); }
         try { player.clearInteraction(); } catch (err) { logger.warn("[death] failed to clear interaction", err); }
         try { player.clearPath(); } catch (err) { logger.warn("[death] failed to clear path", err); }
         // Clear any NPCs that are still targeting this player
-        try { this.services.clearNpcTargetsForPlayer?.(player.id); } catch (err) { logger.warn("[death] failed to clear npc targets", err); }
+        try {
+            const nowTick = this.svc.ticker.currentTick();
+            this.svc.npcManager?.forEach((npc) => {
+                try {
+                    if (npc.getCombatTargetPlayerId() === player.id) {
+                        npc.disengageCombat();
+                        npc.scheduleNextAggressionCheck(nowTick, 10);
+                    }
+                } catch (err) { logger.warn("Failed to clear NPC combat target for player", err); }
+            });
+        } catch (err) { logger.warn("[death] failed to clear npc targets", err); }
     }
 
     /**
@@ -515,17 +534,15 @@ export class PlayerDeathService {
      */
     private validateRespawnLocation(location: RespawnLocation): RespawnLocation {
         if (location.y >= WILDERNESS_MIN_Y && isInWilderness(location.x, location.y)) {
-            this.services.log?.(
-                "warn",
-                `Invalid respawn location in wilderness: (${location.x}, ${location.y})`,
+            logger.warn(
+                `[death] Invalid respawn location in wilderness: (${location.x}, ${location.y})`,
             );
             return this.defaultRespawn;
         }
 
         if (location.x < 0 || location.y < 0 || location.level < 0 || location.level > 3) {
-            this.services.log?.(
-                "warn",
-                `Invalid respawn location out of bounds: (${location.x}, ${location.y}, ${location.level})`,
+            logger.warn(
+                `[death] Invalid respawn location out of bounds: (${location.x}, ${location.y}, ${location.level})`,
             );
             return this.defaultRespawn;
         }

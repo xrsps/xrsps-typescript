@@ -1,36 +1,10 @@
-import type { WebSocket } from "ws";
-
 import { encodeMessage } from "../../network/messages";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { MusicCatalogService } from "../../audio/MusicCatalogService";
-import type { SoundManager, SoundBroadcastRequest } from "../../network/managers/SoundManager";
+import type { SoundBroadcastRequest } from "../../network/managers/SoundManager";
 import type { PlayerState } from "../player";
-
-export interface SoundServiceDeps {
-    networkLayer: PlayerNetworkLayer;
-    soundManager: SoundManager;
-    musicCatalogService: MusicCatalogService | undefined;
-    getSocketByPlayerId: (id: number) => WebSocket | undefined;
-    getCurrentTick: () => number;
-    enqueueSpotAnimation: (anim: { tick: number; spotId: number; delay?: number; height?: number; tile?: { x: number; y: number; level?: number } }) => void;
-    broadcastSound: (payload: SoundBroadcastRequest, context: string) => void;
-}
-
-/**
- * Manages sound effects, jingles, loc graphics/sounds, area sounds, and music track lookup.
- * Extracted from WSServer.
- */
-export interface SoundServiceDeferredDeps {
-    soundManager?: SoundManager;
-    musicCatalogService?: MusicCatalogService;
-}
+import type { ServerServices } from "../ServerServices";
 
 export class SoundService {
-    constructor(private readonly deps: SoundServiceDeps) {}
-
-    setDeferredDeps(deferred: SoundServiceDeferredDeps): void {
-        Object.assign(this.deps, deferred);
-    }
+    constructor(private readonly services: ServerServices) {}
 
     playLocGraphic(opts: {
         spotId: number;
@@ -41,8 +15,8 @@ export class SoundService {
     }): void {
         if (!opts || !(opts.spotId > 0)) return;
         const delay = opts.delayTicks !== undefined ? Math.max(0, opts.delayTicks) : 0;
-        const tick = this.deps.getCurrentTick();
-        this.deps.enqueueSpotAnimation({
+        const tick = this.services.ticker.currentTick();
+        this.services.broadcastService.enqueueSpotAnimation({
             tick,
             spotId: opts.spotId,
             delay,
@@ -75,8 +49,8 @@ export class SoundService {
         if (opts.volume !== undefined && opts.volume < 255) {
             payload.volume = Math.min(255, Math.max(0, opts.volume));
         }
-        this.deps.networkLayer.withDirectSendBypass("script_loc_sound", () =>
-            this.deps.broadcastSound(payload, "script_loc_sound"),
+        this.services.networkLayer.withDirectSendBypass("script_loc_sound", () =>
+            this.services.broadcastService.broadcastSound(payload, "script_loc_sound"),
         );
     }
 
@@ -104,20 +78,20 @@ export class SoundService {
         if (opts.delay !== undefined && opts.delay > 0) {
             payload.delay = opts.delay * 600;
         }
-        this.deps.networkLayer.withDirectSendBypass("area_sound", () =>
-            this.deps.broadcastSound(payload, "area_sound"),
+        this.services.networkLayer.withDirectSendBypass("area_sound", () =>
+            this.services.broadcastService.broadcastSound(payload, "area_sound"),
         );
     }
 
     sendSound(player: PlayerState, soundId: number, opts?: { delay?: number; loops?: number }): void {
-        this.deps.soundManager.sendSound(player, soundId, opts);
+        this.services.soundManager!.sendSound(player, soundId, opts);
     }
 
     sendJingle(player: PlayerState, jingleId: number, delay: number = 0): void {
-        const sock = this.deps.getSocketByPlayerId(player.id);
+        const sock = this.services.players?.getSocketByPlayerId(player.id);
         if (!sock || jingleId < 0) return;
-        this.deps.networkLayer.withDirectSendBypass("jingle", () =>
-            this.deps.networkLayer.sendWithGuard(
+        this.services.networkLayer.withDirectSendBypass("jingle", () =>
+            this.services.networkLayer.sendWithGuard(
                 sock,
                 encodeMessage({
                     type: "play_jingle",
@@ -132,6 +106,6 @@ export class SoundService {
     }
 
     getMusicTrackIdByName(trackName: string): number {
-        return this.deps.musicCatalogService?.getTrackByName(trackName)?.trackId ?? -1;
+        return this.services.musicCatalogService?.getTrackByName(trackName)?.trackId ?? -1;
     }
 }

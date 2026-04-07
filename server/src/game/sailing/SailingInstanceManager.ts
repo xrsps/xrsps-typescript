@@ -1,8 +1,7 @@
 import type { CollisionMap } from "../../../../src/rs/scene/CollisionMap";
 import type { PlayerState } from "../player";
 import type { NpcSpawnConfig, NpcState } from "../npc";
-import type { PathService } from "../../pathfinding/PathService";
-import type { MapCollisionService } from "../../world/MapCollisionService";
+import type { ServerServices } from "../ServerServices";
 import {
     buildSailingIntroTemplates,
     buildSailingOverlayTemplates,
@@ -34,27 +33,12 @@ const INSTANCE_SCENE_SIZE = 104;
 const DOCK_WV_BASE_X = 3002;
 const DOCK_WV_BASE_Y = 3141;
 
-export interface SailingInstanceServices {
-    teleportToInstance: (
-        player: PlayerState,
-        x: number,
-        y: number,
-        level: number,
-        templateChunks: number[][][],
-        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
-    ) => void;
-    spawnNpc: (config: NpcSpawnConfig) => NpcState | undefined;
-    removeNpc: (npcId: number) => boolean;
-    pathService?: PathService;
-    mapCollision?: MapCollisionService;
-}
-
 export class SailingInstanceManager {
-    private readonly services: SailingInstanceServices;
+    private readonly svc: ServerServices;
     private dockedWorldView?: SailingWorldView;
 
-    constructor(services: SailingInstanceServices) {
-        this.services = services;
+    constructor(svc: ServerServices) {
+        this.svc = svc;
     }
 
     isInSailingInstanceRegion(player: PlayerState): boolean {
@@ -71,7 +55,7 @@ export class SailingInstanceManager {
 
         const templateChunks = buildSailingIntroTemplates();
         player.worldViewId = SAILING_WORLD_ENTITY_INDEX;
-        this.services.teleportToInstance(
+        this.svc.movementService.teleportToInstance(
             player,
             SAILING_INTRO_X,
             SAILING_INTRO_Y,
@@ -82,7 +66,7 @@ export class SailingInstanceManager {
 
         const { willBoat, anneBoat, boatHp } = SAILING_INTRO_NPC_SPAWNS;
         for (const spawn of [willBoat, anneBoat, boatHp]) {
-            const npc = this.services.spawnNpc({ ...spawn, wanderRadius: 0 });
+            const npc = this.svc.npcManager!.spawnTransientNpc({ ...spawn, wanderRadius: 0 });
             if (npc) {
                 npc.worldViewId = SAILING_WORLD_ENTITY_INDEX;
                 player.instanceNpcIds.add(npc.id);
@@ -105,8 +89,8 @@ export class SailingInstanceManager {
      * world tiles at the dock position.
      */
     buildDockedCollision(): void {
-        const mapCollision = this.services.mapCollision;
-        const pathService = this.services.pathService;
+        const mapCollision = this.svc.mapService;
+        const pathService = this.svc.pathService;
         if (!mapCollision || !pathService) return;
         if (this.dockedWorldView) return;
 
@@ -196,7 +180,7 @@ export class SailingInstanceManager {
 
     clearDockedCollision(): void {
         if (!this.dockedWorldView) return;
-        this.services.pathService?.removeWorldViewCollision(SAILING_WORLD_ENTITY_INDEX);
+        this.svc.pathService?.removeWorldViewCollision(SAILING_WORLD_ENTITY_INDEX);
         this.dockedWorldView = undefined;
     }
 
@@ -207,7 +191,7 @@ export class SailingInstanceManager {
 
         const npcIds = [...player.instanceNpcIds].join(", ");
         for (const npcId of player.instanceNpcIds) {
-            this.services.removeNpc(npcId);
+            this.svc.npcManager!.removeNpc(npcId);
         }
 
         logger.info(

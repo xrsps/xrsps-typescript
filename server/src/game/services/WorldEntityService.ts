@@ -1,38 +1,19 @@
-import type { WebSocket } from "ws";
-
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { WorldEntityInfoEncoder } from "../../network/encoding/WorldEntityInfoEncoder";
-import type { LocationService } from "./LocationService";
-import type { MovementService } from "./MovementService";
+import type { ServerServices } from "../ServerServices";
 import type { PlayerState } from "../player";
 import { encodeMessage, type ServerToClient } from "../../network/messages";
 import { buildRebuildNormalPayload, buildRebuildWorldEntityPayload } from "../../world/InstanceManager";
 import type { WorldEntityBuildArea } from "../../../../src/shared/worldentity/WorldEntityTypes";
-import type { CacheEnv } from "../../world/CacheEnv";
 import { logger } from "../../utils/logger";
 
-export interface WorldEntityServiceDeps {
-    getSocketByPlayerId: (id: number) => WebSocket | undefined;
-    networkLayer: PlayerNetworkLayer;
-    worldEntityInfoEncoder: WorldEntityInfoEncoder;
-    locationService: LocationService;
-    movementService: MovementService;
-    cacheEnv: CacheEnv | undefined;
-}
-
 export class WorldEntityService {
-    private deps: WorldEntityServiceDeps;
+    private services: ServerServices;
 
-    constructor(deps: WorldEntityServiceDeps) {
-        this.deps = deps;
-    }
-
-    setDeferredDeps(deferred: Partial<WorldEntityServiceDeps>): void {
-        Object.assign(this.deps, deferred);
+    constructor(services: ServerServices) {
+        this.services = services;
     }
 
     sendRebuildNormal(player: PlayerState): void {
-        const ws = this.deps.getSocketByPlayerId(player.id);
+        const ws = this.services.players?.getSocketByPlayerId(player.id);
         if (!ws) return;
 
         const regionX = player.tileX >> 3;
@@ -40,11 +21,11 @@ export class WorldEntityService {
         const payload = buildRebuildNormalPayload(
             regionX,
             regionY,
-            this.deps.cacheEnv!,
+            this.services.cacheEnv!,
         );
         const packet = encodeMessage({ type: "rebuild_normal", payload } as unknown as ServerToClient);
-        this.deps.networkLayer.withDirectSendBypass("rebuild_normal", () =>
-            this.deps.networkLayer.sendWithGuard(ws, packet, "rebuild_normal"),
+        this.services.networkLayer.withDirectSendBypass("rebuild_normal", () =>
+            this.services.networkLayer.sendWithGuard(ws, packet, "rebuild_normal"),
         );
     }
 
@@ -60,7 +41,7 @@ export class WorldEntityService {
         extraNpcs?: Array<{ id: number; x: number; y: number; level: number }>,
         drawMode: number = 0,
     ): void {
-        const ws = this.deps.getSocketByPlayerId(player.id);
+        const ws = this.services.players?.getSocketByPlayerId(player.id);
         if (!ws) return;
 
         const regionX = 480; // source region chunk X
@@ -69,27 +50,27 @@ export class WorldEntityService {
         const payload = buildRebuildWorldEntityPayload(
             entityIndex, configId, sizeX, sizeZ,
             regionX, regionY, regionX, regionY,
-            templateChunks, buildAreas, this.deps.cacheEnv!, false,
+            templateChunks, buildAreas, this.services.cacheEnv!, false,
         );
         const extendedPayload = payload as Record<string, unknown>;
         extendedPayload.extraNpcs = extraNpcs ?? [];
         extendedPayload.basePlane = 1;
         const packet = encodeMessage({ type: "rebuild_worldentity", payload } as unknown as ServerToClient);
-        this.deps.networkLayer.withDirectSendBypass("rebuild_worldentity", () =>
-            this.deps.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),
+        this.services.networkLayer.withDirectSendBypass("rebuild_worldentity", () =>
+            this.services.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),
         );
 
         // Register in per-tick world entity tracker with initial position (fine units)
         const entityFineX = (regionX * 8 + sizeX * 4) * 128;
         const entityFineZ = (regionY * 8 + sizeZ * 4) * 128;
-        this.deps.worldEntityInfoEncoder.addEntity(player.id, {
+        this.services.worldEntityInfoEncoder.addEntity(player.id, {
             entityIndex, sizeX, sizeZ, configId, drawMode,
             position: { x: entityFineX, y: 0, z: entityFineZ, orientation: 0 },
         });
 
         if (extraLocs) {
             for (const loc of extraLocs) {
-                this.deps.locationService.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
+                this.services.locationService.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
             }
         }
     }
@@ -109,7 +90,7 @@ export class WorldEntityService {
         drawMode: number = 0,
     ): void {
         logger.info(`[teleportToWorldEntity] Player ${player.id} -> (${x}, ${y}, ${level}) entity=${entityIndex}`);
-        const ws = this.deps.getSocketByPlayerId(player.id);
+        const ws = this.services.players?.getSocketByPlayerId(player.id);
         if (!ws) {
             logger.warn(`[teleportToWorldEntity] No websocket for player ${player.id}`);
             return;
@@ -131,28 +112,28 @@ export class WorldEntityService {
             regionY,
             templateChunks,
             buildAreas,
-            this.deps.cacheEnv!,
+            this.services.cacheEnv!,
             false,
         );
         const packet = encodeMessage({ type: "rebuild_worldentity", payload } as unknown as ServerToClient);
         logger.info(`[teleportToWorldEntity] Sending REBUILD_WORLDENTITY packet (${packet.length} bytes, ${payload.mapRegions.length} regions)`);
-        this.deps.networkLayer.withDirectSendBypass("rebuild_worldentity", () =>
-            this.deps.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),
+        this.services.networkLayer.withDirectSendBypass("rebuild_worldentity", () =>
+            this.services.networkLayer.sendWithGuard(ws, packet, "rebuild_worldentity"),
         );
 
         // Register in per-tick world entity tracker with initial position (fine units)
         const entityFineX = (regionX * 8 + sizeX * 4) * 128;
         const entityFineZ = (regionY * 8 + sizeZ * 4) * 128;
-        this.deps.worldEntityInfoEncoder.addEntity(player.id, {
+        this.services.worldEntityInfoEncoder.addEntity(player.id, {
             entityIndex, sizeX, sizeZ, configId, drawMode,
             position: { x: entityFineX, y: 0, z: entityFineZ, orientation: 0 },
         });
 
-        this.deps.movementService.teleportPlayer(player, x, y, level);
+        this.services.movementService.teleportPlayer(player, x, y, level);
 
         if (extraLocs) {
             for (const loc of extraLocs) {
-                this.deps.locationService.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
+                this.services.locationService.spawnLocForPlayer(player, loc.id, { x: loc.x, y: loc.y }, loc.level, loc.shape, loc.rotation);
             }
         }
     }

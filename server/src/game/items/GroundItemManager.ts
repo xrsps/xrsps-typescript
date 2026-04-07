@@ -1,4 +1,5 @@
 import { getItemDefinition } from "../../data/items";
+import type { ServerServices } from "../ServerServices";
 
 /**
  * OSRS Ground Item Timings (docs/ground-items.md):
@@ -52,6 +53,7 @@ export class GroundItemManager {
     private serial = 1;
 
     constructor(
+        private readonly svc: ServerServices,
         private readonly opts?: { defaultDurationTicks?: number; defaultPrivateTicks?: number },
     ) {}
 

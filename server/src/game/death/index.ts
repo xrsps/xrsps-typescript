@@ -36,4 +36,4 @@ export {
 } from "./DeathHookRegistry";
 
 // Player Death Service
-export { PlayerDeathService, type PlayerDeathServiceOptions } from "./PlayerDeathService";
+export { PlayerDeathService } from "./PlayerDeathService";

@@ -7,16 +7,9 @@ import { ProjectileParams } from "../data/ProjectileParamsProvider";
 import { SpellDataEntry } from "../spells/SpellDataProvider";
 import { NpcState } from "../npc";
 import { PlayerState } from "../player";
+import type { ServerServices } from "../ServerServices";
 
 const NPC_STREAM_EXIT_RADIUS_TILES = 17;
-
-export interface ProjectileSystemServices {
-    getCurrentTick: () => number;
-    getTickMs: () => number;
-    getActiveFrameTick: () => number | undefined;
-    forEachPlayer: (callback: (player: PlayerState) => void) => void;
-    log?: (level: "info" | "warn" | "error", message: string) => void;
-}
 
 export interface RangedProjectileParams {
     player: PlayerState;
@@ -52,11 +45,8 @@ export interface SpellProjectileParams {
 export class ProjectileSystem {
     private pendingProjectilePackets: Map<number, ProjectileLaunch[]> = new Map();
     private activeFrameProjectilePackets?: Map<number, ProjectileLaunch[]>;
-    private services: ProjectileSystemServices;
 
-    constructor(services: ProjectileSystemServices) {
-        this.services = services;
-    }
+    constructor(private readonly svc: ServerServices) {}
 
     /**
      * Get pending projectile packets for a specific player.
@@ -217,15 +207,15 @@ export class ProjectileSystem {
      * Queue a projectile launch for all players within viewing range.
      */
     queueProjectileForViewers(launch: ProjectileLaunch): void {
-        const activeFrameTick = this.services.getActiveFrameTick();
-        const currentTick = this.services.getCurrentTick();
+        const activeFrameTick = this.svc.activeFrame?.tick;
+        const currentTick = this.svc.ticker.currentTick();
 
         const container =
             activeFrameTick !== undefined && activeFrameTick === currentTick
                 ? (this.activeFrameProjectilePackets ??= new Map())
                 : this.pendingProjectilePackets;
 
-        this.services.forEachPlayer((p) => {
+        this.svc.players?.forEach((_sock, p) => {
             if (p.level !== launch.source.plane && p.level !== launch.target.plane) {
                 return;
             }
@@ -258,7 +248,7 @@ export class ProjectileSystem {
     }
 
     private getFramesPerTick(): number {
-        return Math.max(1, Math.round(this.services.getTickMs() / 20));
+        return Math.max(1, Math.round(this.svc.tickMs / 20));
     }
 
     private buildCycleOffsets(

@@ -1,38 +1,26 @@
-import type { WebSocket } from "ws";
-
 import { encodeMessage } from "../../network/messages";
-import type { PlayerNetworkLayer } from "../../network/PlayerNetworkLayer";
-import type { BroadcastScheduler } from "../systems/BroadcastScheduler";
-import type { TickFrame } from "../tick/TickPhaseOrchestrator";
-
-export interface VariableServiceDeps {
-    getActiveFrame: () => TickFrame | undefined;
-    getSocketByPlayerId: (id: number) => WebSocket | undefined;
-    broadcastScheduler: BroadcastScheduler;
-    networkLayer: PlayerNetworkLayer;
-}
+import type { ServerServices } from "../ServerServices";
 
 /**
  * Manages varp/varbit queuing for the broadcast phase.
- * Extracted from WSServer.
  */
 export class VariableService {
-    constructor(private readonly deps: VariableServiceDeps) {}
+    constructor(private readonly services: ServerServices) {}
 
     queueVarp(playerId: number, varpId: number, value: number): void {
         const event = { playerId, varpId, value };
 
-        const frame = this.deps.getActiveFrame();
+        const frame = this.services.activeFrame;
         if (frame) {
             frame.varps ??= [];
             frame.varps.push(event);
             return;
         }
 
-        const ws = this.deps.getSocketByPlayerId(event.playerId);
+        const ws = this.services.players?.getSocketByPlayerId(event.playerId);
         if (ws) {
-            this.deps.networkLayer.withDirectSendBypass("varp", () =>
-                this.deps.networkLayer.sendWithGuard(
+            this.services.networkLayer.withDirectSendBypass("varp", () =>
+                this.services.networkLayer.sendWithGuard(
                     ws,
                     encodeMessage({
                         type: "varp",
@@ -44,23 +32,23 @@ export class VariableService {
             return;
         }
 
-        this.deps.broadcastScheduler.queueVarp(event.playerId, event.varpId, event.value);
+        this.services.broadcastScheduler.queueVarp(event.playerId, event.varpId, event.value);
     }
 
     queueVarbit(playerId: number, varbitId: number, value: number): void {
         const event = { playerId, varbitId, value };
 
-        const frame = this.deps.getActiveFrame();
+        const frame = this.services.activeFrame;
         if (frame) {
             frame.varbits ??= [];
             frame.varbits.push(event);
             return;
         }
 
-        const ws = this.deps.getSocketByPlayerId(event.playerId);
+        const ws = this.services.players?.getSocketByPlayerId(event.playerId);
         if (ws) {
-            this.deps.networkLayer.withDirectSendBypass("varbit", () =>
-                this.deps.networkLayer.sendWithGuard(
+            this.services.networkLayer.withDirectSendBypass("varbit", () =>
+                this.services.networkLayer.sendWithGuard(
                     ws,
                     encodeMessage({
                         type: "varbit",
@@ -72,6 +60,6 @@ export class VariableService {
             return;
         }
 
-        this.deps.broadcastScheduler.queueVarbit(event.playerId, event.varbitId, event.value);
+        this.services.broadcastScheduler.queueVarbit(event.playerId, event.varbitId, event.value);
     }
 }

@@ -9,13 +9,17 @@
  * - executeInventoryMoveAction (move items in inventory)
  * - executeInventoryUnequipAction (unequip items)
  *
- * Uses dependency injection via services interface to avoid tight coupling.
+ * Uses ServerServices for dependency injection.
  */
 import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../../../src/shared/input/modifierFlags";
 import { logger } from "../../../utils/logger";
+import { RectAdjacentRouteStrategy } from "../../../pathfinding/legacy/pathfinder/RouteStrategy";
+import type { RouteStrategy } from "../../../pathfinding/legacy/pathfinder/RouteStrategy";
+import { pickEquipSound, unequipItemApply } from "../../equipment";
+import type { ServerServices } from "../../ServerServices";
 import type { NpcState } from "../../npc";
 import type { InventoryAddResult, PlayerState } from "../../player";
 import type {
@@ -91,11 +95,6 @@ export interface ObjTypeInfo {
     options?: string[];
 }
 
-/** Route strategy interface. */
-export interface RouteStrategy {
-    hasArrived(x: number, y: number, level: number): boolean;
-}
-
 /** Path result. */
 export interface PathResult {
     ok: boolean;
@@ -117,114 +116,6 @@ function pathResultSatisfiesStrategy(
             ? result.end ?? result.steps[result.steps.length - 1]!
             : { x: from.x, y: from.y };
     return strategy.hasArrived(selectedEnd.x, selectedEnd.y, from.plane);
-}
-
-// ============================================================================
-// Services Interface
-// ============================================================================
-
-/**
- * Services interface for inventory action handling.
- */
-export interface InventoryActionServices {
-    // --- Core ---
-    getCurrentTick(): number;
-
-    // --- Entity Access ---
-    getNpc(id: number): NpcState | undefined;
-    getPlayer(id: number): PlayerState | undefined;
-
-    // --- Inventory Operations ---
-    getInventory(player: PlayerState): InventoryEntry[];
-    addItemToInventory(player: PlayerState, itemId: number, quantity: number): InventoryAddResult;
-    consumeItem(player: PlayerState, slot: number): boolean;
-    countInventoryItem(player: PlayerState, itemId: number): number;
-    markInventoryDirty(player: PlayerState): void;
-
-    // --- Equipment ---
-    resolveEquipSlot(itemId: number): number | undefined;
-    equipItem(
-        player: PlayerState,
-        slotIndex: number,
-        itemId: number,
-        equipSlot: number,
-        options?: { playSound?: boolean },
-    ): EquipResult;
-    unequipItem(player: PlayerState, equipSlot: number): UnequipResult;
-    ensureEquipArray(player: PlayerState): number[];
-    refreshCombatWeaponCategory(player: PlayerState): {
-        categoryChanged: boolean;
-        weaponItemChanged: boolean;
-    };
-    refreshAppearanceKits(player: PlayerState): void;
-    resetAutocast(player: PlayerState): void;
-    pickEquipSound(slot: number, itemName: string): number;
-
-    // --- Object Types ---
-    getObjType(itemId: number): ObjTypeInfo | undefined;
-    isConsumable(obj: ObjTypeInfo | undefined, option: string): boolean;
-
-    // --- Pathfinding ---
-    createRectAdjacentStrategy(x: number, y: number, sizeX: number, sizeY: number): RouteStrategy;
-    findPathSteps(
-        from: { x: number; y: number; plane: number },
-        to: { x: number; y: number },
-        size: number,
-        strategy: RouteStrategy,
-    ): PathResult;
-
-    // --- Action Scheduling ---
-    scheduleAction<K extends InventoryScheduledActionKind>(
-        playerId: number,
-        request: ActionScheduleRequest<K>,
-        tick: number,
-    ): ActionScheduleResult;
-
-    // --- Effects ---
-    queueChatMessage(request: {
-        messageType: string;
-        text: string;
-        targetPlayerIds: number[];
-    }): void;
-    buildSkillFailure(player: PlayerState, message: string, reason: string): ActionExecutionResult;
-    playLocSound(request: { soundId: number; tile: Vec2; level: number }): void;
-
-
-    // --- Script Runtime ---
-    queueLocInteraction(request: {
-        tick: number;
-        player: PlayerState;
-        locId: number;
-        tile: Vec2;
-        level: number;
-        action: string;
-    }): boolean;
-    queueItemOnLoc(request: {
-        tick: number;
-        player: PlayerState;
-        source: { slot: number; itemId: number };
-        target: { locId: number; tile: Vec2; level: number };
-        option?: string;
-    }): boolean;
-    queueItemOnItem(request: {
-        tick: number;
-        player: PlayerState;
-        source: { slot: number; itemId: number };
-        target: { slot: number; itemId: number };
-        option?: string;
-    }): boolean;
-
-    // --- Scripted Consume ---
-    executeScriptedConsume(
-        player: PlayerState,
-        itemId: number,
-        slotIndex: number,
-        option?: string,
-        tick?: number,
-    ): { handled: boolean; effects?: ActionEffect[] };
-
-    // --- Logging ---
-    log(level: "info" | "warn" | "error", message: string, data?: unknown): void;
 }
 
 // ============================================================================
@@ -250,7 +141,7 @@ function isEquipInventoryFullReason(reason: string | undefined): boolean {
  * Handles inventory action execution.
  */
 export class InventoryActionHandler {
-    constructor(private readonly services: InventoryActionServices) {}
+    constructor(private readonly svc: ServerServices) {}
 
     // ========================================================================
     // Public Methods
@@ -268,7 +159,7 @@ export class InventoryActionHandler {
             const slot = data.slot;
             const itemId = data.itemId;
             const target = data.target;
-            const inv = this.services.getInventory(player);
+            const inv = this.svc.inventoryService.getInventory(player);
             const entry = inv[slot];
             if (!entry || entry.itemId !== itemId || entry.quantity <= 0) {
                 return { ok: false, reason: "item_mismatch" };
@@ -286,7 +177,7 @@ export class InventoryActionHandler {
                 return handledItemOnItem;
             }
             if (target?.kind === "inv") {
-                this.services.queueChatMessage({
+                this.svc.messagingService.queueChatMessage({
                     messageType: "game",
                     text: "Nothing interesting happens.",
                     targetPlayerIds: [player.id],
@@ -300,7 +191,7 @@ export class InventoryActionHandler {
             let sizeX = 1;
             let sizeY = 1;
             if (target?.kind === "npc" && target.id !== undefined) {
-                const npc = this.services.getNpc(target.id);
+                const npc = this.svc.npcManager?.getById(target.id);
                 if (npc) {
                     targetX = npc.tileX;
                     targetY = npc.tileY;
@@ -308,7 +199,7 @@ export class InventoryActionHandler {
                     sizeY = Math.max(1, npc.size);
                 }
             } else if (target?.kind === "player" && target.id !== undefined) {
-                const other = this.services.getPlayer(target.id);
+                const other = this.svc.players?.getById(target.id);
                 if (other) {
                     targetX = other.tileX;
                     targetY = other.tileY;
@@ -321,7 +212,7 @@ export class InventoryActionHandler {
             }
 
             // Check arrival using adjacent rectangle strategy
-            const strategy = this.services.createRectAdjacentStrategy(
+            const strategy = new RectAdjacentRouteStrategy(
                 targetX,
                 targetY,
                 sizeX,
@@ -338,28 +229,31 @@ export class InventoryActionHandler {
                         y: player.tileY,
                         plane: player.level,
                     };
-                    const res = this.services.findPathSteps(
-                        from,
-                        { x: targetX, y: targetY },
-                        1,
-                        strategy,
+                    const pathService = this.svc.pathService;
+                    if (!pathService) {
+                        return { ok: false, reason: "no_path" };
+                    }
+                    const res = pathService.findPathSteps(
+                        { from, to: { x: targetX, y: targetY }, size: 1 },
+                        { maxSteps: 128, routeStrategy: strategy },
                     );
+                    const pathResult: PathResult = { ok: res.ok, steps: res.steps, end: res.end };
                     if (
-                        pathResultSatisfiesStrategy(from, res, strategy) &&
-                        Array.isArray(res.steps) &&
-                        res.steps.length > 0
+                        pathResultSatisfiesStrategy(from, pathResult, strategy) &&
+                        Array.isArray(pathResult.steps) &&
+                        pathResult.steps.length > 0
                     ) {
                         const run = player.energy.resolveRequestedRun(
                             resolveRunWithModifier(player.energy.wantsToRun(), data?.modifierFlags),
                         );
-                        player.setPath(res.steps, run);
+                        player.setPath(pathResult.steps, run);
                     } else {
                         return { ok: false, reason: "no_path" };
                     }
                 }
                 // Re-enqueue this action for the next tick until arrival
                 try {
-                    this.services.scheduleAction(
+                    this.svc.actionScheduler.requestAction(
                         player.id,
                         {
                             kind: "inventory.use_on",
@@ -392,7 +286,7 @@ export class InventoryActionHandler {
             }
 
             // Arrived: perform item-on-target effect (placeholder)
-            this.services.queueChatMessage({
+            this.svc.messagingService.queueChatMessage({
                 messageType: "game",
                 text: "Nothing interesting happens.",
                 targetPlayerIds: [player.id],
@@ -416,11 +310,11 @@ export class InventoryActionHandler {
         let equipSlot =
             data.equipSlot !== undefined
                 ? Math.max(0, Math.min(EQUIP_SLOT_COUNT - 1, data.equipSlot))
-                : this.services.resolveEquipSlot(desiredItemId);
+                : this.svc.equipmentService.resolveEquipSlot(desiredItemId);
         if (equipSlot === undefined) {
             return { ok: false, reason: "item_not_equippable" };
         }
-        const inv = this.services.getInventory(player);
+        const inv = this.svc.inventoryService.getInventory(player);
         let slotEntry = inv[slotIndex];
         if (!slotEntry || slotEntry.quantity <= 0 || slotEntry.itemId !== desiredItemId) {
             const foundIdx = inv.findIndex(
@@ -434,7 +328,7 @@ export class InventoryActionHandler {
         if (!slotEntry || slotEntry.quantity <= 0 || slotEntry.itemId !== desiredItemId) {
             return { ok: false, reason: "item_missing" };
         }
-        const equipResult = this.services.equipItem(
+        const equipResult = this.svc.equipmentService.equipItem(
             player,
             slotIndex,
             slotEntry.itemId,
@@ -443,7 +337,7 @@ export class InventoryActionHandler {
         );
         if (!equipResult.ok) {
             if (isEquipInventoryFullReason(equipResult.reason)) {
-                this.services.queueChatMessage({
+                this.svc.messagingService.queueChatMessage({
                     messageType: "game",
                     text: "You don't have enough inventory space.",
                     targetPlayerIds: [player.id],
@@ -482,16 +376,16 @@ export class InventoryActionHandler {
         const slotIndex = Math.max(0, Math.min(INVENTORY_SLOT_COUNT - 1, data.slotIndex));
         const expectedItemId = data.itemId;
         const optionLower = data.option?.toLowerCase() ?? "";
-        const inv = this.services.getInventory(player);
+        const inv = this.svc.inventoryService.getInventory(player);
         const slotEntry = inv[slotIndex];
         if (!slotEntry || slotEntry.quantity <= 0 || slotEntry.itemId !== expectedItemId) {
             return { ok: false, reason: "item_missing" };
         }
-        const obj = this.services.getObjType(slotEntry.itemId);
-        if (!this.services.isConsumable(obj, optionLower)) {
+        const obj = this.svc.dataLoaderService.getObjType(slotEntry.itemId);
+        if (!this.svc.inventoryMessageService!.isConsumable(obj as { inventoryActions?: Array<string | null | undefined> } | undefined, optionLower)) {
             return { ok: false, reason: "item_not_consumable" };
         }
-        const consumed = this.services.consumeItem(player, slotIndex);
+        const consumed = this.svc.inventoryService.consumeItem(player, slotIndex);
         if (!consumed) {
             return { ok: false, reason: "consume_failed" };
         }
@@ -513,31 +407,32 @@ export class InventoryActionHandler {
         const slotIndex = Math.max(0, Math.min(INVENTORY_SLOT_COUNT - 1, data.slotIndex));
         const expectedItemId = data.itemId;
         const option = data.option;
-        const inv = this.services.getInventory(player);
+        const inv = this.svc.inventoryService.getInventory(player);
         const slotEntry = inv[slotIndex];
         if (!slotEntry || slotEntry.quantity <= 0 || slotEntry.itemId !== expectedItemId) {
             return { ok: false, reason: "item_missing" };
         }
         const consumedItemId = slotEntry.itemId;
 
-        const result = this.services.executeScriptedConsume(
-            player,
-            consumedItemId,
-            slotIndex,
-            option,
-            tick,
-        );
-
-        if (result.handled) {
+        const handler = this.svc.scriptRegistry.findItemAction(consumedItemId, option);
+        if (handler) {
+            handler({
+                player,
+                source: { slot: slotIndex, itemId: consumedItemId },
+                target: { slot: -1, itemId: -1 },
+                option,
+                tick: tick ?? 0,
+                services: this.svc.scriptRuntime.getServices(),
+            });
             return {
                 ok: true,
                 cooldownTicks: 3,
-                effects: result.effects ?? [{ type: "inventorySnapshot", playerId: player.id }],
+                effects: [{ type: "inventorySnapshot", playerId: player.id }],
             };
         }
 
         // Fallback to regular consume
-        const consumed = this.services.consumeItem(player, slotIndex);
+        const consumed = this.svc.inventoryService.consumeItem(player, slotIndex);
         if (!consumed) {
             return { ok: false, reason: "consume_failed" };
         }
@@ -560,7 +455,7 @@ export class InventoryActionHandler {
         if (from === to) {
             return { ok: false, reason: "inventory_move_same_slot" };
         }
-        const inv = this.services.getInventory(player);
+        const inv = this.svc.inventoryService.getInventory(player);
         const src = inv[from];
         const dst = inv[to];
         if (!src || src.itemId <= 0 || src.quantity <= 0) {
@@ -572,7 +467,7 @@ export class InventoryActionHandler {
             quantity: dst ? dst.quantity : 0,
         };
         inv[to] = { itemId: src.itemId, quantity: src.quantity };
-        this.services.markInventoryDirty(player);
+        player.markInventoryDirty();
 
         return {
             ok: true,
@@ -597,20 +492,29 @@ export class InventoryActionHandler {
         const playSound = !!data.playSound;
 
         // Capture item info before unequip for sound
-        const equip = this.services.ensureEquipArray(player);
+        const equip = this.svc.equipmentService.ensureEquipArray(player);
         const itemId = equip[slotIndex];
 
-        const res = this.services.unequipItem(player, slotIndex);
+        // Unequipping closes interruptible interfaces (modals, dialogs)
+        this.svc.interfaceManager.closeInterruptibleInterfaces(player);
+
+        const appearance = this.svc.appearanceService.getOrCreateAppearance(player);
+        const res = unequipItemApply({
+            appearance,
+            equipSlot: slotIndex,
+            addItemToInventory: (id, qty) => this.svc.inventoryService.addItemToInventory(player, id, qty),
+            slotCount: EQUIP_SLOT_COUNT,
+        });
         if (!res.ok) {
             return { ok: false, reason: res.reason ?? "unequip_failed" };
         }
 
         // Play unequip sound
         if (playSound && itemId > 0) {
-            const itemDef = this.services.getObjType(itemId);
+            const itemDef = this.svc.dataLoaderService.getObjType(itemId);
             const itemName = (itemDef?.name as string) || "";
-            const unequipSoundId = this.services.pickEquipSound(slotIndex, itemName);
-            this.services.playLocSound({
+            const unequipSoundId = pickEquipSound(slotIndex, itemName);
+            this.svc.soundService.playLocSound({
                 soundId: unequipSoundId,
                 tile: { x: player.tileX, y: player.tileY },
                 level: player.level,
@@ -618,12 +522,12 @@ export class InventoryActionHandler {
         }
 
         const { categoryChanged, weaponItemChanged } =
-            this.services.refreshCombatWeaponCategory(player);
-        this.services.refreshAppearanceKits(player);
+            this.svc.equipmentService.refreshCombatWeaponCategory(player);
+        this.svc.appearanceService.refreshAppearanceKits(player);
 
         // Reset autocast when weapon is unequipped
         if (weaponItemChanged && player.combat.autocastEnabled) {
-            this.services.resetAutocast(player);
+            this.svc.equipmentService.resetAutocast(player);
         }
 
         // Mark dirty flags
@@ -662,7 +566,7 @@ export class InventoryActionHandler {
             return undefined;
         }
 
-        const handled = this.services.queueItemOnLoc({
+        const handled = this.svc.scriptRuntime.queueItemOnLoc({
             tick,
             player,
             source: { slot, itemId },
@@ -697,7 +601,7 @@ export class InventoryActionHandler {
             return { ok: false, reason: "target_item_mismatch" };
         }
 
-        const handled = this.services.queueItemOnItem({
+        const handled = this.svc.scriptRuntime.queueItemOnItem({
             tick,
             player,
             source: { slot, itemId },

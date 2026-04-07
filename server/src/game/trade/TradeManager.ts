@@ -1,6 +1,8 @@
 import { logger } from "../../utils/logger";
 import { TradeActionClientPayload, TradeServerPayload } from "../../network/messages";
-import { type InventoryAddResult, type InventoryEntry, PlayerState } from "../player";
+import { getItemDefinition } from "../../data/items";
+import { type InventoryEntry, PlayerState } from "../player";
+import type { ServerServices } from "../ServerServices";
 
 type TradeOfferState = {
     itemId: number;
@@ -26,23 +28,6 @@ type TradeRequestState = {
     expireTick: number;
 };
 
-type TradeManagerOptions = {
-    getPlayerById: (id: number) => PlayerState | undefined;
-    queueTradeMessage: (playerId: number, payload: TradeServerPayload) => void;
-    queueInventorySnapshot: (player: PlayerState) => void;
-    sendGameMessage: (player: PlayerState, text: string) => void;
-    openTradeWidget: (player: PlayerState) => void;
-    closeTradeWidget: (player: PlayerState) => void;
-    getInventory: (player: PlayerState) => InventoryEntry[];
-    setInventorySlot: (player: PlayerState, slot: number, itemId: number, quantity: number) => void;
-    addItemToInventory: (
-        player: PlayerState,
-        itemId: number,
-        quantity: number,
-    ) => InventoryAddResult;
-    getItemDefinition: (itemId: number) => { tradeable: boolean; stackable: boolean } | undefined;
-};
-
 const REQUEST_TIMEOUT_TICKS = 64; // ~38.4 seconds at 600ms ticks
 
 export class TradeManager {
@@ -51,16 +36,29 @@ export class TradeManager {
     private readonly sessionByPlayer = new Map<number, TradeSession>();
     private sessionCounter = 1;
 
-    constructor(private readonly options: TradeManagerOptions) {}
+    constructor(private readonly svc: ServerServices) {}
+
+    private queueInventorySnapshot(player: PlayerState): void {
+        const sock = this.svc.players?.getSocketByPlayerId(player.id);
+        if (sock) this.svc.inventoryService.sendInventorySnapshot(sock, player);
+    }
+
+    private openTradeWidget(player: PlayerState): void {
+        player.widgets.open(335, { modal: true });
+    }
+
+    private closeTradeWidget(player: PlayerState): void {
+        player.widgets.close(335);
+    }
 
     requestTrade(initiator: PlayerState, target: PlayerState, currentTick: number): void {
         if (initiator.id === target.id) return;
         if (this.sessionByPlayer.has(initiator.id)) {
-            this.options.sendGameMessage(initiator, "You are already in a trade.");
+            this.svc.messagingService.sendGameMessageToPlayer(initiator, "You are already in a trade.");
             return;
         }
         if (this.sessionByPlayer.has(target.id)) {
-            this.options.sendGameMessage(initiator, "That player is currently busy.");
+            this.svc.messagingService.sendGameMessageToPlayer(initiator, "That player is currently busy.");
             return;
         }
         const reverseKey = this.buildRequestKey(target.id, initiator.id);
@@ -78,9 +76,9 @@ export class TradeManager {
             expireTick: currentTick + REQUEST_TIMEOUT_TICKS,
         });
         const name = this.resolveName(initiator);
-        this.options.sendGameMessage(initiator, "Sending trade offer...");
-        this.options.sendGameMessage(target, `${name} wishes to trade with you.`);
-        this.options.queueTradeMessage(target.id, {
+        this.svc.messagingService.sendGameMessageToPlayer(initiator, "Sending trade offer...");
+        this.svc.messagingService.sendGameMessageToPlayer(target, `${name} wishes to trade with you.`);
+        this.svc.broadcastService.queueTradeMessage(target.id, {
             kind: "request",
             fromId: initiator.id,
             fromName: name,
@@ -97,7 +95,7 @@ export class TradeManager {
         const other = this.getCounterparty(session, player.id);
         this.closeSession(session, reason, player.id);
         if (other) {
-            this.options.sendGameMessage(other.player, reason);
+            this.svc.messagingService.sendGameMessageToPlayer(other.player, reason);
         }
     }
 
@@ -105,9 +103,9 @@ export class TradeManager {
         for (const [key, req] of Array.from(this.requests.entries())) {
             if (req.expireTick <= currentTick) {
                 this.requests.delete(key);
-                const fromPlayer = this.options.getPlayerById(req.fromId);
+                const fromPlayer = this.svc.players?.getById(req.fromId);
                 if (fromPlayer) {
-                    this.options.sendGameMessage(fromPlayer, "Your trade offer has expired.");
+                    this.svc.messagingService.sendGameMessageToPlayer(fromPlayer, "Your trade offer has expired.");
                 }
             }
         }
@@ -116,7 +114,7 @@ export class TradeManager {
     handleAction(player: PlayerState, action: TradeActionClientPayload, currentTick: number): void {
         const session = this.sessionByPlayer.get(player.id);
         if (!session) {
-            this.options.sendGameMessage(player, "You're not currently trading.");
+            this.svc.messagingService.sendGameMessageToPlayer(player, "You're not currently trading.");
             return;
         }
         switch (action.action) {
@@ -169,8 +167,8 @@ export class TradeManager {
         this.sessionByPlayer.set(a.id, session);
         this.sessionByPlayer.set(b.id, session);
         try {
-            this.options.openTradeWidget(a);
-            this.options.openTradeWidget(b);
+            this.openTradeWidget(a);
+            this.openTradeWidget(b);
         } catch (err) { logger.warn("[trade] failed to open trade widget", err); }
         this.broadcastSession(session, "open");
     }
@@ -180,10 +178,10 @@ export class TradeManager {
         this.returnOffers(session.parties[1]);
         for (const party of session.parties) {
             try {
-                this.options.closeTradeWidget(party.player);
+                this.closeTradeWidget(party.player);
             } catch (err) { logger.warn("[trade] failed to close trade widget", err); }
-            this.options.queueInventorySnapshot(party.player);
-            this.options.queueTradeMessage(party.player.id, {
+            this.queueInventorySnapshot(party.player);
+            this.svc.broadcastService.queueTradeMessage(party.player.id, {
                 kind: "close",
                 reason,
             });
@@ -215,10 +213,10 @@ export class TradeManager {
     }
 
     private ensureTradeable(player: PlayerState, itemId: number): boolean {
-        const def = this.options.getItemDefinition(itemId);
+        const def = getItemDefinition(itemId);
         if (!def) return true;
         if (def.tradeable) return true;
-        this.options.sendGameMessage(player, "That item isn't tradeable.");
+        this.svc.messagingService.sendGameMessageToPlayer(player, "That item isn't tradeable.");
         return false;
     }
 
@@ -237,30 +235,30 @@ export class TradeManager {
             const other = this.getCounterparty(session, player.id);
             if (other) other.confirmAccepted = false;
         }
-        const inventory = this.options.getInventory(player);
+        const inventory = this.svc.inventoryService.getInventory(player);
         const slot = Math.max(0, Math.min(inventory.length - 1, slotIndex));
         const entry = inventory[slot];
         if (!entry || entry.itemId <= 0 || entry.quantity <= 0) {
-            this.options.sendGameMessage(player, "That item is no longer in your inventory.");
+            this.svc.messagingService.sendGameMessageToPlayer(player, "That item is no longer in your inventory.");
             return;
         }
         if (itemIdHint && itemIdHint !== entry.itemId) {
-            this.options.sendGameMessage(player, "That item is no longer in your inventory.");
+            this.svc.messagingService.sendGameMessageToPlayer(player, "That item is no longer in your inventory.");
             return;
         }
         if (!this.ensureTradeable(player, entry.itemId)) return;
-        const def = this.options.getItemDefinition(entry.itemId);
+        const def = getItemDefinition(entry.itemId);
         const isStackable = !!def?.stackable;
         const desired = Math.max(1, requestedQty);
         const amount = isStackable ? Math.min(entry.quantity, desired) : 1;
         if (!(amount > 0)) {
-            this.options.sendGameMessage(player, "You don't have enough of that item.");
+            this.svc.messagingService.sendGameMessageToPlayer(player, "You don't have enough of that item.");
             return;
         }
         this.removeFromInventorySlot(player, slot, entry, amount);
         this.addOffer(party, entry.itemId, amount);
         this.resetAcceptances(session);
-        this.options.queueInventorySnapshot(player);
+        this.queueInventorySnapshot(player);
         this.broadcastSession(session);
     }
 
@@ -279,14 +277,14 @@ export class TradeManager {
         const amount = Math.max(1, Math.min(offer.quantity, quantity));
         if (!(amount > 0)) return;
         if (!this.addItemsToInventory(party.player, offer.itemId, amount)) {
-            this.options.sendGameMessage(player, "You don't have enough space in your inventory.");
+            this.svc.messagingService.sendGameMessageToPlayer(player, "You don't have enough space in your inventory.");
             return;
         }
         offer.quantity -= amount;
         if (offer.quantity <= 0) {
             party.offers.splice(idx, 1);
         }
-        this.options.queueInventorySnapshot(player);
+        this.queueInventorySnapshot(player);
         if (session.stage === "confirm") {
             session.stage = "offer";
             party.confirmAccepted = false;
@@ -337,15 +335,15 @@ export class TradeManager {
             this.broadcastSession(session);
             return;
         }
-        this.options.queueInventorySnapshot(a.player);
-        this.options.queueInventorySnapshot(b.player);
+        this.queueInventorySnapshot(a.player);
+        this.queueInventorySnapshot(b.player);
         this.closeSession(session, "Trade completed.");
     }
 
     private transferOffers(from: TradePartyState, to: TradePartyState): boolean {
         if (!this.canReceiveItems(to.player, from.offers)) {
-            this.options.sendGameMessage(from.player, "Other player doesn't have enough space.");
-            this.options.sendGameMessage(
+            this.svc.messagingService.sendGameMessageToPlayer(from.player, "Other player doesn't have enough space.");
+            this.svc.messagingService.sendGameMessageToPlayer(
                 to.player,
                 "You don't have enough space in your inventory.",
             );
@@ -353,11 +351,11 @@ export class TradeManager {
         }
         for (const offer of from.offers) {
             if (!this.addItemsToInventory(to.player, offer.itemId, offer.quantity)) {
-                this.options.sendGameMessage(
+                this.svc.messagingService.sendGameMessageToPlayer(
                     from.player,
                     "Other player doesn't have enough space.",
                 );
-                this.options.sendGameMessage(
+                this.svc.messagingService.sendGameMessageToPlayer(
                     to.player,
                     "You don't have enough space in your inventory.",
                 );
@@ -376,9 +374,9 @@ export class TradeManager {
     ): void {
         const remaining = entry.quantity - amount;
         if (remaining > 0) {
-            this.options.setInventorySlot(player, slot, entry.itemId, remaining);
+            this.svc.inventoryService.setInventorySlot(player, slot, entry.itemId, remaining);
         } else {
-            this.options.setInventorySlot(player, slot, -1, 0);
+            this.svc.inventoryService.setInventorySlot(player, slot, -1, 0);
         }
     }
 
@@ -389,13 +387,13 @@ export class TradeManager {
     }
 
     private addItemsToInventory(player: PlayerState, itemId: number, quantity: number): boolean {
-        const def = this.options.getItemDefinition(itemId);
+        const def = getItemDefinition(itemId);
         const isStackable = !!def?.stackable;
         if (isStackable) {
-            return this.options.addItemToInventory(player, itemId, quantity).added > 0;
+            return this.svc.inventoryService.addItemToInventory(player, itemId, quantity).added > 0;
         }
         for (let i = 0; i < quantity; i++) {
-            const result = this.options.addItemToInventory(player, itemId, 1);
+            const result = this.svc.inventoryService.addItemToInventory(player, itemId, 1);
             if (result.added <= 0) {
                 return false;
             }
@@ -409,7 +407,7 @@ export class TradeManager {
             if (offer.quantity <= 0) continue;
             if (!this.addItemsToInventory(party.player, offer.itemId, offer.quantity)) {
                 // As a fallback, drop the items on the ground? For now, just log and discard.
-                this.options.sendGameMessage(
+                this.svc.messagingService.sendGameMessageToPlayer(
                     party.player,
                     "Could not return some traded items due to lack of space.",
                 );
@@ -426,7 +424,7 @@ export class TradeManager {
         const findFreeSlot = () => clone.find((slot) => slot.itemId <= 0 || slot.quantity <= 0);
         for (const offer of offers) {
             if (offer.quantity <= 0) continue;
-            const def = this.options.getItemDefinition(offer.itemId);
+            const def = getItemDefinition(offer.itemId);
             const stackable = !!def?.stackable;
             if (stackable) {
                 const existing = clone.find((slot) => slot.itemId === offer.itemId);
@@ -468,7 +466,7 @@ export class TradeManager {
                 other: other ? this.buildPartyMessage(other) : { playerId: undefined, offers: [] },
                 info: this.buildInfoMessage(session, party, other ?? null),
             };
-            this.options.queueTradeMessage(party.player.id, payload);
+            this.svc.broadcastService.queueTradeMessage(party.player.id, payload);
         }
     }
 
