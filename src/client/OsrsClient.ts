@@ -28,7 +28,6 @@ import {
     subscribeDisconnect,
     subscribeGroundItems,
     subscribeHandshake,
-    subscribeHitsplats,
     subscribeInventory,
     subscribeNotifications,
     subscribeNpcInfo,
@@ -901,7 +900,6 @@ export class OsrsClient {
     }
 
     private unsubscribeWidgetEvents?: () => void;
-    private unsubscribeHitsplats?: () => void;
     private unsubscribeNpcInfo?: () => void;
     private unsubscribeCombat?: () => void;
     private unsubscribePlayerSync?: () => void;
@@ -2663,19 +2661,6 @@ export class OsrsClient {
                     }
                 }
             }
-        });
-        this.unsubscribeHitsplats = subscribeHitsplats((event) => {
-            try {
-                // Log each hitsplat so developers can trace combat events easily.
-                console.log(
-                    `[hitsplat] ${event.targetType} ${event.targetId} damage=${
-                        event.damage
-                    } serverTick=${event.tick} clientTick=${getCurrentTick()}`,
-                    event,
-                );
-            } catch {}
-            if (this.renderer) this.renderer.registerHitsplat(event);
-            else this.pendingHitsplats.push(event);
         });
         this.unsubscribeNpcInfo = subscribeNpcInfo((payload: NpcInfoPayload) => {
             try {

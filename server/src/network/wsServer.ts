@@ -28,6 +28,7 @@ import { CombatEffectService } from "../game/services/CombatEffectService";
 import { LevelUpDisplayService } from "../game/services/LevelUpDisplayService";
 import { EquipmentStatsUiService } from "../game/services/EquipmentStatsUiService";
 import { ActionDispatchService } from "../game/services/ActionDispatchService";
+import { InventoryMessageService } from "../game/services/InventoryMessageService";
 import { AuthenticationService } from "./AuthenticationService";
 import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 
@@ -323,6 +324,7 @@ export class WSServer {
     private combatActionHandler?: CombatActionHandler;
     private playerGroundSerial = new Map<number, number>();
     private playerGroundChunk = new Map<number, number>();
+    private inventoryMessageService?: InventoryMessageService;
 
     /** Shared service context — populated incrementally, safe because services only read at tick time */
     readonly svc = {} as ServerServices;
@@ -348,15 +350,16 @@ export class WSServer {
         this.initGameSystems(opts);
         this.initServiceWiring(opts);
         this.initDeferredDeps(opts);
-        this.initGamemode(opts);
-        this.initPlayerAnimations();
-        this.initTestBots();
         this.broadcastService = new BroadcastService(this.svc);
         this.tickFrameService = new TickFrameService(this.svc, this.autosaveIntervalTicks);
         this.loginHandshakeService = new LoginHandshakeService(this.svc);
         this.tickPhaseService = new TickPhaseService(this.svc);
-        this.wss.on("connection", (ws) => this.loginHandshakeService.onConnection(ws));
         this.populateServiceContext();
+        this.messageRouter = this.createMessageRouter();
+        this.initGamemode(opts);
+        this.initPlayerAnimations();
+        this.initTestBots();
+        this.wss.on("connection", (ws) => this.loginHandshakeService.onConnection(ws));
         opts.ticker.on("tick", (data) => this.tickFrameService.handleTick(data));
     }
 
@@ -456,6 +459,7 @@ export class WSServer {
         s.tickPhaseService = this.tickPhaseService;
         s.tickFrameService = this.tickFrameService;
         s.actionDispatchService = this.actionDispatchService;
+        s.inventoryMessageService = this.inventoryMessageService;
         s.broadcastService = this.broadcastService;
         s.loginHandshakeService = this.loginHandshakeService;
         s.accountSummary = this.accountSummary;
@@ -541,7 +545,6 @@ export class WSServer {
             syncPostWidgetOpenState: () => {},
         });
         this.combatBroadcaster = new CombatBroadcaster({
-            enableBinaryNpcSync: false,
             forEachPlayer: (fn) => this.players?.forEach(fn),
             withDirectSendBypass: (ctx, fn) => this.networkLayer.withDirectSendBypass(ctx, fn),
         });
@@ -982,8 +985,6 @@ export class WSServer {
             // Phase 3 deferred deps wired in consolidated block below
             // Initialize TickPhaseOrchestrator
             this.tickOrchestrator = new TickPhaseOrchestrator(this.svc);
-            // Initialize MessageRouter
-            this.messageRouter = this.createMessageRouter();
             // Wire up broadcast domain callbacks that require players
             this.chatBroadcaster.setForEachPlayer((fn) => this.players?.forEach(fn));
             this.actorSyncBroadcaster.setForEachPlayer((fn) => this.players?.forEach(fn));
@@ -1071,6 +1072,15 @@ export class WSServer {
         // Wire deferred deps on the ScriptServiceAdapter deps object.
         // The adapter closures lazily read from this object, so mutations here
         // take effect before any script handler runs.
+        this.scriptAdapterDeps.variableService = this.variableService;
+        this.scriptAdapterDeps.messagingService = this.messagingService;
+        this.scriptAdapterDeps.skillService = this.skillService;
+        this.scriptAdapterDeps.inventoryService = this.inventoryService;
+        this.scriptAdapterDeps.equipmentService = this.equipmentService;
+        this.scriptAdapterDeps.appearanceService = this.appearanceService;
+        this.scriptAdapterDeps.locationService = this.locationService;
+        this.scriptAdapterDeps.collectionLogService = this.collectionLogService;
+        this.scriptAdapterDeps.soundService = this.soundService;
         this.scriptAdapterDeps.movementService = this.movementService;
         this.scriptAdapterDeps.widgetDialogHandler = this.widgetDialogHandler;
         this.scriptAdapterDeps.gatheringSystem = this.gatheringSystem;
@@ -1079,6 +1089,33 @@ export class WSServer {
         this.scriptAdapterDeps.followerCombatManager = this.followerCombatManager;
         this.scriptAdapterDeps.inventoryActionHandler = this.inventoryActionHandler;
         this.scriptAdapterDeps.effectDispatcher = this.effectDispatcher;
+
+        this.inventoryMessageService = new InventoryMessageService({
+            getPlayer: (ws) => this.players?.get(ws),
+            getInventory: (p) => this.inventoryService.getInventory(p),
+            setInventorySlot: (p, slot, itemId, qty) => this.inventoryService.setInventorySlot(p, slot, itemId, qty),
+            ensureEquipArray: (p) => this.equipmentService.ensureEquipArray(p),
+            resolveEquipSlot: (itemId) => this.equipmentService.resolveEquipSlot(itemId),
+            getObjType: (itemId) => this.dataLoaderService.getObjType(itemId),
+            requestAction: (playerId, request, tick) => this.actionScheduler.requestAction(playerId, request, tick),
+            queueItemAction: (request) => this.scriptRuntime.queueItemAction(request),
+            closeInterruptibleInterfaces: (p) => this.interfaceManager.closeInterruptibleInterfaces(p),
+            openDialog: (p, req) => this.widgetDialogHandler!.openDialog(p, req),
+            openDialogOptions: (p, req) => this.widgetDialogHandler!.openDialogOptions(p, req),
+            spawnGroundItem: (itemId, qty, tile, tick, opts, worldViewId) =>
+                this.groundItems.spawn(itemId, qty, tile, tick, opts, worldViewId ?? -1),
+            withDirectSendBypass: (ctx, fn) => this.networkLayer.withDirectSendBypass(ctx, fn),
+            sendSound: (p, soundId) => this.soundService.sendSound(p, soundId),
+            checkAndSendSnapshots: (p) => {
+                const sock = this.players?.getSocketByPlayerId(p.id);
+                if (sock) this.tickPhaseService.checkAndSendSnapshots(p, sock);
+            },
+            queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
+            getPendingWalkCommands: () => this.movementService.getPendingWalkCommands() as Map<import("ws").WebSocket, Record<string, unknown>>,
+            handleGroundItemActionDelegate: (ws, payload) => this.groundItemHandler?.handleGroundItemAction(ws, payload),
+            getCurrentTick: () => this.options.ticker.currentTick(),
+        });
+
         logger.info("[services] All services initialized");
         if (this.cacheEnv) {
             try {

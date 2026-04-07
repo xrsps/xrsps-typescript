@@ -440,40 +440,6 @@ export class ServerBinaryEncoder {
         return this.buffer.toPacket(ServerPacketId.RUN_ENERGY);
     }
 
-    encodeHitsplat(
-        targetType: "player" | "npc",
-        targetId: number,
-        damage: number,
-        style?: number,
-        type2?: number,
-        damage2?: number,
-        delayCycles?: number,
-    ): Uint8Array {
-        this.buffer.reset();
-        this.buffer.writeByte(targetType === "player" ? 0 : 1);
-        this.buffer.writeShort(targetId);
-        this.buffer.writeSmartByteShort(damage);
-        this.buffer.writeByte(style ?? 0);
-        const hasSecondary =
-            type2 !== undefined &&
-            Number.isFinite(type2) &&
-            damage2 !== undefined &&
-            Number.isFinite(damage2) &&
-            type2 >= 0 &&
-            damage2 >= 0;
-        this.buffer.writeBoolean(hasSecondary);
-        if (hasSecondary) {
-            this.buffer.writeSmartByteShort(type2!);
-            this.buffer.writeSmartByteShort(damage2!);
-        }
-        this.buffer.writeSmartByteShort(
-            delayCycles !== undefined && Number.isFinite(delayCycles)
-                ? Math.max(0, Math.min(32767, delayCycles))
-                : 0,
-        );
-        return this.buffer.toPacket(ServerPacketId.HITSPLAT);
-    }
-
     encodeSpotAnim(
         spotId: number,
         playerId?: number,

@@ -325,18 +325,6 @@ export type SpellResultPayload = {
     accuracy?: number;
 };
 
-export type HitsplatServerPayload = {
-    targetType: "player" | "npc";
-    targetId: number;
-    damage: number;
-    style?: number;
-    type2?: number;
-    damage2?: number;
-    /** Extra hitsplat delay in client cycles (20ms units). */
-    delayCycles?: number;
-    tick?: number;
-};
-
 export type SoundEffectPayload = {
     soundId: number;
     x?: number;
@@ -424,7 +412,6 @@ export type ServerToClient =
     | { type: "skills"; payload: SkillsServerPayload }
     | { type: "combat"; payload: CombatStatePayload }
     | { type: "run_energy"; payload: RunEnergyPayload }
-    | { type: "hitsplat"; payload: HitsplatServerPayload }
     | {
           type: "spot";
           payload: {
@@ -832,17 +819,6 @@ function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
 
         case "run_energy":
             return serverEncoder.encodeRunEnergy(payload.percent, !!payload.running);
-
-        case "hitsplat":
-            return serverEncoder.encodeHitsplat(
-                payload.targetType,
-                payload.targetId,
-                payload.damage,
-                payload.style,
-                payload.type2,
-                payload.damage2,
-                payload.delayCycles,
-            );
 
         case "spot":
             return serverEncoder.encodeSpotAnim(

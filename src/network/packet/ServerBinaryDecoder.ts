@@ -698,37 +698,6 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
                 },
             };
 
-        case ServerPacketId.HITSPLAT: {
-            const targetType = reader.readByte() === 0 ? "player" : "npc";
-            const targetId = reader.readShort();
-            const damage = reader.readSmartByteShort();
-            const style = reader.readByte();
-            let type2: number | undefined;
-            let damage2: number | undefined;
-            let delayCycles = 0;
-            if (reader.remaining > 0) {
-                const hasSecondary = reader.readBoolean();
-                if (hasSecondary) {
-                    type2 = reader.readSmartByteShort();
-                    damage2 = reader.readSmartByteShort();
-                }
-                if (reader.remaining > 0) {
-                    delayCycles = reader.readSmartByteShort();
-                }
-            }
-            return {
-                type: "hitsplat",
-                payload: {
-                    targetType,
-                    targetId,
-                    damage,
-                    style,
-                    type2,
-                    damage2,
-                    delayCycles,
-                },
-            };
-        }
 
         case ServerPacketId.SPOT_ANIM: {
             const spotId = reader.readShort();

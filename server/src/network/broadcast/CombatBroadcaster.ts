@@ -1,12 +1,10 @@
 import type { WebSocket } from "ws";
 
-import { resolveHitsplatTypeForObserver } from "../../game/combat/OsrsHitsplatIds";
 import type { TickFrame } from "../../game/tick/TickPhaseOrchestrator";
 import { encodeMessage } from "../messages";
 import type { BroadcastContext, BroadcastDomain } from "./BroadcastDomain";
 
 export interface CombatBroadcasterServices {
-    enableBinaryNpcSync: boolean;
     forEachPlayer(fn: (sock: WebSocket, player: { id: number }) => void): void;
     withDirectSendBypass<T>(context: string, fn: () => T): T;
 }
@@ -19,98 +17,8 @@ export class CombatBroadcaster implements BroadcastDomain {
     constructor(private readonly services: CombatBroadcasterServices) {}
 
     flush(frame: TickFrame, ctx: BroadcastContext): void {
-        this.flushHitsplats(frame, ctx);
-        this.flushNpcEffectEvents(frame, ctx);
         this.flushSpotAnimations(frame, ctx);
         this.flushCombatSnapshots(frame, ctx);
-    }
-
-    private flushHitsplats(frame: TickFrame, ctx: BroadcastContext): void {
-        if (!frame.hitsplats || frame.hitsplats.length === 0) return;
-
-        for (const event of frame.hitsplats) {
-            // When binary player sync is enabled, player hitsplats are encoded as update blocks.
-            // Keep legacy broadcast only for NPC hitsplats (and for non-binary mode).
-            if (event.targetType === "player") continue;
-            if (this.services.enableBinaryNpcSync && event.targetType === "npc") {
-                continue;
-            }
-            const payload: {
-                targetType: "player" | "npc";
-                targetId: number;
-                damage: number;
-                style: number;
-                type2?: number;
-                damage2?: number;
-                delayCycles?: number;
-                tick: number;
-            } = {
-                targetType: event.targetType,
-                targetId: event.targetId,
-                damage: event.damage,
-                style: event.style,
-                tick: event.tick ?? frame.tick,
-            };
-            const extraDelayTicks =
-                event.delayTicks !== undefined ? Math.max(0, event.delayTicks) : 0;
-            const delayServerTicks = Math.max(0, payload.tick - frame.tick) + extraDelayTicks;
-            payload.delayCycles = Math.max(0, Math.round(delayServerTicks * ctx.cyclesPerTick));
-            if (event.type2 !== undefined && event.damage2 !== undefined) {
-                payload.type2 = event.type2;
-                payload.damage2 = event.damage2;
-            }
-            this.services.forEachPlayer((sock, player) => {
-                const resolvedPayload = {
-                    ...payload,
-                    style: resolveHitsplatTypeForObserver(
-                        payload.style,
-                        player.id,
-                        event.targetType,
-                        event.targetId,
-                        event.sourcePlayerId,
-                        event.sourceType,
-                    ),
-                    type2:
-                        payload.type2 !== undefined
-                            ? resolveHitsplatTypeForObserver(
-                                  payload.type2,
-                                  player.id,
-                                  event.targetType,
-                                  event.targetId,
-                                  event.sourcePlayerId,
-                                  event.sourceType,
-                              )
-                            : undefined,
-                };
-                ctx.sendWithGuard(
-                    sock,
-                    encodeMessage({ type: "hitsplat", payload: resolvedPayload }),
-                    "hitsplat",
-                );
-            });
-        }
-    }
-
-    private flushNpcEffectEvents(frame: TickFrame, ctx: BroadcastContext): void {
-        if (!frame.npcEffectEvents || frame.npcEffectEvents.length === 0) return;
-
-        for (const npcEvent of frame.npcEffectEvents) {
-            const hitsplat = npcEvent.hitsplat;
-            if (!(hitsplat.amount > 0)) continue;
-            if (this.services.enableBinaryNpcSync) continue;
-            ctx.broadcast(
-                encodeMessage({
-                    type: "hitsplat",
-                    payload: {
-                        targetType: "npc" as const,
-                        targetId: npcEvent.npcId,
-                        damage: hitsplat.amount,
-                        style: hitsplat.style,
-                        tick: frame.tick,
-                    },
-                }),
-            );
-        }
     }
 
     private flushSpotAnimations(frame: TickFrame, ctx: BroadcastContext): void {

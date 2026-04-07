@@ -599,7 +599,6 @@ const pending: Map<
     number,
     (res: { ok: boolean; waypoints?: { x: number; y: number }[]; message?: string }) => void
 > = new Map();
-const hitsplatListeners = new Set<(payload: HitsplatServerPayload) => void>();
 const npcInfoListeners = new Set<(payload: NpcInfoPayload) => void>();
 const spellResultListeners = new Set<(payload: SpellResultPayload) => void>();
 const projectileListeners = new Set<(spawn: ProjectileLaunch) => void>();
@@ -1861,14 +1860,6 @@ function processServerMessage(msg: any): void {
                 console.warn("[debug] anim snapshot failed", err);
             }
         }
-    } else if (msg.type === "hitsplat") {
-        for (const cb of hitsplatListeners) {
-            try {
-                cb(msg.payload);
-            } catch (err) {
-                console.warn("hitsplat listener error", err);
-            }
-        }
     } else if (msg.type === "npc_info") {
         try {
             const payload = msg.payload as any;
@@ -3065,10 +3056,6 @@ export function subscribePlayerSync(cb: (frame: PlayerSyncFrame) => void): () =>
     return () => playerSyncListeners.delete(cb);
 }
 
-export function subscribeHitsplats(cb: (payload: HitsplatServerPayload) => void): () => void {
-    hitsplatListeners.add(cb);
-    return () => hitsplatListeners.delete(cb);
-}
 
 export function subscribeNpcInfo(cb: (payload: NpcInfoPayload) => void): () => void {
     npcInfoListeners.add(cb);
