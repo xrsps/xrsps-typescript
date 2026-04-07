@@ -301,6 +301,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             getMusicTrackId: (trackName) => deps.soundService.getMusicTrackIdByName(trackName),
             getMusicTrackBySlot: (slot) => deps.musicCatalogService?.getBaseListTrackBySlot(slot),
             sendSound: (player, soundId, opts) => deps.soundService.sendSound(player, soundId, opts),
+            sendJingle: (player, jingleId, delay) => deps.soundService.sendJingle(player, jingleId, delay),
             enqueueSoundBroadcast: (soundId, x, y, level) => deps.enqueueSoundBroadcast(soundId, x, y, level),
         },
         appearance: {

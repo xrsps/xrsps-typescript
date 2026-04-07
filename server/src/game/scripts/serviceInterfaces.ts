@@ -358,6 +358,7 @@ export interface SoundFacade {
     getMusicTrackId(trackName: string): number;
     getMusicTrackBySlot(slot: number): { rowId: number; trackId: number; trackName: string } | undefined;
     sendSound(player: PlayerState, soundId: number, opts?: { loops?: number; delayMs?: number }): void;
+    sendJingle(player: PlayerState, jingleId: number, delay?: number): void;
     enqueueSoundBroadcast(soundId: number, x: number, y: number, level: number): void;
 }
 

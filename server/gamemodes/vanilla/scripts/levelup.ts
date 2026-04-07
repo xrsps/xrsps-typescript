@@ -97,7 +97,7 @@ function showSkillLevelUp(services: ScriptServices, player: PlayerState, skillId
     const spotId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_SPOT_ID : LEVELUP_SPOT_ID;
     services.animation.broadcastPlayerSpot(player, spotId, 120);
     const jingleId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_JINGLE_ID : (LEVELUP_JINGLE_BY_SKILL[skillId] ?? LEVELUP_JINGLE_ID);
-    services.sound.sendSound(player, jingleId);
+    services.sound.sendJingle(player, jingleId);
     services.sound.sendSound(player, LEVELUP_FIREWORK_SOUND);
     return true;
 }
@@ -117,7 +117,7 @@ function showHunterLevelUp(services: ScriptServices, player: PlayerState, newLev
     const spotId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_SPOT_ID : LEVELUP_SPOT_ID;
     services.animation.broadcastPlayerSpot(player, spotId, 120);
     const jingleId = newLevel === MAX_REAL_LEVEL ? LEVELUP_99_JINGLE_ID : (LEVELUP_JINGLE_BY_SKILL[SkillId.Hunter] ?? LEVELUP_JINGLE_ID);
-    services.sound.sendSound(player, jingleId);
+    services.sound.sendJingle(player, jingleId);
     services.sound.sendSound(player, LEVELUP_FIREWORK_SOUND);
     return true;
 }
@@ -141,7 +141,7 @@ function showCombatLevelUp(services: ScriptServices, player: PlayerState, newLev
     queueWidget(services, playerId, { action: "set_text", uid: (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT, text: "Click here to continue" });
 
     services.animation.broadcastPlayerSpot(player, LEVELUP_SPOT_ID, 120);
-    services.sound.sendSound(player, LEVELUP_COMBAT_JINGLE_ID);
+    services.sound.sendJingle(player, LEVELUP_COMBAT_JINGLE_ID);
     services.sound.sendSound(player, LEVELUP_FIREWORK_SOUND);
     return true;
 }
