@@ -252,6 +252,39 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         closeDialog: (player, dialogId) => deps.widgetDialogHandler.closeDialog(player, dialogId),
         closeInterruptibleInterfaces: (player) => deps.closeInterruptibleInterfaces(player),
         getInterfaceService: () => deps.interfaceService,
+        openSubInterface: (player, targetUid, groupId, type = 0, opts) => {
+            if (type === 0 || type === 1) {
+                player.widgets.open(groupId, {
+                    targetUid,
+                    type,
+                    modal: opts?.modal !== false,
+                    varps: opts?.varps,
+                    varbits: opts?.varbits,
+                    preScripts: opts?.preScripts,
+                    postScripts: opts?.postScripts,
+                    hiddenUids: opts?.hiddenUids,
+                });
+                return;
+            }
+            deps.queueWidgetEvent(player.id, {
+                action: "open_sub",
+                targetUid,
+                groupId,
+                type,
+                varps: opts?.varps,
+                varbits: opts?.varbits,
+                preScripts: opts?.preScripts,
+                postScripts: opts?.postScripts,
+                hiddenUids: opts?.hiddenUids,
+            });
+        },
+        closeSubInterface: (player, targetUid, groupId) => {
+            if (groupId !== undefined) {
+                player.widgets.closeByTargetUid(targetUid, { groupId });
+            } else {
+                player.widgets.closeByTargetUid(targetUid);
+            }
+        },
         queueWidgetEvent: (playerId, event) => deps.queueWidgetEvent(playerId, event),
         queueClientScript: (playerId, scriptId, ...args) =>
             deps.variableService.queueVarp(playerId, 0, 0), // placeholder - use interfaceManager

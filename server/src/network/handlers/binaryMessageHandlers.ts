@@ -5,20 +5,17 @@
 import type { WebSocket } from "ws";
 
 import { SkillId } from "../../../../src/rs/skill/skills";
-import { CustomItemRegistry } from "../../../../src/custom/items/CustomItemRegistry";
+import { CustomItemRegistry } from "../../../../src/custom/items";
 import type { PlayerState } from "../../game/player";
 import type { ScriptRegistry } from "../../game/scripts";
 import type { ScriptRuntime } from "../../game/scripts";
 import type { MessageRouter, MessageHandler } from "../MessageRouter";
 import type { MessageHandlerServices } from "../MessageHandlers";
-import type { Cs2ModalManager } from "../managers/Cs2ModalManager";
-import type { WidgetDialogHandler } from "../../game/actions/handlers/WidgetDialogHandler";
+import type { Cs2ModalManager } from "../managers";
+import type { WidgetDialogHandler } from "../../game/actions";
 import type { LevelUpPopup } from "../../game/services/InterfaceManager";
-import type { GroundItemActionPayload } from "../managers/GroundItemHandler";
-import { logger } from "../../utils/logger";
-
-const LEVELUP_INTERFACE_ID = 233;
-const LEVELUP_CONTINUE_COMPONENT = 2;
+import type { GroundItemActionPayload } from "../managers";
+import { LEVELUP_INTERFACE_ID, LEVELUP_CONTINUE_COMPONENT } from "../levelUpDisplay";
 
 export interface BinaryHandlerExtServices extends MessageHandlerServices {
     resolveGroundItemOptionByOpNum: (itemId: number, opNum: number) => string | undefined;
