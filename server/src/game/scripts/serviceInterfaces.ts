@@ -89,10 +89,6 @@ export interface FollowerServiceFacade {
     getDefinitionByNpcTypeId: (npcTypeId: number) => FollowerItemDefinition | undefined;
 }
 
-export interface FollowerServices {
-    followers?: FollowerServiceFacade;
-}
-
 // ============================================================================
 // Banking (gamemode-contributed)
 // ============================================================================
@@ -130,13 +126,10 @@ export interface ShoppingServices {
 
 export interface GatheringServices {
     gathering?: GatheringSystemManager;
+    stopGatheringInteraction?: (player: PlayerState) => void;
     getWoodcuttingTree?: (locId: number) => Record<string, unknown> | undefined;
     getMiningRock?: (locId: number) => Record<string, unknown> | undefined;
     getFishingSpot?: (npcTypeId: number) => Record<string, unknown> | undefined;
-    isAdjacentToLoc?: (player: PlayerState, locId: number, tile: { x: number; y: number }, level: number) => boolean;
-    isAdjacentToNpc?: (player: PlayerState, npc: NpcState) => boolean;
-    faceGatheringTarget?: (player: PlayerState, tile: { x: number; y: number }) => void;
-    stopGatheringInteraction?: (player: PlayerState) => void;
     isFiremakingTileBlocked?: (tile: { x: number; y: number }, level: number) => boolean;
     lightFire?: (params: {
         tile: { x: number; y: number }; level: number; logItemId: number;
@@ -146,9 +139,6 @@ export interface GatheringServices {
     playerHasTinderbox?: (player: PlayerState) => boolean;
     consumeFiremakingLog?: (player: PlayerState, logId: number, slotIndex?: number) => number | undefined;
     walkPlayerAwayFromFire?: (player: PlayerState, fireTile: { x: number; y: number }) => void;
-}
-
-export interface CookingServices {
     getCookingRecipeByRawItemId?: (itemId: number) => { cookedItemId: number; xp: number } | undefined;
 }
 
@@ -173,11 +163,6 @@ export interface ProductionServiceFacade {
     smithItems?: (player: PlayerState, params: { recipeId: string; count: number }) => void;
     updateSmithingInterface?: (player: PlayerState) => void;
     updateSmeltingInterface?: (player: PlayerState) => void;
-}
-
-export interface ProductionServices {
-    production?: ProductionServiceFacade;
-    onItemCraft?: (playerId: number, itemId: number, count: number) => void;
 }
 
 // ============================================================================
@@ -207,10 +192,6 @@ export interface SailingServiceFacade {
     initSailingInstance: (player: PlayerState) => void;
     disposeSailingInstance: (player: PlayerState) => void;
     buildSailingDockedCollision: () => void;
-}
-
-export interface SailingServices {
-    sailing?: SailingServiceFacade;
 }
 
 // ============================================================================
@@ -432,6 +413,9 @@ export interface LocationFacade {
     spawnLoc?(locId: number, tile: { x: number; y: number }, level: number, shape: number, rotation: number): void;
     spawnLocForPlayer(player: PlayerState, locId: number, tile: { x: number; y: number }, level: number, shape: number, rotation: number): void;
     triggerLocEffect(locId: number, tile: { x: number; y: number }, level: number): boolean;
+    isAdjacentToLoc(player: PlayerState, locId: number, tile: { x: number; y: number }, level: number): boolean;
+    isAdjacentToNpc(player: PlayerState, npc: NpcState): boolean;
+    faceTile(player: PlayerState, tile: { x: number; y: number }): void;
 }
 
 export interface CombatFacade {

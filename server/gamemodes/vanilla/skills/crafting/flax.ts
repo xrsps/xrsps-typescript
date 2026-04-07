@@ -46,7 +46,7 @@ function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
     const effects: ActionEffect[] = [];
 
-    services.faceGatheringTarget?.(player, tile);
+    services.location.faceTile(player, tile);
     services.animation.playPlayerSeq(player, FLAX_PICK_ANIMATION);
 
     services.sound.enqueueSoundBroadcast(FLAX_PICK_SOUND, tile.x, tile.y, plane);

@@ -78,7 +78,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         return failMiningPrecheck(player, services, "The rock is depleted of ore.");
     }
 
-    if (!services.isAdjacentToLoc?.(player, locId, tile, plane)) {
+    if (!services.location.isAdjacentToLoc(player, locId, tile, plane)) {
         return failMiningPrecheck(player, services, "You stop mining the rock.");
     }
 
@@ -105,7 +105,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
     if (!data.started) {
         effects.push(buildMessageEffect(player, "You swing your pickaxe at the rock."));
-        services.faceGatheringTarget?.(player, tile);
+        services.location.faceTile(player, tile);
         services.animation.playPlayerSeq(player, pickaxe.animation);
         const initialSchedule = services.combat.scheduleAction(
             player.id,
@@ -132,7 +132,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         return { ok: true, cooldownTicks: 0, groups: ["skill.mine"], effects };
     }
 
-    services.faceGatheringTarget?.(player, tile);
+    services.location.faceTile(player, tile);
     services.animation.playPlayerSeq(player, pickaxe.animation);
 
     let inventorySnapshot = false;
@@ -203,7 +203,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         if (!hasEchoPickaxePerk && !services.inventory.hasInventorySlot(player)) {
             continueMining = false;
             effects.push(buildMessageEffect(player, "Your inventory is too full to hold any more ore."));
-        } else if (!services.isAdjacentToLoc?.(player, locId, tile, plane)) {
+        } else if (!services.location.isAdjacentToLoc(player, locId, tile, plane)) {
             continueMining = false;
         }
     }

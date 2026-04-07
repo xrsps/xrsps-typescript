@@ -79,7 +79,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
         return failGatheringPrecheck(player, services, "The tree has no logs left.");
     }
 
-    if (!services.isAdjacentToLoc?.(player, locId, tile, plane)) {
+    if (!services.location.isAdjacentToLoc(player, locId, tile, plane)) {
         return failGatheringPrecheck(player, services, "You stop chopping the tree.");
     }
 
@@ -107,7 +107,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
     const effects: ActionEffect[] = [];
 
     if (!data.started) {
-        services.faceGatheringTarget?.(player, tile);
+        services.location.faceTile(player, tile);
         services.animation.playPlayerSeq(player, hatchet.animation);
         effects.push(buildMessageEffect(player, "You swing your axe at the tree."));
         const reschedule = services.combat.scheduleAction(
@@ -140,7 +140,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
     const shouldRoll = ticksInSwing === 2;
 
     if (ticksInSwing === 0) {
-        services.faceGatheringTarget?.(player, tile);
+        services.location.faceTile(player, tile);
         services.animation.playPlayerSeq(player, hatchet.animation);
     }
 
@@ -209,7 +209,7 @@ function executeWoodcutAction(ctx: ScriptActionHandlerContext): ActionExecutionR
             const logName = describeItem(services, tree.logItemId);
             services.sound.sendSound(player, WOODCUTTING_INVENTORY_FULL_SOUND);
             effects.push(buildMessageEffect(player, `Your inventory is too full to hold any more ${logName}.`));
-        } else if (!services.isAdjacentToLoc?.(player, locId, tile, plane)) {
+        } else if (!services.location.isAdjacentToLoc(player, locId, tile, plane)) {
             continueChopping = false;
         }
     }

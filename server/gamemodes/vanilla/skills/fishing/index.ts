@@ -119,7 +119,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         return failFishingPrecheck(player, services, "You stop fishing.");
     }
 
-    if (!services.isAdjacentToNpc?.(player, npc)) {
+    if (!services.location.isAdjacentToNpc(player, npc)) {
         return failFishingPrecheck(player, services, "You stop fishing.");
     }
 
@@ -173,7 +173,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         effects.push(buildMessageEffect(player, "You attempt to catch some fish."));
     }
 
-    services.faceGatheringTarget?.(player, tile);
+    services.location.faceTile(player, tile);
     services.animation.playPlayerSeq(player, tool.animation);
 
     let inventorySnapshot = false;

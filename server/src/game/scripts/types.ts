@@ -336,16 +336,9 @@ export type { DropEligibility, NpcLootConfig } from "./serviceInterfaces";
 export { applyAutocastState, clearAutocastState } from "./serviceInterfaces";
 export { getEmoteSeq, getSkillcapeSeqId, getSkillcapeSpotId } from "./serviceInterfaces";
 
-import type { FollowerServices, BankingServices, ShoppingServices, GatheringServices, CookingServices, ProductionServices, SailingServices, MessagingFacade, VariableFacade, SkillFacade, DataLoaderFacade, SystemFacade, InventoryFacade, EquipmentFacade, AnimationFacade, SoundFacade, AppearanceFacade, DialogFacade, MovementFacade, LocationFacade, CombatFacade, NpcFacade, CollectionLogFacade, ViewportFacade } from "./serviceInterfaces";
+import type { GatheringServices, MessagingFacade, VariableFacade, SkillFacade, DataLoaderFacade, SystemFacade, InventoryFacade, EquipmentFacade, AnimationFacade, SoundFacade, AppearanceFacade, DialogFacade, MovementFacade, LocationFacade, CombatFacade, NpcFacade, CollectionLogFacade, ViewportFacade, FollowerServiceFacade, ProductionServiceFacade, SailingServiceFacade, BankingServices, ShoppingServices } from "./serviceInterfaces";
 
-export interface ScriptServices extends
-    FollowerServices,
-    BankingServices,
-    ShoppingServices,
-    GatheringServices,
-    CookingServices,
-    ProductionServices,
-    SailingServices {
+export interface ScriptServices extends GatheringServices {
     messaging: MessagingFacade;
     variables: VariableFacade;
     skills: SkillFacade;
@@ -363,4 +356,10 @@ export interface ScriptServices extends
     npc: NpcFacade;
     collectionLog: CollectionLogFacade;
     viewport: ViewportFacade;
+    // Gamemode-contributed (optional, populated by contributeScriptServices)
+    followers?: FollowerServiceFacade;
+    production?: ProductionServiceFacade;
+    sailing?: SailingServiceFacade;
+    banking?: BankingServices;
+    shopping?: ShoppingServices;
 }

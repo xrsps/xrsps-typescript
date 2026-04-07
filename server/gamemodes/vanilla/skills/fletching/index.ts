@@ -204,7 +204,7 @@ function executeFletchAction(ctx: ScriptActionHandlerContext): ActionExecutionRe
 
     services.animation.playPlayerSeq(player, recipe.animation ?? 1248);
     services.skills.addSkillXp(player, SkillId.Fletching, recipe.xp);
-    services.onItemCraft?.(player.id, recipe.productItemId, productQuantity);
+    services.system.eventBus?.emit("item:craft", { playerId: player.id, itemId: recipe.productItemId, count: productQuantity });
 
     const description = getFletchingSuccessMessage(recipe);
     const effects: ActionEffect[] = [

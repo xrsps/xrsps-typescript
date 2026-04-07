@@ -97,7 +97,7 @@ function executeFiremakingAction(ctx: ScriptActionHandlerContext): ActionExecuti
         return failFiremakingPrecheck(player, services, "You can't light a fire here.");
     }
 
-    services.faceGatheringTarget?.(player, tile);
+    services.location.faceTile(player, tile);
 
     if (data.started) {
         services.animation.playPlayerSeq(player, FIRE_LIGHTING_ANIMATION);

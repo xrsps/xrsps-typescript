@@ -142,7 +142,7 @@ export class LocationService {
         return distance === 1;
     }
 
-    faceGatheringTarget(player: PlayerState, tile: { x: number; y: number }): void {
+    faceTile(player: PlayerState, tile: { x: number; y: number }): void {
         const targetX = tile.x * TILE_UNIT + TILE_UNIT / 2;
         const targetY = tile.y * TILE_UNIT + TILE_UNIT / 2;
         try {

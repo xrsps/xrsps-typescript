@@ -124,29 +124,13 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
     };
 
     const services: ScriptServices = {
-        // Gamemode-contributed (flat, contributed dynamically via contributeScriptServices)
+        // Gamemode-contributed facades (populated by contributeScriptServices)
         gathering: deps.gatheringSystem,
-        isAdjacentToLoc: (player, locId, tile, level) => deps.locationService.isAdjacentToLoc(player, locId, tile, level),
-        isAdjacentToNpc: (player, npc) => deps.locationService.isAdjacentToNpc(player, npc),
-        faceGatheringTarget: (player, tile) => deps.locationService.faceGatheringTarget(player, tile),
         stopGatheringInteraction: (player) => {
             try { player.clearInteraction(); } catch {}
             try { player.stopAnimation(); } catch {}
             try { player.clearPath(); } catch {}
             try { player.clearWalkDestination(); } catch {}
-        },
-        getWoodcuttingTree: undefined,
-        getMiningRock: undefined,
-        getFishingSpot: undefined,
-        isFiremakingTileBlocked: undefined,
-        lightFire: undefined,
-        playerHasTinderbox: undefined,
-        consumeFiremakingLog: undefined,
-        walkPlayerAwayFromFire: undefined,
-        getCookingRecipeByRawItemId: undefined,
-        onItemCraft: (playerId, itemId, count) => {
-            deps.gamemode?.onItemCraft?.(playerId, itemId, count);
-            deps.eventBus?.emit("item:craft", { playerId, itemId, count });
         },
         production: {
             takeInventoryItems: (player, inputs) => deps.inventoryService.takeInventoryItems(player, inputs),
@@ -399,6 +383,9 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             sendLocChangeToPlayer: (player, oldId, newId, tile, level) => deps.locationService.sendLocChangeToPlayer(player, oldId, newId, tile, level),
             spawnLocForPlayer: (player, locId, tile, level, shape, rotation) => deps.locationService.spawnLocForPlayer(player, locId, tile, level, shape, rotation),
             triggerLocEffect: () => false, // replaced below with self-referencing version
+            isAdjacentToLoc: (player, locId, tile, level) => deps.locationService.isAdjacentToLoc(player, locId, tile, level),
+            isAdjacentToNpc: (player, npc) => deps.locationService.isAdjacentToNpc(player, npc),
+            faceTile: (player, tile) => deps.locationService.faceTile(player, tile),
         },
         combat: {
             requestAction: (player, request, currentTick) => {
