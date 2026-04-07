@@ -93,7 +93,7 @@ export class MiscBroadcaster implements BroadcastDomain {
                 const sock = ctx.getSocketByPlayerId(evt.playerId);
                 ctx.sendWithGuard(
                     sock,
-                    encodeMessage({ type: key, payload: evt.payload }),
+                    encodeMessage({ type: key as any, payload: evt.payload }),
                     `${key}_event`,
                 );
             }

@@ -652,7 +652,7 @@ function parseDebugPayload(jsonStr: string): Extract<RoutedMessage, { type: "deb
             return {
                 kind,
                 requestId: parsed.requestId,
-                snapshot: parsed.snapshot,
+                snapshot: (parsed.snapshot ?? {}) as Record<string, unknown>,
             };
         }
         if (kind === "set_var") {

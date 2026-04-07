@@ -602,7 +602,7 @@ export class ServerBinaryEncoder {
         this.buffer.writeInt(scriptId);
         this.buffer.writeByte(args.length);
         for (const arg of args) {
-            if (Number.isFinite(arg as number)) {
+            if (typeof arg === "number" && Number.isFinite(arg)) {
                 this.buffer.writeByte(1); // int type
                 this.buffer.writeInt(arg);
             } else {

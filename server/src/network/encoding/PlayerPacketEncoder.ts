@@ -162,8 +162,8 @@ export class PlayerPacketEncoder {
     private serializeAppearancePayload(view: PlayerViewSnapshot): Uint8Array {
         const player = this.svc.players?.getById(view.id);
         return encodeAppearanceBinary(view, {
-            combatLevel: player?.combatLevel ?? 3,
-            skillLevel: player?.skillTotal ?? 32,
+            combatLevel: player?.skillSystem.combatLevel ?? 3,
+            skillLevel: player?.skillSystem.skillTotal ?? 32,
             isHidden: false,
             actions: ["", "", ""],
         });
@@ -508,7 +508,7 @@ export class PlayerPacketEncoder {
 
             const movement = movementById.get(id);
             const desiredMovementType = (() => {
-                const list = movement?.traversals ?? view?.traversals;
+                const list = movement?.traversals ?? (view as any)?.traversals;
                 if (Array.isArray(list) && list.length > 0) {
                     const last = list[list.length - 1];
                     if (Number.isFinite(last)) {

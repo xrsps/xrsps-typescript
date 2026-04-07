@@ -418,9 +418,9 @@ export class TradeManager {
 
     private canReceiveItems(player: PlayerState, offers: TradeOfferState[]): boolean {
         if (offers.length === 0) return true;
-        const clone = this.options
+        const clone = this.svc.inventoryService
             .getInventory(player)
-            .map((entry) => ({ itemId: entry.itemId, quantity: entry.quantity }));
+            .map((entry: InventoryEntry) => ({ itemId: entry.itemId, quantity: entry.quantity }));
         const findFreeSlot = () => clone.find((slot) => slot.itemId <= 0 || slot.quantity <= 0);
         for (const offer of offers) {
             if (offer.quantity <= 0) continue;

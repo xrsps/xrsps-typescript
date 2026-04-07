@@ -369,7 +369,7 @@ export class WSServer {
      * Uses Object.defineProperty for mutable fields so svc stays in sync.
      */
     private populateServiceContext(): void {
-        const s = this.svc as Record<string, unknown>;
+        const s = this.svc as unknown as Record<string, unknown>;
 
         // Config & infrastructure
         s.ticker = this.options.ticker;
@@ -777,9 +777,9 @@ export class WSServer {
                 soundService: this.soundService,
                 actionScheduler: this.actionScheduler,
                 getCurrentTick: () => this.options.ticker.currentTick(),
-                getPathService: () => this.options.pathService,
-                doorManager: this.doorManager,
-                npcManager: this.npcManager,
+                getPathService: () => this.options.pathService!,
+                doorManager: this.doorManager!,
+                npcManager: this.npcManager!,
                 interfaceService: this.interfaceService,
                 widgetDialogHandler: undefined!, // Deferred: wired after creation
                 prayerSystem: this.prayerSystem,
@@ -787,7 +787,7 @@ export class WSServer {
                 cs2ModalManager: undefined!, // Deferred: wired after creation
                 followerManager: undefined!, // Deferred: wired after creation
                 followerCombatManager: undefined!, // Deferred: wired after creation
-                sailingInstanceManager: this.sailingInstanceManager,
+                sailingInstanceManager: this.sailingInstanceManager!,
                 worldEntityInfoEncoder: this.worldEntityInfoEncoder,
                 playerPersistence: this.playerPersistence,
                 musicCatalogService: undefined, // Deferred: wired after creation
@@ -802,7 +802,7 @@ export class WSServer {
                 enqueueSoundBroadcast: (soundId, x, y, level) => this.broadcastService.enqueueSoundBroadcast(soundId, x, y, level),
                 queueCombatSnapshot: (...args: Parameters<typeof this.queueCombatSnapshot>) => this.queueCombatSnapshot(...args),
                 queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
-                queueSmithingInterfaceMessage: (pid, p) => this.broadcastService.queueSmithingInterfaceMessage(pid, p),
+                queueSmithingInterfaceMessage: (pid, p) => this.broadcastService.queueSmithingInterfaceMessage(pid, p as any),
                 queueExternalNpcTeleportSync: (npc) => this.queueExternalNpcTeleportSync(npc),
                 teleportToWorldEntity: (...args: Parameters<WorldEntityService["teleportToWorldEntity"]>) => this.worldEntityService.teleportToWorldEntity(...args),
                 sendWorldEntity: (...args: Parameters<WorldEntityService["sendWorldEntity"]>) => this.worldEntityService.sendWorldEntity(...args),
@@ -1083,8 +1083,8 @@ export class WSServer {
         this.scriptAdapterDeps.widgetDialogHandler = this.widgetDialogHandler;
         this.scriptAdapterDeps.gatheringSystem = this.gatheringSystem;
         this.scriptAdapterDeps.cs2ModalManager = this.cs2ModalManager;
-        this.scriptAdapterDeps.followerManager = this.followerManager;
-        this.scriptAdapterDeps.followerCombatManager = this.followerCombatManager;
+        this.scriptAdapterDeps.followerManager = this.followerManager!;
+        this.scriptAdapterDeps.followerCombatManager = this.followerCombatManager!;
         this.scriptAdapterDeps.inventoryActionHandler = this.inventoryActionHandler;
         this.scriptAdapterDeps.effectDispatcher = this.effectDispatcher;
 
@@ -1094,7 +1094,7 @@ export class WSServer {
             setInventorySlot: (p, slot, itemId, qty) => this.inventoryService.setInventorySlot(p, slot, itemId, qty),
             ensureEquipArray: (p) => this.equipmentService.ensureEquipArray(p),
             resolveEquipSlot: (itemId) => this.equipmentService.resolveEquipSlot(itemId),
-            getObjType: (itemId) => this.dataLoaderService.getObjType(itemId),
+            getObjType: (itemId) => this.dataLoaderService.getObjType(itemId) as any,
             requestAction: (playerId, request, tick) => this.actionScheduler.requestAction(playerId, request, tick),
             queueItemAction: (request) => this.scriptRuntime.queueItemAction(request),
             closeInterruptibleInterfaces: (p) => this.interfaceManager.closeInterruptibleInterfaces(p),
@@ -1158,9 +1158,9 @@ export class WSServer {
                     queueVarbit: (playerId, varbitId, value) =>
                         this.variableService.queueVarbit(playerId, varbitId, value),
                     queueNotification: (playerId, notification) =>
-                        this.messagingService.queueNotification(playerId, notification),
+                        this.messagingService.queueNotification(playerId, notification as Record<string, unknown>),
                     queueWidgetEvent: (playerId, event) =>
-                        this.queueWidgetEvent(playerId, event),
+                        this.queueWidgetEvent(playerId, event as WidgetAction),
                     queueClientScript: (playerId, scriptId, ...args) =>
                         this.broadcastService.queueClientScript(playerId, scriptId, ...args),
                     sendGameMessage: (player, text) =>
@@ -1178,7 +1178,7 @@ export class WSServer {
                     getSocketByPlayerId: (id) => this.players?.getSocketByPlayerId(id),
                     refreshCombatWeaponCategory: (p) => this.equipmentService.refreshCombatWeaponCategory(p),
                     queueCombatSnapshot: (...args: Parameters<typeof this.queueCombatSnapshot>) => this.queueCombatSnapshot(...args),
-                    queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
+                    queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt as any),
                     queueGamemodeSnapshot: (k, pid, p) => this.queueGamemodeSnapshot(k, pid, p),
                     registerSnapshotEncoder: (k, e, o) => this.registerSnapshotEncoder(k, e, o),
                     gamemodeTickCallbacks: this.gamemodeTickCallbacks,
@@ -1274,7 +1274,7 @@ export class WSServer {
                 p.items.setItemDefResolver((id: number) => getItemDefinition(id));
                 this.appearanceService.refreshAppearanceKits(p);
                 applyAutocastState(p, 3273, 1, false); // Wind Strike
-                p.botInteraction = { kind: "playerCombat", playerId: target.id };
+                (p as any).botInteraction = { kind: "playerCombat", playerId: target.id };
                 // Give runes for Wind Strike (Air + Mind)
                 p.items.addItem(556, 10000, { assureFullInsertion: true }); // Air rune
                 p.items.addItem(558, 10000, { assureFullInsertion: true }); // Mind rune
@@ -1285,7 +1285,7 @@ export class WSServer {
                 p.items.setItemDefResolver((id: number) => getItemDefinition(id));
                 this.appearanceService.refreshAppearanceKits(p);
                 clearAutocastState(p);
-                p.botInteraction = undefined;
+                (p as any).botInteraction = undefined;
             };
 
             if (bot1 && bot2) {
@@ -1303,8 +1303,8 @@ export class WSServer {
     ): Uint8Array {
         const player = this.players?.getById(view.id);
         return encodeAppearanceBinary(view, {
-            combatLevel: player?.combatLevel ?? 3,
-            skillLevel: player?.skillTotal ?? 32,
+            combatLevel: player?.skillSystem.combatLevel ?? 3,
+            skillLevel: player?.skillSystem.skillTotal ?? 32,
             isHidden: false,
             actions: ["", "", ""],
         });

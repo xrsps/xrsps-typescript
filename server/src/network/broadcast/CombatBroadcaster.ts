@@ -7,6 +7,7 @@ import type { BroadcastContext, BroadcastDomain } from "./BroadcastDomain";
 export interface CombatBroadcasterServices {
     forEachPlayer(fn: (sock: WebSocket, player: { id: number }) => void): void;
     withDirectSendBypass<T>(context: string, fn: () => T): T;
+    enableBinaryNpcSync?: boolean;
 }
 
 /**

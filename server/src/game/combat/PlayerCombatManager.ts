@@ -1415,9 +1415,10 @@ export class PlayerCombatManager {
     }
 
     private resolveCombatRunMode(player: PlayerState, playerId: number, npcId: number): boolean {
-        const interaction = this.playerManager?.getInteractionState(
-            this.playerManager.getSocketByPlayerId(playerId),
-        ) as { kind?: string; npcId?: number; modifierFlags?: number } | undefined;
+        const sock = this.playerManager?.getSocketByPlayerId(playerId);
+        const interaction = sock ? this.playerManager?.getInteractionState(
+            sock,
+        ) as { kind?: string; npcId?: number; modifierFlags?: number } | undefined : undefined;
         const modifierFlags =
             interaction?.kind === "npcCombat" && interaction.npcId === npcId
                 ? interaction.modifierFlags ?? 0

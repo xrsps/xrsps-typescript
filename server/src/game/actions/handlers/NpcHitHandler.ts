@@ -561,7 +561,7 @@ export class NpcHitHandler {
         if (spell?.healPercent && primaryDamageForHeal > 0) {
             const healAmount = Math.floor(primaryDamageForHeal * spell.healPercent);
             if (healAmount > 0) {
-                player.applyHitpointsHeal(healAmount);
+                player.skillSystem.applyHitpointsHeal(healAmount);
             }
         }
     }

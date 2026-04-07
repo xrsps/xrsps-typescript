@@ -52,7 +52,7 @@ export class WorldEntityService {
             regionX, regionY, regionX, regionY,
             templateChunks, buildAreas, this.services.cacheEnv!, false,
         );
-        const extendedPayload = payload as Record<string, unknown>;
+        const extendedPayload = payload as unknown as Record<string, unknown>;
         extendedPayload.extraNpcs = extraNpcs ?? [];
         extendedPayload.basePlane = 1;
         const packet = encodeMessage({ type: "rebuild_worldentity", payload } as unknown as ServerToClient);

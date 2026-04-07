@@ -164,7 +164,7 @@ function handleInstantUtilitySpecial(
     p.specEnergy.setActivated(false);
     p.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
     p.queueOneShotSeq(special.seqId, 0);
-    if (special.soundId !== undefined) services.animation.sendSound(p, special.soundId);
+    if (special.soundId !== undefined) services.sendSound?.(p, special.soundId);
     services.queueCombatState(p);
     sendVarpCorrection(services, ws, VARP_SPECIAL_ATTACK, 0);
 
@@ -202,7 +202,7 @@ function handleAutoRetaliateVarp(
     value: number,
 ): void {
     const on = value === 0;
-    p.setAutoRetaliate(on);
+    p.combat.autoRetaliate = on;
     const normalized = on ? 0 : 1;
     if (normalized !== value) {
         p.varps.setVarpValue(VARP_AUTO_RETALIATE, normalized);

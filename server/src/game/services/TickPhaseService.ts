@@ -12,7 +12,7 @@ import {
 import { deriveInteractionIndex } from "../interactions/InteractionViewBuilder";
 import type { NpcUpdateDelta } from "../npc";
 import type { PlayerState } from "../player";
-import type { TickFrame, TickPhaseProvider } from "../tick/TickPhaseOrchestrator";
+import type { TickFrame } from "../tick/TickPhaseOrchestrator";
 
 import type { BroadcastContext } from "../../network/broadcast/BroadcastDomain";
 import type { PlayerTickFrameData } from "../../network/encoding";
@@ -74,7 +74,7 @@ const NPC_SIM_RADIUS_TILES = NPC_STREAM_EXIT_RADIUS_TILES + 12;
  * Extracts tick phase logic from wsServer into a standalone service.
  * Implements TickPhaseProvider so the TickPhaseOrchestrator can call each phase.
  */
-export class TickPhaseService implements TickPhaseProvider {
+export class TickPhaseService {
     constructor(private readonly svc: ServerServices) {}
 
     broadcastTick(_frame: TickFrame): void {
@@ -89,7 +89,7 @@ export class TickPhaseService implements TickPhaseProvider {
 
         if (npcManager) {
             try {
-                const playerLookup = (id: number) => players?.getById(id) as PlayerState | undefined;
+                const playerLookup = (id: number) => players?.getById(id) as import("../npcManager").CombatTargetPlayer | undefined;
                 const activeNpcIds = new Set<number>();
                 if (players) {
                     players.forEach((_client, player) => {
@@ -782,7 +782,7 @@ export class TickPhaseService implements TickPhaseProvider {
         });
 
         players.forEachBot((bot) => {
-            const interactionState = (bot as PlayerState & { botInteraction?: unknown }).botInteraction;
+            const interactionState = (bot as PlayerState & { botInteraction?: import("../interactions/types").PlayerInteractionState }).botInteraction;
             collectFaceTile(bot);
             const interactionIndex = deriveInteractionIndex({
                 player: bot,

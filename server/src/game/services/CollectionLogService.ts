@@ -11,8 +11,7 @@ import {
 } from "../collectionlog";
 import { encodeMessage } from "../../network/messages";
 import type { PlayerState } from "../player";
-import type { WidgetEvent } from "../../network/wsServerTypes";
-import type { ChatMessageRequest } from "../actions/handlers/CombatActionHandler";
+import type { WidgetAction } from "../../widgets/WidgetManager";
 import { logger } from "../../utils/logger";
 import type { ServerServices } from "../ServerServices";
 
@@ -53,11 +52,11 @@ export class CollectionLogService {
                 this.services.variableService.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId: number, varbitId: number, value: number) =>
                 this.services.variableService.queueVarbit(playerId, varbitId, value),
-            queueWidgetEvent: (playerId: number, event: WidgetEvent) =>
+            queueWidgetEvent: (playerId: number, event: WidgetAction) =>
                 this.services.queueWidgetEvent(playerId, event),
             queueNotification: (playerId: number, payload: Record<string, unknown>) =>
                 this.services.messagingService.queueNotification(playerId, payload),
-            queueChatMessage: (request: ChatMessageRequest) => this.services.messagingService.queueChatMessage(request),
+            queueChatMessage: (request: { messageType: string; text: string; targetPlayerIds: number[] }) => this.services.messagingService.queueChatMessage(request),
             sendCollectionLogSnapshot: (player: PlayerState) =>
                 this.sendCollectionLogSnapshot(player),
             getMainmodalUid,
@@ -72,7 +71,7 @@ export class CollectionLogService {
                 this.services.variableService.queueVarp(playerId, varpId, value),
             queueVarbit: (playerId: number, varbitId: number, value: number) =>
                 this.services.variableService.queueVarbit(playerId, varbitId, value),
-            queueWidgetEvent: (playerId: number, event: WidgetEvent) =>
+            queueWidgetEvent: (playerId: number, event: WidgetAction) =>
                 this.services.queueWidgetEvent(playerId, event),
             logger,
         };

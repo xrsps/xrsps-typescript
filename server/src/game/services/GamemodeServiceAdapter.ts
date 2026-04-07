@@ -34,7 +34,7 @@ export interface GamemodeServiceAdapterDeps {
         activePrayers: string[],
         combatSpellId?: number,
     ) => void;
-    queueWidgetEvent: (playerId: number, event: WidgetEvent) => void;
+    queueWidgetEvent: (playerId: number, event: unknown) => void;
     queueGamemodeSnapshot: (key: string, playerId: number, payload: unknown) => void;
     registerSnapshotEncoder: (
         key: string,

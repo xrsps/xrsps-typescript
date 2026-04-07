@@ -237,12 +237,11 @@ export function registerMessageHandlers(svc: ServerServices, router: MessageRout
         handleGroundItemAction: (ws, payload) => svc.inventoryMessageService!.handleGroundItemAction(ws, payload),
         getScriptRegistry: () => svc.scriptRegistry,
         getScriptRuntime: () => svc.scriptRuntime,
-        getCs2ModalManager: () => svc.cs2ModalManager,
-        getWidgetDialogHandler: () => svc.widgetDialogHandler,
+        getCs2ModalManager: () => svc.cs2ModalManager!,
+        getWidgetDialogHandler: () => svc.widgetDialogHandler!,
         getObjType: (itemId) => svc.dataLoaderService.getObjType(itemId),
         handleInventoryUseOnMessage: (ws, payload) =>
-            svc.inventoryMessageService!.handleInventoryUseOnMessage(ws, payload),
-        getGamemode: () => svc.gamemode,
+            svc.inventoryMessageService!.handleInventoryUseOnMessage(ws, payload as any),
     };
     registerAllHandlers(router, extendedServices);
 

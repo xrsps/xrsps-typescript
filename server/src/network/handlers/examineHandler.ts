@@ -54,22 +54,22 @@ export function handleExaminePacket(
 
     switch (packet.type) {
         case "examine_loc": {
-            deps.queuePlayerGameMessage(
-                player,
-                resolveLocExamineText(deps.locTypeLoader, player, packet.locId),
-            );
+            if (packet.locId === undefined) return false;
+            const locText = resolveLocExamineText(deps.locTypeLoader, player, packet.locId);
+            if (locText) deps.queuePlayerGameMessage(player, locText);
             return true;
         }
 
         case "examine_npc": {
-            deps.queuePlayerGameMessage(
-                player,
-                resolveNpcExamineText(deps.npcTypeLoader, packet.npcId),
-            );
+            if (packet.npcId === undefined) return false;
+            const npcText = resolveNpcExamineText(deps.npcTypeLoader, packet.npcId);
+            if (npcText) deps.queuePlayerGameMessage(player, npcText);
             return true;
         }
 
         case "examine_obj": {
+            if (packet.worldX === undefined || packet.worldY === undefined) return false;
+            if (packet.itemId === undefined) return false;
             const visible = deps
                 .queryGroundItemArea(
                     packet.worldX,
@@ -85,10 +85,8 @@ export function handleExaminePacket(
                 return true;
             }
 
-            deps.queuePlayerGameMessage(
-                player,
-                resolveObjExamineText(deps.objTypeLoader, packet.itemId),
-            );
+            const objText = resolveObjExamineText(deps.objTypeLoader, packet.itemId);
+            if (objText) deps.queuePlayerGameMessage(player, objText);
             return true;
         }
 
@@ -128,7 +126,7 @@ export function resolveLocActionByOpNum(
         const visible = player
             ? loadVisibleLocTypeForPlayer(locTypeLoader, player, locId)
             : undefined;
-        const def = visible?.type ?? locTypeLoader?.load?.(locId);
+        const def = (visible?.type ?? locTypeLoader?.load?.(locId)) as LocType | undefined;
         const raw = Array.isArray(def?.actions) ? def.actions[idx] : undefined;
         if (!raw) return undefined;
         const normalized = raw.trim();

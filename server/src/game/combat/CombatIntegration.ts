@@ -226,15 +226,13 @@ export class CombatManager {
             return { success: false };
         }
 
-        // Use accessor methods from PlayerState
-        const currentEnergy = player.getSpecialEnergyPercent?.() ?? 100;
+        const currentEnergy = player.specEnergy.getPercent();
         if (!canUseSpecialAttack(weaponId, currentEnergy)) {
             return { success: false };
         }
 
-        // Consume energy via PlayerState method
         const newEnergy = consumeSpecialEnergy(weaponId, currentEnergy);
-        player.setSpecialEnergyPercent?.(newEnergy);
+        player.specEnergy.setPercent(newEnergy);
 
         return { success: true, attack: special };
     }

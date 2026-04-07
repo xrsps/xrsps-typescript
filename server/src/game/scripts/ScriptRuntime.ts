@@ -55,13 +55,9 @@ export class ScriptRuntime {
         this.logger = options.logger ?? defaultLogger;
         const hostServices = options.services;
         const hotReloadFlag =
-            hostServices.hotReloadEnabled ?? process.env.SCRIPT_HOT_RELOAD === "1";
+            (hostServices as unknown as Record<string, unknown>).hotReloadEnabled ?? process.env.SCRIPT_HOT_RELOAD === "1";
         this.hotReloadEnabled = !!hotReloadFlag;
-        this.services = {
-            ...hostServices,
-            logger: hostServices.logger ?? this.logger,
-            hotReloadEnabled: this.hotReloadEnabled,
-        };
+        this.services = hostServices;
     }
 
     getServices(): ScriptServices {

@@ -914,8 +914,8 @@ export class NpcManager {
                                 npc.tileY,
                                 npc.level,
                             );
-                            const playerInCombat = target.combat.isAttacking() || target.isBeingAttacked();
-                            const playerTarget = target.combat.getCombatTarget();
+                            const playerInCombat = target.isAttacking() || target.isBeingAttacked();
+                            const playerTarget = target.getCombatTarget();
                             const fightingThisNpc = playerTarget?.id === npc.id;
                             const blockedBySingleWay =
                                 !inMultiCombat && playerInCombat && !fightingThisNpc;

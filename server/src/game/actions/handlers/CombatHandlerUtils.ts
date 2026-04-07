@@ -32,7 +32,7 @@ export function handleRangedAmmoConsumption(
     tick: number,
     effects: ActionEffect[],
 ): ActionExecutionResult {
-    const equip = services.equipment.getEquipArray(player);
+    const equip = services.getEquipArray(player);
     const equipQty = services.getEquipQtyArray(player);
 
     // ========================================================================

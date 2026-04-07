@@ -157,7 +157,7 @@ export class GroundItemHandler {
 
     private getInventoryInsertCapacity(player: PlayerState, itemId: number): number {
         const inventory = player.getInventoryEntries();
-        const itemDef = this.svc.dataLoaderService.getObjType(itemId) ?? getItemDefinition(itemId);
+        const itemDef = this.svc.dataLoaderService.getObjType(itemId) as any ?? getItemDefinition(itemId);
         const stackable = itemDef?.stackable === true;
 
         if (stackable) {
@@ -322,7 +322,7 @@ export class GroundItemHandler {
         };
 
         const opNum = payload.opNum ?? -1;
-        const itemDef = this.svc.dataLoaderService.getObjType(itemId) ?? getItemDefinition(itemId);
+        const itemDef = (this.svc.dataLoaderService.getObjType(itemId) as any) ?? getItemDefinition(itemId);
         let option = payload.option?.trim().toLowerCase() ?? "";
         if (!option && opNum > 0) {
             const idx = opNum - 1;
@@ -353,8 +353,8 @@ export class GroundItemHandler {
 
         let stackId = payload.stackId ?? -1;
         if (!(stackId > 0)) {
-            const visibleStacks = this.services
-                .getGroundItems()
+            const visibleStacks = this.svc
+                .groundItems
                 .queryArea(
                     tile.x,
                     tile.y,

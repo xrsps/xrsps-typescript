@@ -731,7 +731,7 @@ export class CombatActionHandler {
             applyMultiTargetSpellDamage: (params) => svc.combatEffectService.applyMultiTargetSpellDamage(params),
 
             awardCombatXp: (player, damage, hitData, effects) =>
-                svc.skillService.awardCombatXp(player, damage, hitData, effects),
+                svc.skillService.awardCombatXp(player, damage, hitData as { attackType?: string; attackStyleMode?: string; spellId?: number; spellBaseXpAtCast?: boolean } | undefined, effects),
             getSkillXpMultiplier: (player) => svc.gamemode.getSkillXpMultiplier(player),
 
             getSpecialAttack: (weaponId) => getSpecialAttack(weaponId),
@@ -1148,7 +1148,7 @@ export class CombatActionHandler {
                 resolvedAttackType !== "magic" && this.resolveHitLanded(landed, style, damage);
             if (shouldGrantXpOnAttack && damage > 0) {
                 hitData.xpGrantedOnAttack = true;
-                this.svc.skillService.awardCombatXp(player, damage, hitData, effects);
+                this.svc.skillService.awardCombatXp(player, damage, hitData as { attackType?: string; attackStyleMode?: string; spellId?: number; spellBaseXpAtCast?: boolean }, effects);
             }
         }
 
@@ -1179,13 +1179,13 @@ export class CombatActionHandler {
                 player,
                 targetX: npc.tileX,
                 targetY: npc.tileY,
-                projectileDefaults: projectileToSpawn,
+                projectileDefaults: projectileToSpawn as import("../../data/ProjectileParamsProvider").ProjectileParams,
                 pathService,
             });
             const launch = this.svc.projectileTimingService!.buildPlayerRangedProjectileLaunch({
                 player,
                 npc,
-                projectile: projectileToSpawn,
+                projectile: projectileToSpawn as import("../../data/ProjectileParamsProvider").ProjectileParams,
                 timing,
             });
             if (launch) {
@@ -1283,7 +1283,7 @@ export class CombatActionHandler {
                 player,
                 targetX: npc.tileX,
                 targetY: npc.tileY,
-                projectileDefaults: projectileSpec,
+                projectileDefaults: projectileSpec as import("../../data/ProjectileParamsProvider").ProjectileParams,
                 pathService,
             });
             if (timing) {

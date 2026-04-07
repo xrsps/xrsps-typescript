@@ -3,11 +3,8 @@ import { performance } from "perf_hooks";
 import { logger } from "../../utils/logger";
 import type { ServerServices } from "../ServerServices";
 
-export interface TickFrame {
-    tick: number;
-    time: number;
-    [key: string]: unknown;
-}
+import type { TickFrame } from "../../network/wsServerTypes";
+export type { TickFrame };
 
 export interface TickPhase {
     name: string;

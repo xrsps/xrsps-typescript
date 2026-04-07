@@ -49,7 +49,6 @@ export {
 
 export {
     EffectDispatcher,
-    type EffectDispatcherServices,
     type HitsplatBroadcast,
     type ForcedChatBroadcast,
     type ForcedMovementBroadcast,

@@ -325,7 +325,7 @@ export class CombatEffectService {
             npc.popPendingSeq();
         }
 
-        const deathSoundId = combatDataService.getNpcDeathSoundId(npc.typeId);
+        const deathSoundId = combatDataService.getNpcDeathSoundId(npc);
         if (deathSoundId !== undefined && deathSoundId > 0) {
             this.svc.networkLayer.withDirectSendBypass("combat_npc_death_sound", () =>
                 this.svc.broadcastService.broadcastSound(

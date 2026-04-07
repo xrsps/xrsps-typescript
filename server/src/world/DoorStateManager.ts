@@ -27,6 +27,9 @@ type LocTypeShape = {
     actions?: (string | undefined)[];
     ambientSoundId?: number;
     ambientSoundIds?: number[];
+    types?: number[];
+    sizeX?: number;
+    sizeY?: number;
 };
 
 /** DoorToggleParams with all optional fields resolved to required */

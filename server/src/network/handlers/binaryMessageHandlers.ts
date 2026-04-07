@@ -24,7 +24,6 @@ export interface BinaryHandlerExtServices extends MessageHandlerServices {
     getWidgetDialogHandler: () => WidgetDialogHandler;
     getObjType: (itemId: number) => { inventoryActions?: (string | null)[] } | undefined;
     handleInventoryUseOnMessage: (ws: WebSocket, payload: Record<string, unknown>) => void;
-    getGamemode: () => { onResumePauseButton?(player: PlayerState, widgetId: number, childIndex: number): boolean } | undefined;
 }
 
 export function registerBinaryHandlers(
@@ -47,7 +46,7 @@ function createGroundItemActionHandler(services: BinaryHandlerExtServices): Mess
         if (!payload.option || payload.option.length === 0) {
             const opNum = payload.opNum;
             if (opNum !== undefined && opNum > 0) {
-                const resolved = services.resolveGroundItemOptionByOpNum(payload.itemId, opNum);
+                const resolved = services.resolveGroundItemOptionByOpNum(payload.itemId!, opNum);
                 if (resolved) payload.option = resolved;
             }
         }
@@ -108,7 +107,7 @@ function createWidgetActionHandler(services: BinaryHandlerExtServices): MessageH
                 const tick = services.getCurrentTick();
                 if (scriptRuntime.queueItemAction({ tick, player, itemId: payload.itemId, slot: slotVal ?? 0 })) return;
             }
-            services.getWidgetDialogHandler().handleWidgetActionMessage(ctx.ws, { ...payload, opId, childId });
+            services.getWidgetDialogHandler().handleWidgetActionMessage(ctx.ws, { ...payload, groupId, opId, childId });
         }
     };
 }
@@ -124,7 +123,7 @@ function createItemSpawnerSearchHandler(services: BinaryHandlerExtServices): Mes
             const scriptRuntime = services.getScriptRuntime();
             msgHandler({
                 tick, services: scriptRuntime.getServices(), player,
-                messageType: "item_spawner_search", payload: ctx.payload ?? {},
+                messageType: "item_spawner_search", payload: (ctx.payload ?? {}) as Record<string, unknown>,
             });
         }
     };
@@ -152,7 +151,7 @@ function createInventoryUseOnHandler(services: BinaryHandlerExtServices): Messag
     return (ctx) => {
         const player = services.getPlayer(ctx.ws);
         if (!player) return;
-        services.handleInventoryUseOnMessage(ctx.ws, ctx.payload);
+        services.handleInventoryUseOnMessage(ctx.ws, ctx.payload as Record<string, unknown>);
     };
 }
 

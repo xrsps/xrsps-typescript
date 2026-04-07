@@ -10,7 +10,7 @@ import type {
     PlayerState,
 } from "../player";
 import { restoreAutocastState } from "../combat/AutocastState";
-import type { PrayerName } from "./PlayerPrayerState";
+import type { PrayerName } from "../../../../src/rs/prayer/prayers";
 import { DEFAULT_BANK_CAPACITY } from "./PlayerBankSystem";
 
 export function exportPersistentVars(player: PlayerState): PlayerPersistentVars {

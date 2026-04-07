@@ -395,10 +395,10 @@ export class LoginHandshakeService {
                     queueVarbit: (playerId, varbitId, value) =>
                         this.svc.variableService.queueVarbit(playerId, varbitId, value),
                     queueNotification: (playerId, notification) =>
-                        this.svc.messagingService.queueNotification(playerId, notification),
+                        this.svc.messagingService.queueNotification(playerId, notification as Record<string, unknown>),
                 });
 
-                const clientType = parsed.payload.clientType;
+                const clientType = (parsed.payload as any).clientType;
                 const isMobileClient = clientType === 1;
 
                 {
@@ -813,7 +813,7 @@ export class LoginHandshakeService {
                 this.handleLoginMessage(ws, parsed.payload);
                 return;
             } else if (parsed.type === "handshake") {
-                this.handleHandshakeMessage(ws, parsed.payload);
+                this.handleHandshakeMessage(ws, parsed.payload as any);
                 return;
             } else {
                 this.svc.messageRouter!.dispatch(ws, parsed) || logger.info(`[binary] Unhandled: ${parsed.type}`);

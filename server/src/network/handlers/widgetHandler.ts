@@ -1,5 +1,6 @@
 import type { MessageHandler } from "../MessageRouter";
 import type { MessageHandlerServices } from "../MessageHandlers";
+import type { WidgetEntry } from "../../widgets/WidgetManager";
 import { encodeMessage } from "../messages";
 import { logger } from "../../utils/logger";
 
@@ -57,7 +58,7 @@ export function createWidgetHandler(services: MessageHandlerServices): MessageHa
                 services.handleCs2ModalCloseState(p, groupId);
                 services.handleDialogCloseState(p, groupId);
                 const interfaceService = services.getInterfaceService();
-                let closedEntries: { groupId: number; targetUid?: number; scope?: string }[] = [];
+                let closedEntries: WidgetEntry[] = [];
                 let handledByInterfaceService = false;
                 if (interfaceService?.isChatboxModalOpen(p, groupId)) {
                     handledByInterfaceService = true;

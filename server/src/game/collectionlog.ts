@@ -742,7 +742,7 @@ export function trackCollectionLogItem(
         player.collectionLog.recordItemUnlock(id, getRuneDay());
         const displayVarps = syncCollectionDisplayVarps(player);
         for (const [varpIdRaw, valueRaw] of Object.entries(displayVarps)) {
-            services.variables.queueVarp(player.id, Number(varpIdRaw), valueRaw | 0);
+            services.queueVarp(player.id, Number(varpIdRaw), valueRaw | 0);
         }
         const itemName = getItemDefinition(id)?.name ?? `Item ${id}`;
         services.logger?.info(`[collection-log] NEW item for player=${player.id} itemId=${id}`);

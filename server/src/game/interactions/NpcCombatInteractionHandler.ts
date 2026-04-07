@@ -60,7 +60,7 @@ export class NpcCombatInteractionHandler {
         private readonly extractValidatedStrategyPathSteps: (
             player: PlayerState,
             res: ReturnType<PathService["findPathSteps"]>,
-            strategy: InstanceType<typeof CardinalAdjacentRouteStrategy>,
+            strategy: InstanceType<typeof CardinalAdjacentRouteStrategy> | InstanceType<typeof RectWithinRangeRouteStrategy> | InstanceType<typeof RectWithinRangeLineOfSightRouteStrategy>,
         ) => { x: number; y: number }[] | undefined,
         private readonly hasDirectReach: (
             from: { x: number; y: number },
@@ -212,7 +212,8 @@ export class NpcCombatInteractionHandler {
         if (!player) return;
 
         const socket = this.players.getSocketByPlayerId(playerId);
-        const keys = socket !== undefined ? [socket, player] : [player];
+        if (!socket) return;
+        const keys = [socket];
 
         for (const key of keys) {
             const state = this.interactions.get(key);

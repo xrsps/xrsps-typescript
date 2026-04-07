@@ -162,7 +162,7 @@ export class ProjectileTimingService {
             if (frameIndex === undefined) return undefined;
             let frames = 0;
             for (let i = 0; i <= Math.min(frameIndex, (seq.frameLengths?.length ?? 0) - 1); i++) {
-                const fl = seq.frameLengths[i] ?? 1;
+                const fl = seq.frameLengths![i] ?? 1;
                 frames += fl > 0 ? fl : 1;
             }
             const ticks = frames / Math.max(1, framesPerTick);

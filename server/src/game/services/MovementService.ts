@@ -155,7 +155,7 @@ export class MovementService {
 
         const { buildRebuildRegionPayload } = require("../../network/encoding/RebuildRegionEncoder");
         const payload = buildRebuildRegionPayload(regionX, regionY, templateChunks, this.services.cacheEnv, false);
-        const packet = encodeMessage({ type: "rebuild_region", payload } as Parameters<typeof encodeMessage>[0]);
+        const packet = encodeMessage({ type: "rebuild_region", payload } as unknown as Parameters<typeof encodeMessage>[0]);
         this.services.networkLayer.withDirectSendBypass("rebuild_region", () =>
             this.services.networkLayer.sendWithGuard(ws, packet, "rebuild_region"),
         );
@@ -211,7 +211,7 @@ export class MovementService {
         if (request.arriveSoundId !== undefined) data.arriveSoundId = request.arriveSoundId;
         if (request.arriveSoundRadius !== undefined) data.arriveSoundRadius = request.arriveSoundRadius;
         if (request.arriveSoundVolume !== undefined) data.arriveSoundVolume = request.arriveSoundVolume;
-        if (request.arriveMessage?.length > 0) data.arriveMessage = request.arriveMessage;
+        if (request.arriveMessage && request.arriveMessage.length > 0) data.arriveMessage = request.arriveMessage;
         if (request.arriveSeqId !== undefined) data.arriveSeqId = request.arriveSeqId;
         if (request.arriveFaceTileX !== undefined) data.arriveFaceTileX = request.arriveFaceTileX;
         if (request.arriveFaceTileY !== undefined) data.arriveFaceTileY = request.arriveFaceTileY;
@@ -564,7 +564,7 @@ export class MovementService {
             player.clearInteraction();
             player.stopAnimation();
         } catch (err) { logger.warn("[movement] failed to clear interaction state", err); }
-        const result = this.services.players.routePlayer(sock, { x: command.to.x, y: command.to.y }, command.run);
+        const result = this.services.players?.routePlayer(sock, { x: command.to.x, y: command.to.y }, command.run);
         return true;
     }
 }

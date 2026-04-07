@@ -668,7 +668,7 @@ export function encodeMessage(msg: ServerToClient): Uint8Array {
  * All ServerToClient message types must have a binary encoder
  */
 function encodeMessageToBinaryDirect(msg: ServerToClient): Uint8Array {
-    const { type, payload } = msg as unknown as { type: string; payload: Record<string, unknown> };
+    const { type, payload } = msg as unknown as { type: string; payload: any };
 
     switch (type) {
         case "welcome":
@@ -1001,7 +1001,7 @@ function encodeWidgetToBinary(payload: WidgetServerPayload): Uint8Array {
         case "set_hidden":
             return serverEncoder.encodeWidgetSetHidden(payload.uid, !!payload.hidden);
         case "set_item":
-            return serverEncoder.encodeWidgetSetItem(payload.uid, payload.itemId, payload.quantity);
+            return serverEncoder.encodeWidgetSetItem(payload.uid, payload.itemId, payload.quantity ?? 0);
         case "set_npc_head":
             return serverEncoder.encodeWidgetSetNpcHead(payload.uid, payload.npcId);
         case "set_flags_range":
@@ -1023,7 +1023,7 @@ function encodeWidgetToBinary(payload: WidgetServerPayload): Uint8Array {
             // Widget-channel varbit update - use existing varbit encoder
             return serverEncoder.encodeVarbit(payload.varbitId, payload.value);
         default:
-            throw new Error(`Unknown widget action: ${payload.action}`);
+            throw new Error(`Unknown widget action: ${(payload as any).action}`);
     }
 }
 
@@ -1035,8 +1035,8 @@ function encodeShopToBinary(payload: ShopServerPayload): Uint8Array {
                 payload.name ?? "",
                 payload.currencyItemId,
                 !!payload.generalStore,
-                payload.buyMode,
-                payload.sellMode,
+                payload.buyMode ?? 0,
+                payload.sellMode ?? 0,
                 payload.stock ?? [],
             );
         case "slot":
@@ -1050,7 +1050,7 @@ function encodeShopToBinary(payload: ShopServerPayload): Uint8Array {
                 payload.sellMode,
             );
         default:
-            throw new Error(`Unknown shop payload kind: ${payload.kind}`);
+            throw new Error(`Unknown shop payload kind: ${(payload as any).kind}`);
     }
 }
 
@@ -1063,14 +1063,14 @@ function encodeSmithingToBinary(payload: SmithingServerPayload): Uint8Array {
                 payload.title ?? "",
                 payload.options ?? [],
                 payload.quantityMode,
-                payload.customQuantity,
+                payload.customQuantity ?? 0,
             );
         case "mode":
-            return serverEncoder.encodeSmithingMode(payload.quantityMode, payload.customQuantity);
+            return serverEncoder.encodeSmithingMode(payload.quantityMode, payload.customQuantity ?? 0);
         case "close":
             return serverEncoder.encodeSmithingClose();
         default:
-            throw new Error(`Unknown smithing payload kind: ${payload.kind}`);
+            throw new Error(`Unknown smithing payload kind: ${(payload as any).kind}`);
     }
 }
 
@@ -1097,7 +1097,7 @@ function encodeTradeToBinary(payload: TradeServerPayload): Uint8Array {
         case "close":
             return serverEncoder.encodeTradeClose(payload.reason);
         default:
-            throw new Error(`Unknown trade payload kind: ${payload.kind}`);
+            throw new Error(`Unknown trade payload kind: ${(payload as any).kind}`);
     }
 }
 

@@ -350,13 +350,13 @@ export class PvpCombatHandler {
         if (spell?.healPercent && landed && dealt > 0) {
             const healAmount = Math.floor(dealt * spell.healPercent);
             if (healAmount > 0) {
-                player.applyHitpointsHeal(healAmount);
+                player.skillSystem.applyHitpointsHeal(healAmount);
             }
         }
 
         // Smoke spell poison: apply poison to target on hit
         if (spell?.poisonDamage && landed && dealt > 0) {
-            target.inflictPoison(spell.poisonDamage, hitsplatTick);
+            target.skillSystem.inflictPoison(spell.poisonDamage, hitsplatTick);
         }
     }
 

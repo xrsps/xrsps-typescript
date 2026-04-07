@@ -28,7 +28,7 @@ export type NpcDropEntryDefinition = {
 
 export type NpcDropPoolDefinition = {
     kind: "weighted" | "independent";
-    category: "main" | "tertiary";
+    category: "main" | "tertiary" | "weapons_armour" | "runes_ammo" | "coins" | "other";
     rolls?: number;
     entries: NpcDropEntryDefinition[];
 };
@@ -50,7 +50,7 @@ export type NpcDropEntry = {
 
 export type NpcDropPool = {
     kind: "weighted" | "independent";
-    category: "main" | "tertiary";
+    category: "main" | "tertiary" | "weapons_armour" | "runes_ammo" | "coins" | "other";
     rolls: number;
     entries: NpcDropEntry[];
     nothingProbability: number;
