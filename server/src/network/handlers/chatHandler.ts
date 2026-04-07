@@ -361,12 +361,12 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     const previousLevel = sender.skillSystem.getSkill(SkillId.Smithing).baseLevel;
                     sender.skillSystem.setSkillXp(SkillId.Smithing, getXpForLevel(targetLevel));
 
-                    if (targetLevel > previousLevel) {
-                        services.enqueueLevelUpPopup(sender, {
-                            kind: "skill",
+                    if (targetLevel > previousLevel && services.eventBus) {
+                        services.eventBus.emit("skill:levelUp", {
+                            player: sender,
                             skillId: SkillId.Smithing,
+                            oldLevel: previousLevel,
                             newLevel: targetLevel,
-                            levelIncrement: targetLevel - previousLevel,
                         });
                     }
 
@@ -491,12 +491,14 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     if (newLevel > currentLevel && sender.skillSystem.setSkillXp) {
                         const newXp = getXpForLevel(newLevel);
                         sender.skillSystem.setSkillXp(randomSkill, newXp);
-                        services.enqueueLevelUpPopup(sender, {
-                            kind: "skill",
-                            skillId: randomSkill,
-                            newLevel: newLevel,
-                            levelIncrement: 1,
-                        });
+                        if (services.eventBus) {
+                            services.eventBus.emit("skill:levelUp", {
+                                player: sender,
+                                skillId: randomSkill as any,
+                                oldLevel: currentLevel,
+                                newLevel,
+                            });
+                        }
                         logger.info(
                             `[cmd] ::levelup - Player ${sender.id} leveled up skill ${randomSkill} to ${newLevel}`,
                         );

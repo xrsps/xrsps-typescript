@@ -75,12 +75,6 @@ export class SkillService {
             });
             const newLevel = player.skillSystem.getSkill(skillId).baseLevel;
             if (newLevel > oldLevel) {
-                this.services.interfaceManager.enqueueLevelUpPopup(player, {
-                    kind: "skill",
-                    skillId,
-                    newLevel,
-                    levelIncrement: Math.max(1, newLevel - oldLevel),
-                });
                 this.services.eventBus.emit("skill:levelUp", {
                     player,
                     skillId,
@@ -90,11 +84,6 @@ export class SkillService {
             }
             const newCombatLevel = player.skillSystem.combatLevel;
             if (newCombatLevel > oldCombatLevel) {
-                this.services.interfaceManager.enqueueLevelUpPopup(player, {
-                    kind: "combat",
-                    newLevel: newCombatLevel,
-                    levelIncrement: Math.max(1, newCombatLevel - oldCombatLevel),
-                });
                 this.services.eventBus.emit("combat:levelUp", {
                     player,
                     oldLevel: oldCombatLevel,

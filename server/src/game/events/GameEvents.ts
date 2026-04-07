@@ -57,6 +57,11 @@ export interface GameEventMap {
         killerPlayerId: number | undefined;
         tile: { x: number; y: number; level: number };
     };
+    // ── Interfaces ────────────────────────────────────────────────────
+    "interfaces:closeInterruptible": {
+        player: PlayerState;
+    };
+
     // ── Items ─────────────────────────────────────────────────────────
     "item:craft": {
         playerId: number;

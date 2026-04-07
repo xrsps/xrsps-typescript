@@ -179,7 +179,7 @@ export function registerMessageHandlers(svc: ServerServices, router: MessageRout
         // Chat
         queueChatMessage: (msg) => svc.messagingService.queueChatMessage(msg),
         getPublicChatPlayerType: (player) => svc.authService.getPublicChatPlayerType(player),
-        enqueueLevelUpPopup: (player, data) => svc.interfaceManager.enqueueLevelUpPopup(player, data),
+        eventBus: svc.eventBus,
         findScriptCommand: (name) => svc.scriptRegistry.findCommand(name) as ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: Record<string, unknown> }) => string | void | Promise<string | void>) | undefined,
         getCurrentTick: () => svc.ticker.currentTick(),
 
@@ -242,9 +242,7 @@ export function registerMessageHandlers(svc: ServerServices, router: MessageRout
         getObjType: (itemId) => svc.dataLoaderService.getObjType(itemId),
         handleInventoryUseOnMessage: (ws, payload) =>
             svc.inventoryMessageService!.handleInventoryUseOnMessage(ws, payload),
-        getLevelUpPopupQueue: (playerId) =>
-            (svc.interfaceManager as unknown as { levelUpPopupQueue?: Map<number, import("../game/services/InterfaceManager").LevelUpPopup[]> }).levelUpPopupQueue?.get(playerId),
-        advanceLevelUpPopupQueue: (player) => svc.interfaceManager.advanceLevelUpPopupQueue(player),
+        getGamemode: () => svc.gamemode,
     };
     registerAllHandlers(router, extendedServices);
 

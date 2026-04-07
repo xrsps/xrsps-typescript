@@ -108,20 +108,22 @@ export class EffectDispatcher {
             if (!player) continue;
 
             if (effect.type === "levelUp") {
-                this.svc.interfaceManager.enqueueLevelUpPopup(player, {
-                    kind: "skill",
-                    skillId: effect.skillId as number,
-                    newLevel: effect.newLevel as number,
-                    levelIncrement: effect.levelIncrement as number,
+                const skillId = effect.skillId as number;
+                const newLevel = effect.newLevel as number;
+                const levelIncrement = effect.levelIncrement as number;
+                this.svc.eventBus.emit("skill:levelUp", {
+                    player, skillId: skillId as any,
+                    oldLevel: newLevel - levelIncrement, newLevel,
                 });
                 continue;
             }
 
             if (effect.type === "combatLevelUp") {
-                this.svc.interfaceManager.enqueueLevelUpPopup(player, {
-                    kind: "combat",
-                    newLevel: effect.newLevel as number,
-                    levelIncrement: effect.levelIncrement as number,
+                const newLevel = effect.newLevel as number;
+                const levelIncrement = effect.levelIncrement as number;
+                this.svc.eventBus.emit("combat:levelUp", {
+                    player,
+                    oldLevel: newLevel - levelIncrement, newLevel,
                 });
                 continue;
             }

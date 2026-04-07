@@ -25,7 +25,6 @@ import { TickPhaseService } from "../game/services/TickPhaseService";
 import { TickFrameService } from "../game/services/TickFrameService";
 import { VarpSyncService } from "../game/services/VarpSyncService";
 import { CombatEffectService } from "../game/services/CombatEffectService";
-import { LevelUpDisplayService } from "../game/services/LevelUpDisplayService";
 import { EquipmentStatsUiService } from "../game/services/EquipmentStatsUiService";
 import { ActionDispatchService } from "../game/services/ActionDispatchService";
 import { InventoryMessageService } from "../game/services/InventoryMessageService";
@@ -265,7 +264,6 @@ export class WSServer {
 
     // Extracted services (Phase 8)
     private combatEffectService!: CombatEffectService;
-    private levelUpDisplayService!: LevelUpDisplayService;
     private equipmentStatsUiService!: EquipmentStatsUiService;
     private actionDispatchService!: ActionDispatchService;
 
@@ -288,7 +286,7 @@ export class WSServer {
     >();
     // isBroadcastPhase, messageBatches, enableMessageBatching, directSendBypassDepth,
     // directSendWarningContexts moved to PlayerNetworkLayer
-    // widgetOpenLedgerByPlayer, levelUpPopupQueue moved to InterfaceManager
+    // widgetOpenLedgerByPlayer moved to InterfaceManager
     private playerSyncSessions = new Map<WebSocket, PlayerSyncSession>();
     private npcSyncSessions = new Map<WebSocket, NpcSyncSession>();
     private activeFrame?: TickFrame;
@@ -325,6 +323,8 @@ export class WSServer {
     private playerGroundSerial = new Map<number, number>();
     private playerGroundChunk = new Map<number, number>();
     private inventoryMessageService?: InventoryMessageService;
+    private maintenanceMode = false;
+    private enableBinaryNpcSync = true;
 
     /** Shared service context — populated incrementally, safe because services only read at tick time */
     readonly svc = {} as ServerServices;
@@ -428,7 +428,7 @@ export class WSServer {
             ["gamemodeUi", () => self.gamemodeUi],
             ["messageRouter", () => self.messageRouter],
             ["tickOrchestrator", () => self.tickOrchestrator],
-            ["maintenanceMode", () => (self as any).maintenanceMode ?? false],
+            ["maintenanceMode", () => self.maintenanceMode],
         ];
         for (const [key, getter] of mutableProps) {
             Object.defineProperty(this.svc, key, { get: getter, enumerable: true, configurable: true });
@@ -454,7 +454,6 @@ export class WSServer {
         s.movementService = this.movementService;
         s.combatEffectService = this.combatEffectService;
         s.varpSyncService = this.varpSyncService;
-        s.levelUpDisplayService = this.levelUpDisplayService;
         s.equipmentStatsUiService = this.equipmentStatsUiService;
         s.tickPhaseService = this.tickPhaseService;
         s.tickFrameService = this.tickFrameService;
@@ -511,8 +510,8 @@ export class WSServer {
         });
         s.gamemodeTickCallbacks = this.gamemodeTickCallbacks;
         Object.defineProperty(this.svc, "enableBinaryNpcSync", {
-            get: () => self.enableBinaryNpcSync ?? true,
-            set: (v: boolean) => { (self as any).enableBinaryNpcSync = v; },
+            get: () => self.enableBinaryNpcSync,
+            set: (v: boolean) => { self.enableBinaryNpcSync = v; },
             enumerable: true,
             configurable: true,
         });
@@ -521,8 +520,8 @@ export class WSServer {
         s.pendingDebugRequests = new Map<number, import("ws").WebSocket>();
 
         // Coordination methods
-        (this.svc as any).queueWidgetEvent = (pid: number, action: any) => this.queueWidgetEvent(pid, action);
-        (this.svc as any).queueCombatState = (p: any) => this.queueCombatState(p);
+        this.svc.queueWidgetEvent = (pid: number, action) => this.queueWidgetEvent(pid, action);
+        this.svc.queueCombatState = (p) => this.queueCombatState(p);
     }
 
     private initBroadcasters(): void {
@@ -1050,7 +1049,6 @@ export class WSServer {
         this.combatDataService = new CombatDataService(this.svc);
         logger.info("[services] Phase 4 combat data service initialized");
 
-        this.levelUpDisplayService = new LevelUpDisplayService(this.svc);
         this.equipmentStatsUiService = new EquipmentStatsUiService(this.svc);
 
         // --- Phase 5: Initialize location service ---
@@ -1498,11 +1496,11 @@ export class WSServer {
         return router;
     }
     /**
-     * Check if player has a modal dialog open (level-up, etc.)
-     * that should pause skill action execution.
+     * Check if player has a modal dialog open that should pause skill action execution.
      */
     hasModalOpen(playerId: number): boolean {
-        return this.interfaceManager.hasModalOpen(playerId);
+        const player = this.players?.getById(playerId);
+        return player?.widgets?.hasModalOpen?.() ?? false;
     }
 
     get tickMs(): number {

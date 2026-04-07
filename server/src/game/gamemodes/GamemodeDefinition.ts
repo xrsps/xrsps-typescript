@@ -172,6 +172,8 @@ export interface GamemodeDefinition {
     // === Varp / Widget Events ===
     onVarpTransmit?(player: PlayerState, varpId: number, value: number, previousValue: number): void;
     onWidgetOpen?(player: PlayerState, groupId: number): void;
+    /** Handle a resume_pausebutton click. Return true if consumed. */
+    onResumePauseButton?(player: PlayerState, widgetId: number, childIndex: number): boolean;
 
     // === Tick ===
     onPlayerTick?(player: PlayerState, nowMs: number): void;

@@ -299,7 +299,7 @@ export interface ScriptRegistrationResult {
     unregister(): void;
 }
 
-export { type DataLoaderServices, type SystemServices, type MessagingServices, type VariableServices, type InventoryServices, type EquipmentServices, type AnimationServices, type AppearanceServices, type DialogServices, type MovementServices, type LocationServices, type CombatServices, type NpcServices, type SkillServices, type CollectionLogServices, type FollowerServices, type BankingServices, type ShoppingServices, type GatheringServices, type CookingServices, type ProductionServices, type SailingServices, type ViewportServices } from "./serviceInterfaces";
+export { type FollowerServices, type BankingServices, type ShoppingServices, type GatheringServices, type CookingServices, type ProductionServices, type SailingServices } from "./serviceInterfaces";
 export { DisplayMode, BaseComponentUids, type InterfaceMount, type SmithingOptionMessage, type SmithingServerPayload, type WidgetAction } from "./serviceInterfaces";
 export { getMainmodalUid, getSidemodalUid, getPrayerTabUid, getViewportTrackerFrontUid } from "../../widgets/viewport";
 export type { DoorToggleResult, GateDef, GatePair, GateOpenStyle, DoorPartnerResult } from "./serviceInterfaces";

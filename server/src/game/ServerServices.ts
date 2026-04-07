@@ -74,7 +74,6 @@ import type { EquipmentStatsUiService } from "./services/EquipmentStatsUiService
 import type { InterfaceManager } from "./services/InterfaceManager";
 import type { InventoryMessageService } from "./services/InventoryMessageService";
 import type { InventoryService } from "./services/InventoryService";
-import type { LevelUpDisplayService } from "./services/LevelUpDisplayService";
 import type { LocationService } from "./services/LocationService";
 import type { MessagingService } from "./services/MessagingService";
 import type { MovementService } from "./services/MovementService";
@@ -205,7 +204,6 @@ export interface ServerServices {
     playerCombatService?: PlayerCombatService;
     readonly combatEffectService: CombatEffectService;
     readonly varpSyncService: VarpSyncService;
-    readonly levelUpDisplayService: LevelUpDisplayService;
     readonly equipmentStatsUiService: EquipmentStatsUiService;
     readonly tickPhaseService: TickPhaseService;
     readonly tickFrameService: TickFrameService;

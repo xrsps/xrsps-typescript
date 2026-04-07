@@ -1,4 +1,3 @@
-import { MAX_REAL_LEVEL, getSkillName } from "../../../../src/rs/skill/skills";
 import type { PlayerState } from "../player";
 import type { ServerServices } from "../ServerServices";
 import { logger } from "../../utils/logger";
@@ -9,13 +8,6 @@ export interface PlayerWidgetOpenLedger {
     directGroups: Set<number>;
 }
 
-export interface LevelUpPopup {
-    kind: "skill" | "combat" | "hunter";
-    skillId?: number;
-    newLevel: number;
-    levelIncrement: number;
-}
-
 export interface WidgetAction {
     action: string;
     groupId?: number;
@@ -24,13 +16,12 @@ export interface WidgetAction {
 }
 
 /**
- * Manages widget open/close ledger tracking, level-up popup queue,
+ * Manages widget open/close ledger tracking,
  * widget event queuing, and client script queuing.
  * Extracted from WSServer.
  */
 export class InterfaceManager {
     private readonly widgetOpenLedgerByPlayer = new Map<number, PlayerWidgetOpenLedger>();
-    private readonly levelUpPopupQueue = new Map<number, LevelUpPopup[]>();
 
     constructor(private readonly svc: ServerServices) {}
 
@@ -150,7 +141,7 @@ export class InterfaceManager {
             this.svc.interfaceService.triggerCloseHooksForEntries(player, closedEntries);
         }
 
-        this.dismissLevelUpPopupQueue(playerId);
+        this.svc.eventBus?.emit("interfaces:closeInterruptible", { player });
 
         this.svc.widgetDialogHandler?.closeAllPlayerDialogs(player);
         this.svc.cs2ModalManager?.clearPlayerState(player);
@@ -161,73 +152,6 @@ export class InterfaceManager {
     queueClientScript(playerId: number, scriptId: number, ...args: (number | string)[]): void {
         logger.info?.(`[clientScript] queue player=${playerId} script=${scriptId} args=${JSON.stringify(args)}`);
         this.svc.broadcastScheduler.queueClientScript(playerId, scriptId, args);
-    }
-
-    // --- Level-Up Popup Queue ---
-
-    hasModalOpen(playerId: number): boolean {
-        const queue = this.levelUpPopupQueue.get(playerId);
-        return queue !== undefined && queue.length > 0;
-    }
-
-    enqueueLevelUpPopup(player: PlayerState, popup: LevelUpPopup): void {
-        const playerId = player.id;
-        let queue = this.levelUpPopupQueue.get(playerId);
-        if (!queue) {
-            queue = [];
-            this.levelUpPopupQueue.set(playerId, queue);
-        }
-        queue.push(popup);
-
-        if (popup.kind === "skill") {
-            const skillName = getSkillName(popup.skillId);
-            const levelUpMessage =
-                popup.newLevel === MAX_REAL_LEVEL
-                    ? `Congratulations, you've reached the highest possible ${skillName} level of 99.`
-                    : `Congratulations, you've just advanced your ${skillName} level. You are now level ${popup.newLevel}.`;
-            this.svc.messagingService.queueChatMessage({
-                messageType: "game",
-                playerId,
-                text: levelUpMessage,
-                targetPlayerIds: [playerId],
-            });
-        }
-
-        if (queue.length === 1) {
-            const shown = this.svc.levelUpDisplayService.showLevelUpPopup(player, popup);
-            if (!shown) {
-                queue.shift();
-                if (queue.length < 1) {
-                    this.levelUpPopupQueue.delete(playerId);
-                }
-            }
-        }
-    }
-
-    advanceLevelUpPopupQueue(player: PlayerState): void {
-        const playerId = player.id;
-        const queue = this.levelUpPopupQueue.get(playerId);
-        if (!queue || queue.length === 0) return;
-
-        queue.shift();
-
-        while (queue.length > 0) {
-            if (this.svc.levelUpDisplayService.showLevelUpPopup(player, queue[0])) {
-                return;
-            }
-            queue.shift();
-        }
-
-        this.levelUpPopupQueue.delete(playerId);
-        this.svc.levelUpDisplayService.closeChatboxModalOverlay(playerId);
-    }
-
-    dismissLevelUpPopupQueue(playerId: number): boolean {
-        const queue = this.levelUpPopupQueue.get(playerId);
-        if (!queue || queue.length === 0) return false;
-        this.levelUpPopupQueue.delete(playerId);
-        this.svc.levelUpDisplayService.closeChatboxModalOverlay(playerId);
-        return true;
     }
 
     interruptPlayerSkillActions(playerId: number): void {

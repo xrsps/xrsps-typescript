@@ -13,9 +13,7 @@ import type { MessageRouter, MessageHandler } from "../MessageRouter";
 import type { MessageHandlerServices } from "../MessageHandlers";
 import type { Cs2ModalManager } from "../managers";
 import type { WidgetDialogHandler } from "../../game/actions";
-import type { LevelUpPopup } from "../../game/services/InterfaceManager";
 import type { GroundItemActionPayload } from "../managers";
-import { LEVELUP_INTERFACE_ID, LEVELUP_CONTINUE_COMPONENT } from "../levelUpDisplay";
 
 export interface BinaryHandlerExtServices extends MessageHandlerServices {
     resolveGroundItemOptionByOpNum: (itemId: number, opNum: number) => string | undefined;
@@ -26,8 +24,7 @@ export interface BinaryHandlerExtServices extends MessageHandlerServices {
     getWidgetDialogHandler: () => WidgetDialogHandler;
     getObjType: (itemId: number) => { inventoryActions?: (string | null)[] } | undefined;
     handleInventoryUseOnMessage: (ws: WebSocket, payload: Record<string, unknown>) => void;
-    getLevelUpPopupQueue: (playerId: number) => LevelUpPopup[] | undefined;
-    advanceLevelUpPopupQueue: (player: PlayerState) => void;
+    getGamemode: () => { onResumePauseButton?(player: PlayerState, widgetId: number, childIndex: number): boolean } | undefined;
 }
 
 export function registerBinaryHandlers(
@@ -166,17 +163,12 @@ function createResumePauseButtonHandler(services: BinaryHandlerExtServices): Mes
         const { widgetId, childIndex } = ctx.payload as unknown as { widgetId: number; childIndex: number };
         const widgetGroup = (widgetId >> 16) & 0xffff;
 
-        const q = services.getLevelUpPopupQueue(player.id);
-        if (q && q.length > 0 && widgetGroup === LEVELUP_INTERFACE_ID) {
-            const expectedWidgetId = (LEVELUP_INTERFACE_ID << 16) | LEVELUP_CONTINUE_COMPONENT;
-            const current = q[0];
-            const expectsLevelupDisplay =
-                current.kind === "combat" ||
-                (current.kind === "skill" && current.skillId !== SkillId.Hunter);
-            if (!expectsLevelupDisplay || widgetId === expectedWidgetId) {
-                services.advanceLevelUpPopupQueue(player);
-            }
-        } else if (widgetGroup === 270) {
+        const gamemode = services.getGamemode();
+        if (gamemode?.onResumePauseButton?.(player, widgetId, childIndex)) {
+            return;
+        }
+
+        if (widgetGroup === 270) {
             services.getWidgetDialogHandler().handleWidgetActionMessage(ctx.ws, {
                 widgetId, groupId: widgetGroup, childId: widgetId & 0xffff, opId: 1, slot: childIndex,
             });

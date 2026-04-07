@@ -830,7 +830,6 @@ export class LoginHandshakeService {
                         this.svc.groundItemHandler?.clearPlayerState(id);
                         this.svc.playerDynamicLocSceneKeys.delete(id);
                     }
-                    this.svc.interfaceManager.dismissLevelUpPopupQueue(player.id);
                     this.svc.interfaceManager.clearUiTrackingForPlayer(player.id);
                     this.svc.tradeManager?.handlePlayerLogout(
                         player,

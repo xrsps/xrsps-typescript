@@ -21,7 +21,6 @@ import type { BoatLoc } from "../game/sailing/SailingInstance";
 import type { MessagePayload, MessageRouter } from "./MessageRouter";
 import type { IndexedMenuRequest } from "./managers/Cs2ModalManager";
 import type { NotificationPayload, ServerToClient } from "./messages";
-import type { LevelUpPopup } from "../game/services/InterfaceManager";
 import type { InterfaceService } from "../widgets/InterfaceService";
 import type { GamemodeDefinition, GamemodeUiController } from "../game/gamemodes/GamemodeDefinition";
 
@@ -250,7 +249,7 @@ export interface MessageHandlerServices {
         targetPlayerIds?: number[];
     }) => void;
     getPublicChatPlayerType: (player: PlayerState) => number;
-    enqueueLevelUpPopup: (player: PlayerState, data: LevelUpPopup) => void;
+    eventBus?: import("../game/events/GameEventBus").GameEventBus;
     findScriptCommand: (name: string) => ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: Record<string, unknown> }) => string | void | Promise<string | void>) | undefined;
     getCurrentTick: () => number;
 

@@ -41,6 +41,7 @@ import type { NpcLootConfig } from "../../src/game/combat/DamageTracker";
 import { DEFAULT_LOGIN_VARBITS } from "./data/loginVarbits";
 import { DEFAULT_LOGIN_VARPS } from "./data/loginVarps";
 import { NPC_LOOT_CONFIGS } from "./data/lootDistribution";
+import { registerLevelUpHandlers, handleResumePauseButton, handleDismiss } from "./scripts/levelup";
 
 const DEFAULT_SPAWN = { x: 3222, y: 3218, level: 0 };
 
@@ -230,6 +231,11 @@ export class VanillaGamemode implements GamemodeDefinition {
 
         // Skills
         registerSkillHandlers(registry, services);
+
+        // Level-up display (event-driven from SkillService)
+        if (services.system.eventBus) {
+            registerLevelUpHandlers(services, services.system.eventBus);
+        }
     }
 
     initialize(context: GamemodeInitContext): void {
@@ -576,6 +582,16 @@ export class VanillaGamemode implements GamemodeDefinition {
                 shopId,
                 slot,
             });
+        }
+    }
+    onResumePauseButton(player: PlayerState, widgetId: number, childIndex: number): boolean {
+        if (!this.scriptServices) return false;
+        return handleResumePauseButton(this.scriptServices, player, widgetId, childIndex);
+    }
+
+    onPlayerDisconnect(playerId: number): void {
+        if (this.scriptServices) {
+            handleDismiss(this.scriptServices, playerId);
         }
     }
 }
