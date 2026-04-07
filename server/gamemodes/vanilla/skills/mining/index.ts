@@ -43,7 +43,7 @@ function rollMiningSuccess(level: number, rockLevel: number, pickaxe: PickaxeDef
 }
 
 function describeItem(services: ScriptServices, itemId: number): string {
-    return services.getObjType?.(itemId)?.name?.toLowerCase() ?? "item";
+    return services.data.getObjType(itemId)?.name?.toLowerCase() ?? "item";
 }
 
 function failMiningPrecheck(
@@ -82,21 +82,21 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         return failMiningPrecheck(player, services, "You stop mining the rock.");
     }
 
-    const skill = services.getSkill?.(player, SkillId.Mining);
+    const skill = services.skills.getSkill(player, SkillId.Mining);
     const effectiveLevel = Math.max(1, (skill?.baseLevel ?? 1) + (skill?.boost ?? 0));
 
     if (effectiveLevel < rock.level) {
         return failMiningPrecheck(player, services, `You need Mining level ${rock.level} to mine this rock.`);
     }
 
-    const carriedIds = services.collectCarriedItemIds?.(player) ?? [];
+    const carriedIds = services.inventory.collectCarriedItemIds(player) ?? [];
     const pickaxe = selectPickaxeByLevel(carriedIds, effectiveLevel);
     if (!pickaxe) {
         return failMiningPrecheck(player, services, "You need a pickaxe that you have the Mining level to use.");
     }
     const hasEchoPickaxePerk = hasAnyCarriedItem(carriedIds, ECHO_PICKAXE_ITEM_IDS);
 
-    if (!hasEchoPickaxePerk && !services.hasInventorySlot?.(player)) {
+    if (!hasEchoPickaxePerk && !services.inventory.hasInventorySlot(player)) {
         return failMiningPrecheck(player, services, "Your inventory is too full to hold any more ore.");
     }
 
@@ -106,8 +106,8 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     if (!data.started) {
         effects.push(buildMessageEffect(player, "You swing your pickaxe at the rock."));
         services.faceGatheringTarget?.(player, tile);
-        services.playPlayerSeq?.(player, pickaxe.animation);
-        const initialSchedule = services.scheduleAction?.(
+        services.animation.playPlayerSeq(player, pickaxe.animation);
+        const initialSchedule = services.combat.scheduleAction(
             player.id,
             {
                 kind: "skill.mine",
@@ -133,7 +133,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     }
 
     services.faceGatheringTarget?.(player, tile);
-    services.playPlayerSeq?.(player, pickaxe.animation);
+    services.animation.playPlayerSeq(player, pickaxe.animation);
 
     let inventorySnapshot = false;
     let bankSnapshot = false;
@@ -153,7 +153,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
             }
             bankSnapshot = true;
         } else {
-            const result = services.addItemToInventory(player, rock.oreItemId, 1);
+            const result = services.inventory.addItemToInventory(player, rock.oreItemId, 1);
             if (result.added <= 0) {
                 return failMiningPrecheck(player, services, "Your inventory is too full to hold any more ore.");
             }
@@ -166,7 +166,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
             const capitalizedOreName = oreName.charAt(0).toUpperCase() + oreName.slice(1);
             effects.push(buildMessageEffect(player, `1x ${capitalizedOreName} were sent straight to your bank.`));
         }
-        services.addSkillXp?.(player, SkillId.Mining, rock.xp);
+        services.skills.addSkillXp(player, SkillId.Mining, rock.xp);
 
         if (locId > 0) {
             nextEchoMinedCount = hasEchoPickaxePerk ? echoMinedCount + 1 : 0;
@@ -183,7 +183,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
                 );
 
                 if (depletedLocId !== undefined) {
-                    services.emitLocChange?.(locId, depletedLocId, tile, plane);
+                    services.location.emitLocChange(locId, depletedLocId, tile, plane);
                 }
                 effects.push(buildMessageEffect(player, "The rock is depleted of its ore."));
                 services.stopGatheringInteraction?.(player);
@@ -200,7 +200,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 
     let continueMining = !services.gathering?.getTracker("mining")?.has(nodeKey);
     if (continueMining) {
-        if (!hasEchoPickaxePerk && !services.hasInventorySlot?.(player)) {
+        if (!hasEchoPickaxePerk && !services.inventory.hasInventorySlot(player)) {
             continueMining = false;
             effects.push(buildMessageEffect(player, "Your inventory is too full to hold any more ore."));
         } else if (!services.isAdjacentToLoc?.(player, locId, tile, plane)) {
@@ -209,7 +209,7 @@ function executeMineAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     }
 
     if (continueMining) {
-        const reschedule = services.scheduleAction?.(
+        const reschedule = services.combat.scheduleAction(
             player.id,
             {
                 kind: "skill.mine",
@@ -246,7 +246,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         }
     });
 
-    const locTypeLoader = services.getLocTypeLoader?.();
+    const locTypeLoader = services.data.getLocTypeLoader();
     const miningLocMap = buildMiningLocMap(locTypeLoader);
     services.getMiningRock = (locId) => getMiningRockFromMap(locId, miningLocMap);
 
@@ -259,7 +259,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             const rock = services.getMiningRock?.(event.locId);
             if (!rock) return;
             const delay = 0;
-            const result = services.requestAction(
+            const result = services.combat.requestAction(
                 event.player,
                 {
                     kind: "skill.mine",
@@ -279,7 +279,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 event.tick,
             );
             if (!result.ok) {
-                services.sendGameMessage(event.player, "You're too busy to do that right now.");
+                services.messaging.sendGameMessage(event.player, "You're too busy to do that right now.");
             }
         });
     }

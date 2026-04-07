@@ -78,15 +78,13 @@ export function scheduleConsumableAction(options: ConsumableActionOptions): bool
     } = options;
 
     // Eating/drinking closes interruptible interfaces (modals, dialogs)
-    if (services.closeInterruptibleInterfaces) {
-        services.closeInterruptibleInterfaces(player);
-    }
+    services.dialog.closeInterruptibleInterfaces(player);
 
     const normalizedSlot = clampSlot(slotIndex);
     const normalizedItemId = itemId;
     const resolvedTick = Number.isFinite(tick) ? (tick as number) : 0;
     const log = (message: string, meta?: Record<string, unknown>) =>
-        services.logger?.warn?.(`[script:${loggerTag}] ${message}`, meta);
+        services.system.logger.warn?.(`[script:${loggerTag}] ${message}`, meta);
 
     const profileConfig = profile ? PROFILE_CONFIG[profile] : undefined;
     const effectiveGroups = normalizeGroups(groups ?? profileConfig?.groups);
@@ -116,11 +114,11 @@ export function scheduleConsumableAction(options: ConsumableActionOptions): bool
             });
         }
         if (snapshot) {
-            services.snapshotInventoryImmediate(player);
+            services.inventory.snapshotInventoryImmediate(player);
         }
     };
 
-    const result = services.requestAction(
+    const result = services.combat.requestAction(
         player,
         {
             kind: "inventory.consume_script",

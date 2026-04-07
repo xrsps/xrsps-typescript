@@ -113,7 +113,7 @@ function getPlayerDisplayMode(player: PlayerState): DisplayMode {
  */
 function getCombatTabUid(player: PlayerState, services: ScriptServices): number {
     const displayMode = getPlayerDisplayMode(player);
-    const interfaces = services.getDefaultInterfaces?.(displayMode) ?? [];
+    const interfaces = services.viewport.getDefaultInterfaces(displayMode) ?? [];
     const combat = interfaces.find(
         (entry) => entry.groupId === COMBAT_WIDGET_GROUP_ID,
     );
@@ -145,9 +145,9 @@ function tryActivateInstantUtilitySpecial(
     if (currentEnergy < 100) {
         player.setSpecialActivated?.(false);
         player.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-        services.sendVarp?.(player, VARP_SPECIAL_ATTACK, 0);
-        services.queueCombatState?.(player);
-        services.sendGameMessage(player, "You do not have enough special attack energy.");
+        services.variables.sendVarp?.(player, VARP_SPECIAL_ATTACK, 0);
+        services.combat.queueCombatState(player);
+        services.messaging.sendGameMessage(player, "You do not have enough special attack energy.");
         return true;
     }
 
@@ -155,9 +155,9 @@ function tryActivateInstantUtilitySpecial(
     if (!consumed) {
         player.setSpecialActivated?.(false);
         player.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-        services.sendVarp?.(player, VARP_SPECIAL_ATTACK, 0);
-        services.queueCombatState?.(player);
-        services.sendGameMessage(player, "You do not have enough special attack energy.");
+        services.variables.sendVarp?.(player, VARP_SPECIAL_ATTACK, 0);
+        services.combat.queueCombatState(player);
+        services.messaging.sendGameMessage(player, "You do not have enough special attack energy.");
         return true;
     }
 
@@ -171,16 +171,16 @@ function tryActivateInstantUtilitySpecial(
 
     player.setSpecialActivated?.(false);
     player.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-    services.sendVarp?.(player, VARP_SPECIAL_ATTACK, 0);
-    services.queueCombatState?.(player);
+    services.variables.sendVarp?.(player, VARP_SPECIAL_ATTACK, 0);
+    services.combat.queueCombatState(player);
 
     const seqId = (rockKnockerSeqId ?? fishstabberSeqId ?? lumberUpSeqId) as number;
-    services.playPlayerSeqImmediate?.(player, seqId);
+    services.animation.playPlayerSeqImmediate(player, seqId);
     if (rockKnockerSeqId) {
-        services.sendSound?.(player, ROCK_KNOCKER_SOUND_ID);
+        services.sound.sendSound(player, ROCK_KNOCKER_SOUND_ID);
     }
 
-    services.logger?.info?.(
+    services.system.logger.info?.(
         `[script:combat-widgets] Instant utility special activated for player=${player.id} ` +
             `weapon=${weaponObjId} kind=${
                 rockKnockerSeqId ? "rock_knocker" : fishstabberSeqId ? "fishstabber" : "lumber_up"
@@ -196,8 +196,8 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
     for (const componentId of COMBAT_STYLE_COMPONENTS) {
         registry.onButton(COMBAT_WIDGET_GROUP_ID, componentId, (event) => {
             const player = event.player;
-            services.queueCombatState?.(player);
-            services.logger?.info?.(
+            services.combat.queueCombatState(player);
+            services.system.logger.info?.(
                 `[script:combat-widgets] Combat style button clicked for player=${player.id} ` +
                     `component=${componentId}`,
             );
@@ -219,12 +219,12 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
         player.varps.setVarpValue(VARP_AUTO_RETALIATE, varpValue);
 
         // Send varp to client to update the UI
-        services.sendVarp?.(player, VARP_AUTO_RETALIATE, varpValue);
+        services.variables.sendVarp?.(player, VARP_AUTO_RETALIATE, varpValue);
 
         // Queue combat state update
-        services.queueCombatState?.(player);
+        services.combat.queueCombatState(player);
 
-        services.logger?.info?.(
+        services.system.logger.info?.(
             `[script:combat-widgets] Auto-retaliate toggled for player=${player.id} ` +
                 `newState=${newState ? "ON" : "OFF"}`,
         );
@@ -254,12 +254,12 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
         player.varps.setVarpValue(VARP_SPECIAL_ATTACK, varpValue);
 
         // Send varp to client to update the UI
-        services.sendVarp?.(player, VARP_SPECIAL_ATTACK, varpValue);
+        services.variables.sendVarp?.(player, VARP_SPECIAL_ATTACK, varpValue);
 
         // Queue combat state update
-        services.queueCombatState?.(player);
+        services.combat.queueCombatState(player);
 
-        services.logger?.info?.(
+        services.system.logger.info?.(
             `[script:combat-widgets] Special attack toggled for player=${player.id} ` +
                 `newState=${newState ? "ON" : "OFF"}`,
         );
@@ -272,11 +272,11 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
 
         if (player.combat.autocastEnabled) {
             clearAutocastState(player, {
-                sendVarbit: services.sendVarbit,
-                queueCombatState: services.queueCombatState,
+                sendVarbit: services.variables.sendVarbit,
+                queueCombatState: services.combat.queueCombatState,
             });
 
-            services.logger?.info?.(
+            services.system.logger.info?.(
                 `[script:combat-widgets] Autocast disabled for player=${player.id}`,
             );
         }
@@ -309,7 +309,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
         // CC_CREATE childIndex is 1-based (slot 0 is a header/spacer), so subtract 1
         const arrayIndex = slot - 1;
         if (arrayIndex >= visibleSpells.length) {
-            services.logger?.warn?.(
+            services.system.logger.warn?.(
                 `[script:combat-widgets] Autocast slot=${slot} out of range ` +
                     `(visible=${visibleSpells.length}) for player=${event.player.id}`,
             );
@@ -327,8 +327,8 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
         player.combat.pendingAutocastWeaponId = undefined;
 
         const combatTabUid = getCombatTabUid(player, services);
-        services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
-        services.logger?.info?.(
+        services.dialog.openSubInterface(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
+        services.system.logger.info?.(
             `[script:combat-widgets] Autocast popup cancelled for player=${player.id}`,
         );
     });
@@ -349,7 +349,7 @@ function openAutocastPopup(player: PlayerState, isDefensive: boolean, services: 
 
     // Open the autocast popup (interface 201) in the Combat tab container
     const combatTabUid = getCombatTabUid(player, services);
-    services.openSubInterface?.(player, combatTabUid, AUTOCAST_POPUP_GROUP_ID, 1, {
+    services.dialog.openSubInterface(player, combatTabUid, AUTOCAST_POPUP_GROUP_ID, 1, {
         varps: { [VARP_AUTOCAST_SPELLPOS]: spellposSelector },
     });
 
@@ -363,7 +363,7 @@ function openAutocastPopup(player: PlayerState, isDefensive: boolean, services: 
 
     // Enable transmission for dynamic spell icon children under the spell container (201:1).
     // The CS2 creates children at sequential childIndex 0..N for each visible spell.
-    services.queueWidgetEvent?.(player.id, {
+    services.dialog.queueWidgetEvent(player.id, {
         action: "set_flags_range",
         uid: (AUTOCAST_POPUP_GROUP_ID << 16) | AUTOCAST_SPELL_CONTAINER_COMPONENT,
         fromSlot: 0,
@@ -372,7 +372,7 @@ function openAutocastPopup(player: PlayerState, isDefensive: boolean, services: 
     });
 
     // Enable transmission for the cancel button (201:0, static widget).
-    services.queueWidgetEvent?.(player.id, {
+    services.dialog.queueWidgetEvent(player.id, {
         action: "set_flags_range",
         uid: (AUTOCAST_POPUP_GROUP_ID << 16) | AUTOCAST_CANCEL_COMPONENT,
         fromSlot: -1,
@@ -380,7 +380,7 @@ function openAutocastPopup(player: PlayerState, isDefensive: boolean, services: 
         flags: IF_SETEVENTS_TRANSMIT_OP1,
     });
 
-    services.logger?.info?.(
+    services.system.logger.info?.(
         `[script:combat-widgets] Opened autocast popup for player=${player.id} ` +
             `defensive=${isDefensive} weaponObjId=${weaponObjId} spellpos=${spellposSelector}`,
     );
@@ -395,7 +395,7 @@ function handleAutocastSpellSelection(player: PlayerState, spellIndex: number, s
     // Convert spell index to actual spell ID
     const spellId = getSpellIdFromAutocastIndex(spellIndex);
     if (!spellId) {
-        services.logger?.warn?.(
+        services.system.logger.warn?.(
             `[script:combat-widgets] Invalid autocast spell index=${spellIndex}`,
         );
         return;
@@ -407,8 +407,8 @@ function handleAutocastSpellSelection(player: PlayerState, spellIndex: number, s
     const compatibility = canWeaponAutocastSpell(weaponObjId, spellId);
     if (!compatibility.compatible) {
         const message = getAutocastCompatibilityMessage(compatibility.reason);
-        services.sendGameMessage(player, message);
-        services.logger?.info?.(
+        services.messaging.sendGameMessage(player, message);
+        services.system.logger.info?.(
             `[script:combat-widgets] Autocast rejected for player=${player.id} ` +
                 `spell=${spellId} weapon=${weaponObjId} reason=${compatibility.reason}`,
         );
@@ -416,22 +416,22 @@ function handleAutocastSpellSelection(player: PlayerState, spellIndex: number, s
         player.combat.pendingAutocastDefensive = undefined;
         player.combat.pendingAutocastWeaponId = undefined;
         const combatTabUid = getCombatTabUid(player, services);
-        services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
+        services.dialog.openSubInterface(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
         return;
     }
 
     applyAutocastState(player, spellId, spellIndex, isDefensive, {
-        sendVarbit: services.sendVarbit,
-        queueCombatState: services.queueCombatState,
+        sendVarbit: services.variables.sendVarbit,
+        queueCombatState: services.combat.queueCombatState,
     });
     player.combat.pendingAutocastDefensive = undefined;
     player.combat.pendingAutocastWeaponId = undefined;
 
     // Return to the combat options tab UI
     const combatTabUid = getCombatTabUid(player, services);
-    services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
+    services.dialog.openSubInterface(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
 
-    services.logger?.info?.(
+    services.system.logger.info?.(
         `[script:combat-widgets] Autocast spell set for player=${player.id} ` +
             `spellIndex=${spellIndex} spellId=${spellId} defensive=${isDefensive}`,
     );

@@ -54,18 +54,18 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
             const openCollectionLog =
                 optionLower === "collection log" || (!optionLower && opId === 1);
             if (openCollectionLog) {
-                services.logger?.info?.(`[collection-log] Opening for player=${player.id}`);
-                services.openCollectionLog?.(player);
+                services.system.logger.info?.(`[collection-log] Opening for player=${player.id}`);
+                services.collectionLog.openCollectionLog(player);
                 return;
             }
 
             const openCollectionOverview =
                 optionLower === "collection overview" || (!optionLower && opId === 2);
             if (openCollectionOverview) {
-                services.logger?.info?.(
+                services.system.logger.info?.(
                     `[collection-log] Opening overview for player=${player.id}`,
                 );
-                services.openCollectionOverview?.(player);
+                services.collectionLog.openCollectionOverview(player);
             }
         },
     });
@@ -84,7 +84,7 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
             const componentId = event.widgetId & 0xffff;
 
             // Debug logging
-            services.logger?.info?.(
+            services.system.logger.info?.(
                 `[collection-log] Widget action: widgetId=${event.widgetId} groupId=${event.groupId} childId=${event.childId} componentId=${componentId} option=${event.option} opId=${event.opId}`,
             );
 
@@ -95,7 +95,7 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
             // Only handle "View" option (opId 1)
             if ((event.opId ?? 0) !== 1) return;
 
-            services.logger?.info?.(
+            services.system.logger.info?.(
                 `[collection-log] Tab clicked: player=${player.id} tab=${tabIndex} (${event.target})`,
             );
 
@@ -108,27 +108,27 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
             // 7797 -> 7798 -> 228 (steelborder) -> 2389 -> 2731 -> 2732
 
             // Reset category count varp
-            services.queueVarp?.(player.id, VARP_COLLECTION_CATEGORY_COUNT, 0);
+            services.variables.queueVarp?.(player.id, VARP_COLLECTION_CATEGORY_COUNT, 0);
 
             // Set varbit 6905 (VARBIT_COLLECTION_LAST_TAB) to selected tab
             player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_TAB, tabIndex);
-            services.queueVarbit?.(player.id, VARBIT_COLLECTION_LAST_TAB, tabIndex);
+            services.variables.queueVarbit?.(player.id, VARBIT_COLLECTION_LAST_TAB, tabIndex);
 
             // Reset category selection (varbit 6906 = -1 means no category selected)
             player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_CATEGORY, -1);
-            services.queueVarbit?.(player.id, VARBIT_COLLECTION_LAST_CATEGORY, -1);
+            services.variables.queueVarbit?.(player.id, VARBIT_COLLECTION_LAST_CATEGORY, -1);
 
             // Build args for script 7797: [tabIndex, comp1, comp2, comp3, comp4, structId, mode]
             const tabChangeArgs = buildTabChangeArgs(tabIndex);
 
-            services.logger?.info?.(
+            services.system.logger.info?.(
                 `[collection-log] Queuing script 7797 for player=${
                     player.id
                 } tabIndex=${tabIndex} args=${JSON.stringify(tabChangeArgs)}`,
             );
 
             // Call script 7797 with proper widget UIDs and struct
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_COLLECTION_TAB_CHANGE,
                 args: tabChangeArgs,
@@ -178,7 +178,7 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
             // Dynamic category rows are keyed by childIndex (slot). If slot is missing and
             // childId equals the static click-layer component, ignore to prevent bad selection redraws.
             if (slotVal < 0 && categoryIndexRaw === componentId) {
-                services.logger?.info?.(
+                services.system.logger.info?.(
                     `[collection-log] Ignoring malformed category click: player=${
                         player.id
                     } tab=${tabIndex} component=${componentId} childId=${
@@ -190,7 +190,7 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
 
             const categoryIndex = categoryIndexRaw;
 
-            services.logger?.info?.(
+            services.system.logger.info?.(
                 `[collection-log] Category clicked: player=${
                     player.id
                 } tab=${tabIndex} category=${categoryIndex} target=${
@@ -200,17 +200,17 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
 
             // Set varbit 6906 (VARBIT_COLLECTION_LAST_CATEGORY) to selected category
             player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_CATEGORY, categoryIndex);
-            services.queueVarbit?.(player.id, VARBIT_COLLECTION_LAST_CATEGORY, categoryIndex);
+            services.variables.queueVarbit?.(player.id, VARBIT_COLLECTION_LAST_CATEGORY, categoryIndex);
 
             // Set category kill/completion count varps
             // For now just set to 0 - real implementation would look up player's stats
-            services.queueVarp?.(player.id, VARP_COLLECTION_CATEGORY_COUNT, 0);
-            services.queueVarp?.(player.id, VARP_COLLECTION_CATEGORY_COUNT2, 0);
-            services.queueVarp?.(player.id, VARP_COLLECTION_CATEGORY_COUNT3, 0);
+            services.variables.queueVarp?.(player.id, VARP_COLLECTION_CATEGORY_COUNT, 0);
+            services.variables.queueVarp?.(player.id, VARP_COLLECTION_CATEGORY_COUNT2, 0);
+            services.variables.queueVarp?.(player.id, VARP_COLLECTION_CATEGORY_COUNT3, 0);
 
             // Re-run script 7797 with selected category index so the list redraw keeps
             // the clicked row highlighted and script 2731->2732 draws the matching log.
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_COLLECTION_TAB_CHANGE,
                 args: buildTabChangeArgs(tabIndex, categoryIndex),
@@ -223,7 +223,7 @@ export function registerCollectionLogWidgetHandlers(registry: IScriptRegistry, s
     const CLOSE_BUTTON_COMPONENT = 1;
     registry.onButton(COLLECTION_LOG_GROUP_ID, CLOSE_BUTTON_COMPONENT, (event) => {
         const player = event.player;
-        services.closeModal?.(player);
-        services.logger?.info?.(`[collection-log] Closed for player=${player.id}`);
+        services.dialog.closeModal(player);
+        services.system.logger.info?.(`[collection-log] Closed for player=${player.id}`);
     });
 }

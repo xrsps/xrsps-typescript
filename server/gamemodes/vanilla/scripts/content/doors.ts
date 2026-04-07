@@ -7,7 +7,7 @@ const DOOR_SOUND = 60; // Standard wooden door open/close
 const GATE_SOUND = 71; // Metal gate open/close
 
 export function registerDoorHandlers(registry: IScriptRegistry, services: ScriptServices): void {
-    const { doorManager, emitLocChange } = services;
+    const { doorManager, emitLocChange } = services.location;
     if (!doorManager) return;
 
     for (const action of DOOR_ACTIONS) {
@@ -21,7 +21,7 @@ export function registerDoorHandlers(registry: IScriptRegistry, services: Script
                 currentTick: event.tick,
             });
             if (result?.success && result.newLocId !== undefined) {
-                emitLocChange?.(event.locId, result.newLocId, event.tile, event.level, {
+                emitLocChange(event.locId, result.newLocId, event.tile, event.level, {
                     oldTile: event.tile,
                     newTile: result.newTile ?? event.tile,
                     oldRotation: result.oldRotation,
@@ -29,7 +29,7 @@ export function registerDoorHandlers(registry: IScriptRegistry, services: Script
                 });
 
                 if (result.partnerResult) {
-                    emitLocChange?.(
+                    emitLocChange(
                         result.partnerResult.oldLocId,
                         result.partnerResult.newLocId,
                         result.partnerResult.oldTile,
@@ -45,12 +45,12 @@ export function registerDoorHandlers(registry: IScriptRegistry, services: Script
 
                 // Play door/gate sound
                 // Check if loc is a gate by looking up its definition
-                const locDef = services.getLocDefinition?.(event.locId);
+                const locDef = services.data.getLocDefinition(event.locId);
                 const locName = (locDef?.name ?? "").toLowerCase();
                 const isGate = locName.includes("gate");
                 const soundId = isGate ? GATE_SOUND : DOOR_SOUND;
 
-                services.playAreaSound?.({
+                services.sound.playAreaSound({
                     soundId,
                     tile: { x: event.tile.x, y: event.tile.y },
                     level: event.level,

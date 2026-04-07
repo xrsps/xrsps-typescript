@@ -121,7 +121,7 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
     const lastQuickPrayerDoneTickByPlayerId = new Map<number, number>();
 
     const queuePrayerFilterFlags = (playerId: number) => {
-        services.queueWidgetEvent?.(playerId, {
+        services.dialog.queueWidgetEvent(playerId, {
             action: "set_flags_range",
             uid: PRAYER_FILTER_WIDGET_UID,
             fromSlot: PRAYER_FILTER_SLOT_START,
@@ -132,7 +132,7 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
 
     const queueQuickPrayerSetupFlags = (playerId: number) => {
         for (const slot of quickPrayerSetupSlots) {
-            services.queueWidgetEvent?.(playerId, {
+            services.dialog.queueWidgetEvent(playerId, {
                 action: "set_flags_range",
                 uid: QUICK_PRAYER_SETUP_WIDGET_UID,
                 fromSlot: slot,
@@ -158,12 +158,7 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
             }
             const desired = Array.from(current);
             player.prayer.setQuickPrayersEnabled(false);
-            if (services.applyPrayers) {
-                services.applyPrayers(player, desired);
-            } else {
-                player.prayer.setActivePrayers(desired);
-                services.queueCombatState?.(player);
-            }
+            services.combat.applyPrayers(player, desired);
         });
     }
 
@@ -196,10 +191,10 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
         const next = current === 0 ? 1 : 0;
         player.varps.setVarbitValue(varbitId, next);
 
-        if (services.queueVarbit) {
-            services.queueVarbit(player.id, varbitId, next);
+        if (services.variables?.queueVarbit) {
+            services.variables.queueVarbit(player.id, varbitId, next);
         } else {
-            services.sendVarbit?.(player, varbitId, next);
+            services.variables?.sendVarbit?.(player, varbitId, next);
         }
     });
 
@@ -236,7 +231,7 @@ export function registerPrayerWidgetHandlers(registry: IScriptRegistry, services
             }
             player.prayer.setQuickPrayers(next);
             player.prayer.setQuickPrayersEnabled(false);
-            services.queueCombatState?.(player);
+            services.combat.queueCombatState(player);
         },
     );
 
@@ -286,8 +281,8 @@ function buildQuickPrayerSetupSlotMap(
     services: ScriptServices,
 ): Map<number, PrayerName> {
     const slotToPrayer = new Map<number, PrayerName>();
-    const enumLoader = services.getEnumTypeLoader?.() ?? services.enumTypeLoader;
-    const getObjType = services.getObjType;
+    const enumLoader = services.data.getEnumTypeLoader() ?? services.enumTypeLoader;
+    const getObjType = services.data.getObjType;
     if (!enumLoader?.load || !getObjType) {
         return slotToPrayer;
     }
@@ -341,10 +336,10 @@ function openQuickPrayerSetupTab(
     services: ScriptServices,
 ): void {
     const displayMode = (player?.displayMode ?? DisplayMode.RESIZABLE_NORMAL) as DisplayMode;
-    const prayerTabUid = services.getPrayerTabUid!(displayMode);
-    const interfaceService = services.getInterfaceService?.();
+    const prayerTabUid = services.viewport.getPrayerTabUid(displayMode);
+    const interfaceService = services.dialog.getInterfaceService();
     interfaceService?.focusTab(player, GameframeTab.PRAYER);
-    services.openSubInterface?.(
+    services.dialog.openSubInterface(
         player,
         prayerTabUid,
         openSetup ? QUICK_PRAYER_SETUP_GROUP_ID : PRAYER_WIDGET_GROUP_ID,
@@ -352,7 +347,7 @@ function openQuickPrayerSetupTab(
     );
     if (openSetup) {
         // Ensure the client receives authoritative quick-prayer selection before setup redraw scripts.
-        services.queueCombatState?.(player);
+        services.combat.queueCombatState(player);
     }
 }
 
@@ -366,36 +361,36 @@ function handlePrayerOrbClick(
     if (option === "activate") {
         if (quick.length === 0) {
             player.prayer.setQuickPrayersEnabled(false);
-            services.sendGameMessage(player, "You haven't selected any quick-prayers.");
-            services.queueCombatState?.(player);
+            services.messaging.sendGameMessage(player, "You haven't selected any quick-prayers.");
+            services.combat.queueCombatState(player);
             return;
         }
-        const apply = services.applyPrayers;
+        const apply = services.combat.applyPrayers;
         if (apply) {
             const result = apply(player, quick);
             if (result?.errors?.length) {
-                services.sendGameMessage(
+                services.messaging.sendGameMessage(
                     player,
                     result.errors[0]?.message ?? "You can't use that prayer.",
                 );
                 player.prayer.setQuickPrayersEnabled(false);
-                services.queueCombatState?.(player);
+                services.combat.queueCombatState(player);
                 return;
             }
         } else {
             player.prayer.setActivePrayers(quick);
         }
         player.prayer.setQuickPrayersEnabled(true);
-        services.queueCombatState?.(player);
+        services.combat.queueCombatState(player);
     } else if (option === "deactivate") {
-        const apply = services.applyPrayers;
+        const apply = services.combat.applyPrayers;
         if (apply) {
             apply(player, []);
         } else {
             player.prayer.clearActivePrayers();
         }
         player.prayer.setQuickPrayersEnabled(false);
-        services.queueCombatState?.(player);
+        services.combat.queueCombatState(player);
     }
 }
 
@@ -413,46 +408,46 @@ function handleQuickPrayerAction(
         const next = Array.from(player.prayer.getActivePrayers() as Iterable<PrayerName>);
         player.prayer.setQuickPrayers(next);
         player.prayer.setQuickPrayersEnabled(false);
-        services.queueCombatState?.(player);
+        services.combat.queueCombatState(player);
         return;
     }
     if (normalized === QUICK_ACTION_TOGGLE) {
         const quick = Array.from(player.prayer.getQuickPrayers() as Iterable<PrayerName>);
         if (quick.length === 0) {
             player.prayer.setQuickPrayersEnabled(false);
-            services.sendGameMessage(player, "You haven't selected any quick-prayers.");
-            services.queueCombatState?.(player);
+            services.messaging.sendGameMessage(player, "You haven't selected any quick-prayers.");
+            services.combat.queueCombatState(player);
             return;
         }
-        const apply = services.applyPrayers;
+        const apply = services.combat.applyPrayers;
         if (player.prayer.areQuickPrayersEnabled()) {
             if (apply) {
                 apply(player, []);
             } else {
                 player.prayer.clearActivePrayers();
-                services.queueCombatState?.(player);
+                services.combat.queueCombatState(player);
             }
             player.prayer.setQuickPrayersEnabled(false);
-            services.queueCombatState?.(player);
+            services.combat.queueCombatState(player);
             return;
         }
         if (apply) {
             const result = apply(player, quick);
             if (result?.errors?.length) {
-                services.sendGameMessage(
+                services.messaging.sendGameMessage(
                     player,
                     result.errors[0]?.message ?? "You can't use that prayer.",
                 );
                 player.setQuickPrayersEnabled(false);
-                services.queueCombatState?.(player);
+                services.combat.queueCombatState(player);
                 return;
             }
         } else {
             player.prayer.setActivePrayers(quick);
-            services.queueCombatState?.(player);
+            services.combat.queueCombatState(player);
         }
         player.prayer.setQuickPrayersEnabled(true);
-        services.queueCombatState?.(player);
+        services.combat.queueCombatState(player);
         return;
     }
     // Unknown quick action; ignore silently.

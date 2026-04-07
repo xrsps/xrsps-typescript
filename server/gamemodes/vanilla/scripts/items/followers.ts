@@ -17,7 +17,7 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
         registry.registerItemAction(
             definition.itemId,
             ({ player, source, services: svc }) => {
-                const inventory = svc.getInventoryItems(player);
+                const inventory = svc.inventory.getInventoryItems(player);
                 const slotEntry = inventory[source.slot];
                 if (
                     !slotEntry ||
@@ -27,9 +27,9 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
                     return;
                 }
 
-                svc.closeInterruptibleInterfaces?.(player);
+                svc.dialog.closeInterruptibleInterfaces(player);
 
-                if (!svc.consumeItem(player, source.slot)) {
+                if (!svc.inventory.consumeItem(player, source.slot)) {
                     return;
                 }
 
@@ -39,13 +39,13 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
                     definition.npcTypeId,
                 );
                 if (!result || !result.ok) {
-                    svc.addItemToInventory(player, source.itemId, 1);
-                    svc.snapshotInventoryImmediate(player);
-                    svc.sendGameMessage(player, mapFollowerFailure(result?.reason ?? ""));
+                    svc.inventory.addItemToInventory(player, source.itemId, 1);
+                    svc.inventory.snapshotInventoryImmediate(player);
+                    svc.messaging.sendGameMessage(player, mapFollowerFailure(result?.reason ?? ""));
                     return;
                 }
 
-                svc.snapshotInventoryImmediate(player);
+                svc.inventory.snapshotInventoryImmediate(player);
             },
             "drop",
         );
@@ -55,38 +55,38 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
             ({ player, npc, services: svc }) => {
                 const follower = npc.getFollowerState();
                 if (!follower) {
-                    svc.sendGameMessage(player, "Nothing interesting happens.");
+                    svc.messaging.sendGameMessage(player, "Nothing interesting happens.");
                     return;
                 }
 
                 if (follower.ownerPlayerId !== player.id) {
-                    svc.sendGameMessage(player, "That's not your follower.");
+                    svc.messaging.sendGameMessage(player, "That's not your follower.");
                     return;
                 }
 
-                const inventory = svc.getInventoryItems(player);
+                const inventory = svc.inventory.getInventoryItems(player);
                 const hasSpace = inventory.some(
                     (entry) => entry.itemId <= 0 || entry.quantity <= 0,
                 );
                 if (!hasSpace) {
-                    svc.sendGameMessage(player, "You don't have enough inventory space.");
+                    svc.messaging.sendGameMessage(player, "You don't have enough inventory space.");
                     return;
                 }
 
                 const pickup = svc.followers?.pickupFollower(player, npc.id);
                 if (!pickup || !pickup.ok) {
-                    svc.sendGameMessage(player, mapFollowerFailure(pickup?.reason ?? ""));
+                    svc.messaging.sendGameMessage(player, mapFollowerFailure(pickup?.reason ?? ""));
                     return;
                 }
 
-                const restored = svc.addItemToInventory(player, pickup.itemId, 1);
+                const restored = svc.inventory.addItemToInventory(player, pickup.itemId, 1);
                 if (restored.added <= 0) {
                     svc.followers?.summonFollowerFromItem(player, pickup.itemId, pickup.npcTypeId);
-                    svc.sendGameMessage(player, "You don't have enough inventory space.");
+                    svc.messaging.sendGameMessage(player, "You don't have enough inventory space.");
                     return;
                 }
 
-                svc.snapshotInventoryImmediate(player);
+                svc.inventory.snapshotInventoryImmediate(player);
             },
             "pick-up",
         );
@@ -108,38 +108,38 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
             ({ player, npc, services: svc }) => {
                 const follower = npc.getFollowerState();
                 if (!follower) {
-                    svc.sendGameMessage(player, "Nothing interesting happens.");
+                    svc.messaging.sendGameMessage(player, "Nothing interesting happens.");
                     return;
                 }
 
                 if (follower.ownerPlayerId !== player.id) {
-                    svc.sendGameMessage(player, "That's not your follower.");
+                    svc.messaging.sendGameMessage(player, "That's not your follower.");
                     return;
                 }
 
-                const inventory = svc.getInventoryItems(player);
+                const inventory = svc.inventory.getInventoryItems(player);
                 const hasSpace = inventory.some(
                     (entry) => entry.itemId <= 0 || entry.quantity <= 0,
                 );
                 if (!hasSpace) {
-                    svc.sendGameMessage(player, "You don't have enough inventory space.");
+                    svc.messaging.sendGameMessage(player, "You don't have enough inventory space.");
                     return;
                 }
 
                 const pickup = svc.followers?.pickupFollower(player, npc.id);
                 if (!pickup || !pickup.ok) {
-                    svc.sendGameMessage(player, mapFollowerFailure(pickup?.reason ?? ""));
+                    svc.messaging.sendGameMessage(player, mapFollowerFailure(pickup?.reason ?? ""));
                     return;
                 }
 
-                const restored = svc.addItemToInventory(player, pickup.itemId, 1);
+                const restored = svc.inventory.addItemToInventory(player, pickup.itemId, 1);
                 if (restored.added <= 0) {
                     svc.followers?.summonFollowerFromItem(player, pickup.itemId, pickup.npcTypeId);
-                    svc.sendGameMessage(player, "You don't have enough inventory space.");
+                    svc.messaging.sendGameMessage(player, "You don't have enough inventory space.");
                     return;
                 }
 
-                svc.snapshotInventoryImmediate(player);
+                svc.inventory.snapshotInventoryImmediate(player);
             },
             "pick-up",
         );
@@ -159,7 +159,7 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
                     return;
                 }
 
-                svc.sendGameMessage(
+                svc.messaging.sendGameMessage(
                     player,
                     `${
                         npc.name ?? "Your follower"
@@ -174,16 +174,16 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
             ({ player, npc, services: svc }) => {
                 const follower = npc.getFollowerState();
                 if (!follower) {
-                    svc.sendGameMessage(player, "Nothing interesting happens.");
+                    svc.messaging.sendGameMessage(player, "Nothing interesting happens.");
                     return;
                 }
                 if (follower.ownerPlayerId !== player.id) {
-                    svc.sendGameMessage(player, "That's not your follower.");
+                    svc.messaging.sendGameMessage(player, "That's not your follower.");
                     return;
                 }
                 const metamorph = svc.followers?.metamorphFollower(player, npc.id);
                 if (!metamorph || !metamorph.ok) {
-                    svc.sendGameMessage(player, mapFollowerFailure(metamorph?.reason ?? ""));
+                    svc.messaging.sendGameMessage(player, mapFollowerFailure(metamorph?.reason ?? ""));
                 }
             },
             "metamorphosis",

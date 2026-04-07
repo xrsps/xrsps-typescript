@@ -486,5 +486,152 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
     services.triggerLocEffect = (locId, tile, level) =>
         triggerLocEffect(services, locId, tile, level);
 
+    // Grouped service facades
+    services.messaging = {
+        sendGameMessage: services.sendGameMessage,
+        queueNotification: (playerId, payload) => deps.messagingService.queueNotification(playerId, payload),
+    };
+    services.variables = {
+        sendVarp: (player, varpId, value) => deps.variableService.queueVarp(player.id, varpId, value),
+        sendVarbit: (player, varbitId, value) => deps.variableService.queueVarbit(player.id, varbitId, value),
+        queueVarp: (playerId, varpId, value) => deps.variableService.queueVarp(playerId, varpId, value),
+        queueVarbit: (playerId, varbitId, value) => deps.variableService.queueVarbit(playerId, varbitId, value),
+    };
+    services.skills = {
+        addSkillXp: services.addSkillXp!,
+        getSkill: services.getSkill!,
+    };
+    services.data = {
+        getDbRepository: services.getDbRepository!,
+        getEnumTypeLoader: services.getEnumTypeLoader!,
+        getStructTypeLoader: services.getStructTypeLoader!,
+        getIdkTypeLoader: services.getIdkTypeLoader!,
+        getObjType: services.getObjType!,
+        getLocDefinition: services.getLocDefinition!,
+        getLocTypeLoader: services.getLocTypeLoader!,
+        getNpcTypeLoader: services.getNpcTypeLoader!,
+        getItemDefinition: services.getItemDefinition!,
+        loadItemDefinitions: services.loadItemDefinitions!,
+    };
+    services.system = {
+        logger: logger as any,
+        getCurrentTick: services.getCurrentTick!,
+        eventBus: services.eventBus,
+        gamemodeServices: services.gamemodeServices,
+    };
+    services.inventory = {
+        consumeItem: services.consumeItem,
+        getInventoryItems: services.getInventoryItems,
+        addItemToInventory: services.addItemToInventory,
+        setInventorySlot: services.setInventorySlot,
+        snapshotInventory: services.snapshotInventory,
+        snapshotInventoryImmediate: services.snapshotInventoryImmediate,
+        findOwnedItemLocation: services.findOwnedItemLocation!,
+        collectCarriedItemIds: services.collectCarriedItemIds!,
+        findInventorySlotWithItem: services.findInventorySlotWithItem!,
+        canStoreItem: services.canStoreItem!,
+        playerHasItem: services.playerHasItem!,
+        hasInventorySlot: services.hasInventorySlot!,
+    };
+    services.equipment = {
+        getEquippedItem: services.getEquippedItem!,
+        getEquipArray: services.getEquipArray!,
+        unequipItem: services.unequipItem!,
+    };
+    services.animation = {
+        playPlayerSeq: services.playPlayerSeq!,
+        playPlayerSeqImmediate: services.playPlayerSeqImmediate!,
+        broadcastPlayerSpot: services.broadcastPlayerSpot!,
+        playLocGraphic: services.playLocGraphic!,
+        stopPlayerAnimation: services.stopPlayerAnimation!,
+        getEmoteSeq: services.getEmoteSeq!,
+        getSkillcapeSeqId: services.getSkillcapeSeqId!,
+        getSkillcapeSpotId: services.getSkillcapeSpotId!,
+    };
+    services.sound = {
+        playLocSound: services.playLocSound!,
+        playAreaSound: services.playAreaSound!,
+        playSong: services.playSong!,
+        skipMusicTrack: services.skipMusicTrack!,
+        getMusicTrackId: services.getMusicTrackId!,
+        getMusicTrackBySlot: services.getMusicTrackBySlot!,
+        sendSound: services.sendSound!,
+        enqueueSoundBroadcast: services.enqueueSoundBroadcast!,
+    };
+    services.appearance = {
+        refreshAppearanceKits: services.refreshAppearanceKits!,
+        queueAppearanceSnapshot: services.queueAppearanceSnapshot!,
+        savePlayerSnapshot: services.savePlayerSnapshot!,
+        logoutPlayer: services.logoutPlayer!,
+    };
+    services.dialog = {
+        openDialog: services.openDialog!,
+        openDialogOptions: services.openDialogOptions!,
+        closeDialog: services.closeDialog!,
+        closeInterruptibleInterfaces: services.closeInterruptibleInterfaces!,
+        openSubInterface: services.openSubInterface!,
+        closeSubInterface: services.closeSubInterface!,
+        closeModal: (player) => deps.interfaceService?.closeModal(player),
+        getInterfaceService: services.getInterfaceService!,
+        openRemainingTabs: services.openRemainingTabs!,
+        queueClientScript: services.queueClientScript!,
+        queueWidgetEvent: services.queueWidgetEvent!,
+    };
+    services.movement = {
+        teleportPlayer: services.teleportPlayer!,
+        teleportToInstance: services.teleportToInstance!,
+        requestTeleportAction: services.requestTeleportAction!,
+        queueForcedMovement: services.queueForcedMovement!,
+        getPathService: services.getPathService!,
+    };
+    services.location = {
+        doorManager: services.doorManager,
+        resolveLocTransformId: services.resolveLocTransformId!,
+        emitLocChange: services.emitLocChange!,
+        sendLocChangeToPlayer: services.sendLocChangeToPlayer!,
+        spawnLocForPlayer: services.spawnLocForPlayer!,
+        triggerLocEffect: services.triggerLocEffect!,
+    };
+    services.combat = {
+        applyPrayers: services.applyPrayers!,
+        setCombatSpell: services.setCombatSpell,
+        queueCombatState: services.queueCombatState!,
+        requestAction: services.requestAction,
+        getNpc: services.getNpc!,
+        isPlayerStunned: services.isPlayerStunned!,
+        isPlayerInCombat: services.isPlayerInCombat!,
+        applyPlayerHitsplat: services.applyPlayerHitsplat!,
+        stunPlayer: services.stunPlayer!,
+        scheduleAction: services.scheduleAction!,
+        clearPlayerFaceTarget: services.clearPlayerFaceTarget!,
+        getDropEligibility: services.getDropEligibility!,
+        clearNpcDamageRecords: services.clearNpcDamageRecords!,
+        getLastAttacker: services.getLastAttacker!,
+        isMultiCombat: services.isMultiCombat!,
+        applyAutocastState: services.applyAutocastState!,
+        clearAutocastState: services.clearAutocastState!,
+        validateRunes: services.validateRunes!,
+    };
+    services.npc = {
+        spawnNpc: services.spawnNpc!,
+        removeNpc: services.removeNpc!,
+        queueNpcForcedChat: services.queueNpcForcedChat!,
+        queueNpcSeq: services.queueNpcSeq!,
+        faceNpcToPlayer: services.faceNpcToPlayer!,
+    };
+    services.collectionLog = {
+        sendCollectionLogSnapshot: services.sendCollectionLogSnapshot!,
+        openCollectionLog: services.openCollectionLog!,
+        openCollectionOverview: services.openCollectionOverview!,
+        populateCollectionLogCategories: services.populateCollectionLogCategories!,
+    };
+    services.viewport = {
+        getMainmodalUid: services.getMainmodalUid!,
+        getSidemodalUid: services.getSidemodalUid!,
+        getPrayerTabUid: services.getPrayerTabUid!,
+        getViewportTrackerFrontUid: services.getViewportTrackerFrontUid!,
+        getDefaultInterfaces: services.getDefaultInterfaces!,
+    };
+
     return services;
 }

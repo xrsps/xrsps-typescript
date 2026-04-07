@@ -89,7 +89,7 @@ function executePicklockAction(ctx: ScriptActionHandlerContext): ActionExecution
     const { player, tick, services } = ctx;
     const data = ctx.data as PicklockActionData;
     const effects: ActionEffect[] = [];
-    const thievingSkill = services.getSkill?.(player, THIEVING_SKILL_ID);
+    const thievingSkill = services.skills.getSkill(player, THIEVING_SKILL_ID);
     const thievingLevel = thievingSkill?.baseLevel ?? 1;
 
     if (thievingLevel < data.thievingLevel) {
@@ -101,9 +101,9 @@ function executePicklockAction(ctx: ScriptActionHandlerContext): ActionExecution
     if (!data.started) {
         effects.push(buildMessageEffect(player,
             "You attempt to pick the lock on the trap door."));
-        services.sendSound?.(player, PICKLOCK_SOUND);
+        services.sound.sendSound(player, PICKLOCK_SOUND);
 
-        services.scheduleAction?.(
+        services.combat.scheduleAction(
             player.id,
             {
                 kind: "skill.picklock",
@@ -120,10 +120,10 @@ function executePicklockAction(ctx: ScriptActionHandlerContext): ActionExecution
     const success = rollPicklockSuccess(thievingLevel, data.thievingLevel);
 
     if (!success) {
-        services.playPlayerSeq?.(player, PICKLOCK_FAIL_ANIM);
-        services.sendSound?.(player, PICKLOCK_SOUND);
+        services.animation.playPlayerSeq(player, PICKLOCK_FAIL_ANIM);
+        services.sound.sendSound(player, PICKLOCK_SOUND);
 
-        services.scheduleAction?.(
+        services.combat.scheduleAction(
             player.id,
             {
                 kind: "skill.picklock",
@@ -139,13 +139,13 @@ function executePicklockAction(ctx: ScriptActionHandlerContext): ActionExecution
 
     // Success
     effects.push(buildMessageEffect(player, "You pick the lock on the trapdoor."));
-    services.playPlayerSeq?.(player, PICKLOCK_SUCCESS_ANIM);
-    services.sendSound?.(player, PICKLOCK_SOUND);
-    services.addSkillXp?.(player, THIEVING_SKILL_ID, data.xp);
+    services.animation.playPlayerSeq(player, PICKLOCK_SUCCESS_ANIM);
+    services.sound.sendSound(player, PICKLOCK_SOUND);
+    services.skills.addSkillXp(player, THIEVING_SKILL_ID, data.xp);
 
     // Open the trapdoor via varbit + scene rebuild trigger
-    services.sendVarbit?.(player, data.varbitId, data.openValue);
-    services.sendLocChangeToPlayer?.(player, data.locId, data.locId, data.tile, data.level);
+    services.variables.sendVarbit?.(player, data.varbitId, data.openValue);
+    services.location.sendLocChangeToPlayer(player, data.locId, data.locId, data.tile, data.level);
 
     return { ok: true, effects };
 }
@@ -176,7 +176,7 @@ export function register(registry: IScriptRegistry, _services: ScriptServices): 
                 started: false,
             };
 
-            services.requestAction(
+            services.combat.requestAction(
                 player,
                 {
                     kind: "skill.picklock",
@@ -190,7 +190,7 @@ export function register(registry: IScriptRegistry, _services: ScriptServices): 
         };
 
         const openLockedHandler = (event: LocInteractionEvent) => {
-            event.services.sendGameMessage(event.player, "The trapdoor is locked.");
+            event.services.messaging.sendGameMessage(event.player, "The trapdoor is locked.");
         };
 
         for (const id of [def.locId, def.closedTransformId]) {
@@ -201,22 +201,22 @@ export function register(registry: IScriptRegistry, _services: ScriptServices): 
         registry.registerLocInteraction(def.openTransformId, (event) => {
             const { player, tile, level, services } = event;
             player.varps.setVarbitValue(def.varbitId, 0);
-            services.sendVarbit?.(player, def.varbitId, 0);
-            services.sendLocChangeToPlayer?.(player, def.locId, def.locId, tile, level);
+            services.variables.sendVarbit?.(player, def.varbitId, 0);
+            services.location.sendLocChangeToPlayer(player, def.locId, def.locId, tile, level);
         }, "close");
 
         registry.registerLocInteraction(def.locId, (event) => {
             const { player, services } = event;
 
-            services.sendGameMessage(player, "You climb down through the trapdoor...");
+            services.messaging.sendGameMessage(player, "You climb down through the trapdoor...");
 
             player.varps.setVarbitValue(def.varbitId, 0);
-            services.sendVarbit?.(player, def.varbitId, 0);
+            services.variables.sendVarbit?.(player, def.varbitId, 0);
 
-            services.teleportPlayer?.(player, 3149, 9652, 0);
-            services.sendSound?.(player, TRAPDOOR_CLIMB_SOUND);
+            services.movement.teleportPlayer(player, 3149, 9652, 0);
+            services.sound.sendSound(player, TRAPDOOR_CLIMB_SOUND);
 
-            services.sendGameMessage(player, "... and enter a dimly lit cavern area.");
+            services.messaging.sendGameMessage(player, "... and enter a dimly lit cavern area.");
         }, "climb-down");
     }
 }

@@ -55,11 +55,11 @@ export function registerSettingsWidgetHandlers(registry: IScriptRegistry, servic
 
             // Open the settings modal (134) in the mainmodal container
             // Use display-mode-aware helper to get correct mount target for mobile vs desktop
-            const mainmodalUid = services.getMainmodalUid!(player.displayMode ?? 1);
+            const mainmodalUid = services.viewport.getMainmodalUid(player.displayMode ?? 1);
 
-            svc.openSubInterface?.(player, mainmodalUid, SETTINGS_MODAL_GROUP_ID, 0);
+            svc.dialog.openSubInterface(player, mainmodalUid, SETTINGS_MODAL_GROUP_ID, 0);
 
-            svc.logger?.info?.(
+            svc.system.logger.info?.(
                 `[settings-widgets] Opened settings modal for player=${player.id}`,
             );
         },
@@ -76,9 +76,9 @@ export function registerSettingsWidgetHandlers(registry: IScriptRegistry, servic
             const newValue = currentValue === 0 ? 1 : 0;
 
             player.varps.setVarbitValue(VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE, newValue);
-            svc.sendVarbit?.(player, VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE, newValue);
+            svc.variables.sendVarbit?.(player, VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE, newValue);
 
-            svc.logger?.info?.(
+            svc.system.logger.info?.(
                 `[settings-widgets] Music unlock message toggle: player=${player.id} value=${newValue}`,
             );
         },
@@ -141,10 +141,10 @@ export function registerSettingsWidgetHandlers(registry: IScriptRegistry, servic
         if (selectedIndex > maxValue) return;
 
         player.varps.setVarpValue(varpId, selectedIndex);
-        svc.sendVarp?.(player, varpId, selectedIndex);
+        svc.variables.sendVarp?.(player, varpId, selectedIndex);
         activeSideDropdownSettingByPlayerId.delete(player.id);
 
-        svc.logger?.info?.(
+        svc.system.logger.info?.(
             `[settings-widgets] attack options set player=${player.id} setting=${setting} varp=${varpId} value=${selectedIndex}`,
         );
     };
@@ -166,11 +166,11 @@ export function registerSettingsWidgetHandlers(registry: IScriptRegistry, servic
             if (groupId !== SETTINGS_MODAL_GROUP_ID) return;
 
             // Close the settings modal in the mainmodal container
-            const mainmodalUid = services.getMainmodalUid!(player.displayMode ?? 1);
+            const mainmodalUid = services.viewport.getMainmodalUid(player.displayMode ?? 1);
 
-            svc.closeSubInterface?.(player, mainmodalUid);
+            svc.dialog.closeSubInterface(player, mainmodalUid);
 
-            svc.logger?.info?.(
+            svc.system.logger.info?.(
                 `[settings-widgets] Closed settings modal for player=${player.id}`,
             );
         },

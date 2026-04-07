@@ -481,7 +481,7 @@ function handleAutocast(
     // Look up spell data by widget child ID
     const spellData = getSpellDataByWidget(SPELLBOOK_GROUP_ID, childId);
     if (!spellData) {
-        services.logger?.warn?.(`[script:spellbook] No spell data for widget childId=${childId}`);
+        services.system.logger.warn?.(`[script:spellbook] No spell data for widget childId=${childId}`);
         return;
     }
 
@@ -489,14 +489,14 @@ function handleAutocast(
 
     // Check if spell is autocastable
     if (!isSpellAutocastable(spellId)) {
-        services.sendGameMessage(player, "You can't autocast that spell.");
+        services.messaging.sendGameMessage(player, "You can't autocast that spell.");
         return;
     }
 
     // Get the autocast index for varbit 276
     const autocastIndex = getAutocastIndexFromSpellId(spellId);
     if (!autocastIndex) {
-        services.logger?.warn?.(
+        services.system.logger.warn?.(
             `[script:spellbook] No autocast index for spell ${spellData.name} (${spellId})`,
         );
         return;
@@ -508,8 +508,8 @@ function handleAutocast(
     const compatibility = canWeaponAutocastSpell(weaponObjId, spellId);
     if (!compatibility.compatible) {
         const message = getAutocastCompatibilityMessage(compatibility.reason);
-        services.sendGameMessage(player, message);
-        services.logger?.info?.(
+        services.messaging.sendGameMessage(player, message);
+        services.system.logger.info?.(
             `[script:spellbook] Autocast rejected for player=${player.id} ` +
                 `spell=${spellId} weapon=${weaponObjId} reason=${compatibility.reason}`,
         );
@@ -517,11 +517,11 @@ function handleAutocast(
     }
 
     applyAutocastState(player, spellId, autocastIndex, isDefensive, {
-        sendVarbit: services.sendVarbit,
-        queueCombatState: services.queueCombatState,
+        sendVarbit: services.variables.sendVarbit,
+        queueCombatState: services.combat.queueCombatState,
     });
 
-    services.logger?.info?.(
+    services.system.logger.info?.(
         `[script:spellbook] Autocast set for player=${player.id} ` +
             `spell=${spellData.name} spellId=${spellId} index=${autocastIndex} defensive=${isDefensive}`,
     );
@@ -557,7 +557,7 @@ function consumeRunesFromInventory(
     services: ScriptServices,
     opts?: { snapshot?: boolean },
 ): void {
-    const inventory = services.getInventoryItems(player);
+    const inventory = services.inventory.getInventoryItems(player);
 
     for (const { runeId, quantity } of toConsume) {
         let remaining = quantity;
@@ -570,10 +570,10 @@ function consumeRunesFromInventory(
             const nextQty = Math.max(0, entry.quantity - consumeFromSlot);
 
             if (nextQty > 0) {
-                services.setInventorySlot(player, entry.slot, runeId, nextQty);
+                services.inventory.setInventorySlot(player, entry.slot, runeId, nextQty);
             } else {
                 // Clear the slot
-                services.setInventorySlot(player, entry.slot, -1, 0);
+                services.inventory.setInventorySlot(player, entry.slot, -1, 0);
             }
 
             remaining -= consumeFromSlot;
@@ -581,7 +581,7 @@ function consumeRunesFromInventory(
     }
 
     if (opts?.snapshot !== false) {
-        services.snapshotInventoryImmediate(player);
+        services.inventory.snapshotInventoryImmediate(player);
     }
 }
 
@@ -592,7 +592,7 @@ function consumeItemFromInventory(
     services: ScriptServices,
 ): boolean {
     if (!(itemId > 0) || !(quantity > 0)) return false;
-    const inventory = services.getInventoryItems(player);
+    const inventory = services.inventory.getInventoryItems(player);
     let remaining = quantity;
 
     for (const entry of inventory) {
@@ -602,9 +602,9 @@ function consumeItemFromInventory(
         const consumeFromSlot = Math.min(remaining, entry.quantity);
         const nextQty = Math.max(0, entry.quantity - consumeFromSlot);
         if (nextQty > 0) {
-            services.setInventorySlot(player, entry.slot, itemId, nextQty);
+            services.inventory.setInventorySlot(player, entry.slot, itemId, nextQty);
         } else {
-            services.setInventorySlot(player, entry.slot, -1, 0);
+            services.inventory.setInventorySlot(player, entry.slot, -1, 0);
         }
         remaining -= consumeFromSlot;
     }
@@ -634,12 +634,12 @@ function sendMissingRuneMessage(
     if (runeValidation.missingRunes && runeValidation.missingRunes.length > 0) {
         const missing = runeValidation.missingRunes[0];
         const runeName = getRuneNames()[missing.runeId] ?? "Unknown";
-        services.sendGameMessage(
+        services.messaging.sendGameMessage(
             player,
             `You do not have enough ${runeName} Runes to cast this spell.`,
         );
     } else {
-        services.sendGameMessage(player, "You do not have the runes to cast this spell.");
+        services.messaging.sendGameMessage(player, "You do not have the runes to cast this spell.");
     }
 }
 
@@ -697,17 +697,17 @@ function clearBoltEnchantUiSession(
 ): void {
     boltEnchantUiSessions.delete(player);
     if (!options?.closeInterface) return;
-    const interfaceService = services.getInterfaceService?.();
+    const interfaceService = services.dialog.getInterfaceService();
     if (!interfaceService?.isChatboxModalOpen(player, BOLT_ENCHANT_CHATBOX_GROUP_ID)) return;
     interfaceService.closeChatboxModal(player);
 }
 
 function openMinigameTeleportInterface(player: PlayerState, services: ScriptServices): void {
-    const mainmodalUid = services.getMainmodalUid!(player.displayMode ?? 1);
+    const mainmodalUid = services.viewport.getMainmodalUid(player.displayMode ?? 1);
 
     player.varps.setVarbitValue(MINIGAME_TELEPORT_OPEN_VARBIT_ID, 1);
 
-    services.openSubInterface?.(player, mainmodalUid, MINIGAME_TELEPORT_GROUP_ID, 0, {
+    services.dialog.openSubInterface(player, mainmodalUid, MINIGAME_TELEPORT_GROUP_ID, 0, {
         varbits: {
             [MINIGAME_TELEPORT_OPEN_VARBIT_ID]: 1,
         },
@@ -725,7 +725,7 @@ function openMinigameTeleportInterface(player: PlayerState, services: ScriptServ
         ],
     });
 
-    services.logger?.info?.(
+    services.system.logger.info?.(
         `[script:spellbook] Opened minigame teleport modal for player=${player.id} targetUid=${mainmodalUid}`,
     );
 }
@@ -737,10 +737,9 @@ function openBoltEnchantQuantityInterface(
     maxSets: number,
     services: ScriptServices,
 ): boolean {
-    const queueClientScript = services.queueClientScript;
-    const queueWidgetEvent = services.queueWidgetEvent;
-    const interfaceService = services.getInterfaceService?.();
-    if ((!queueClientScript && !queueWidgetEvent) || !interfaceService) {
+    const queueWidgetEvent = services.dialog.queueWidgetEvent;
+    const interfaceService = services.dialog.getInterfaceService();
+    if (!interfaceService) {
         return false;
     }
 
@@ -785,15 +784,11 @@ function openBoltEnchantQuantityInterface(
         buildBoltEnchantScriptLabelArg(title, labels),
     ];
 
-    if (queueWidgetEvent) {
-        queueWidgetEvent(player.id, {
-            action: "run_script",
-            scriptId: BOLT_ENCHANT_SCRIPT_ID,
-            args: scriptArgs,
-        });
-    } else {
-        queueClientScript!(player.id, BOLT_ENCHANT_SCRIPT_ID, ...scriptArgs);
-    }
+    queueWidgetEvent(player.id, {
+        action: "run_script",
+        scriptId: BOLT_ENCHANT_SCRIPT_ID,
+        args: scriptArgs,
+    });
 
     boltEnchantUiSessions.set(player, {
         entriesByComponentUid,
@@ -894,7 +889,7 @@ function startBoltEnchantAction(
         animationId: CROSSBOW_BOLT_ENCHANT_ANIM_ID,
     };
 
-    const result = services.requestAction(
+    const result = services.combat.requestAction(
         player,
         {
             kind: BOLT_ENCHANT_ACTION_KIND,
@@ -906,7 +901,7 @@ function startBoltEnchantAction(
         tick,
     );
     if (!result.ok) {
-        services.sendGameMessage(player, "You can't enchant bolts right now.");
+        services.messaging.sendGameMessage(player, "You can't enchant bolts right now.");
     }
 }
 
@@ -923,7 +918,7 @@ function executeBoltEnchant(
         countInventoryItem(inventory, variant.sourceItemId) / BOLTS_PER_ENCHANT_SET,
     );
     if (!(availableSets > 0)) {
-        services.sendGameMessage(player, "You don't have enough bolts to enchant.");
+        services.messaging.sendGameMessage(player, "You don't have enough bolts to enchant.");
         return;
     }
 
@@ -941,7 +936,7 @@ function executeBoltEnchant(
     const runeLimitedSets = getRuneLimitedSets(inventory, runesPerSet);
     const maxSets = Math.max(0, Math.min(availableSets, runeLimitedSets));
     if (!(maxSets > 0)) {
-        services.sendGameMessage(player, "You do not have the runes to cast this spell.");
+        services.messaging.sendGameMessage(player, "You do not have the runes to cast this spell.");
         return;
     }
 
@@ -964,26 +959,26 @@ function executeBoltEnchant(
         services,
     );
     if (!removedBolts) {
-        services.sendGameMessage(player, "You don't have enough bolts to enchant.");
+        services.messaging.sendGameMessage(player, "You don't have enough bolts to enchant.");
         return;
     }
 
-    const added = services.addItemToInventory(player, variant.enchantedItemId, boltsToEnchant);
+    const added = services.inventory.addItemToInventory(player, variant.enchantedItemId, boltsToEnchant);
     if (added.added < boltsToEnchant) {
-        services.sendGameMessage(player, "You don't have enough inventory space.");
+        services.messaging.sendGameMessage(player, "You don't have enough inventory space.");
         // Best-effort rollback for unexpected failure.
-        services.addItemToInventory(player, variant.sourceItemId, boltsToEnchant);
+        services.inventory.addItemToInventory(player, variant.sourceItemId, boltsToEnchant);
         return;
     }
 
-    if (services.playPlayerSeqImmediate) {
-        services.playPlayerSeqImmediate(player, CROSSBOW_BOLT_ENCHANT_ANIM_ID);
+    if (services.animation.playPlayerSeqImmediate) {
+        services.animation.playPlayerSeqImmediate(player, CROSSBOW_BOLT_ENCHANT_ANIM_ID);
     } else {
-        services.playPlayerSeq?.(player, CROSSBOW_BOLT_ENCHANT_ANIM_ID);
+        services.animation.playPlayerSeq(player, CROSSBOW_BOLT_ENCHANT_ANIM_ID);
     }
-    services.addSkillXp?.(player, MAGIC_SKILL_ID, recipe.xp * finalSets);
-    services.snapshotInventoryImmediate(player);
-    services.sendGameMessage(player, `You enchant ${boltsToEnchant} ${variant.enchantedName}.`);
+    services.skills.addSkillXp(player, MAGIC_SKILL_ID, recipe.xp * finalSets);
+    services.inventory.snapshotInventoryImmediate(player);
+    services.messaging.sendGameMessage(player, `You enchant ${boltsToEnchant} ${variant.enchantedName}.`);
 }
 
 function handleCrossbowBoltEnchantments(player: PlayerState, services: ScriptServices): void {
@@ -1053,7 +1048,7 @@ function handleCrossbowBoltEnchantments(player: PlayerState, services: ScriptSer
     }
 
     if (!hasAnyEnchantableBolts) {
-        services.sendGameMessage(
+        services.messaging.sendGameMessage(
             player,
             hasAnyBoltType
                 ? "You need at least 10 bolts to enchant."
@@ -1062,7 +1057,7 @@ function handleCrossbowBoltEnchantments(player: PlayerState, services: ScriptSer
         return;
     }
     if (!hasLevelForAnyBolt && requiredMagicLevel > 0) {
-        services.sendGameMessage(
+        services.messaging.sendGameMessage(
             player,
             `You need a Magic level of ${requiredMagicLevel} to cast this spell.`,
         );
@@ -1072,7 +1067,7 @@ function handleCrossbowBoltEnchantments(player: PlayerState, services: ScriptSer
         sendMissingRuneMessage(player, missingRuneValidation, services);
         return;
     }
-    services.sendGameMessage(player, "You don't have enough bolts to enchant.");
+    services.messaging.sendGameMessage(player, "You don't have enough bolts to enchant.");
 }
 
 /**
@@ -1092,14 +1087,14 @@ function executeTeleport(
     }
 
     // Teleporting closes all interruptible interfaces
-    services.closeInterruptibleInterfaces?.(player);
+    services.dialog.closeInterruptibleInterfaces(player);
 
     const { destination, levelRequired, castAnimId, castSpotAnim, name, runeCosts } = spell;
 
     // Check magic level (skill 6 = Magic)
     const magicLevel = player.skillSystem.getSkill(SkillId.Magic).baseLevel;
     if (magicLevel < levelRequired) {
-        services.sendGameMessage(
+        services.messaging.sendGameMessage(
             player,
             `You need a Magic level of ${levelRequired} to cast ${name}.`,
         );
@@ -1121,9 +1116,9 @@ function executeTeleport(
         return;
     }
 
-    const requestTeleportAction = services.requestTeleportAction;
+    const requestTeleportAction = services.movement.requestTeleportAction;
     if (!requestTeleportAction) {
-        services.logger?.warn?.(
+        services.system.logger.warn?.(
             "[script:spellbook] requestTeleportAction service unavailable; teleport aborted",
         );
         return;
@@ -1149,11 +1144,11 @@ function executeTeleport(
     });
     if (!teleportResult.ok) {
         if (teleportResult.reason === "cannot_teleport") {
-            services.sendGameMessage(player, "A magical force stops you from teleporting.");
+            services.messaging.sendGameMessage(player, "A magical force stops you from teleporting.");
         } else if (teleportResult.reason === "cooldown") {
-            services.sendGameMessage(player, "You're already teleporting.");
+            services.messaging.sendGameMessage(player, "You're already teleporting.");
         } else {
-            services.sendGameMessage(player, "You can't teleport right now.");
+            services.messaging.sendGameMessage(player, "You can't teleport right now.");
         }
         return;
     }
@@ -1165,10 +1160,10 @@ function executeTeleport(
 
     // Play cast animation with immediate feedback
     if (castAnimId) {
-        if (services.playPlayerSeqImmediate) {
-            services.playPlayerSeqImmediate(player, castAnimId);
+        if (services.animation.playPlayerSeqImmediate) {
+            services.animation.playPlayerSeqImmediate(player, castAnimId);
         } else {
-            services.playPlayerSeq?.(player, castAnimId);
+            services.animation.playPlayerSeq(player, castAnimId);
         }
     }
 
@@ -1181,12 +1176,12 @@ function executeTeleport(
         } else if (spell.spellbook === "lunar" || spell.spellbook === "arceuus") {
             gfxHeight = 120;
         }
-        services.broadcastPlayerSpot?.(player, castSpotAnim, gfxHeight, 0);
+        services.animation.broadcastPlayerSpot(player, castSpotAnim, gfxHeight, 0);
     }
 
     // Play cast sound
     if (spell.castSoundId) {
-        services.playAreaSound?.({
+        services.sound.playAreaSound({
             soundId: spell.castSoundId,
             tile: { x: player.tileX, y: player.tileY },
             level: player.level,
@@ -1195,7 +1190,7 @@ function executeTeleport(
         });
     }
 
-    services.sendGameMessage(player, `Teleporting to ${destination.name}...`);
+    services.messaging.sendGameMessage(player, `Teleporting to ${destination.name}...`);
 }
 
 /**
@@ -1216,7 +1211,7 @@ function executeHomeTeleport(
 
     // Check teleblock
     if (!player.canTeleport()) {
-        services.sendGameMessage(player, "A magical force stops you from teleporting.");
+        services.messaging.sendGameMessage(player, "A magical force stops you from teleporting.");
         return;
     }
 
@@ -1226,11 +1221,11 @@ function executeHomeTeleport(
     player.timers.set(HOME_TELEPORT_TIMER, 25);
 
     // closes interruptible interfaces (dialogs, modals) on cast
-    services.closeInterruptibleInterfaces?.(player);
+    services.dialog.closeInterruptibleInterfaces(player);
 
     // Helper to play a sound at the player's current position
     const playSound = (soundId: number) => {
-        services.playAreaSound?.({
+        services.sound.playAreaSound({
             soundId,
             tile: { x: player.tileX, y: player.tileY },
             level: player.level,
@@ -1243,34 +1238,34 @@ function executeHomeTeleport(
         // On movement/interaction interrupt: clear animation, spotanim, and in-progress lock
         task.terminateAction = () => {
             player.timers.remove(HOME_TELEPORT_TIMER);
-            services.playPlayerSeq?.(player, -1);
-            services.broadcastPlayerSpot?.(player, -1, 0, 0);
+            services.animation.playPlayerSeq(player, -1);
+            services.animation.broadcastPlayerSpot(player, -1, 0, 0);
         };
 
         // Phase 1: tick +1 after click — seq 4847, spotanim 800, sound 193
-        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE1);
-        services.broadcastPlayerSpot?.(player, HOME_TELEPORT_SPOT_PHASE1, 0, 0);
+        services.animation.playPlayerSeq(player, HOME_TELEPORT_SEQ_PHASE1);
+        services.animation.broadcastPlayerSpot(player, HOME_TELEPORT_SPOT_PHASE1, 0, 0);
         playSound(HOME_TELEPORT_SOUND_PHASE1);
 
         // First yield needs N+1 because cycle() fires on the same tick as invoke()
         yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE1_TO_2);
 
         // Phase 2: tick +7 — seq 4850, sound 196
-        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE2);
+        services.animation.playPlayerSeq(player, HOME_TELEPORT_SEQ_PHASE2);
         playSound(HOME_TELEPORT_SOUND_PHASE2);
 
         yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE2_TO_3);
 
         // Phase 3: tick +13 — seq 4853, spotanim 802, sound 194
-        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE3);
-        services.broadcastPlayerSpot?.(player, HOME_TELEPORT_SPOT_PHASE3, 0, 0);
+        services.animation.playPlayerSeq(player, HOME_TELEPORT_SEQ_PHASE3);
+        services.animation.broadcastPlayerSpot(player, HOME_TELEPORT_SPOT_PHASE3, 0, 0);
         playSound(HOME_TELEPORT_SOUND_PHASE3);
 
         yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE3_TO_4);
 
         // Phase 4: tick +17 — seq 4855, spotanim 803 (height -10), sound 195
-        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE4);
-        services.broadcastPlayerSpot?.(
+        services.animation.playPlayerSeq(player, HOME_TELEPORT_SEQ_PHASE4);
+        services.animation.broadcastPlayerSpot(
             player,
             HOME_TELEPORT_SPOT_PHASE4,
             HOME_TELEPORT_SPOT_PHASE4_HEIGHT,
@@ -1281,17 +1276,17 @@ function executeHomeTeleport(
         yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE4_TO_5);
 
         // Phase 5: tick +21 — seq 4857, spotanim 804
-        services.playPlayerSeq?.(player, HOME_TELEPORT_SEQ_PHASE5);
-        services.broadcastPlayerSpot?.(player, HOME_TELEPORT_SPOT_PHASE5, 0, 0);
+        services.animation.playPlayerSeq(player, HOME_TELEPORT_SEQ_PHASE5);
+        services.animation.broadcastPlayerSpot(player, HOME_TELEPORT_SPOT_PHASE5, 0, 0);
 
         yield new WaitCondition(HOME_TELEPORT_WAIT_PHASE5_TO_TP);
 
         // Teleport: tick +24 — clear seq/spotanim, update cooldown varp/varbit, teleport
         player.timers.remove(HOME_TELEPORT_TIMER);
-        services.queueVarbit?.(player.id, HOME_TELEPORT_VARBIT_COOLDOWN, HOME_TELEPORT_VARBIT_COOLDOWN_VALUE);
-        services.queueVarp?.(player.id, VARP_LAST_HOME_TELEPORT, services.getCurrentTick?.() ?? 0);
-        services.teleportPlayer?.(player, destination.x, destination.y, destination.level);
-        services.playPlayerSeq?.(player, -1);
-        services.broadcastPlayerSpot?.(player, -1, 0, 0);
+        services.variables.queueVarbit?.(player.id, HOME_TELEPORT_VARBIT_COOLDOWN, HOME_TELEPORT_VARBIT_COOLDOWN_VALUE);
+        services.variables.queueVarp?.(player.id, VARP_LAST_HOME_TELEPORT, services.system.getCurrentTick() ?? 0);
+        services.movement.teleportPlayer(player, destination.x, destination.y, destination.level);
+        services.animation.playPlayerSeq(player, -1);
+        services.animation.broadcastPlayerSpot(player, -1, 0, 0);
     });
 }

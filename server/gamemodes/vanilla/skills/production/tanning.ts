@@ -39,20 +39,20 @@ export function executeTanAction(ctx: ScriptActionHandlerContext): ActionExecuti
         return buildSkillFailure(player, "You can't tan that.", "unknown_recipe");
     }
 
-    const skill = services.getSkill?.(player, SkillId.Crafting);
+    const skill = services.skills.getSkill(player, SkillId.Crafting);
     if (recipe.level && (skill?.baseLevel ?? 1) < recipe.level) {
         return buildSkillFailure(player, `You need Crafting level ${recipe.level} to tan that.`, "tan_level");
     }
 
-    const slot = services.findInventorySlotWithItem?.(player, recipe.inputItemId);
-    if (slot === undefined || !services.consumeItem(player, slot)) {
+    const slot = services.inventory.findInventorySlotWithItem(player, recipe.inputItemId);
+    if (slot === undefined || !services.inventory.consumeItem(player, slot)) {
         return buildSkillFailure(player, "You need hides to tan.", "missing_item");
     }
 
     const targetCount = Math.max(1, data.count);
-    services.setInventorySlot(player, slot, recipe.outputItemId, 1);
-    services.playPlayerSeq?.(player, recipe.animation ?? 1249);
-    services.addSkillXp?.(player, SkillId.Crafting, recipe.xp);
+    services.inventory.setInventorySlot(player, slot, recipe.outputItemId, 1);
+    services.animation.playPlayerSeq(player, recipe.animation ?? 1249);
+    services.skills.addSkillXp(player, SkillId.Crafting, recipe.xp);
 
     const effects: ActionEffect[] = [
         { type: "inventorySnapshot", playerId: player.id },
@@ -61,7 +61,7 @@ export function executeTanAction(ctx: ScriptActionHandlerContext): ActionExecuti
 
     const remaining = Math.max(0, targetCount - 1);
     if (remaining > 0) {
-        const reschedule = services.scheduleAction?.(player.id, {
+        const reschedule = services.combat.scheduleAction(player.id, {
             kind: "skill.tan", data: { recipeId: recipe.id, count: remaining },
             delayTicks: recipe.delayTicks ?? 2, cooldownTicks: recipe.delayTicks ?? 2,
             groups: ["skill.tan"],
@@ -75,22 +75,22 @@ export function executeTanAction(ctx: ScriptActionHandlerContext): ActionExecuti
 }
 
 export function registerTanningInteractions(registry: IScriptRegistry, services: ScriptServices) {
-    const requestAction = services.requestAction;
-    const openDialogOptions = services.openDialogOptions;
-    const closeDialog = services.closeDialog;
+    const requestAction = services.combat.requestAction;
+    const openDialogOptions = services.dialog.openDialogOptions;
+    const closeDialog = services.dialog.closeDialog;
 
     const tryTanningRecipe = (player: PlayerState, recipe: TanningRecipe, tick?: number, opts?: { desiredCount?: number }) => {
-        const craftLevel = services.getSkill?.(player, SkillId.Crafting)?.baseLevel ?? 1;
-        if (recipe.level && craftLevel < recipe.level) { services.sendGameMessage(player, `You need Crafting level ${recipe.level} to tan that.`); return; }
+        const craftLevel = services.skills.getSkill(player, SkillId.Crafting)?.baseLevel ?? 1;
+        if (recipe.level && craftLevel < recipe.level) { services.messaging.sendGameMessage(player, `You need Crafting level ${recipe.level} to tan that.`); return; }
         const inventoryNow = getInventory(services, player);
         const batch = computeTanningBatchCount(inventoryNow, recipe);
-        if (batch <= 0) { services.sendGameMessage(player, "You need hides to tan."); return; }
+        if (batch <= 0) { services.messaging.sendGameMessage(player, "You need hides to tan."); return; }
         const desired = Math.max(1, Math.min(batch, opts?.desiredCount ?? batch));
-        enqueueSkillAction(requestAction, "tan", player, recipe.id, desired, recipe.delayTicks ?? 2, tick, services.sendGameMessage);
+        enqueueSkillAction(requestAction, "tan", player, recipe.id, desired, recipe.delayTicks ?? 2, tick, services.messaging.sendGameMessage);
     };
 
     registry.registerLocAction("tan", (event) => {
-        const level = services.getSkill?.(event.player, SkillId.Crafting)?.baseLevel ?? 1;
+        const level = services.skills.getSkill(event.player, SkillId.Crafting)?.baseLevel ?? 1;
         const inventory = getInventory(services, event.player);
         const tanningCandidates = TANNING_RECIPES.filter((r) => hasItem(inventory, r.inputItemId)).map<SkillDialogChoice<TanningRecipe>>((recipe) => {
             const totalHides = countItem(inventory, recipe.inputItemId);
@@ -100,7 +100,7 @@ export function registerTanningInteractions(registry: IScriptRegistry, services:
             const label = craftable ? `${recipe.name} (${readyCount}x ready)` : !levelMet ? `${recipe.name} (Lvl ${recipe.level})` : `${recipe.name} (${totalHides} hides)`;
             return { recipe, label, craftable, batch: readyCount };
         });
-        if (!tanningCandidates.length) { services.sendGameMessage(event.player, "You need hides to tan."); return; }
+        if (!tanningCandidates.length) { services.messaging.sendGameMessage(event.player, "You need hides to tan."); return; }
         const craftableChoices = tanningCandidates.filter((c) => c.craftable);
         const orderedChoices = craftableChoices.concat(tanningCandidates.filter((c) => !c.craftable)).slice(0, MAX_DIALOG_OPTIONS);
         const meta = SKILL_DIALOG_META.tan;
@@ -110,15 +110,15 @@ export function registerTanningInteractions(registry: IScriptRegistry, services:
             disabledOptions: orderedChoices.map((c) => !c.craftable),
             onSelect: (idx) => {
                 const selected = orderedChoices[idx];
-                if (!selected) { services.sendGameMessage(event.player, "You decide not to tan any hides."); return; }
-                if (!selected.craftable) { services.sendGameMessage(event.player, "You can't tan that yet."); return; }
+                if (!selected) { services.messaging.sendGameMessage(event.player, "You decide not to tan any hides."); return; }
+                if (!selected.craftable) { services.messaging.sendGameMessage(event.player, "You can't tan that yet."); return; }
                 closeDialog?.(event.player, meta.id);
                 tryTanningRecipe(event.player, selected.recipe, event.tick, { desiredCount: selected.batch });
             },
         });
         if (!openedDialog) {
             const fallback = craftableChoices[0];
-            if (!fallback) { services.sendGameMessage(event.player, "You need a higher Crafting level."); return; }
+            if (!fallback) { services.messaging.sendGameMessage(event.player, "You need a higher Crafting level."); return; }
             tryTanningRecipe(event.player, fallback.recipe, event.tick, { desiredCount: fallback.batch });
         }
     });

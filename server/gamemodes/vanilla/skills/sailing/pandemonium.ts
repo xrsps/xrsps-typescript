@@ -296,13 +296,13 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
 
 function createNpcDialogFn(
     player: PlayerState,
-    services: Pick<ScriptServices, "openDialog">,
+    services: Pick<ScriptServices, "dialog">,
     onClose: () => void,
     npcId: number,
     npcName: string,
 ): DialogFn {
     return (id, lines, animId, onContinue) =>
-        services.openDialog?.(player, {
+        services.dialog.openDialog(player, {
             kind: "npc",
             id,
             npcId,
@@ -318,12 +318,12 @@ function createNpcDialogFn(
 
 function createPlayerDialogFn(
     player: PlayerState,
-    services: Pick<ScriptServices, "openDialog">,
+    services: Pick<ScriptServices, "dialog">,
     onClose: () => void,
     playerName: string,
 ): DialogFn {
     return (id, lines, animId, onContinue) =>
-        services.openDialog?.(player, {
+        services.dialog.openDialog(player, {
             kind: "player",
             id,
             playerName,
@@ -346,25 +346,19 @@ type PandemoniumDockedSailingServices = Pick<
     | "sailing"
     | "disposeSailingInstance"
     | "buildSailingDockedCollision"
-    | "teleportPlayer"
+    | "movement"
     | "sendWorldEntity"
-    | "spawnNpc"
-    | "sendVarbit"
-    | "sendVarp"
-    | "sendGameMessage"
-    | "sendSound"
-    | "queueClientScript"
-    | "openSubInterface"
-    | "queueWidgetEvent"
-    | "openDialog"
+    | "npc"
+    | "variables"
+    | "messaging"
+    | "sound"
+    | "dialog"
 >;
 
 type PandemoniumSailingStateServices = Pick<
     ScriptServices,
-    | "sendVarbit"
-    | "sendVarp"
-    | "queueClientScript"
-    | "openSubInterface"
+    | "variables"
+    | "dialog"
 >;
 
 function playIntroDialogue(
@@ -405,8 +399,8 @@ function playIntroDialogue(
                                     ],
                                     ANIM_CHATHAP2,
                                     () => {
-                                        services.closeDialog?.(player, `${convoId}_5`);
-                                        services.openDialogOptions?.(player, {
+                                        services.dialog.closeDialog(player, `${convoId}_5`);
+                                        services.dialog.openDialogOptions(player, {
                                             id: `${convoId}_quest_start`,
                                             title: "Start the Pandemonium quest?",
                                             options: ["Yes.", "No."],
@@ -416,12 +410,12 @@ function playIntroDialogue(
                                                     onClose();
                                                     return;
                                                 }
-                                                services.sendVarbit?.(
+                                                services.variables.sendVarbit?.(
                                                     player,
                                                     VARBIT_SAILING_INTRO,
                                                     2,
                                                 );
-                                                services.sendGameMessage(
+                                                services.messaging.sendGameMessage(
                                                     player,
                                                     "You've started a new quest: <col=0ab0ff>Pandemonium</col>",
                                                 );
@@ -616,7 +610,7 @@ function playInterviewPart3(
                         ["But I didn't accept anything..."],
                         ANIM_CHATCON1,
                         () => {
-                            services.sendVarbit?.(player, VARBIT_SAILING_INTRO, 4);
+                            services.variables.sendVarbit?.(player, VARBIT_SAILING_INTRO, 4);
 
                             openAnneDialog(
                                 `${convoId}_i18`,
@@ -626,7 +620,7 @@ function playInterviewPart3(
                                 ],
                                 ANIM_CHATHAP2,
                                 () => {
-                                    services.closeDialog?.(player, `${convoId}_i18`);
+                                    services.dialog.closeDialog(player, `${convoId}_i18`);
                                     offerBoardChoice(
                                         convoId,
                                         player,
@@ -708,7 +702,7 @@ function offerBoardChoice(
     onClose: () => void,
     services: ScriptServices,
 ) {
-    services.openDialogOptions?.(player, {
+    services.dialog.openDialogOptions(player, {
         id: `${convoId}_board_choice`,
         title: "Select an option",
         options: ["I guess I'm ready...", "I'd rather not..."],
@@ -721,7 +715,7 @@ function offerBoardChoice(
             openPlayerDialog(`${convoId}_b1`, ["I guess I'm ready..."], ANIM_CHATCON1, () => {
                 openWillDialog(`${convoId}_b2`, ["Then let us away!"], ANIM_CHATHAP1, () => {
                     onClose();
-                    const tick = services.getCurrentTick?.() ?? 0;
+                    const tick = services.system.getCurrentTick() ?? 0;
                     executeBoardingSequence(player, playerName, services, tick);
                 });
             });
@@ -746,16 +740,16 @@ function executeBoardingSequence(
 
     // --- Tick 0: Fade to black, disable minimap ---
 
-    services.queueWidgetEvent?.(pid, { action: "set_text", uid: fadeMessageUid, text: "" });
-    services.openSubInterface?.(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
-    services.queueClientScript?.(pid, SCRIPT_FADE, 0, 255, 0, 0, 15);
-    services.queueWidgetEvent?.(pid, { action: "set_hidden", uid: hpBarUid, hidden: true });
-    services.queueClientScript?.(pid, SCRIPT_HIDE_HPBAR, 19857409);
-    services.closeDialog?.(player);
-    services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 2);
+    services.dialog.queueWidgetEvent(pid, { action: "set_text", uid: fadeMessageUid, text: "" });
+    services.dialog.openSubInterface(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
+    services.dialog.queueClientScript(pid, SCRIPT_FADE, 0, 255, 0, 0, 15);
+    services.dialog.queueWidgetEvent(pid, { action: "set_hidden", uid: hpBarUid, hidden: true });
+    services.dialog.queueClientScript(pid, SCRIPT_HIDE_HPBAR, 19857409);
+    services.dialog.closeDialog(player);
+    services.variables.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 2);
 
     // --- Tick 1: Teleport + set sailing state ---
-    services.requestAction(player, {
+    services.combat.requestAction(player, {
         kind: "sailing.board_tick1",
         data: { playerName },
         delayTicks: 1,
@@ -764,7 +758,7 @@ function executeBoardingSequence(
     }, currentTick);
 
     // --- Tick 2: Fade back in, boat stats, dialogue ---
-    services.requestAction(player, {
+    services.combat.requestAction(player, {
         kind: "sailing.board_tick2",
         data: {},
         delayTicks: 2,
@@ -778,7 +772,7 @@ function sendDockedBoatArrival(
 ): void {
     services.sailing?.disposeSailingInstance(player);
     player.worldViewId = SAILING_WORLD_ENTITY_INDEX;
-    services.teleportPlayer?.(
+    services.movement.teleportPlayer(
         player,
         SAILING_DOCKED_PLAYER_X,
         SAILING_DOCKED_PLAYER_Y,
@@ -801,7 +795,7 @@ function sendDockedBoatArrival(
     );
 
     for (const npc of SAILING_DOCKED_NPC_SPAWNS) {
-        const spawned = services.spawnNpc?.({ ...npc, wanderRadius: 0 });
+        const spawned = services.npc.spawnNpc({ ...npc, wanderRadius: 0 });
         if (spawned) {
             spawned.worldViewId = SAILING_WORLD_ENTITY_INDEX;
             player.instanceNpcIds.add(spawned.id);
@@ -811,22 +805,22 @@ function sendDockedBoatArrival(
 
 function setPlayerVarbitAndSend(
     player: PlayerState,
-    services: Pick<ScriptServices, "sendVarbit">,
+    services: Pick<ScriptServices, "variables">,
     varbitId: number,
     value: number,
 ): void {
     player.varps.setVarbitValue(varbitId, value);
-    services.sendVarbit?.(player, varbitId, value);
+    services.variables.sendVarbit?.(player, varbitId, value);
 }
 
 function setPlayerVarpAndSend(
     player: PlayerState,
-    services: Pick<ScriptServices, "sendVarp">,
+    services: Pick<ScriptServices, "variables">,
     varpId: number,
     value: number,
 ): void {
     player.varps.setVarpValue(varpId, value);
-    services.sendVarp?.(player, varpId, value);
+    services.variables.sendVarp?.(player, varpId, value);
 }
 
 /**
@@ -836,7 +830,7 @@ function setPlayerVarpAndSend(
  */
 export function resetSailingState(
     player: PlayerState,
-    services: Pick<ScriptServices, "sailing" | "sendVarbit" | "closeSubInterface" | "queueWidgetEvent" | "disposeSailingInstance">,
+    services: Pick<ScriptServices, "sailing" | "variables" | "dialog" | "disposeSailingInstance">,
 ): void {
     services.sailing?.disposeSailingInstance(player);
 
@@ -856,8 +850,8 @@ export function resetSailingState(
     setPlayerVarbitAndSend(player, services, VARBIT_SAILING_PRELOADED_ANIMS, 0);
 
     // Close sailing interfaces via widget tracker (proper close hooks)
-    services.closeSubInterface?.(player, BaseComponentUids.TAB_COMBAT, SAILING_SIDEPANEL_GROUP);
-    services.closeSubInterface?.(
+    services.dialog.closeSubInterface(player, BaseComponentUids.TAB_COMBAT, SAILING_SIDEPANEL_GROUP);
+    services.dialog.closeSubInterface(
         player,
         BaseComponentUids.HUD_CONTAINER_FRONT,
         SAILING_INTRO_HUD_GROUP,
@@ -865,7 +859,7 @@ export function resetSailingState(
 
     // Restore combat tab via queueWidgetEvent directly — NOT openSubInterface
     // which tracks it as modal (closeInterruptibleInterfaces kills modals on walk).
-    services.queueWidgetEvent?.(player.id, {
+    services.dialog.queueWidgetEvent(player.id, {
         action: "open_sub",
         targetUid: BaseComponentUids.TAB_COMBAT,
         groupId: 593,
@@ -923,7 +917,7 @@ function syncSailingBootstrapState(
 
 function syncSailingBoatStats(
     player: PlayerState,
-    services: Pick<ScriptServices, "sendVarbit" | "sendVarp">,
+    services: Pick<ScriptServices, "variables">,
 ): void {
     setPlayerVarbitAndSend(player, services, VARBIT_SAILING_SIDEPANEL_AMMO_NEEDS_UPDATE, 0);
     setPlayerVarbitAndSend(
@@ -969,13 +963,13 @@ function syncSailingBoatStats(
 
 function openSailingUi(
     player: PlayerState,
-    services: Pick<ScriptServices, "queueClientScript" | "openSubInterface">,
+    services: Pick<ScriptServices, "dialog">,
 ): void {
     const pid = player.id;
     const playerName = player.name ?? "You";
 
-    services.queueClientScript?.(pid, SCRIPT_SAILING_CREW_INIT, playerName, 1, "", 1);
-    services.queueClientScript?.(pid, SCRIPT_SIDEBAR_TAB, 0);
+    services.dialog.queueClientScript(pid, SCRIPT_SAILING_CREW_INIT, playerName, 1, "", 1);
+    services.dialog.queueClientScript(pid, SCRIPT_SIDEBAR_TAB, 0);
 
     // Bundle critical varbits/varps with the interface open so they are applied
     // client-side BEFORE the onLoad scripts fire. Without this, the CS2 script
@@ -998,22 +992,22 @@ function openSailingUi(
         [VARP_SAILING_SIDEPANEL_BOAT_TYPE]: player.varps.getVarpValue?.(VARP_SAILING_SIDEPANEL_BOAT_TYPE) ?? 8113,
     };
 
-    services.openSubInterface?.(
+    services.dialog.openSubInterface(
         player,
         BaseComponentUids.TAB_COMBAT,
         SAILING_SIDEPANEL_GROUP,
         1,
         { modal: false, varbits: sidepanelVarbits, varps: sidepanelVarps },
     );
-    services.openSubInterface?.(
+    services.dialog.openSubInterface(
         player,
         BaseComponentUids.HUD_CONTAINER_FRONT,
         SAILING_INTRO_HUD_GROUP,
         1,
         { modal: false },
     );
-    services.queueClientScript?.(pid, SCRIPT_COMBAT_LEVEL, player.skillSystem.combatLevel ?? 3);
-    services.queueClientScript?.(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);
+    services.dialog.queueClientScript(pid, SCRIPT_COMBAT_LEVEL, player.skillSystem.combatLevel ?? 3);
+    services.dialog.queueClientScript(pid, SCRIPT_CAMERA_BOUNDS, -100, 896, -100, 896);
 }
 
 export function isPlayerOnDockedSailingBoat(player: PlayerState): boolean {
@@ -1040,10 +1034,10 @@ export function handleBoardingTick1(
 ): void {
     // Quest state
     syncSailingBootstrapState(player, services);
-    services.sendGameMessage(player, "You board the boat.");
+    services.messaging.sendGameMessage(player, "You board the boat.");
 
     // Music unlock
-    services.sendGameMessage(
+    services.messaging.sendGameMessage(
         player,
         "You have unlocked a new music track: <col=ff3045>Crest of a Wave",
     );
@@ -1052,7 +1046,7 @@ export function handleBoardingTick1(
     sendDockedBoatArrival(player, services);
 
     // Board sound
-    services.sendSound?.(player, SYNTH_BOARD_BOAT);
+    services.sound.sendSound(player, SYNTH_BOARD_BOAT);
 
     // Restore the sailing UI immediately on docked arrival.
     openSailingUi(player, services);
@@ -1070,16 +1064,16 @@ export function handleBoardingTick2(
     syncSailingBoatStats(player, services);
 
     // Fade from black
-    services.queueWidgetEvent?.(pid, {
+    services.dialog.queueWidgetEvent(pid, {
         action: "set_text",
         uid: fadeMessageUid,
         text: "",
     });
-    services.openSubInterface?.(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
-    services.queueClientScript?.(pid, SCRIPT_FADE, 0, 0, 0, 255, 15);
+    services.dialog.openSubInterface(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
+    services.dialog.queueClientScript(pid, SCRIPT_FADE, 0, 0, 0, 255, 15);
 
     // Re-enable minimap
-    services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 0);
+    services.variables.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 0);
 
     // Will on the boat: opening dialogue
     playShipboardDialogue(
@@ -1103,16 +1097,16 @@ export function executeDisembarkSequence(
     const pid = player.id;
     const overlayAtmosphereUid = BaseComponentUids.OVERLAY_ATMOSPHERE;
     const fadeMessageUid = (FADE_OVERLAY_GROUP << 16) | FADE_OVERLAY_MESSAGE_CHILD;
-    const currentTick = services.getCurrentTick?.() ?? 0;
+    const currentTick = services.system.getCurrentTick() ?? 0;
 
     // Fade to black
-    services.queueWidgetEvent?.(pid, { action: "set_text", uid: fadeMessageUid, text: "" });
-    services.openSubInterface?.(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
-    services.queueClientScript?.(pid, SCRIPT_FADE, 0, 255, 0, 0, 15);
-    services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 2);
+    services.dialog.queueWidgetEvent(pid, { action: "set_text", uid: fadeMessageUid, text: "" });
+    services.dialog.openSubInterface(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
+    services.dialog.queueClientScript(pid, SCRIPT_FADE, 0, 255, 0, 0, 15);
+    services.variables.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 2);
 
     // Tick 1: Teleport back, reset state
-    services.requestAction(player, {
+    services.combat.requestAction(player, {
         kind: "sailing.disembark",
         data: {},
         delayTicks: 1,
@@ -1133,7 +1127,7 @@ export function handleDisembarkTick(
     resetSailingState(player, services);
 
     // Teleport back to Port Sarim
-    services.teleportPlayer?.(
+    services.movement.teleportPlayer(
         player,
         PORT_SARIM_RETURN_X,
         PORT_SARIM_RETURN_Y,
@@ -1141,18 +1135,18 @@ export function handleDisembarkTick(
         true,
     );
 
-    services.sendGameMessage(player, "You disembark from the boat.");
+    services.messaging.sendGameMessage(player, "You disembark from the boat.");
 
     // Restore HP bar
-    services.queueWidgetEvent?.(pid, { action: "set_hidden", uid: hpBarUid, hidden: false });
+    services.dialog.queueWidgetEvent(pid, { action: "set_hidden", uid: hpBarUid, hidden: false });
 
     // Fade from black
-    services.queueWidgetEvent?.(pid, { action: "set_text", uid: fadeMessageUid, text: "" });
-    services.openSubInterface?.(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
-    services.queueClientScript?.(pid, SCRIPT_FADE, 0, 0, 0, 255, 15);
+    services.dialog.queueWidgetEvent(pid, { action: "set_text", uid: fadeMessageUid, text: "" });
+    services.dialog.openSubInterface(player, overlayAtmosphereUid, FADE_OVERLAY_GROUP, 1);
+    services.dialog.queueClientScript(pid, SCRIPT_FADE, 0, 0, 0, 255, 15);
 
     // Re-enable minimap
-    services.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 0);
+    services.variables.sendVarbit?.(player, VARBIT_MINIMAP_STATE, 0);
 }
 
 // ============================================================================
@@ -1187,7 +1181,7 @@ function playReadyDialogue(
         ["Just let us know when you're ready, and we'll hop", "aboard!"],
         ANIM_CHATHAP2,
         () => {
-            services.closeDialog?.(player, `${convoId}_r1`);
+            services.dialog.closeDialog(player, `${convoId}_r1`);
             offerBoardChoice(
                 convoId,
                 player,

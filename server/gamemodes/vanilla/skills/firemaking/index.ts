@@ -31,7 +31,7 @@ function buildMessageEffect(player: PlayerState, message: string): ActionEffect 
 }
 
 function describeItem(services: ScriptServices, itemId: number): string {
-    return services.getObjType?.(itemId)?.name?.toLowerCase() ?? "item";
+    return services.data.getObjType(itemId)?.name?.toLowerCase() ?? "item";
 }
 
 function failFiremakingPrecheck(
@@ -83,7 +83,7 @@ function executeFiremakingAction(ctx: ScriptActionHandlerContext): ActionExecuti
         return failFiremakingPrecheck(player, services, "You need a tinderbox to light these logs.");
     }
 
-    const skill = services.getSkill?.(player, SkillId.Firemaking);
+    const skill = services.skills.getSkill(player, SkillId.Firemaking);
     const baseLevel = skill?.baseLevel ?? 1;
     if (baseLevel < logDef.level) {
         return failFiremakingPrecheck(player, services, `You need Firemaking level ${logDef.level} to light these logs.`);
@@ -100,14 +100,14 @@ function executeFiremakingAction(ctx: ScriptActionHandlerContext): ActionExecuti
     services.faceGatheringTarget?.(player, tile);
 
     if (data.started) {
-        services.playPlayerSeq?.(player, FIRE_LIGHTING_ANIMATION);
+        services.animation.playPlayerSeq(player, FIRE_LIGHTING_ANIMATION);
     }
 
     const success = rollFiremakingSuccess(baseLevel, logDef.level);
     if (!success) {
         effects.push(buildMessageEffect(player, "You fail to light the logs."));
         const delay = computeFireLightingDelayTicks(baseLevel);
-        const reschedule = services.scheduleAction?.(
+        const reschedule = services.combat.scheduleAction(
             player.id,
             {
                 kind: "skill.firemaking",
@@ -142,7 +142,7 @@ function executeFiremakingAction(ctx: ScriptActionHandlerContext): ActionExecuti
     const logName = describeItem(services, logId);
     effects.push(buildMessageEffect(player, `The fire catches and the ${logName} begin to burn.`));
 
-    services.addSkillXp?.(player, SkillId.Firemaking, logDef.xp);
+    services.skills.addSkillXp(player, SkillId.Firemaking, logDef.xp);
 
     const fire = services.lightFire?.({
         tile,
@@ -156,12 +156,12 @@ function executeFiremakingAction(ctx: ScriptActionHandlerContext): ActionExecuti
     });
 
     if (fire) {
-        services.emitLocChange?.(0, fire.fireObjectId, tile, plane);
+        services.location.emitLocChange(0, fire.fireObjectId, tile, plane);
     }
 
-    services.stopPlayerAnimation?.(player);
+    services.animation.stopPlayerAnimation(player);
     services.walkPlayerAwayFromFire?.(player, tile);
-    services.sendSound?.(player, FIRE_LIT_SYNTH_SOUND);
+    services.sound.sendSound(player, FIRE_LIT_SYNTH_SOUND);
 
     return { ok: true, effects };
 }
@@ -182,7 +182,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
     });
 
     services.isFiremakingTileBlocked = (tile, level) => {
-        const pathService = services.getPathService?.();
+        const pathService = services.movement.getPathService();
         if (!pathService) return false;
         const flag = pathService.getCollisionFlagAt(tile.x, tile.y, level);
         if (flag === undefined || flag < 0) return false;
@@ -207,13 +207,13 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
 
     services.playerHasTinderbox = (player) => {
         for (const id of TINDERBOX_ITEM_IDS) {
-            if (services.playerHasItem?.(player, id)) return true;
+            if (services.inventory.playerHasItem(player, id)) return true;
         }
         return false;
     };
 
     services.consumeFiremakingLog = (player, logId, slotIndex) => {
-        const inv = services.getInventoryItems(player);
+        const inv = services.inventory.getInventoryItems(player);
         if (
             slotIndex !== undefined &&
             slotIndex >= 0 &&
@@ -221,16 +221,16 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             inv[slotIndex]?.itemId === logId &&
             inv[slotIndex]!.quantity > 0
         ) {
-            if (services.consumeItem(player, slotIndex)) return slotIndex;
+            if (services.inventory.consumeItem(player, slotIndex)) return slotIndex;
         }
-        const fallback = services.findInventorySlotWithItem?.(player, logId);
-        if (fallback !== undefined && services.consumeItem(player, fallback)) return fallback;
+        const fallback = services.inventory.findInventorySlotWithItem(player, logId);
+        if (fallback !== undefined && services.inventory.consumeItem(player, fallback)) return fallback;
         return undefined;
     };
 
     services.walkPlayerAwayFromFire = (player, fireTile) => {
         const westTile = { x: fireTile.x - 1, y: fireTile.y };
-        const pathService = services.getPathService?.();
+        const pathService = services.movement.getPathService();
         const canStep = pathService?.canNpcStep?.(
             { x: player.tileX, y: player.tileY, plane: player.level },
             westTile,
@@ -240,7 +240,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         }
     };
 
-    const requestAction = services.requestAction;
+    const requestAction = services.combat.requestAction;
     for (const logId of FIREMAKING_LOG_IDS) {
         const logDef = getFiremakingLogDefinition(logId);
         if (!logDef) continue;
@@ -249,9 +249,9 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 tinderboxId,
                 logDef.logId,
                 ({ player, source, target, tick }) => {
-                    const level = services.getSkill?.(player, SkillId.Firemaking)?.baseLevel ?? 1;
+                    const level = services.skills.getSkill(player, SkillId.Firemaking)?.baseLevel ?? 1;
                     if (level < logDef.level) {
-                        services.sendGameMessage(
+                        services.messaging.sendGameMessage(
                             player,
                             `You need Firemaking level ${logDef.level} to light these logs.`,
                         );
@@ -260,7 +260,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     const slot = source.itemId === logDef.logId ? source.slot : target.slot;
                     const delay = computeFireLightingDelayTicks(level);
 
-                    services.playPlayerSeq?.(player, FIRE_LIGHTING_ANIMATION);
+                    services.animation.playPlayerSeq(player, FIRE_LIGHTING_ANIMATION);
 
                     const result = requestAction(
                         player,
@@ -282,7 +282,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                         tick,
                     );
                     if (!result.ok) {
-                        services.sendGameMessage(player, "You're too busy to do that right now.");
+                        services.messaging.sendGameMessage(player, "You're too busy to do that right now.");
                     }
                 },
             );

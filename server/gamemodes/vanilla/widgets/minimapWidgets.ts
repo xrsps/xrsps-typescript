@@ -60,13 +60,13 @@ export function registerMinimapWidgetHandlers(registry: IScriptRegistry, service
 
             player.varps.setVarbitValue(VARBIT_XPDROPS_ENABLED, next);
 
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "set_hidden",
                 uid: getXpCounterMountUid(player.displayMode),
                 hidden: next === 0,
             });
 
-            services.logger?.info?.(
+            services.system.logger.info?.(
                 `[script:minimap-widgets] XP drops orb toggled player=${player.id} value=${next}`,
             );
         },
@@ -84,10 +84,10 @@ export function registerMinimapWidgetHandlers(registry: IScriptRegistry, service
             }
             lastSetupTickByPlayerId.set(pid, currentTick);
 
-            const mainmodalUid = services.getMainmodalUid!(player.displayMode ?? 1);
-            services.openSubInterface?.(player, mainmodalUid, XP_DROPS_SETUP_GROUP_ID, 0);
+            const mainmodalUid = services.viewport.getMainmodalUid(player.displayMode ?? 1);
+            services.dialog.openSubInterface(player, mainmodalUid, XP_DROPS_SETUP_GROUP_ID, 0);
 
-            services.logger?.info?.(
+            services.system.logger.info?.(
                 `[script:minimap-widgets] XP drops setup opened player=${player.id}`,
             );
         },

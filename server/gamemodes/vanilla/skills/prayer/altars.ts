@@ -47,7 +47,7 @@ const resolveBoneName = (
     itemId: number,
 ): string => {
     try {
-        const obj = services.getObjType?.(itemId);
+        const obj = services.data.getObjType(itemId);
         return (obj?.name as string) || "bones";
     } catch {
         return "bones";
@@ -76,18 +76,18 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             const pid = player.id;
             const tick = event.tick;
             if (hasCooldown(lastPrayTickByPlayer, pid, tick, PRAY_COOLDOWN_TICKS)) return;
-            services.playPlayerSeq?.(player, PRAY_AT_ALTAR_ANIM);
-            const prayerSkill = services.getSkill?.(player, SkillId.Prayer);
+            services.animation.playPlayerSeq(player, PRAY_AT_ALTAR_ANIM);
+            const prayerSkill = services.skills.getSkill(player, SkillId.Prayer);
             const baseLevel = Math.max(1, prayerSkill?.baseLevel ?? 1);
             const currentLevel = Math.max(0, baseLevel + (prayerSkill?.boost ?? 0));
             if (currentLevel >= baseLevel) {
-                services.sendGameMessage(player, FULL_PRAYER_MESSAGE);
+                services.messaging.sendGameMessage(player, FULL_PRAYER_MESSAGE);
                 markCooldown(lastPrayTickByPlayer, pid, tick);
                 return;
             }
             player.skillSystem.setSkillBoost(SkillId.Prayer, baseLevel);
             player.prayer.resetDrainAccumulator();
-            services.sendGameMessage(player, "You recharge your Prayer points.");
+            services.messaging.sendGameMessage(player, "You recharge your Prayer points.");
             markCooldown(lastPrayTickByPlayer, pid, tick);
         });
     }
@@ -99,9 +99,9 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             const pid = player.id;
             const tick = event.tick;
             if (hasCooldown(lastOfferTickByPlayer, pid, tick, OFFER_COOLDOWN_TICKS)) return;
-            const inventory = services.getInventoryItems(player);
+            const inventory = services.inventory.getInventoryItems(player);
             if (inventory.length === 0) {
-                services.sendGameMessage(player, OFFER_NONE_MESSAGE);
+                services.messaging.sendGameMessage(player, OFFER_NONE_MESSAGE);
                 return;
             }
             const offerAll = (event.action ?? "").toLowerCase().includes("all");
@@ -109,11 +109,11 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             const offerings = new Map<number, number>();
             let processed = 0;
             let totalXp = 0;
-            const consume = services.consumeItem;
+            const consume = services.inventory.consumeItem;
             for (const entry of inventory) {
                 const itemId = entry.itemId;
                 if (!BURIABLE_BONES_XP.has(itemId)) continue;
-                if (services.getObjType?.(itemId)?.noted) continue;
+                if (services.data.getObjType(itemId)?.noted) continue;
                 let available = Math.max(0, entry.quantity);
                 while (available > 0 && processed < maxBones) {
                     if (!consume(player, entry.slot)) {
@@ -131,22 +131,22 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             }
 
             if (processed === 0) {
-                services.sendGameMessage(player, OFFER_NONE_MESSAGE);
+                services.messaging.sendGameMessage(player, OFFER_NONE_MESSAGE);
                 return;
             }
 
-            services.playPlayerSeq?.(player, OFFER_AT_ALTAR_ANIM);
+            services.animation.playPlayerSeq(player, OFFER_AT_ALTAR_ANIM);
             const roundedXp = Math.round(totalXp);
             if (roundedXp > 0) {
-                services.addSkillXp?.(player, SkillId.Prayer, roundedXp);
+                services.skills.addSkillXp(player, SkillId.Prayer, roundedXp);
             }
-            services.snapshotInventoryImmediate(player);
+            services.inventory.snapshotInventoryImmediate(player);
             for (const [itemId, count] of offerings) {
                 const text = formatOfferMessage(resolveBoneName(services, itemId), count);
-                services.sendGameMessage(player, text);
+                services.messaging.sendGameMessage(player, text);
             }
-            services.sendGameMessage(player, OFFER_SUCCESS_MESSAGE);
-            services.triggerLocEffect?.(event.locId, event.tile, event.level);
+            services.messaging.sendGameMessage(player, OFFER_SUCCESS_MESSAGE);
+            services.location.triggerLocEffect(event.locId, event.tile, event.level);
             markCooldown(lastOfferTickByPlayer, pid, tick);
         });
     }

@@ -107,7 +107,7 @@ export function registerEquipmentHandlers(registry: IScriptRegistry, services: S
                 const store = player;
                 const charges = getDragonfireCharges(store);
                 if (charges > 0) {
-                    services.sendGameMessage(
+                    services.messaging.sendGameMessage(
                         player,
                         `You unleash the dragonfire shield. Stored energy drops to ${Math.max(
                             0,
@@ -116,7 +116,7 @@ export function registerEquipmentHandlers(registry: IScriptRegistry, services: S
                     );
                     store[dfsChargeKey] = Math.max(0, charges - 1);
                 } else {
-                    services.sendGameMessage(
+                    services.messaging.sendGameMessage(
                         player,
                         "The shield hasn't absorbed any dragonfire yet.",
                     );
@@ -129,7 +129,7 @@ export function registerEquipmentHandlers(registry: IScriptRegistry, services: S
             itemId,
             ({ player }) => {
                 const charges = getDragonfireCharges(player);
-                services.sendGameMessage(
+                services.messaging.sendGameMessage(
                     player,
                     `The shield currently holds ${charges} dragonfire charge${
                         charges === 1 ? "" : "s"
@@ -146,7 +146,7 @@ export function registerEquipmentHandlers(registry: IScriptRegistry, services: S
             ({ player }) => {
                 const state = getExplorerRingState(player);
                 if (state.used >= ring.chargesPerDay) {
-                    services.sendGameMessage(
+                    services.messaging.sendGameMessage(
                         player,
                         "Your Explorer's ring has no remaining energy restores for today.",
                     );
@@ -155,7 +155,7 @@ export function registerEquipmentHandlers(registry: IScriptRegistry, services: S
                 state.used++;
                 player.energy.adjustRunEnergyPercent(ring.restorePercent);
                 const remaining = Math.max(0, ring.chargesPerDay - state.used);
-                services.sendGameMessage(
+                services.messaging.sendGameMessage(
                     player,
                     `You recharge some run energy (${
                         ring.restorePercent
@@ -170,7 +170,7 @@ export function registerEquipmentHandlers(registry: IScriptRegistry, services: S
             ({ player }) => {
                 const state = getExplorerRingState(player);
                 const remaining = Math.max(0, ring.chargesPerDay - state.used);
-                services.sendGameMessage(
+                services.messaging.sendGameMessage(
                     player,
                     `Explorer's ring restores remaining today: ${remaining} of ${ring.chargesPerDay}.`,
                 );
@@ -183,7 +183,7 @@ export function registerEquipmentHandlers(registry: IScriptRegistry, services: S
         registry.registerEquipmentAction(
             entry.id,
             ({ player }) => {
-                services.sendGameMessage(
+                services.messaging.sendGameMessage(
                     player,
                     `You check the ${entry.name.toLowerCase()}. ${
                         entry.deity
@@ -200,7 +200,7 @@ export function registerEquipmentHandlers(registry: IScriptRegistry, services: S
                 const line =
                     lines[Math.floor(Math.random() * lines.length)] ??
                     `${entry.deity} offers their guidance.`;
-                services.sendGameMessage(player, line);
+                services.messaging.sendGameMessage(player, line);
             },
             "preach",
         );

@@ -64,12 +64,12 @@ export function registerSkillGuideWidgetHandlers(registry: IScriptRegistry, serv
             player.varps.setVarbitValue(VARBIT_SKILL_GUIDE_SUBSECTION, 0);
             player.varps.setVarbitValue(VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
 
-            services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SUBSECTION, 0);
-            services.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
+            services.variables.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SUBSECTION, 0);
+            services.variables.queueVarbit?.(player.id, VARBIT_SKILL_GUIDE_SKILL, skillVarbitValue);
 
             const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
 
-            services.openSubInterface?.(player, floaterUid, SKILL_GUIDE_GROUP_ID, 1, {
+            services.dialog.openSubInterface(player, floaterUid, SKILL_GUIDE_GROUP_ID, 1, {
                 varbits: {
                     [VARBIT_SKILL_GUIDE_SUBSECTION]: 0,
                     [VARBIT_SKILL_GUIDE_SKILL]: skillVarbitValue,
@@ -84,7 +84,7 @@ export function registerSkillGuideWidgetHandlers(registry: IScriptRegistry, serv
 
             // Clear events on skill_guide:icons (214:32)
             const SKILL_GUIDE_ICONS_UID = (SKILL_GUIDE_GROUP_ID << 16) | 32;
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "set_flags_range",
                 uid: SKILL_GUIDE_ICONS_UID,
                 fromSlot: -1,

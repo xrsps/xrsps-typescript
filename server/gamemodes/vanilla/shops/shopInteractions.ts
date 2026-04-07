@@ -18,7 +18,7 @@ function openNpcDialog(
     onContinue?: () => void,
     closeOnContinue?: boolean,
 ): void {
-    services.openDialog?.(player, {
+    services.dialog.openDialog(player, {
         kind: "npc",
         id: dialogId,
         npcId,
@@ -62,7 +62,7 @@ function openAuburyStandardOptions(
         "Aubury",
         ["Do you want to buy some runes?"],
         () => {
-            services.openDialogOptions?.(player, {
+            services.dialog.openDialogOptions(player, {
                 id: `${dialogBaseId}_standard_options`,
                 title: "Aubury",
                 options: buildOptions(),
@@ -104,7 +104,7 @@ function openAuburyStandardOptions(
                                 openNpcDialog(player, services, `${dialogBaseId}_teleport_spell`, auburyDialogNpcId, "Aubury", [
                                     "Senventior Disthine Molenko!",
                                 ], () => {
-                                    services.teleportPlayer?.(player, RUNE_ESSENCE_TELEPORT.x, RUNE_ESSENCE_TELEPORT.y, RUNE_ESSENCE_TELEPORT.level);
+                                    services.movement.teleportPlayer(player, RUNE_ESSENCE_TELEPORT.x, RUNE_ESSENCE_TELEPORT.y, RUNE_ESSENCE_TELEPORT.level);
                                 });
                             });
                             break;
@@ -125,7 +125,7 @@ function openPlayerDialog(
     onContinue?: () => void,
     closeOnContinue?: boolean,
 ): void {
-    services.openDialog?.(player, {
+    services.dialog.openDialog(player, {
         kind: "player",
         id: dialogId,
         playerName: player.name ?? "You",
@@ -139,7 +139,7 @@ function openPlayerDialog(
 export function registerShopInteractionHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerNpcAction("trade", ({ player, services, npc, tick }) => {
         if (npc?.typeId == null) return;
-        services.requestAction(
+        services.combat.requestAction(
             player,
             {
                 kind: "npc.trade",
@@ -154,7 +154,7 @@ export function registerShopInteractionHandlers(registry: IScriptRegistry, servi
 
     registry.registerNpcAction("trade-with", ({ player, services, npc, tick }) => {
         if (npc?.typeId == null) return;
-        services.requestAction(
+        services.combat.requestAction(
             player,
             {
                 kind: "npc.trade",
@@ -191,7 +191,7 @@ export function registerShopInteractionHandlers(registry: IScriptRegistry, servi
                         const airResult = player.items.addItem(556, 200, { assureFullInsertion: false });
                         const mindResult = player.items.addItem(558, 200, { assureFullInsertion: false });
                         if (airResult.completed < 200 || mindResult.completed < 200) {
-                            services.sendGameMessage(player, "Not enough inventory space for the reward items.");
+                            services.messaging.sendGameMessage(player, "Not enough inventory space for the reward items.");
                         }
                         player.varps.setVarpValue(COMBAT_PATH_REWARD_VARP, 1);
 
@@ -257,7 +257,7 @@ export function registerShopInteractionHandlers(registry: IScriptRegistry, servi
             npcId: auburyNpcTypeId,
             option: "trade",
             handler: ({ player, services, tick }) => {
-                services.requestAction(
+                services.combat.requestAction(
                     player,
                     {
                         kind: "npc.trade",
@@ -274,7 +274,7 @@ export function registerShopInteractionHandlers(registry: IScriptRegistry, servi
             npcId: auburyNpcTypeId,
             option: "trade-with",
             handler: ({ player, services, tick }) => {
-                services.requestAction(
+                services.combat.requestAction(
                     player,
                     {
                         kind: "npc.trade",

@@ -670,7 +670,7 @@ function schedulePickpocket(
     data: PickpocketActionData,
     tick: number,
 ): void {
-    services.scheduleAction?.(
+    services.combat.scheduleAction(
         playerId,
         {
             kind: "skill.pickpocket",
@@ -731,13 +731,13 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
     const { player, tick, services } = ctx;
     const data = ctx.data as PickpocketActionData;
     const effects: ActionEffect[] = [];
-    const npc = services.getNpc?.(data.npcId);
+    const npc = services.combat.getNpc(data.npcId);
     const npcName = data.displayName ?? npc?.name ?? "NPC";
     const npcNameLower = npcName.toLowerCase();
 
     // Phase 0: Attempt — prechecks + attempt message
     if (data.phase === 0) {
-        const thievingSkill = services.getSkill?.(player, THIEVING_SKILL_ID);
+        const thievingSkill = services.skills.getSkill(player, THIEVING_SKILL_ID);
         const thievingLevel = Math.max(1, (thievingSkill?.baseLevel ?? 1) + (thievingSkill?.boost ?? 0));
 
         if (thievingLevel < data.reqLevel) {
@@ -746,17 +746,17 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
             return { ok: true, effects };
         }
 
-        if (services.isPlayerStunned?.(player)) {
+        if (services.combat.isPlayerStunned(player)) {
             effects.push(buildMessageEffect(player, "You're stunned!"));
             return { ok: true, effects };
         }
 
-        if (services.isPlayerInCombat?.(player)) {
+        if (services.combat.isPlayerInCombat(player)) {
             effects.push(buildMessageEffect(player, "You can't do that during combat."));
             return { ok: true, effects };
         }
 
-        if (!services.hasInventorySlot?.(player)) {
+        if (!services.inventory.hasInventorySlot(player)) {
             effects.push(buildMessageEffect(player,
                 "You don't have enough inventory space to do that."));
             return { ok: true, effects };
@@ -770,15 +770,15 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
 
     // Phase 1: Resolve success/fail
     if (data.phase === 1) {
-        const thievingSkill = services.getSkill?.(player, THIEVING_SKILL_ID);
+        const thievingSkill = services.skills.getSkill(player, THIEVING_SKILL_ID);
         const thievingLevel = Math.max(1, (thievingSkill?.baseLevel ?? 1) + (thievingSkill?.boost ?? 0));
-        const equipArray = services.getEquipArray?.(player) ?? [];
+        const equipArray = services.equipment.getEquipArray(player) ?? [];
         const success = rollPickpocketSuccess(thievingLevel, data.reqLevel, equipArray);
 
         if (success) {
-            services.playPlayerSeq?.(player, PICKPOCKET_ANIM);
-            services.clearPlayerFaceTarget?.(player);
-            services.sendSound?.(player, PICKPOCKET_SUCCESS_SOUND);
+            services.animation.playPlayerSeq(player, PICKPOCKET_ANIM);
+            services.combat.clearPlayerFaceTarget(player);
+            services.sound.sendSound(player, PICKPOCKET_SUCCESS_SOUND);
 
             const reward = rollPickpocketLoot(data.lootTable);
             if (reward) {
@@ -787,16 +787,16 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
                         ? data.coinPouchId
                         : reward.itemId;
                 const qty = itemId === data.coinPouchId ? 1 : reward.quantity;
-                services.addItemToInventory(player, itemId, qty);
+                services.inventory.addItemToInventory(player, itemId, qty);
                 effects.push({ type: "inventorySnapshot", playerId: player.id });
 
                 // Loot tracker notification (script 7192) disabled: it relies on
                 // NXT-only engine opcodes (loottracker_lootadd 7628, stringvector 7408, etc.)
                 // that have no Java client reference to implement against.
-                // services.queueClientScript?.(player.id, PICKPOCKET_NOTIFY_SCRIPT, data.npcTypeId, tick, itemId, qty);
+                // services.dialog.queueClientScript(player.id, PICKPOCKET_NOTIFY_SCRIPT, data.npcTypeId, tick, itemId, qty);
             }
 
-            services.addSkillXp?.(player, THIEVING_SKILL_ID, data.xp);
+            services.skills.addSkillXp(player, THIEVING_SKILL_ID, data.xp);
             effects.push(buildMessageEffect(player,
                 `You pick the ${npcNameLower}'s pocket.`));
 
@@ -806,12 +806,12 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
         // Fail: message + NPC forced chat + set busy varbit
         effects.push(buildMessageEffect(player,
             `You fail to pick the ${npcNameLower}'s pocket.`));
-        services.sendVarbit?.(player, PICKPOCKET_BUSY_VARBIT, 1);
+        services.variables.sendVarbit?.(player, PICKPOCKET_BUSY_VARBIT, 1);
 
         if (npc) {
-            services.queueNpcForcedChat?.(npc, "What do you think you're doing?");
+            services.npc.queueNpcForcedChat(npc, "What do you think you're doing?");
         }
-        services.clearPlayerFaceTarget?.(player);
+        services.combat.clearPlayerFaceTarget(player);
 
         schedulePickpocket(services, player.id, { ...data, phase: 2 }, tick);
         return { ok: true, cooldownTicks: 1, effects };
@@ -819,13 +819,13 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
 
     // Phase 2: Stun visual — player stun anim + GFX, NPC attack anim + face player
     if (data.phase === 2) {
-        services.playPlayerSeq?.(player, PICKPOCKET_STUN_ANIM);
-        services.broadcastPlayerSpot?.(player, PICKPOCKET_STUN_GFX, PICKPOCKET_STUN_GFX_HEIGHT);
-        services.sendSound?.(player, PICKPOCKET_STUN_SOUND);
+        services.animation.playPlayerSeq(player, PICKPOCKET_STUN_ANIM);
+        services.animation.broadcastPlayerSpot(player, PICKPOCKET_STUN_GFX, PICKPOCKET_STUN_GFX_HEIGHT);
+        services.sound.sendSound(player, PICKPOCKET_STUN_SOUND);
 
         if (npc) {
-            services.queueNpcSeq?.(npc, PICKPOCKET_NPC_ATTACK_ANIM);
-            services.faceNpcToPlayer?.(npc, player);
+            services.npc.queueNpcSeq(npc, PICKPOCKET_NPC_ATTACK_ANIM);
+            services.npc.faceNpcToPlayer(npc, player);
         }
 
         schedulePickpocket(services, player.id, { ...data, phase: 3 }, tick);
@@ -840,7 +840,7 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
                 : data.minDamage +
                   Math.floor(Math.random() * (data.maxDamage - data.minDamage + 1));
 
-        const hitsplat = services.applyPlayerHitsplat?.(
+        const hitsplat = services.combat.applyPlayerHitsplat(
             player,
             PICKPOCKET_HIT_STYLE,
             damage,
@@ -862,13 +862,13 @@ function executePickpocketAction(ctx: ScriptActionHandlerContext): ActionExecuti
             });
         }
 
-        services.sendSound?.(player, PICKPOCKET_DAMAGE_SOUND, {
+        services.sound.sendSound(player, PICKPOCKET_DAMAGE_SOUND, {
             delayMs: PICKPOCKET_DAMAGE_SOUND_DELAY,
         });
 
         effects.push(buildMessageEffect(player, "You've been stunned!"));
-        services.stunPlayer?.(player, data.stunTicks);
-        services.sendVarbit?.(player, PICKPOCKET_BUSY_VARBIT, 0);
+        services.combat.stunPlayer(player, data.stunTicks);
+        services.variables.sendVarbit?.(player, PICKPOCKET_BUSY_VARBIT, 0);
     }
 
     return { ok: true, effects };
@@ -904,7 +904,7 @@ export function register(registry: IScriptRegistry, _services: ScriptServices): 
                         phase: 0,
                     };
 
-                    services.requestAction(
+                    services.combat.requestAction(
                         player,
                         {
                             kind: "skill.pickpocket",
@@ -926,7 +926,7 @@ export function register(registry: IScriptRegistry, _services: ScriptServices): 
         const openHandler = (event: import("../../../src/game/scripts/types").ItemOnItemEvent, openAll: boolean) => {
             const { player, source, services } = event;
             const slot = source.slot;
-            const inv = services.getInventoryItems(player);
+            const inv = services.inventory.getInventoryItems(player);
             const entry = inv[slot];
             if (!entry || entry.itemId !== pouchId) return;
 
@@ -947,14 +947,14 @@ export function register(registry: IScriptRegistry, _services: ScriptServices): 
 
             const remaining = entry.quantity - count;
             if (remaining > 0) {
-                services.setInventorySlot(player, slot, pouchId, remaining);
+                services.inventory.setInventorySlot(player, slot, pouchId, remaining);
             } else {
-                services.setInventorySlot(player, slot, -1, 0);
+                services.inventory.setInventorySlot(player, slot, -1, 0);
             }
 
-            services.addItemToInventory(player, currencyId, totalCurrency);
-            services.snapshotInventory(player);
-            services.sendGameMessage(
+            services.inventory.addItemToInventory(player, currencyId, totalCurrency);
+            services.inventory.snapshotInventory(player);
+            services.messaging.sendGameMessage(
                 player,
                 isTokkul
                     ? `You open the coin pouch and receive ${totalCurrency} Tokkul.`

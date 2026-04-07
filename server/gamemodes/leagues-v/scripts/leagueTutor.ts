@@ -129,7 +129,7 @@ function reclaimLostEchoTool(player: PlayerState, services: ScriptServices): str
         ];
     }
 
-    const ownedLocation = services.findOwnedItemLocation?.(player, rewardItemId);
+    const ownedLocation = services.inventory.findOwnedItemLocation(player, rewardItemId);
     if (ownedLocation === "inventory") {
         return ["You already have your Echo tool with you.", "Check your inventory first."];
     }
@@ -143,9 +143,9 @@ function reclaimLostEchoTool(player: PlayerState, services: ScriptServices): str
         ];
     }
 
-    const added = services.addItemToInventory(player, rewardItemId, 1);
+    const added = services.inventory.addItemToInventory(player, rewardItemId, 1);
     if (added.added >= 1) {
-        services.snapshotInventory(player);
+        services.inventory.snapshotInventory(player);
         return [
             "I've replaced your lost Echo tool.",
             "Come back if you lose it again and need another replacement.",
@@ -176,7 +176,7 @@ export function registerLeagueTutorHandlers(registry: IScriptRegistry, services:
         };
 
         const openNpcDialog = (id: string, lines: string[], onContinue?: () => void) =>
-            services.openDialog?.(player, {
+            services.dialog.openDialog(player, {
                 kind: "npc",
                 id,
                 npcId: LEAGUE_TUTOR_NPC_ID,
@@ -195,8 +195,8 @@ export function registerLeagueTutorHandlers(registry: IScriptRegistry, services:
                 ? ["Welcome to Leagues!", "I can walk you through your next tutorial step."]
                 : ["Welcome back, adventurer.", "Need a refresher on Leagues systems?"],
             () => {
-                services.closeDialog?.(player, `${convoId}_intro`);
-                services.openDialogOptions?.(player, {
+                services.dialog.closeDialog(player, `${convoId}_intro`);
+                services.dialog.openDialogOptions(player, {
                     id: `${convoId}_options`,
                     title: LEAGUE_TUTOR_NAME,
                     options: tutorialActive
@@ -239,9 +239,8 @@ export function registerLeagueTutorHandlers(registry: IScriptRegistry, services:
                         }
 
                         const canQueueOverlay =
-                            services.queueWidgetEvent &&
-                            services.queueVarp &&
-                            services.queueVarbit;
+                            services.variables.queueVarp &&
+                            services.variables.queueVarbit;
                         if (!canQueueOverlay) {
                             openNpcDialog(`${convoId}_overlay_unavailable`, [
                                 "I can't reopen that interface right now.",
@@ -253,9 +252,9 @@ export function registerLeagueTutorHandlers(registry: IScriptRegistry, services:
                         queueLeagueTutorialOverlayUi(
                             player,
                             {
-                                queueWidgetEvent: services.queueWidgetEvent!,
-                                queueVarp: services.queueVarp!,
-                                queueVarbit: services.queueVarbit!,
+                                queueWidgetEvent: services.dialog.queueWidgetEvent,
+                                queueVarp: services.variables.queueVarp!,
+                                queueVarbit: services.variables.queueVarbit!,
                                 isWidgetGroupOpenInLedger: () => false,
                             },
                             tutorialStep,

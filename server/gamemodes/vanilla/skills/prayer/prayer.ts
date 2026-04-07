@@ -35,7 +35,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 try {
                     svc?.addSkillXp?.(job.player, SkillId.Prayer, job.xp);
                     const text = job.message ?? formatBuryMessage();
-                    svc.sendGameMessage(job.player, text);
+                    svc.messaging.sendGameMessage(job.player, text);
                 } finally {
                     pending.splice(i, 1);
                 }
@@ -80,7 +80,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     message: formatBuryMessage(name),
                 });
                 if (svc) {
-                    svc.snapshotInventoryImmediate(player);
+                    svc.inventory.snapshotInventoryImmediate(player);
                 }
             },
             "bury",
@@ -123,7 +123,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     message: formatScatterMessage(name),
                 });
                 if (svc) {
-                    svc.snapshotInventoryImmediate(player);
+                    svc.inventory.snapshotInventoryImmediate(player);
                 }
             },
             "scatter",

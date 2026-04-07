@@ -186,8 +186,8 @@ function removeCoins(
     services: ScriptServices,
     amount: number,
 ): boolean {
-    const getInventoryItems = services.getInventoryItems;
-    const setInventorySlot = services.setInventorySlot;
+    const getInventoryItems = services.inventory.getInventoryItems;
+    const setInventorySlot = services.inventory.setInventorySlot;
     const coinStacks = getInventoryItems(player)
         .filter((entry) => entry.itemId === COINS_ITEM_ID && entry.quantity > 0)
         .sort((a, b) => a.slot - b.slot);
@@ -208,7 +208,7 @@ function removeCoins(
         remaining -= taken;
     }
 
-    services.snapshotInventory(player);
+    services.inventory.snapshotInventory(player);
     return remaining <= 0;
 }
 
@@ -217,7 +217,7 @@ function hasCoins(
     services: ScriptServices,
     amount: number,
 ): boolean {
-    const getInventoryItems = services.getInventoryItems;
+    const getInventoryItems = services.inventory.getInventoryItems;
     const totalCoins = getInventoryItems(player)
         .filter((entry) => entry.itemId === COINS_ITEM_ID && entry.quantity > 0)
         .reduce((sum, entry) => sum + entry.quantity, 0);
@@ -229,21 +229,21 @@ function refundCoins(
     services: ScriptServices,
     amount: number,
 ): void {
-    services.addItemToInventory(player, COINS_ITEM_ID, amount);
-    services.snapshotInventory(player);
+    services.inventory.addItemToInventory(player, COINS_ITEM_ID, amount);
+    services.inventory.snapshotInventory(player);
 }
 
 function emitOpenGateLocChanges(
     services: ScriptServices,
     views: { south: ToggleView; north: ToggleView },
 ): void {
-    services.emitLocChange?.(SOUTH_PART.baseId, views.south.newLocId, SOUTH_PART.tile, GATE_LEVEL, {
+    services.location.emitLocChange(SOUTH_PART.baseId, views.south.newLocId, SOUTH_PART.tile, GATE_LEVEL, {
         oldTile: SOUTH_PART.tile,
         newTile: views.south.newTile,
         oldRotation: views.south.oldRotation,
         newRotation: views.south.newRotation,
     });
-    services.emitLocChange?.(NORTH_PART.baseId, views.north.newLocId, NORTH_PART.tile, GATE_LEVEL, {
+    services.location.emitLocChange(NORTH_PART.baseId, views.north.newLocId, NORTH_PART.tile, GATE_LEVEL, {
         oldTile: NORTH_PART.tile,
         newTile: views.north.newTile,
         oldRotation: views.north.oldRotation,
@@ -265,13 +265,13 @@ function emitCloseGateLocChanges(
         return;
     }
 
-    services.emitLocChange?.(SOUTH_PART.openedId, SOUTH_PART.baseId, southOpenTile, GATE_LEVEL, {
+    services.location.emitLocChange(SOUTH_PART.openedId, SOUTH_PART.baseId, southOpenTile, GATE_LEVEL, {
         oldTile: southOpenTile,
         newTile: SOUTH_PART.tile,
         oldRotation: normalizeRotation(result.oldRotation),
         newRotation: normalizeRotation(result.newRotation),
     });
-    services.emitLocChange?.(
+    services.location.emitLocChange(
         NORTH_PART.openedId,
         NORTH_PART.baseId,
         result.partnerResult.oldTile,
@@ -293,7 +293,7 @@ function openNpcDialog(
     onContinue?: () => void,
     closeOnContinue?: boolean,
 ): void {
-    event.services.openDialog?.(event.player, {
+    event.services.dialog.openDialog(event.player, {
         kind: "npc",
         id: dialogId,
         npcId,
@@ -312,7 +312,7 @@ function openPlayerDialog(
     onContinue?: () => void,
     closeOnContinue?: boolean,
 ): void {
-    event.services.openDialog?.(event.player, {
+    event.services.dialog.openDialog(event.player, {
         kind: "player",
         id: dialogId,
         playerName: event.player.name ?? "You",
@@ -361,19 +361,19 @@ function isWalkDestination(
 export function registerAlKharidBorderHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     const pendingApproaches = new Map<number, PendingGateApproach>();
     const pendingCrossings = new Map<number, PendingGateCrossing>();
-    const getCurrentTick = services.getCurrentTick;
-    const getPathService = services.getPathService;
+    const getCurrentTick = services.system.getCurrentTick;
+    const getPathService = services.movement.getPathService;
 
     const resolveCurrentGateState = (event: LocInteractionEvent) => {
         const southVisible =
-            services.resolveLocTransformId?.(
+            services.location.resolveLocTransformId(
                 event.player,
-                services.getLocDefinition?.(SOUTH_PART.baseId),
+                services.data.getLocDefinition(SOUTH_PART.baseId),
             ) ?? SOUTH_PART.freeClosedId;
         const northVisible =
-            services.resolveLocTransformId?.(
+            services.location.resolveLocTransformId(
                 event.player,
-                services.getLocDefinition?.(NORTH_PART.baseId),
+                services.data.getLocDefinition(NORTH_PART.baseId),
             ) ?? NORTH_PART.freeClosedId;
         const isTollGate =
             southVisible === SOUTH_PART.tollClosedId ||
@@ -387,7 +387,7 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
     };
 
     const closeGate = (crossing: PendingGateCrossing, tick: number): void => {
-        const closeResult = services.doorManager?.toggleExplicitGate({
+        const closeResult = services.location.doorManager.toggleExplicitGate({
             x: crossing.southOpenTile.x,
             y: crossing.southOpenTile.y,
             level: GATE_LEVEL,
@@ -400,7 +400,7 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
             return;
         }
         emitCloseGateLocChanges(services, crossing.southOpenTile, closeResult);
-        services.playAreaSound?.({
+        services.sound.playAreaSound({
             soundId: GATE_SOUND_ID,
             tile: SOUTH_PART.tile,
             level: GATE_LEVEL,
@@ -449,7 +449,7 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
             return { ok: false, reason: "coins" };
         }
 
-        const toggleResult = services.doorManager?.toggleExplicitGate({
+        const toggleResult = services.location.doorManager.toggleExplicitGate({
             x: part.tile.x,
             y: part.tile.y,
             level: GATE_LEVEL,
@@ -475,7 +475,7 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
         }
 
         emitOpenGateLocChanges(services, views);
-        services.playAreaSound?.({
+        services.sound.playAreaSound({
             soundId: GATE_SOUND_ID,
             tile: part.tile,
             level: GATE_LEVEL,
@@ -483,7 +483,7 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
             volume: 255,
         });
         if (chargeToll) {
-            services.sendGameMessage(
+            services.messaging.sendGameMessage(
                 event.player,
                 "You pay 10 gold coins to pass through the gate.",
             );
@@ -617,7 +617,7 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
                     guardNpcId,
                     ["You must pay a toll of 10 gold coins to pass."],
                     () => {
-                        services.openDialogOptions?.(event.player, {
+                        services.dialog.openDialogOptions(event.player, {
                             id: `${dialogBase}_options`,
                             title: "Border Guard",
                             options: [
@@ -665,7 +665,7 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
                                     `${dialogBase}_pay_player`,
                                     ["Yes, ok."],
                                     () => {
-                                        services.closeDialog?.(
+                                        services.dialog.closeDialog(
                                             event.player,
                                             `${dialogBase}_pay_player`,
                                         );
@@ -703,7 +703,7 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
                     guardNpcId,
                     ["You may pass for free, you are a friend of Al-Kharid."],
                     () => {
-                        services.closeDialog?.(event.player, `${dialogBase}_free_guard`);
+                        services.dialog.closeDialog(event.player, `${dialogBase}_free_guard`);
                         queueGateApproach(event, part, false);
                     },
                     true,

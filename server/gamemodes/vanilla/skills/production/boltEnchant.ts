@@ -41,7 +41,7 @@ export function executeBoltEnchantAction(ctx: ScriptActionHandlerContext): Actio
         runeCosts.push({ runeId: entry.runeId, quantity: entry.quantity });
     }
 
-    const inventory = services.getInventoryItems(player);
+    const inventory = services.inventory.getInventoryItems(player);
     let sourceQuantity = 0;
     const runeInventory: Array<{ itemId: number; quantity: number }> = [];
     for (const entry of inventory) {
@@ -53,8 +53,8 @@ export function executeBoltEnchantAction(ctx: ScriptActionHandlerContext): Actio
         return buildSkillFailure(player, "You don't have enough bolts to enchant.", "bolt_enchant_missing_bolts");
     }
 
-    const equipped = (services.getEquipArray?.(player) ?? []).filter((id) => id > 0);
-    const runeValidation = services.validateRunes?.(runeCosts, runeInventory, equipped) ?? { canCast: false };
+    const equipped = (services.equipment.getEquipArray(player) ?? []).filter((id) => id > 0);
+    const runeValidation = services.combat.validateRunes(runeCosts, runeInventory, equipped) ?? { canCast: false };
     if (!runeValidation.canCast) {
         return buildSkillFailure(player, "You do not have the runes to cast this spell.", "bolt_enchant_missing_runes");
     }
@@ -75,15 +75,15 @@ export function executeBoltEnchantAction(ctx: ScriptActionHandlerContext): Actio
         }
     }
 
-    const addResult = services.addItemToInventory(player, enchantedItemId, BOLT_ENCHANT_BOLTS_PER_SET);
+    const addResult = services.inventory.addItemToInventory(player, enchantedItemId, BOLT_ENCHANT_BOLTS_PER_SET);
     if (addResult.added <= 0) {
         services.production?.restoreInventoryRemovals(player, boltRemoval.removed);
         if (runeRemoval?.ok) services.production?.restoreInventoryRemovals(player, runeRemoval.removed);
         return buildSkillFailure(player, "You don't have enough inventory space.", "bolt_enchant_inventory_full");
     }
 
-    services.playPlayerSeq?.(player, animationId);
-    if (xpPerSet > 0) services.addSkillXp?.(player, SkillId.Magic, xpPerSet);
+    services.animation.playPlayerSeq(player, animationId);
+    if (xpPerSet > 0) services.skills.addSkillXp(player, SkillId.Magic, xpPerSet);
     services.onItemCraft?.(player.id, enchantedItemId, BOLT_ENCHANT_BOLTS_PER_SET);
 
     const effects: ActionEffect[] = [
@@ -93,7 +93,7 @@ export function executeBoltEnchantAction(ctx: ScriptActionHandlerContext): Actio
 
     const remaining = Math.max(0, requestedCount - 1);
     if (remaining > 0) {
-        const reschedule = services.scheduleAction?.(player.id, {
+        const reschedule = services.combat.scheduleAction(player.id, {
             kind: "skill.bolt_enchant",
             data: { sourceItemId, enchantedItemId, enchantedName, runeCosts, xp: xpPerSet, count: remaining, animationId },
             delayTicks: BOLT_ENCHANT_DELAY_TICKS, cooldownTicks: BOLT_ENCHANT_DELAY_TICKS,

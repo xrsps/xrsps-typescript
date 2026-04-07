@@ -56,7 +56,7 @@ function normalizeQuery(query: string | undefined): string {
 }
 
 function queueWidgetEvent(services: WidgetActionEvent["services"], playerId: number, event: any): void {
-    services.queueWidgetEvent?.(playerId, event);
+    services.dialog.queueWidgetEvent?.(playerId, event);
 }
 
 function runScript(services: WidgetActionEvent["services"], playerId: number, scriptId: number, args: Array<number | string>): void {
@@ -114,7 +114,7 @@ function applyItemSpawnerLayout(services: WidgetActionEvent["services"], player:
 }
 
 function openItemSpawnerModal(services: WidgetActionEvent["services"], player: PlayerState, query?: string): string {
-    const interfaceService = services.getInterfaceService?.();
+    const interfaceService = services.dialog.getInterfaceService?.();
     if (!interfaceService) return "Interface service unavailable.";
 
     const normalizedQuery = normalizeQuery(query);
@@ -138,9 +138,9 @@ function spawnInventoryItem(
     player: PlayerState,
     itemId: number,
 ): { requested: number; completed: number; itemName: string } {
-    const result = services.addItemToInventory(player, itemId, 1);
-    services.snapshotInventory(player);
-    const itemName = services.getObjType?.(itemId)?.name?.trim() || `Item ${itemId}`;
+    const result = services.inventory.addItemToInventory(player, itemId, 1);
+    services.inventory.snapshotInventory(player);
+    const itemName = services.data.getObjType?.(itemId)?.name?.trim() || `Item ${itemId}`;
     return {
         requested: 1,
         completed: result.added >= 1 ? 1 : 0,
@@ -154,9 +154,9 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
     });
 
     registry.registerCommand("itemspawner", (event) => {
-        const result = services.addItemToInventory(event.player, ITEM_SPAWNER_ID, 1);
+        const result = services.inventory.addItemToInventory(event.player, ITEM_SPAWNER_ID, 1);
         if (result.added >= 1) {
-            services.snapshotInventory(event.player);
+            services.inventory.snapshotInventory(event.player);
             return "Item Spawner added to your inventory. Activate it to open the spawn menu.";
         }
         return "No free inventory space.";
@@ -170,7 +170,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
 
     // Close button
     registry.onButton(ITEM_SPAWNER_MODAL_GROUP_ID, ITEM_SPAWNER_MODAL_COMPONENT_CLOSE, (event) => {
-        const interfaceService = event.services.getInterfaceService?.();
+        const interfaceService = event.services.dialog.getInterfaceService?.();
         interfaceService?.closeModal(event.player);
     });
 
@@ -187,14 +187,14 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
 
             const result = spawnInventoryItem(event.services, event.player, selectedItemId);
             if (result.completed < result.requested) {
-                event.services.sendGameMessage(
+                event.services.messaging.sendGameMessage(
                     event.player,
                     `Not enough inventory space to spawn ${result.itemName} (${selectedItemId}).`,
                 );
                 return;
             }
 
-            event.services.sendGameMessage(
+            event.services.messaging.sendGameMessage(
                 event.player,
                 `Spawned ${result.itemName} (${selectedItemId}) x${result.completed}.`,
             );

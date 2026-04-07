@@ -36,7 +36,7 @@ export const CUSTOM_ITEM_IDS = {
     RED_BOND: register(
         50000,
         13190,
-        "$5 Bond",
+        "League Bond",
         [20416, 21435, 22181, 22305, 22449, 22451, 22464],
         [960, 1979, 2725, 2849, 2993, 2995, 3008],
         ["Redeem", null, null, null, "Drop"],

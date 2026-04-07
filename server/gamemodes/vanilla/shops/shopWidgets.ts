@@ -65,7 +65,7 @@ export function registerShopWidgetHandlers(registry: IScriptRegistry, _services:
                     info.buyPrice === 0
                         ? "is currently free"
                         : `currently costs ${formatCoins(info.buyPrice)}`;
-                services.sendGameMessage(player, `${info.itemName}: ${priceText}.`);
+                services.messaging.sendGameMessage(player, `${info.itemName}: ${priceText}.`);
             }
         },
     });
@@ -101,7 +101,7 @@ export function registerShopWidgetHandlers(registry: IScriptRegistry, _services:
                     info.sellPrice === 0
                         ? "shop will buy for free"
                         : `shop will buy for ${formatCoins(info.sellPrice)}`;
-                services.sendGameMessage(player, `${info.itemName}: ${priceText}.`);
+                services.messaging.sendGameMessage(player, `${info.itemName}: ${priceText}.`);
             }
         },
     });

@@ -32,12 +32,12 @@ export function registerAccountSummaryWidgetHandlers(registry: IScriptRegistry, 
                 player.varps.getVarbitValue(VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME) === 1 ? 0 : 1;
 
             player.varps.setVarbitValue(VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME, nextValue);
-            services.queueVarbit?.(
+            services.variables.queueVarbit?.(
                 player.id,
                 VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME,
                 nextValue,
             );
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_ACCOUNT_SUMMARY_SET_TIME_ID,
                 args: buildAccountSummarySetTimeScriptArgs(

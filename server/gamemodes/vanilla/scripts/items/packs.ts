@@ -14,7 +14,7 @@ export function registerPacksHandlers(registry: IScriptRegistry, services: Scrip
         registry.registerItemAction(
             pack.packId,
             ({ player, source, services: svc }) => {
-                const inventory = svc.getInventoryItems(player);
+                const inventory = svc.inventory.getInventoryItems(player);
                 const slotEntry = inventory[source.slot];
                 if (
                     !slotEntry ||
@@ -24,13 +24,13 @@ export function registerPacksHandlers(registry: IScriptRegistry, services: Scrip
                     return;
                 }
 
-                if (!svc.consumeItem(player, source.slot)) {
+                if (!svc.inventory.consumeItem(player, source.slot)) {
                     return;
                 }
 
-                svc.addItemToInventory(player, pack.runeId, pack.quantity);
-                svc.snapshotInventory(player);
-                svc.sendGameMessage(
+                svc.inventory.addItemToInventory(player, pack.runeId, pack.quantity);
+                svc.inventory.snapshotInventory(player);
+                svc.messaging.sendGameMessage(
                     player,
                     `You open the ${pack.name} rune pack and receive ${pack.quantity} ${pack.name} runes.`,
                 );

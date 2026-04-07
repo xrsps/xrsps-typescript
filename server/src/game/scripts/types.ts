@@ -336,29 +336,31 @@ export type { DropEligibility, NpcLootConfig } from "./serviceInterfaces";
 export { applyAutocastState, clearAutocastState } from "./serviceInterfaces";
 export { getEmoteSeq, getSkillcapeSeqId, getSkillcapeSpotId } from "./serviceInterfaces";
 
-import type { DataLoaderServices, SystemServices, MessagingServices, VariableServices, InventoryServices, EquipmentServices, AnimationServices, AppearanceServices, DialogServices, MovementServices, LocationServices, CombatServices, NpcServices, SkillServices, CollectionLogServices, FollowerServices, BankingServices, ShoppingServices, GatheringServices, CookingServices, ProductionServices, SailingServices, ViewportServices } from "./serviceInterfaces";
+import type { FollowerServices, BankingServices, ShoppingServices, GatheringServices, CookingServices, ProductionServices, SailingServices, MessagingFacade, VariableFacade, SkillFacade, DataLoaderFacade, SystemFacade, InventoryFacade, EquipmentFacade, AnimationFacade, SoundFacade, AppearanceFacade, DialogFacade, MovementFacade, LocationFacade, CombatFacade, NpcFacade, CollectionLogFacade, ViewportFacade } from "./serviceInterfaces";
 
 export interface ScriptServices extends
-    DataLoaderServices,
-    SystemServices,
-    MessagingServices,
-    VariableServices,
-    InventoryServices,
-    EquipmentServices,
-    AnimationServices,
-    AppearanceServices,
-    DialogServices,
-    MovementServices,
-    LocationServices,
-    CombatServices,
-    NpcServices,
-    SkillServices,
-    CollectionLogServices,
     FollowerServices,
     BankingServices,
     ShoppingServices,
     GatheringServices,
     CookingServices,
     ProductionServices,
-    SailingServices,
-    ViewportServices {}
+    SailingServices {
+    messaging: MessagingFacade;
+    variables: VariableFacade;
+    skills: SkillFacade;
+    data: DataLoaderFacade;
+    system: SystemFacade;
+    inventory: InventoryFacade;
+    equipment: EquipmentFacade;
+    animation: AnimationFacade;
+    sound: SoundFacade;
+    appearance: AppearanceFacade;
+    dialog: DialogFacade;
+    movement: MovementFacade;
+    location: LocationFacade;
+    combat: CombatFacade;
+    npc: NpcFacade;
+    collectionLog: CollectionLogFacade;
+    viewport: ViewportFacade;
+}

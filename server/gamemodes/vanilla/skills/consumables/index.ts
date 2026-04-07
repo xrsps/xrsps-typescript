@@ -689,7 +689,7 @@ const formatItemName = (
     itemId: number,
     fallback?: string,
 ): string => {
-    const raw = services.getObjType?.(itemId);
+    const raw = services.data.getObjType(itemId);
     const name = raw?.name ?? fallback ?? "food";
     return name.toLowerCase();
 };
@@ -756,7 +756,7 @@ const applyStatBoost = (player: PlayerState, skillId: SkillId, formula: BoostFor
 // ============================================================================
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
-    const setInventorySlot = services.setInventorySlot;
+    const setInventorySlot = services.inventory.setInventorySlot;
 
     for (const def of FOOD_DEFS) {
         const option = def.option ?? "eat";
@@ -781,8 +781,8 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                         if (def.nextItemId !== undefined) {
                             setInventorySlot(player, slot, def.nextItemId, 1);
                         }
-                        services.playPlayerSeq?.(player, EAT_SEQ);
-                        services.playAreaSound?.({
+                        services.animation.playPlayerSeq(player, EAT_SEQ);
+                        services.sound.playAreaSound({
                             soundId: EAT_SOUND,
                             tile: { x: player.tileX, y: player.tileY },
                             level: player.level,
@@ -790,13 +790,13 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                             volume: 255,
                         });
                         const itemName = formatItemName(services, def.itemId, def.label);
-                        services.sendGameMessage(player, `You eat the ${itemName}.`);
+                        services.messaging.sendGameMessage(player, `You eat the ${itemName}.`);
                         if (healAmount > 0) {
-                            services.sendGameMessage(player, "It heals some health.");
+                            services.messaging.sendGameMessage(player, "It heals some health.");
                         }
                         if (def.messages) {
                             for (const msg of def.messages) {
-                                services.sendGameMessage(player, msg);
+                                services.messaging.sendGameMessage(player, msg);
                             }
                         }
                     },
@@ -833,8 +833,8 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                             player.skillSystem.applyHitpointsHeal(def.healAmount);
                         }
                         if (option !== "eat") {
-                            services.playPlayerSeq?.(player, DRINK_SEQ);
-                            services.playAreaSound?.({
+                            services.animation.playPlayerSeq(player, DRINK_SEQ);
+                            services.sound.playAreaSound({
                                 soundId: DRINK_SOUND,
                                 tile: { x: player.tileX, y: player.tileY },
                                 level: player.level,
@@ -842,7 +842,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                                 volume: 255,
                             });
                         } else {
-                            services.playAreaSound?.({
+                            services.sound.playAreaSound({
                                 soundId: EAT_SOUND,
                                 tile: { x: player.tileX, y: player.tileY },
                                 level: player.level,
@@ -891,7 +891,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                         if (def.extraMessages) {
                             messages.push(...def.extraMessages);
                         }
-                        for (const text of messages) services.sendGameMessage(player, text);
+                        for (const text of messages) services.messaging.sendGameMessage(player, text);
                     },
                 });
                 if (!ok) {
@@ -924,19 +924,19 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                             STAMINA_DURATION_TICKS,
                             STAMINA_EFFECT_MULTIPLIER,
                         );
-                        services.playPlayerSeq?.(player, DRINK_SEQ);
-                        services.playAreaSound?.({
+                        services.animation.playPlayerSeq(player, DRINK_SEQ);
+                        services.sound.playAreaSound({
                             soundId: DRINK_SOUND,
                             tile: { x: player.tileX, y: player.tileY },
                             level: player.level,
                             radius: 1,
                             volume: 255,
                         });
-                        services.sendGameMessage(
+                        services.messaging.sendGameMessage(
                             player,
                             "You drink some of your stamina potion.",
                         );
-                        services.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
+                        services.messaging.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
                     },
                 });
                 if (!ok) {
@@ -964,8 +964,8 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     loggerTag: "prayer-restores",
                     onExecute: () => {
                         setInventorySlot(player, slot, def.nextItemId, 1);
-                        services.playPlayerSeq?.(player, DRINK_SEQ);
-                        services.playAreaSound?.({
+                        services.animation.playPlayerSeq(player, DRINK_SEQ);
+                        services.sound.playAreaSound({
                             soundId: DRINK_SOUND,
                             tile: { x: player.tileX, y: player.tileY },
                             level: player.level,
@@ -982,11 +982,11 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                         if (def.cureVenom) player.skillSystem.cureVenom();
                         const consumeText =
                             def.consumeMessage ?? `You drink some of your ${def.label}.`;
-                        services.sendGameMessage(player, consumeText);
-                        services.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
+                        services.messaging.sendGameMessage(player, consumeText);
+                        services.messaging.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
                         if (def.extraMessages) {
                             for (const msg of def.extraMessages) {
-                                services.sendGameMessage(player, msg);
+                                services.messaging.sendGameMessage(player, msg);
                             }
                         }
                     },
@@ -1015,8 +1015,8 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     loggerTag: "combat-potions",
                     onExecute: () => {
                         setInventorySlot(player, slot, def.nextItemId, 1);
-                        services.playPlayerSeq?.(player, DRINK_SEQ);
-                        services.playAreaSound?.({
+                        services.animation.playPlayerSeq(player, DRINK_SEQ);
+                        services.sound.playAreaSound({
                             soundId: DRINK_SOUND,
                             tile: { x: player.tileX, y: player.tileY },
                             level: player.level,
@@ -1026,11 +1026,11 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                         for (const boost of def.boosts) {
                             applyStatBoost(player, boost.skillId, boost.formula);
                         }
-                        services.sendGameMessage(
+                        services.messaging.sendGameMessage(
                             player,
                             `You drink some of your ${def.label}.`,
                         );
-                        services.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
+                        services.messaging.sendGameMessage(player, formatDoseMessage(def.dosesAfter));
                     },
                 });
                 if (!ok) {

@@ -47,7 +47,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
     for (const barItemId of barItemIds) {
         registry.registerItemOnLoc(barItemId, ANY_LOC_ID, (event) => {
             const locId = event.target.locId;
-            const locDef = services.getLocDefinition?.(locId);
+            const locDef = services.data.getLocDefinition(locId);
             if (!locDef) return;
             const actions = locDef.ops ?? [];
             if (!actions.some((a: string) => a?.toLowerCase() === "smith")) return;

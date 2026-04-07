@@ -39,7 +39,7 @@ function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         return { ok: true, effects: [] };
     }
 
-    if (!services.hasInventorySlot?.(player)) {
+    if (!services.inventory.hasInventorySlot(player)) {
         services.stopGatheringInteraction?.(player);
         return { ok: true, effects: [buildMessageEffect(player, "Your inventory is too full to hold any more flax.")] };
     }
@@ -47,21 +47,21 @@ function executeFlaxAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     const effects: ActionEffect[] = [];
 
     services.faceGatheringTarget?.(player, tile);
-    services.playPlayerSeq?.(player, FLAX_PICK_ANIMATION);
+    services.animation.playPlayerSeq(player, FLAX_PICK_ANIMATION);
 
-    services.enqueueSoundBroadcast?.(FLAX_PICK_SOUND, tile.x, tile.y, plane);
+    services.sound.enqueueSoundBroadcast(FLAX_PICK_SOUND, tile.x, tile.y, plane);
 
     flaxTracker?.add(buildTileKey(tile, plane), tile, plane, tick + FLAX_RESPAWN_TICKS, { locId });
-    services.emitLocChange?.(locId, 0, tile, plane);
+    services.location.emitLocChange(locId, 0, tile, plane);
 
-    const result = services.addItemToInventory(player, FLAX_ITEM_ID, 1);
+    const result = services.inventory.addItemToInventory(player, FLAX_ITEM_ID, 1);
     if (result.added > 0) {
         effects.push({ type: "inventorySnapshot", playerId: player.id });
     }
 
     effects.push(buildMessageEffect(player, "You pick some flax."));
 
-    services.sendSound?.(player, FLAX_PICK_SOUND);
+    services.sound.sendSound(player, FLAX_PICK_SOUND);
 
     return {
         ok: true,
@@ -79,7 +79,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         gatheringSvc.emitLocChange(0, node.data.locId, node.tile, node.level);
     });
 
-    const requestAction = services.requestAction;
+    const requestAction = services.combat.requestAction;
     const registerLoc = (locId: number, action: string) => {
         registry.registerLocInteraction(
             locId,
@@ -101,7 +101,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     event.tick,
                 );
                 if (!result.ok) {
-                    services.sendGameMessage(
+                    services.messaging.sendGameMessage(
                         event.player,
                         "You're too busy to pick flax right now.",
                     );

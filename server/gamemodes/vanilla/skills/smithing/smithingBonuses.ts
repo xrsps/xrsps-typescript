@@ -57,8 +57,8 @@ export function consumeRingOfForgingCharge(player: PlayerState, services: Script
     charges -= 1;
     player.equipment.setCharges(RING_OF_FORGING_ITEM_ID, charges);
     if (charges === 0) {
-        services.unequipItem?.(player, EquipmentSlot.RING);
-        services.sendGameMessage(player, "Your Ring of Forging has melted.");
+        services.equipment.unequipItem(player, EquipmentSlot.RING);
+        services.messaging.sendGameMessage(player, "Your Ring of Forging has melted.");
         return;
     }
     const plural = charges === 1 ? "piece" : "pieces";
@@ -66,7 +66,7 @@ export function consumeRingOfForgingCharge(player: PlayerState, services: Script
         charges === RING_OF_FORGING_WARNING_THRESHOLD ||
         charges === RING_OF_FORGING_FINAL_WARNING_THRESHOLD
     ) {
-        services.sendGameMessage(
+        services.messaging.sendGameMessage(
             player,
             `You can only smelt ${charges} more ${plural} of iron ore before your Ring of Forging melts.`,
         );

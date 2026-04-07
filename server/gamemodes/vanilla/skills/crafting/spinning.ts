@@ -84,7 +84,7 @@ const enqueueSpinAction = (
 ): boolean => {
     const delay = Math.max(1, recipe.delayTicks);
     const currentTick = Number.isFinite(tick) ? (tick as number) : 0;
-    const result = services.requestAction(
+    const result = services.combat.requestAction(
         player,
         {
             kind: "skill.spin",
@@ -128,7 +128,7 @@ function executeSpinAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         return { ok: true, effects: [buildMessageEffect(player, "You can't spin that.")] };
     }
 
-    const skill = services.getSkill?.(player, SkillId.Crafting);
+    const skill = services.skills.getSkill(player, SkillId.Crafting);
     if ((skill?.baseLevel ?? 1) < recipe.level) {
         return { ok: true, effects: [buildMessageEffect(player, `You need Crafting level ${recipe.level} to spin ${recipe.name}.`)] };
     }
@@ -138,8 +138,8 @@ function executeSpinAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     const requiredPerSpin = Math.max(1, recipe.inputQuantity);
 
     for (let i = 0; i < requiredPerSpin; i++) {
-        const slot = services.findInventorySlotWithItem?.(player, recipe.inputItemId);
-        if (slot === undefined || !services.consumeItem(player, slot)) {
+        const slot = services.inventory.findInventorySlotWithItem(player, recipe.inputItemId);
+        if (slot === undefined || !services.inventory.consumeItem(player, slot)) {
             services.production?.restoreInventoryItems(player, recipe.inputItemId, removed);
             return { ok: true, effects: [buildMessageEffect(player, `You need more ${recipe.inputName} to keep spinning.`)] };
         }
@@ -149,17 +149,17 @@ function executeSpinAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     const productQuantity = Math.max(1, recipe.outputQuantity);
     const firstSlot = removed.keys().next()?.value;
     if (firstSlot !== undefined) {
-        services.setInventorySlot(player, firstSlot, recipe.productItemId, productQuantity);
+        services.inventory.setInventorySlot(player, firstSlot, recipe.productItemId, productQuantity);
     } else {
-        const dest = services.addItemToInventory(player, recipe.productItemId, productQuantity);
+        const dest = services.inventory.addItemToInventory(player, recipe.productItemId, productQuantity);
         if (dest.added <= 0) {
             services.production?.restoreInventoryItems(player, recipe.inputItemId, removed);
             return { ok: true, effects: [buildMessageEffect(player, "You need more inventory space to keep spinning.")] };
         }
     }
 
-    services.playPlayerSeq?.(player, recipe.animation);
-    services.addSkillXp?.(player, SkillId.Crafting, recipe.xp);
+    services.animation.playPlayerSeq(player, recipe.animation);
+    services.skills.addSkillXp(player, SkillId.Crafting, recipe.xp);
     services.onItemCraft?.(player.id, recipe.outputItemId, 1);
 
     const effects: ActionEffect[] = [
@@ -170,7 +170,7 @@ function executeSpinAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     const remaining = Math.max(0, totalCount - 1);
 
     if (remaining > 0) {
-        const reschedule = services.scheduleAction?.(
+        const reschedule = services.combat.scheduleAction(
             player.id,
             {
                 kind: "skill.spin",
@@ -205,16 +205,16 @@ function executeSinewAction(ctx: ScriptActionHandlerContext): ActionExecutionRes
 
     let slot = data.slot;
     if (slot === undefined) {
-        slot = services.findInventorySlotWithItem?.(player, sourceItemId);
+        slot = services.inventory.findInventorySlotWithItem(player, sourceItemId);
     }
 
-    if (slot === undefined || !services.consumeItem(player, slot)) {
+    if (slot === undefined || !services.inventory.consumeItem(player, slot)) {
         return { ok: true, effects: [buildMessageEffect(player, "You need raw meat to dry into sinew.")] };
     }
 
-    services.setInventorySlot(player, slot, SINEW_ITEM_ID, 1);
-    services.playPlayerSeq?.(player, SINEW_ANIMATION_ID);
-    services.addSkillXp?.(player, SkillId.Crafting, SINEW_CRAFT_XP);
+    services.inventory.setInventorySlot(player, slot, SINEW_ITEM_ID, 1);
+    services.animation.playPlayerSeq(player, SINEW_ANIMATION_ID);
+    services.skills.addSkillXp(player, SkillId.Crafting, SINEW_CRAFT_XP);
     services.onItemCraft?.(player.id, SINEW_ITEM_ID, 1);
 
     const effects: ActionEffect[] = [
@@ -234,13 +234,13 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
     registry.registerActionHandler("skill.spin", executeSpinAction);
     registry.registerActionHandler("skill.sinew", executeSinewAction);
 
-    const getInventoryItems = services.getInventoryItems;
-    const openDialogOptions = services.openDialogOptions;
-    const closeDialog = services.closeDialog;
+    const getInventoryItems = services.inventory.getInventoryItems;
+    const openDialogOptions = services.dialog.openDialogOptions;
+    const closeDialog = services.dialog.closeDialog;
 
     const handleSpinRequest = ({ player, tick }: { player: PlayerState; tick?: number }) => {
         const inventory = getInventoryItems(player);
-        const level = services.getSkill?.(player, SkillId.Crafting)?.baseLevel ?? 1;
+        const level = services.skills.getSkill(player, SkillId.Crafting)?.baseLevel ?? 1;
 
         const choices: CraftableChoice[] = SPINNING_RECIPES.map((recipe) => {
             const batch = computeBatchCount(inventory as InventoryEntry[], recipe);
@@ -254,7 +254,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         }).filter((choice) => choice.batch > 0);
 
         if (choices.length === 0) {
-            services.sendGameMessage(
+            services.messaging.sendGameMessage(
                 player,
                 "You need something like wool, flax, sinew, or roots to spin.",
             );
@@ -268,7 +268,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             const lowestReq = choices.reduce((prev, curr) =>
                 curr.recipe.level < prev.recipe.level ? curr : prev,
             );
-            services.sendGameMessage(
+            services.messaging.sendGameMessage(
                 player,
                 `You need Crafting level ${lowestReq.recipe.level} to spin ${lowestReq.recipe.name}.`,
             );
@@ -278,7 +278,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         const attemptEnqueue = (target: CraftableChoice) => {
             const batches = buildBatchOptions(target.batch);
             if (batches.length === 0) {
-                services.sendGameMessage(player, "You decide not to spin anything.");
+                services.messaging.sendGameMessage(player, "You decide not to spin anything.");
                 return;
             }
             const dialogId = `spin_batch_${target.recipe.id}`;
@@ -291,13 +291,13 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     onSelect: (index) => {
                         const selected = batches[index];
                         if (!selected) {
-                            services.sendGameMessage(player, "You decide not to spin anything.");
+                            services.messaging.sendGameMessage(player, "You decide not to spin anything.");
                             return;
                         }
                         closeDialog?.(player, dialogId);
                         const ok = enqueueSpinAction(services, player, target.recipe, selected.count, tick);
                         if (!ok) {
-                            services.sendGameMessage(player, "You're too busy to spin anything right now.");
+                            services.messaging.sendGameMessage(player, "You're too busy to spin anything right now.");
                         }
                     },
                 });
@@ -306,7 +306,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             const fallbackCount = batches[batches.length - 1]?.count ?? 1;
             const ok = enqueueSpinAction(services, player, target.recipe, fallbackCount, tick);
             if (!ok) {
-                services.sendGameMessage(player, "You're too busy to spin anything right now.");
+                services.messaging.sendGameMessage(player, "You're too busy to spin anything right now.");
             }
         };
 
@@ -320,11 +320,11 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 onSelect: (index) => {
                     const selected = choices[index];
                     if (!selected) {
-                        services.sendGameMessage(player, "You step away from the spinning wheel.");
+                        services.messaging.sendGameMessage(player, "You step away from the spinning wheel.");
                         return;
                     }
                     if (!selected.levelMet) {
-                        services.sendGameMessage(player, `You need Crafting level ${selected.recipe.level} to spin ${selected.recipe.name}.`);
+                        services.messaging.sendGameMessage(player, `You need Crafting level ${selected.recipe.level} to spin ${selected.recipe.name}.`);
                         return;
                     }
                     closeDialog?.(player, dialogId);
@@ -353,7 +353,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
     for (const sourceItemId of SINEW_SOURCE_ITEM_IDS) {
         registry.registerItemOnLoc(sourceItemId, ANY_LOC_ID, (event) => {
             const locId = event.target.locId;
-            const locDef = services.getLocDefinition?.(locId);
+            const locDef = services.data.getLocDefinition(locId);
             if (!locDef) return;
             const name = locDef.name?.toLowerCase() ?? "";
             if (!name.includes("range") && !name.includes("stove") && !name.includes("cook") && !name.includes("kitchen")) return;
@@ -361,7 +361,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             const player = event.player;
             const tile = event.target.tile;
             const level = event.target.level;
-            const result = services.requestAction(
+            const result = services.combat.requestAction(
                 player,
                 {
                     kind: "skill.sinew",
@@ -379,10 +379,10 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 event.tick,
             );
             if (!result.ok) {
-                services.sendGameMessage(player, "You're too busy to do that right now.");
+                services.messaging.sendGameMessage(player, "You're too busy to do that right now.");
                 return;
             }
-            services.sendGameMessage(player, "You start drying the meat into sinew.");
+            services.messaging.sendGameMessage(player, "You start drying the meat into sinew.");
         });
     }
 }

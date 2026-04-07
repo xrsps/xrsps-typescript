@@ -74,7 +74,7 @@ function handleEmote(event: WidgetActionEvent, services: ScriptServices): void {
 
     // Slot corresponds to emote index (0-55)
     if (slot === undefined || slot < 0 || slot > 55) {
-        services.logger?.debug?.(`[emote] invalid slot=${slot} for player=${player.id}`);
+        services.system.logger.debug?.(`[emote] invalid slot=${slot} for player=${player.id}`);
         return;
     }
 
@@ -88,7 +88,7 @@ function handleEmote(event: WidgetActionEvent, services: ScriptServices): void {
 
     // Handle skillcape emote (index 43) - derive sequence and spot from equipped cape
     if (emoteIndex === SKILLCAPE_EMOTE_INDEX) {
-        const capeId = services.getEquippedItem?.(player, EquipmentSlot.CAPE) ?? -1;
+        const capeId = services.equipment.getEquippedItem(player, EquipmentSlot.CAPE) ?? -1;
         if (capeId > 0) {
             // Get skillcape-specific sequence - prefer exact ID mapping
             const capeSeq = getSkillcapeSeqId(capeId);
@@ -96,7 +96,7 @@ function handleEmote(event: WidgetActionEvent, services: ScriptServices): void {
                 seqId = capeSeq;
             } else {
                 // Fallback: match by item name keyword
-                const obj = services.getObjType?.(capeId);
+                const obj = services.data.getObjType(capeId);
                 const name = String(obj?.name || "").toLowerCase();
                 for (const m of SKILLCAPE_SEQ_BY_KEYWORD) {
                     if (name.includes(m.key)) {
@@ -116,31 +116,31 @@ function handleEmote(event: WidgetActionEvent, services: ScriptServices): void {
     }
 
     if (seqId === undefined || seqId < 0) {
-        services.logger?.debug?.(
+        services.system.logger.debug?.(
             `[emote] unknown emote index=${emoteIndex} for player=${player.id}`,
         );
         return;
     }
 
     // Play the emote sequence with immediate feedback to the client
-    if (services.playPlayerSeqImmediate) {
-        services.playPlayerSeqImmediate(player, seqId);
-        services.logger?.info?.(
+    if (services.animation.playPlayerSeqImmediate) {
+        services.animation.playPlayerSeqImmediate(player, seqId);
+        services.system.logger.info?.(
             `[emote] player=${player.id} emote=${emoteIndex} seq=${seqId} loop=${isLoop}`,
         );
-    } else if (services.playPlayerSeq) {
+    } else if (services.animation.playPlayerSeq) {
         // Fallback to delayed playback
-        services.playPlayerSeq(player, seqId, 0);
-        services.logger?.info?.(
+        services.animation.playPlayerSeq(player, seqId, 0);
+        services.system.logger.info?.(
             `[emote] player=${player.id} emote=${emoteIndex} seq=${seqId} loop=${isLoop} (delayed)`,
         );
     } else {
-        services.logger?.warn?.(`[emote] playPlayerSeq service not available`);
+        services.system.logger.warn?.(`[emote] playPlayerSeq service not available`);
     }
 
     // For skillcape emote, also broadcast the spot animation (graphic effect)
     if (emoteIndex === SKILLCAPE_EMOTE_INDEX && spotId !== undefined && spotId >= 0) {
-        services.broadcastPlayerSpot?.(player, spotId, SKILLCAPE_SPOT_HEIGHT, 0);
-        services.logger?.debug?.(`[emote] skillcape spot player=${player.id} spotId=${spotId}`);
+        services.animation.broadcastPlayerSpot(player, spotId, SKILLCAPE_SPOT_HEIGHT, 0);
+        services.system.logger.debug?.(`[emote] skillcape spot player=${player.id} spotId=${spotId}`);
     }
 }

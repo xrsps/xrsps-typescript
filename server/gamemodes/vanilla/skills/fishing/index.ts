@@ -71,7 +71,7 @@ function rollFishingSuccess(level: number, catchLevel: number, tool: FishingTool
 }
 
 function describeItem(services: ScriptServices, itemId: number): string {
-    return services.getObjType?.(itemId)?.name?.toLowerCase() ?? "item";
+    return services.data.getObjType(itemId)?.name?.toLowerCase() ?? "item";
 }
 
 function failFishingPrecheck(
@@ -96,7 +96,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         return failFishingPrecheck(player, services, "You stop fishing.");
     }
 
-    const npc = services.getNpc?.(npcId);
+    const npc = services.combat.getNpc(npcId);
     if (!npc || npc.typeId !== npcTypeId) {
         return failFishingPrecheck(player, services, "The fishing spot drifts out of reach.");
     }
@@ -123,7 +123,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         return failFishingPrecheck(player, services, "You stop fishing.");
     }
 
-    const skill = services.getSkill?.(player, SkillId.Fishing);
+    const skill = services.skills.getSkill(player, SkillId.Fishing);
     const effectiveLevel = Math.max(1, (skill?.baseLevel ?? 1) + (skill?.boost ?? 0));
     const catchDef = pickFishingCatch(method, effectiveLevel);
 
@@ -135,7 +135,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
         return failFishingPrecheck(player, services, `You need Fishing level ${minLevel} to fish here.`);
     }
 
-    const carriedIds = services.collectCarriedItemIds?.(player) ?? [];
+    const carriedIds = services.inventory.collectCarriedItemIds(player) ?? [];
     const hasEchoHarpoonPerk = hasAnyCarriedItem(carriedIds, ECHO_HARPOON_ITEM_IDS);
     const methodToolId = String(method.toolId ?? "").trim().toLowerCase();
     let tool = selectFishingTool(method.toolId, carriedIds);
@@ -150,7 +150,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     let baitSlot: number | undefined;
     if (Array.isArray(method.baitItemIds) && method.baitItemIds.length > 0) {
         for (const baitId of method.baitItemIds) {
-            const slot = services.findInventorySlotWithItem?.(player, baitId);
+            const slot = services.inventory.findInventorySlotWithItem(player, baitId);
             if (slot !== undefined) {
                 baitSlot = slot;
                 break;
@@ -163,7 +163,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     }
 
     const catchItemId = catchDef.itemId;
-    if (!hasEchoHarpoonPerk && !services.canStoreItem?.(player, catchItemId)) {
+    if (!hasEchoHarpoonPerk && !services.inventory.canStoreItem(player, catchItemId)) {
         return failFishingPrecheck(player, services, "Your inventory is too full to hold any more fish.");
     }
 
@@ -174,7 +174,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     }
 
     services.faceGatheringTarget?.(player, tile);
-    services.playPlayerSeq?.(player, tool.animation);
+    services.animation.playPlayerSeq(player, tool.animation);
 
     let inventorySnapshot = false;
     let bankSnapshot = false;
@@ -192,7 +192,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
             if (cookingRecipe && Math.random() < 0.5) {
                 rewardItemId = cookingRecipe.cookedItemId;
                 autoCooked = true;
-                services.addSkillXp?.(player, SkillId.Cooking, cookingRecipe.xp);
+                services.skills.addSkillXp(player, SkillId.Cooking, cookingRecipe.xp);
             }
         }
 
@@ -203,7 +203,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
             }
             bankSnapshot = true;
         } else {
-            const result = services.addItemToInventory(player, rewardItemId, quantity);
+            const result = services.inventory.addItemToInventory(player, rewardItemId, quantity);
             if (result.added <= 0) {
                 return failFishingPrecheck(player, services, "Your inventory is too full to hold any more fish.");
             }
@@ -223,10 +223,10 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
             const capitalizedFishName = fishName.charAt(0).toUpperCase() + fishName.slice(1);
             effects.push(buildMessageEffect(player, `${quantity}x ${capitalizedFishName} were sent straight to your bank.`));
         }
-        services.addSkillXp?.(player, SkillId.Fishing, catchDef.xp);
+        services.skills.addSkillXp(player, SkillId.Fishing, catchDef.xp);
 
         if (baitSlot !== undefined && Array.isArray(method.baitItemIds)) {
-            if (!services.consumeItem(player, baitSlot)) {
+            if (!services.inventory.consumeItem(player, baitSlot)) {
                 return failFishingPrecheck(player, services, "You fumble your bait and stop fishing.");
             }
             inventorySnapshot = true;
@@ -243,14 +243,14 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     }
 
     let continueFishing = true;
-    if (!hasEchoHarpoonPerk && !services.canStoreItem?.(player, catchItemId)) {
+    if (!hasEchoHarpoonPerk && !services.inventory.canStoreItem(player, catchItemId)) {
         continueFishing = false;
         effects.push(buildMessageEffect(player, "Your inventory is too full to hold any more fish."));
     }
 
     if (continueFishing && Array.isArray(method.baitItemIds) && method.baitItemIds.length > 0) {
         const hasBait = method.baitItemIds.some((baitId) =>
-            services.playerHasItem?.(player, baitId),
+            services.inventory.playerHasItem(player, baitId),
         );
         if (!hasBait) {
             continueFishing = false;
@@ -263,7 +263,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
     const swingTicks = hasEchoHarpoonPerk && baseSwingTicks > 1 ? baseSwingTicks - 1 : baseSwingTicks;
     if (continueFishing) {
         const npcSize = npc.size;
-        const reschedule = services.scheduleAction?.(
+        const reschedule = services.combat.scheduleAction(
             player.id,
             {
                 kind: "skill.fish",
@@ -293,7 +293,7 @@ function executeFishAction(ctx: ScriptActionHandlerContext): ActionExecutionResu
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerActionHandler("skill.fish", executeFishAction);
 
-    const npcTypeLoader = services.getNpcTypeLoader?.();
+    const npcTypeLoader = services.data.getNpcTypeLoader();
     if (npcTypeLoader) {
         const fishingMap = buildFishingSpotMap(npcTypeLoader);
         services.getFishingSpot = (npcTypeId) => {
@@ -323,16 +323,16 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
 function handleFishingAction(option: string, event: NpcInteractionEvent, services: ScriptServices) {
     const spot = services.getFishingSpot?.(event.npc.typeId);
     if (!spot) {
-        services.sendGameMessage(event.player, "Nothing interesting happens.");
+        services.messaging.sendGameMessage(event.player, "Nothing interesting happens.");
         return;
     }
     const method = findFishingMethodByAction(spot, option);
     if (!method) {
-        services.sendGameMessage(event.player, "You can't fish there.");
+        services.messaging.sendGameMessage(event.player, "You can't fish there.");
         return;
     }
     const delay = method.swingTicks;
-    const result = services.requestAction(
+    const result = services.combat.requestAction(
         event.player,
         {
             kind: "skill.fish",
@@ -352,20 +352,20 @@ function handleFishingAction(option: string, event: NpcInteractionEvent, service
         event.tick,
     );
     if (!result.ok) {
-        services.sendGameMessage(event.player, "You're too busy to do that right now.");
+        services.messaging.sendGameMessage(event.player, "You're too busy to do that right now.");
     }
 }
 
 function handleMinnowExchange(event: NpcInteractionEvent, services: ScriptServices): void {
-    const getInventory = services.getInventoryItems;
-    const setSlot = services.setInventorySlot;
-    const addItem = services.addItemToInventory;
+    const getInventory = services.inventory.getInventoryItems;
+    const setSlot = services.inventory.setInventorySlot;
+    const addItem = services.inventory.addItemToInventory;
     const inventory = getInventory(event.player);
     const minnowCount = inventory
         .filter((entry) => entry.itemId === MINNOW_ITEM_ID)
         .reduce((sum, entry) => sum + Math.max(0, entry.quantity), 0);
     if (minnowCount < MINNOWS_PER_SHARK) {
-        services.sendGameMessage(
+        services.messaging.sendGameMessage(
             event.player,
             "You need at least 40 minnows to exchange for a raw shark.",
         );
@@ -374,7 +374,7 @@ function handleMinnowExchange(event: NpcInteractionEvent, services: ScriptServic
     const emptySlots = inventory.filter((entry) => entry.itemId <= 0 || entry.quantity <= 0).length;
     const maxConversions = Math.min(Math.floor(minnowCount / MINNOWS_PER_SHARK), emptySlots);
     if (maxConversions <= 0) {
-        services.sendGameMessage(
+        services.messaging.sendGameMessage(
             event.player,
             "You need some free inventory space before exchanging minnows.",
         );
@@ -401,13 +401,13 @@ function handleMinnowExchange(event: NpcInteractionEvent, services: ScriptServic
     if (converted > 0) {
         const totalMinnows = converted * MINNOWS_PER_SHARK;
         const suffix = converted === 1 ? "" : "s";
-        services.sendGameMessage(
+        services.messaging.sendGameMessage(
             event.player,
             `Kylie swaps ${totalMinnows} minnows for ${converted} raw shark${suffix}.`,
         );
-        services.snapshotInventoryImmediate(event.player);
+        services.inventory.snapshotInventoryImmediate(event.player);
     } else {
-        services.sendGameMessage(event.player, "No exchange occurred.");
+        services.messaging.sendGameMessage(event.player, "No exchange occurred.");
     }
 }
 
@@ -418,16 +418,16 @@ function removeItemQuantity(
     services: ScriptServices,
 ): boolean {
     let remaining = amount;
-    const inv = services.getInventoryItems(player);
+    const inv = services.inventory.getInventoryItems(player);
     for (const entry of inv) {
         if (entry.itemId !== itemId) continue;
         if (remaining <= 0) break;
         const removeQty = Math.min(entry.quantity, remaining);
         const nextQty = Math.max(0, entry.quantity - removeQty);
         if (nextQty > 0) {
-            services.setInventorySlot(player, entry.slot, itemId, nextQty);
+            services.inventory.setInventorySlot(player, entry.slot, itemId, nextQty);
         } else {
-            services.setInventorySlot(player, entry.slot, -1, 0);
+            services.inventory.setInventorySlot(player, entry.slot, -1, 0);
         }
         remaining -= removeQty;
     }

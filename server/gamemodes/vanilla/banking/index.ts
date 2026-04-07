@@ -41,7 +41,7 @@ export function registerBankingHandlers(registry: IScriptRegistry, services: Scr
             event.player, slot, quantity, { itemIdHint, tab },
         );
         if (result && !result.ok && result.message) {
-            event.services.sendGameMessage(event.player, result.message);
+            event.services.messaging.sendGameMessage(event.player, result.message);
         }
     });
 

@@ -91,14 +91,14 @@ const STAMINA_RECIPES: StaminaRecipe[] = [
 ];
 
 function herbloreLevel(services: ScriptServices, player: PlayerState): number {
-    return services.getSkill?.(player, SkillId.Herblore)?.baseLevel ?? 1;
+    return services.skills.getSkill(player, SkillId.Herblore)?.baseLevel ?? 1;
 }
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
-    const consumeItem = services.consumeItem;
-    const setInventorySlot = services.setInventorySlot;
-    const addSkillXp = services.addSkillXp;
-    const snapshotInventory = services.snapshotInventoryImmediate;
+    const consumeItem = services.inventory.consumeItem;
+    const setInventorySlot = services.inventory.setInventorySlot;
+    const addSkillXp = services.skills.addSkillXp;
+    const snapshotInventory = services.inventory.snapshotInventoryImmediate;
 
     // Clean herbs
     for (const h of CLEAN_LIST) {
@@ -107,7 +107,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             ({ player, source }) => {
                 const level = herbloreLevel(services, player);
                 if (level < h.level) {
-                    services.sendGameMessage(
+                    services.messaging.sendGameMessage(
                         player,
                         `You need a Herblore level of ${h.level} to clean this herb.`,
                     );
@@ -117,7 +117,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 if (addSkillXp && h.xp > 0) {
                     addSkillXp(player, SkillId.Herblore, h.xp);
                 }
-                services.sendGameMessage(player, "You clean the herb.");
+                services.messaging.sendGameMessage(player, "You clean the herb.");
                 snapshotInventory(player);
             },
             "clean",
@@ -129,7 +129,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         const handler = ({ player, source, target }: ItemOnItemEvent) => {
             const level = herbloreLevel(services, player);
             if (level < u.level) {
-                services.sendGameMessage(
+                services.messaging.sendGameMessage(
                     player,
                     `You need a Herblore level of ${u.level} to make this potion.`,
                 );
@@ -140,7 +140,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             const vialSlot = isSourceHerb ? target.slot : source.slot;
             if (!consumeItem(player, herbSlot)) return;
             setInventorySlot(player, vialSlot, u.unf, 1);
-            services.sendGameMessage(player, "You mix the herb into the water.");
+            services.messaging.sendGameMessage(player, "You mix the herb into the water.");
             snapshotInventory(player);
         };
         registry.registerItemOnItem(u.cleanHerb, VIAL_OF_WATER, handler);
@@ -155,7 +155,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         const handler = ({ player, source, target }: ItemOnItemEvent) => {
             const level = herbloreLevel(services, player);
             if (level < f.level) {
-                services.sendGameMessage(
+                services.messaging.sendGameMessage(
                     player,
                     `You need a Herblore level of ${f.level} to make this potion.`,
                 );
@@ -169,7 +169,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             if (addSkillXp && f.xp > 0) {
                 addSkillXp(player, SkillId.Herblore, f.xp);
             }
-            services.sendGameMessage(player, "You combine the ingredients to make a potion.");
+            services.messaging.sendGameMessage(player, "You combine the ingredients to make a potion.");
             snapshotInventory(player);
         };
         registry.registerItemOnItem(f.unf, f.secondary, handler);
@@ -183,7 +183,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
             ({ player, source, target }: ItemOnItemEvent) => {
                 const level = herbloreLevel(services, player);
                 if (level < STAMINA_LEVEL) {
-                    services.sendGameMessage(
+                    services.messaging.sendGameMessage(
                         player,
                         `You need a Herblore level of ${STAMINA_LEVEL} to make a stamina potion.`,
                     );
@@ -192,13 +192,13 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 const sourceIsPotion = source.itemId === recipe.superEnergy;
                 const potionSlot = sourceIsPotion ? source.slot : target.slot;
                 const crystalSlot = sourceIsPotion ? target.slot : source.slot;
-                const inv = services.getInventoryItems(player);
+                const inv = services.inventory.getInventoryItems(player);
                 const crystalEntry = inv[crystalSlot];
                 if (!crystalEntry || crystalEntry.itemId !== AMYLASE_CRYSTAL) return;
                 const required = Math.max(1, recipe.doses);
                 if (crystalEntry.quantity < required) {
                     const plural = required === 1 ? "" : "s";
-                    services.sendGameMessage(
+                    services.messaging.sendGameMessage(
                         player,
                         `You need ${required} amylase crystal${plural} to enhance that potion.`,
                     );
@@ -213,7 +213,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                     }
                 }
                 setInventorySlot(player, potionSlot, recipe.stamina, 1);
-                services.sendGameMessage(
+                services.messaging.sendGameMessage(
                     player,
                     "You mix the amylase crystals into the potion.",
                 );

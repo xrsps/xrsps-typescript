@@ -70,6 +70,11 @@ export interface MessagingServices {
     queueNotification?: (playerId: number, payload: Record<string, unknown>) => void;
 }
 
+export interface MessagingFacade {
+    sendGameMessage(player: PlayerState, text: string): void;
+    queueNotification(playerId: number, payload: Record<string, unknown>): void;
+}
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -79,6 +84,13 @@ export interface VariableServices {
     sendVarbit?: (player: PlayerState, varbitId: number, value: number) => void;
     queueVarp?: (playerId: number, varpId: number, value: number) => void;
     queueVarbit?: (playerId: number, varbitId: number, value: number) => void;
+}
+
+export interface VariableFacade {
+    sendVarp(player: PlayerState, varpId: number, value: number): void;
+    sendVarbit(player: PlayerState, varbitId: number, value: number): void;
+    queueVarp(playerId: number, varpId: number, value: number): void;
+    queueVarbit(playerId: number, varbitId: number, value: number): void;
 }
 
 // ============================================================================
@@ -269,6 +281,11 @@ export interface NpcServices {
 export interface SkillServices {
     addSkillXp?: (player: PlayerState, skillId: number, xp: number) => void;
     getSkill?: (player: PlayerState, skillId: number) => { baseLevel: number; boost: number; xp?: number };
+}
+
+export interface SkillFacade {
+    addSkillXp(player: PlayerState, skillId: number, xp: number): void;
+    getSkill(player: PlayerState, skillId: number): { baseLevel: number; boost: number; xp?: number };
 }
 
 // ============================================================================
@@ -522,3 +539,195 @@ export type { InventoryItem as RuneInventoryItem, RuneValidationResult } from ".
 
 // Skill action payload types for gamemode consumption
 export type { SkillBoltEnchantActionData } from "../actions/skillActionPayloads";
+
+// ============================================================================
+// Grouped Facades (remaining domains)
+// ============================================================================
+
+export interface DataLoaderFacade {
+    getDbRepository(): { getRows(tableId: number, ...args: unknown[]): unknown[] } | undefined;
+    getEnumTypeLoader(): { load(id: number): unknown } | undefined;
+    getStructTypeLoader(): { load(id: number): unknown } | undefined;
+    getIdkTypeLoader(): { load(id: number): unknown } | undefined;
+    getObjType(id: number): Record<string, unknown> | undefined;
+    getLocDefinition(locId: number): Record<string, unknown> | undefined;
+    getLocTypeLoader(): { load(id: number): unknown } | undefined;
+    getNpcTypeLoader(): { load(id: number): unknown } | undefined;
+    getItemDefinition(itemId: number): ItemDefinition | undefined;
+    loadItemDefinitions(): ItemDefinition[];
+}
+
+export interface SystemFacade {
+    logger: {
+        info: (...args: unknown[]) => void;
+        warn: (...args: unknown[]) => void;
+        error: (...args: unknown[]) => void;
+        debug: (...args: unknown[]) => void;
+    };
+    getCurrentTick(): number;
+    eventBus?: GameEventBus;
+    gamemodeServices?: Record<string, unknown>;
+}
+
+export interface InventoryFacade {
+    consumeItem(player: PlayerState, slotIndex: number): boolean;
+    getInventoryItems(player: PlayerState): ScriptInventoryEntry[];
+    addItemToInventory(player: PlayerState, itemId: number, qty: number): ScriptInventoryAddResult;
+    setInventorySlot(player: PlayerState, slotIndex: number, itemId: number, qty: number): void;
+    snapshotInventory(player: PlayerState): void;
+    snapshotInventoryImmediate(player: PlayerState): void;
+    findOwnedItemLocation(player: PlayerState, itemId: number): OwnedItemLocation | undefined;
+    collectCarriedItemIds(player: PlayerState): number[];
+    findInventorySlotWithItem(player: PlayerState, itemId: number): number | undefined;
+    canStoreItem(player: PlayerState, itemId: number): boolean;
+    playerHasItem(player: PlayerState, itemId: number): boolean;
+    hasInventorySlot(player: PlayerState): boolean;
+}
+
+export interface EquipmentFacade {
+    getEquippedItem(player: PlayerState, slot: number): number;
+    getEquipArray(player: PlayerState): number[];
+    unequipItem(player: PlayerState, slot: number): boolean;
+}
+
+export interface AnimationFacade {
+    playPlayerSeq(player: PlayerState, seqId: number, delay?: number): void;
+    playPlayerSeqImmediate(player: PlayerState, seqId: number): void;
+    broadcastPlayerSpot(player: PlayerState, spotId: number, height?: number, delay?: number, slot?: number): void;
+    playLocGraphic(opts: { spotId: number; tile: { x: number; y: number }; level?: number; height?: number; delayTicks?: number }): void;
+    stopPlayerAnimation(player: PlayerState): void;
+    getEmoteSeq(index: number): number | undefined;
+    getSkillcapeSeqId(capeItemId: number | undefined): number | undefined;
+    getSkillcapeSpotId(capeItemId: number | undefined): number | undefined;
+}
+
+export interface SoundFacade {
+    playLocSound(opts: { soundId: number; tile?: { x: number; y: number }; level?: number; loops?: number; delayMs?: number }): void;
+    playAreaSound(opts: { soundId: number; tile: { x: number; y: number }; level?: number; radius?: number; volume?: number; delay?: number }): void;
+    playSong(player: PlayerState, trackId: number, trackName?: string): void;
+    skipMusicTrack(player: PlayerState): boolean;
+    getMusicTrackId(trackName: string): number;
+    getMusicTrackBySlot(slot: number): { rowId: number; trackId: number; trackName: string } | undefined;
+    sendSound(player: PlayerState, soundId: number, opts?: { loops?: number; delayMs?: number }): void;
+    enqueueSoundBroadcast(soundId: number, x: number, y: number, level: number): void;
+}
+
+export interface AppearanceFacade {
+    refreshAppearanceKits(player: PlayerState): void;
+    queueAppearanceSnapshot(player: PlayerState): void;
+    savePlayerSnapshot(player: PlayerState): void;
+    logoutPlayer(player: PlayerState, reason?: string): void;
+}
+
+export interface DialogFacade {
+    openDialog(player: PlayerState, request: ScriptDialogRequest): void;
+    openDialogOptions(player: PlayerState, options: ScriptDialogOptionRequest): void;
+    closeDialog(player: PlayerState, dialogId?: string): void;
+    closeInterruptibleInterfaces(player: PlayerState): void;
+    openSubInterface(
+        player: PlayerState,
+        targetUid: number,
+        groupId: number,
+        type?: number,
+        opts?: {
+            varps?: Record<number, number>;
+            varbits?: Record<number, number>;
+            preScripts?: Array<{ scriptId: number; args: (number | string)[] }>;
+            postScripts?: Array<{ scriptId: number; args: (number | string)[] }>;
+            hiddenUids?: number[];
+            modal?: boolean;
+        },
+    ): void;
+    closeSubInterface(player: PlayerState, targetUid: number, groupId?: number): void;
+    closeModal(player: PlayerState): void;
+    getInterfaceService(): InterfaceService | undefined;
+    openRemainingTabs(player: PlayerState): void;
+    queueClientScript(playerId: number, scriptId: number, ...args: (number | string)[]): void;
+    queueWidgetEvent(playerId: number, event: WidgetAction): void;
+}
+
+export interface MovementFacade {
+    teleportPlayer(player: PlayerState, x: number, y: number, level: number, forceRebuild?: boolean): void;
+    teleportToInstance(
+        player: PlayerState, x: number, y: number, level: number,
+        templateChunks: number[][][],
+        extraLocs?: Array<{ id: number; x: number; y: number; level: number; shape: number; rotation: number }>,
+    ): void;
+    requestTeleportAction(
+        player: PlayerState,
+        request: {
+            x: number; y: number; level: number;
+            delayTicks?: number; cooldownTicks?: number; forceRebuild?: boolean;
+            resetAnimation?: boolean; endSpotAnim?: number; endSpotHeight?: number; endSpotDelay?: number;
+            arriveSoundId?: number; arriveSoundRadius?: number; arriveSoundVolume?: number;
+            arriveMessage?: string; arriveSeqId?: number; arriveFaceTileX?: number; arriveFaceTileY?: number;
+            preserveAnimation?: boolean; requireCanTeleport?: boolean; rejectIfPending?: boolean; replacePending?: boolean;
+        },
+    ): { ok: boolean; reason?: string };
+    queueForcedMovement(
+        player: PlayerState,
+        params: { startTile: { x: number; y: number }; endTile: { x: number; y: number }; startTick?: number; endTick: number; direction?: number },
+    ): void;
+    getPathService(): PathService | undefined;
+}
+
+export interface LocationFacade {
+    doorManager?: DoorStateManager;
+    resolveLocTransformId(player: PlayerState, locDef: Record<string, unknown> | undefined): number | undefined;
+    emitLocChange(
+        oldId: number, newId: number, tile: { x: number; y: number }, level: number,
+        opts?: { oldTile?: { x: number; y: number }; newTile?: { x: number; y: number }; oldRotation?: number; newRotation?: number },
+    ): void;
+    sendLocChangeToPlayer(player: PlayerState, oldId: number, newId: number, tile: { x: number; y: number }, level: number): void;
+    spawnLoc?(locId: number, tile: { x: number; y: number }, level: number, shape: number, rotation: number): void;
+    spawnLocForPlayer(player: PlayerState, locId: number, tile: { x: number; y: number }, level: number, shape: number, rotation: number): void;
+    triggerLocEffect(locId: number, tile: { x: number; y: number }, level: number): boolean;
+}
+
+export interface CombatFacade {
+    applyPrayers(player: PlayerState, prayers: PrayerName[]): { changed: boolean; errors: Array<{ message: string }>; activePrayers: string[] };
+    setCombatSpell?(player: PlayerState, spellId: number | null): void;
+    queueCombatState(player: PlayerState): void;
+    requestAction: ScriptActionRequestFn;
+    getNpc(id: number): NpcState | undefined;
+    isPlayerStunned(player: PlayerState): boolean;
+    isPlayerInCombat(player: PlayerState): boolean;
+    applyPlayerHitsplat(player: PlayerState, style: number, damage: number, tick: number): { amount: number; style: number; hpCurrent: number; hpMax: number };
+    stunPlayer(player: PlayerState, ticks: number): void;
+    scheduleAction(playerId: number, request: ActionRequest, tick: number): { ok: boolean; reason?: string };
+    clearPlayerFaceTarget(player: PlayerState): void;
+    getDropEligibility(npc: NpcState): DropEligibility;
+    clearNpcDamageRecords(npc: NpcState): void;
+    getLastAttacker(actor: Actor, currentTick: number): Actor | null;
+    isMultiCombat(x: number, y: number, plane: number): boolean;
+    applyAutocastState(player: PlayerState, spellId: number, autocastIndex: number, isDefensive: boolean, callbacks?: { sendVarbit?: (player: PlayerState, varbitId: number, value: number) => void; queueCombatState?: (player: PlayerState) => void }): void;
+    clearAutocastState(player: PlayerState, callbacks?: { sendVarbit?: (player: PlayerState, varbitId: number, value: number) => void; queueCombatState?: (player: PlayerState) => void }): void;
+    validateRunes(
+        runeCosts: Array<{ runeId: number; quantity: number }>,
+        inventory: Array<{ itemId: number; quantity: number }>,
+        equippedItems: number[],
+    ): { canCast: boolean; missingRunes?: Array<{ runeId: number; need: number; have: number }>; runesConsumed?: Array<{ runeId: number; quantity: number }> };
+}
+
+export interface NpcFacade {
+    spawnNpc(config: NpcSpawnConfig): NpcState | undefined;
+    removeNpc(npcId: number): boolean;
+    queueNpcForcedChat(npc: NpcState, text: string): void;
+    queueNpcSeq(npc: NpcState, seqId: number): void;
+    faceNpcToPlayer(npc: NpcState, player: PlayerState): void;
+}
+
+export interface CollectionLogFacade {
+    sendCollectionLogSnapshot(player: PlayerState): void;
+    openCollectionLog(player: PlayerState): void;
+    openCollectionOverview(player: PlayerState): void;
+    populateCollectionLogCategories(player: PlayerState, tabIndex: number): void;
+}
+
+export interface ViewportFacade {
+    getMainmodalUid(displayMode: number): number;
+    getSidemodalUid(displayMode: number): number;
+    getPrayerTabUid(displayMode: number): number;
+    getViewportTrackerFrontUid(displayMode: number): number;
+    getDefaultInterfaces(displayMode: number): InterfaceMount[];
+}

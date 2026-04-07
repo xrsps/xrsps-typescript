@@ -104,7 +104,7 @@ export function registerPohPoolHandlers(registry: IScriptRegistry, services: Scr
                     const durationTicks = secondsToTicks(pool.stamina.durationSeconds);
                     player.energy.applyStaminaEffect(tick, durationTicks, pool.stamina.multiplier);
                 }
-                services.sendGameMessage(player, pool.message);
+                services.messaging.sendGameMessage(player, pool.message);
             },
             pool.action,
         );

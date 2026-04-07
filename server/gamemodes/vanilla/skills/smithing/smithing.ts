@@ -52,12 +52,12 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
         return buildSmithingInterfaceFailure(player, "You can't smith that.", "unknown_recipe", services);
     }
 
-    const skill = services.getSkill?.(player, SkillId.Smithing);
+    const skill = services.skills.getSkill(player, SkillId.Smithing);
     if ((skill?.baseLevel ?? 1) < recipe.level) {
         return buildSmithingInterfaceFailure(player, `You need Smithing level ${recipe.level} to smith that.`, "smith_level", services);
     }
 
-    if (recipe.requireHammer !== false && !services.playerHasItem?.(player, HAMMER_ITEM_ID)) {
+    if (recipe.requireHammer !== false && !services.inventory.playerHasItem(player, HAMMER_ITEM_ID)) {
         return buildSmithingInterfaceFailure(player, "You need a hammer to smith items.", "hammer", services);
     }
 
@@ -66,8 +66,8 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
     const requiredBars = Math.max(1, recipe.barCount);
 
     for (let i = 0; i < requiredBars; i++) {
-        const slot = services.findInventorySlotWithItem?.(player, recipe.barItemId);
-        if (slot === undefined || !services.consumeItem(player, slot)) {
+        const slot = services.inventory.findInventorySlotWithItem(player, recipe.barItemId);
+        if (slot === undefined || !services.inventory.consumeItem(player, slot)) {
             services.production?.restoreInventoryItems(player, recipe.barItemId, removed);
             return buildSmithingInterfaceFailure(player, "You need more bars.", "missing_bars", services);
         }
@@ -76,17 +76,17 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
 
     const firstSlot = removed.keys().next()?.value;
     if (firstSlot !== undefined) {
-        services.setInventorySlot(player, firstSlot, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
+        services.inventory.setInventorySlot(player, firstSlot, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
     } else {
-        const dest = services.addItemToInventory(player, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
+        const dest = services.inventory.addItemToInventory(player, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
         if (dest.added <= 0) {
             services.production?.restoreInventoryItems(player, recipe.barItemId, removed);
             return buildSmithingInterfaceFailure(player, "You need more inventory space to smith that.", "inventory_full", services);
         }
     }
 
-    services.playPlayerSeq?.(player, recipe.animation ?? 898);
-    services.addSkillXp?.(player, SkillId.Smithing, recipe.xp);
+    services.animation.playPlayerSeq(player, recipe.animation ?? 898);
+    services.skills.addSkillXp(player, SkillId.Smithing, recipe.xp);
     services.onItemCraft?.(player.id, recipe.outputItemId, Math.max(1, recipe.outputQuantity));
 
     const effects: ActionEffect[] = [
@@ -96,7 +96,7 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
 
     const remaining = Math.max(0, targetCount - 1);
     if (remaining > 0) {
-        const reschedule = services.scheduleAction?.(player.id, {
+        const reschedule = services.combat.scheduleAction(player.id, {
             kind: "skill.smith", data: { recipeId: recipe.id, count: remaining },
             delayTicks: recipe.delayTicks ?? 4, cooldownTicks: recipe.delayTicks ?? 4,
             groups: ["skill.smith"],
@@ -111,29 +111,29 @@ export function executeSmithAction(ctx: ScriptActionHandlerContext): ActionExecu
 }
 
 export function registerSmithingInteractions(registry: IScriptRegistry, services: ScriptServices) {
-    const requestAction = services.requestAction;
-    const openDialogOptions = services.openDialogOptions;
-    const closeDialog = services.closeDialog;
+    const requestAction = services.combat.requestAction;
+    const openDialogOptions = services.dialog.openDialogOptions;
+    const closeDialog = services.dialog.closeDialog;
 
     const trySmithRecipe = (player: PlayerState, recipe: SmithingRecipe, tick?: number, opts?: { desiredCount?: number }) => {
-        const smithLevel = services.getSkill?.(player, SkillId.Smithing)?.baseLevel ?? 1;
-        if (smithLevel < recipe.level) { services.sendGameMessage(player, `You need Smithing level ${recipe.level} to smith that.`); return; }
+        const smithLevel = services.skills.getSkill(player, SkillId.Smithing)?.baseLevel ?? 1;
+        if (smithLevel < recipe.level) { services.messaging.sendGameMessage(player, `You need Smithing level ${recipe.level} to smith that.`); return; }
         const inventoryNow = getInventory(services, player);
-        if (recipe.requireHammer !== false && !hasItem(inventoryNow, HAMMER_ITEM_ID)) { services.sendGameMessage(player, "You need a hammer to smith."); return; }
+        if (recipe.requireHammer !== false && !hasItem(inventoryNow, HAMMER_ITEM_ID)) { services.messaging.sendGameMessage(player, "You need a hammer to smith."); return; }
         const batch = computeSmithBatchCount(inventoryNow, recipe);
-        if (batch <= 0) { services.sendGameMessage(player, "You need a suitable bar to smith."); return; }
+        if (batch <= 0) { services.messaging.sendGameMessage(player, "You need a suitable bar to smith."); return; }
         const desired = Math.max(1, Math.min(batch, opts?.desiredCount ?? batch));
         if (services.production?.smithItems) { services.production.smithItems(player, { recipeId: recipe.id, count: desired }); return; }
-        enqueueSkillAction(requestAction, "smith", player, recipe.id, desired, recipe.delayTicks ?? 4, tick, services.sendGameMessage);
+        enqueueSkillAction(requestAction, "smith", player, recipe.id, desired, recipe.delayTicks ?? 4, tick, services.messaging.sendGameMessage);
     };
 
     registry.registerLocAction("smith", (event) => {
         if (services.production?.openSmithingInterface) { services.production.openSmithingInterface(event.player); return; }
-        const smithLevel = services.getSkill?.(event.player, SkillId.Smithing)?.baseLevel ?? 1;
+        const smithLevel = services.skills.getSkill(event.player, SkillId.Smithing)?.baseLevel ?? 1;
         const inventory = getInventory(services, event.player);
-        if (!hasItem(inventory, HAMMER_ITEM_ID)) { services.sendGameMessage(event.player, "You need a hammer to smith."); return; }
+        if (!hasItem(inventory, HAMMER_ITEM_ID)) { services.messaging.sendGameMessage(event.player, "You need a hammer to smith."); return; }
         const candidateRecipes = SMITHING_RECIPES.filter((r) => hasItem(inventory, r.barItemId)).sort((a, b) => a.level - b.level);
-        if (!candidateRecipes.length) { services.sendGameMessage(event.player, "You need metal bars to smith."); return; }
+        if (!candidateRecipes.length) { services.messaging.sendGameMessage(event.player, "You need metal bars to smith."); return; }
         const smithChoices: SkillDialogChoice<SmithingRecipe>[] = candidateRecipes.map((recipe) => {
             const available = computeSmithBatchCount(inventory, recipe);
             const levelMet = smithLevel >= recipe.level;
@@ -150,15 +150,15 @@ export function registerSmithingInteractions(registry: IScriptRegistry, services
             disabledOptions: orderedChoices.map((c) => !c.craftable),
             onSelect: (idx) => {
                 const selected = orderedChoices[idx];
-                if (!selected) { services.sendGameMessage(event.player, "You decide not to make anything."); return; }
-                if (!selected.craftable) { services.sendGameMessage(event.player, "You can't smith that yet."); return; }
+                if (!selected) { services.messaging.sendGameMessage(event.player, "You decide not to make anything."); return; }
+                if (!selected.craftable) { services.messaging.sendGameMessage(event.player, "You can't smith that yet."); return; }
                 closeDialog?.(event.player, meta.id);
                 trySmithRecipe(event.player, selected.recipe, event.tick, { desiredCount: selected.batch });
             },
         });
         if (!openedDialog) {
             const fallback = craftableChoices[0];
-            if (!fallback) { services.sendGameMessage(event.player, "You need a higher Smithing level or more bars."); return; }
+            if (!fallback) { services.messaging.sendGameMessage(event.player, "You need a higher Smithing level or more bars."); return; }
             trySmithRecipe(event.player, fallback.recipe, event.tick, { desiredCount: fallback.batch });
         }
     });

@@ -87,7 +87,7 @@ function initializeCollectionLog(player: PlayerState, services: CollectionLogOpe
     // Seed the collection-log display varps before any collection CS2 runs.
     const displayVarps = syncCollectionDisplayVarps(player);
     for (const [varpIdRaw, valueRaw] of Object.entries(displayVarps)) {
-        services.queueVarp(playerId, Number(varpIdRaw), valueRaw | 0);
+        services.variables.queueVarp(playerId, Number(varpIdRaw), valueRaw | 0);
     }
 
     // Script 1601 - initialization
@@ -113,14 +113,14 @@ function initializeCollectionLog(player: PlayerState, services: CollectionLogOpe
 
     // Set varbit 6905 (tab) to 0 = Bosses
     player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_TAB, 0);
-    services.queueVarbit(playerId, VARBIT_COLLECTION_LAST_TAB, 0);
+    services.variables.queueVarbit(playerId, VARBIT_COLLECTION_LAST_TAB, 0);
 
     // Set varbit 6906 (selected category) to -1 = none selected (show category list)
     player.varps.setVarbitValue(VARBIT_COLLECTION_LAST_CATEGORY, -1);
-    services.queueVarbit(playerId, VARBIT_COLLECTION_LAST_CATEGORY, -1);
+    services.variables.queueVarbit(playerId, VARBIT_COLLECTION_LAST_CATEGORY, -1);
 
     // Reset category count varp
-    services.queueVarp(playerId, VARP_COLLECTION_CATEGORY_COUNT, 0);
+    services.variables.queueVarp(playerId, VARP_COLLECTION_CATEGORY_COUNT, 0);
 
     // Run script 2389 to initialize the first tab's content structure
     services.queueWidgetEvent(playerId, {
@@ -131,9 +131,9 @@ function initializeCollectionLog(player: PlayerState, services: CollectionLogOpe
 
     // Populate the initial tab's categories (Bosses, index 0)
     populateCollectionLogCategories(player, 0, {
-        queueVarp: services.queueVarp,
-        queueVarbit: services.queueVarbit,
-        queueWidgetEvent: services.queueWidgetEvent,
+        queueVarp: (pid, id, val) => services.variables.queueVarp(pid, id, val),
+        queueVarbit: (pid, id, val) => services.variables.queueVarbit(pid, id, val),
+        queueWidgetEvent: (pid, evt) => services.dialog.queueWidgetEvent(pid, evt as any),
         queueNotification: () => {},
         queueChatMessage: () => {},
         sendCollectionLogSnapshot: () => {},

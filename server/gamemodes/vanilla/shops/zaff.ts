@@ -29,7 +29,7 @@ function openNpcDialog(
     onContinue?: () => void,
     closeOnContinue?: boolean,
 ): void {
-    services.openDialog?.(player, {
+    services.dialog.openDialog(player, {
         kind: "npc",
         id: dialogId,
         npcId: ZAFF_NPC_ID,
@@ -49,7 +49,7 @@ function openPlayerDialog(
     onContinue?: () => void,
     closeOnContinue?: boolean,
 ): void {
-    services.openDialog?.(player, {
+    services.dialog.openDialog(player, {
         kind: "player",
         id: dialogId,
         playerName: player.name ?? "You",
@@ -107,7 +107,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
             options.push("Can you make me a staff?");
         }
 
-        services.openDialogOptions?.(player, {
+        services.dialog.openDialogOptions(player, {
             id: `${dialogBase}_options`,
             title: "Select an Option",
             options,
@@ -212,8 +212,8 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
                         ],
                         () => {
                             player.items.addItem(BEACON_RING, 1);
-                            services.snapshotInventory(player);
-                            services.sendGameMessage(player, "Zaff gives you a beacon ring.");
+                            services.inventory.snapshotInventory(player);
+                            services.messaging.sendGameMessage(player, "Zaff gives you a beacon ring.");
                             activeConvos.delete(pid);
                         },
                     );
@@ -310,7 +310,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         const dialogBase = `zaff_${pid}`;
         const onClose = () => { activeConvos.delete(pid); };
 
-        services.openDialogOptions?.(player, {
+        services.dialog.openDialogOptions(player, {
             id: `${dialogBase}_bryo_confirm`,
             title: "Allow Zaff to create Bryophyta's staff for you?",
             options: [
@@ -389,8 +389,8 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
                             ["Thank you, here you go. I'm not sure what it does, but it feels pretty magical."],
                             () => {
                                 player.items.addItem(BRYOPHYTAS_STAFF, 1);
-                                services.snapshotInventory(player);
-                                services.sendGameMessage(player, "Zaff hands you the new staff.");
+                                services.inventory.snapshotInventory(player);
+                                services.messaging.sendGameMessage(player, "Zaff hands you the new staff.");
 
                                 openPlayerDialog(
                                     player,
@@ -439,7 +439,7 @@ export function registerZaffHandlers(registry: IScriptRegistry, services: Script
         npcId: ZAFF_NPC_ID,
         option: "trade",
         handler: ({ player, services: svc, tick }) => {
-            svc.requestAction(
+            svc.combat.requestAction(
                 player,
                 {
                     kind: "npc.trade",

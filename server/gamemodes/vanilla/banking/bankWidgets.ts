@@ -94,7 +94,7 @@ const handleWithdrawOp = (event: WidgetActionEvent, opId: number): void => {
     if (!entry || entry.itemId <= 0 || entry.quantity <= 0) return;
 
     if (event.itemId !== undefined && event.itemId > 0 && event.itemId !== entry.itemId) {
-        services.logger?.debug?.(
+        services.system.logger.debug?.(
             `[script:bank-widgets] withdraw ignored (item mismatch) player=${player.id} slot=${event.slot} clientItem=${event.itemId} serverItem=${entry.itemId}`,
         );
         return;
@@ -106,7 +106,7 @@ const handleWithdrawOp = (event: WidgetActionEvent, opId: number): void => {
     const noted = player.bank.getBankWithdrawNotes();
     const result = services.withdrawFromBankSlot(player, event.slot, quantity, { noted });
     if (!result.ok && result.message) {
-        services.sendGameMessage(player, result.message);
+        services.messaging.sendGameMessage(player, result.message);
     }
 };
 
@@ -128,7 +128,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         handler: ({ player, services, groupId }) => {
             if (groupId !== BANK_GROUP_ID) return;
             const moved = services.depositInventoryToBank(player);
-            services.logger?.debug?.(
+            services.system.logger.debug?.(
                 `[script:bank-widgets] deposit inventory player=${player.id} moved=${moved}`,
             );
         },
@@ -139,7 +139,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         handler: ({ player, services, groupId }) => {
             if (groupId !== BANK_GROUP_ID) return;
             const moved = services.depositEquipmentToBank(player);
-            services.logger?.debug?.(
+            services.system.logger.debug?.(
                 `[script:bank-widgets] deposit equipment player=${player.id} moved=${moved}`,
             );
         },
@@ -151,8 +151,8 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         ({ player, services }) => {
             const next = !player.bank.getBankInsertMode();
             player.bank.setBankInsertMode(next);
-            services.sendVarbit?.(player, BankVarbit.INSERT_MODE, next ? 1 : 0);
-            services.logger?.debug?.(
+            services.variables.sendVarbit?.(player, BankVarbit.INSERT_MODE, next ? 1 : 0);
+            services.system.logger.debug?.(
                 `[script:bank-widgets] insert mode=${next} player=${player.id}`,
             );
         },
@@ -161,16 +161,16 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
     registry.onButton(BANK_GROUP_ID, BankMainChild.NOTE_BUTTON, ({ player, services }) => {
         const next = !player.bank.getBankWithdrawNotes();
         player.bank.setBankWithdrawNotes(next);
-        services.sendVarbit?.(player, BankVarbit.WITHDRAW_NOTES, next ? 1 : 0);
-        services.logger?.debug?.(
+        services.variables.sendVarbit?.(player, BankVarbit.WITHDRAW_NOTES, next ? 1 : 0);
+        services.system.logger.debug?.(
             `[script:bank-widgets] withdraw notes=${next} player=${player.id}`,
         );
     });
 
     const setQuantityMode = (player: PlayerState, services: ScriptServices, mode: number) => {
         player.bank.setBankQuantityMode(mode);
-        services.sendVarbit?.(player, BankVarbit.QUANTITY_TYPE, mode);
-        services.logger?.debug?.(
+        services.variables.sendVarbit?.(player, BankVarbit.QUANTITY_TYPE, mode);
+        services.system.logger.debug?.(
             `[script:bank-widgets] quantity mode=${mode} player=${player.id}`,
         );
     };
@@ -221,8 +221,8 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         ({ player, services }) => {
             const next = !player.bank.getBankPlaceholderMode();
             player.bank.setBankPlaceholderMode(next);
-            services.sendVarbit?.(player, BankVarbit.LEAVE_PLACEHOLDERS, next ? 1 : 0);
-            services.logger?.debug?.(
+            services.variables.sendVarbit?.(player, BankVarbit.LEAVE_PLACEHOLDERS, next ? 1 : 0);
+            services.system.logger.debug?.(
                 `[script:bank-widgets] placeholders=${next} player=${player.id}`,
             );
         },
@@ -231,15 +231,15 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
     guard("Placeholders", ({ player, services }) => {
         const next = !player.bank.getBankPlaceholderMode();
         player.bank.setBankPlaceholderMode(next);
-        services.sendVarbit?.(player, BankVarbit.LEAVE_PLACEHOLDERS, next ? 1 : 0);
-        services.logger?.debug?.(
+        services.variables.sendVarbit?.(player, BankVarbit.LEAVE_PLACEHOLDERS, next ? 1 : 0);
+        services.system.logger.debug?.(
             `[script:bank-widgets] placeholders=${next} player=${player.id}`,
         );
     });
 
     guard("Release placeholders", ({ player, services }) => {
         const cleared = player.bank.releaseBankPlaceholders();
-        services.logger?.debug?.(
+        services.system.logger.debug?.(
             `[script:bank-widgets] release placeholders player=${player.id} cleared=${cleared}`,
         );
         if (cleared > 0) {
@@ -249,16 +249,16 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
     });
 
     guard("Search", ({ services }) => {
-        services.logger?.debug?.("[script:bank-widgets] toggled search");
+        services.system.logger.debug?.("[script:bank-widgets] toggled search");
     });
 
     registry.onButton(BANK_GROUP_ID, BankMainChild.SEARCH, ({ services }) => {
-        services.logger?.debug?.("[script:bank-widgets] toggled search");
+        services.system.logger.debug?.("[script:bank-widgets] toggled search");
     });
 
     registry.onButton(BANK_GROUP_ID, BankMainChild.CLOSE_BUTTON, ({ player, services }) => {
-        services.logger?.debug?.(`[script:bank-widgets] close button player=${player.id}`);
-        services.closeModal?.(player);
+        services.system.logger.debug?.(`[script:bank-widgets] close button player=${player.id}`);
+        services.dialog.closeModal(player);
     });
 
     guard("Fillers", ({ player, services }) => {
@@ -277,7 +277,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         }
         if (filled > 0) {
             services.queueBankSnapshot(player);
-            services.logger?.debug?.(
+            services.system.logger.debug?.(
                 `[script:bank-widgets] fillers enabled player=${player.id} count=${filled}`,
             );
         }
@@ -299,7 +299,7 @@ function registerMainBankWidgets(registry: IScriptRegistry): void {
         }
         if (cleared > 0) {
             services.queueBankSnapshot(player);
-            services.logger?.debug?.(
+            services.system.logger.debug?.(
                 `[script:bank-widgets] fillers released player=${player.id} cleared=${cleared}`,
             );
         }
@@ -355,7 +355,7 @@ function registerBanksideWidgets(registry: IScriptRegistry): void {
         );
 
         if (result && result.ok === false && result.message) {
-            event.services.sendGameMessage(event.player, String(result.message));
+            event.services.messaging.sendGameMessage(event.player, String(result.message));
         }
     };
 

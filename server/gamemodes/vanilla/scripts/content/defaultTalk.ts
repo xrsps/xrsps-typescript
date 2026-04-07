@@ -12,11 +12,11 @@ export function registerDefaultTalkHandlers(registry: IScriptRegistry, services:
                 ? String(npc.name)
                 : `NPC ${npc?.typeId ?? npc?.id ?? ""}`.trim();
 
-        services.logger?.info?.(
+        services.system.logger.info?.(
             `[script:default-talk] fallback dialog npc=${npc?.id} type=${npc?.typeId}`,
         );
 
-        services.openDialog?.(event.player, {
+        services.dialog.openDialog(event.player, {
             kind: "npc",
             id: `npc_${npc?.id ?? "unknown"}`,
             npcId: npc?.typeId,
@@ -28,7 +28,7 @@ export function registerDefaultTalkHandlers(registry: IScriptRegistry, services:
             clickToContinue: true,
             closeOnContinue: true,
             onContinue: () => {
-                services.closeDialog?.(event.player, `npc_${npc?.id ?? "unknown"}`);
+                services.dialog.closeDialog(event.player, `npc_${npc?.id ?? "unknown"}`);
             },
         });
     });

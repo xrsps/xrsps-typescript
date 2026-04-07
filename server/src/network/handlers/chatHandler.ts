@@ -220,14 +220,14 @@ function handleQuestCommand(
     // Set varp if applicable
     if (quest.varpId >= 0) {
         sender.varps.setVarpValue(quest.varpId, quest.completionValue);
-        services.queueVarp(sender.id, quest.varpId, quest.completionValue);
+        services.variables.queueVarp(sender.id, quest.varpId, quest.completionValue);
     }
 
     // Set varbits if applicable
     if (quest.varbitEntries) {
         for (const { varbitId, value } of quest.varbitEntries) {
             sender.varps.setVarbitValue(varbitId, value);
-            services.queueVarbit(sender.id, varbitId, value);
+            services.variables.queueVarbit(sender.id, varbitId, value);
         }
     }
 
@@ -548,7 +548,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     // Update server-side state
                     sender.varps.setVarbitValue(VARBIT_ACTIVE_SPELLBOOK, value);
                     // Transmit varbit to client
-                    services.queueVarbit(sender.id, VARBIT_ACTIVE_SPELLBOOK, value);
+                    services.variables.queueVarbit(sender.id, VARBIT_ACTIVE_SPELLBOOK, value);
 
                     // Clear autocast when switching to a spellbook
                     // that doesn't contain the current autocast spell.
@@ -557,7 +557,7 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                         if (!autocastSpellData || autocastSpellData.spellbook !== root) {
                             clearAutocastState(sender, {
                                 sendVarbit: (player, varbitId, varbitValue) =>
-                                    services.queueVarbit(player.id, varbitId, varbitValue),
+                                    services.variables.queueVarbit(player.id, varbitId, varbitValue),
                             });
                         }
                     }

@@ -39,14 +39,14 @@ export function executeCookAction(ctx: ScriptActionHandlerContext): ActionExecut
         return buildSkillFailure(player, "You can't cook that.", "unknown_recipe");
     }
 
-    const skill = services.getSkill?.(player, SkillId.Cooking);
+    const skill = services.skills.getSkill(player, SkillId.Cooking);
     const effectiveLevel = Math.max(1, (skill?.baseLevel ?? 1) + (skill?.boost ?? 0));
     if (effectiveLevel < recipe.level) {
         return buildSkillFailure(player, `You need Cooking level ${recipe.level} to cook that.`, "cook_level");
     }
 
-    const slot = services.findInventorySlotWithItem?.(player, recipe.rawItemId);
-    if (slot === undefined || !services.consumeItem(player, slot)) {
+    const slot = services.inventory.findInventorySlotWithItem(player, recipe.rawItemId);
+    if (slot === undefined || !services.inventory.consumeItem(player, slot)) {
         return buildSkillFailure(player, "You need raw food to cook.", "missing_item");
     }
 
@@ -60,11 +60,11 @@ export function executeCookAction(ctx: ScriptActionHandlerContext): ActionExecut
     const burntItemId = recipe.burntItemId ?? -1;
     const producedItemId = cooked || !(burntItemId > 0) ? recipe.cookedItemId : burntItemId;
 
-    services.setInventorySlot(player, slot, producedItemId, 1);
-    services.playPlayerSeq?.(player, recipe.animation ?? 897);
+    services.inventory.setInventorySlot(player, slot, producedItemId, 1);
+    services.animation.playPlayerSeq(player, recipe.animation ?? 897);
 
     if (cooked) {
-        services.addSkillXp?.(player, SkillId.Cooking, recipe.xp);
+        services.skills.addSkillXp(player, SkillId.Cooking, recipe.xp);
         services.onItemCraft?.(player.id, recipe.cookedItemId, 1);
     }
 
@@ -75,7 +75,7 @@ export function executeCookAction(ctx: ScriptActionHandlerContext): ActionExecut
 
     const remaining = Math.max(0, targetCount - 1);
     if (remaining > 0) {
-        const reschedule = services.scheduleAction?.(player.id, {
+        const reschedule = services.combat.scheduleAction(player.id, {
             kind: "skill.cook", data: { recipeId: recipe.id, count: remaining, heatSource },
             delayTicks: recipe.delayTicks ?? 3, cooldownTicks: recipe.delayTicks ?? 3,
             groups: ["skill.cook"],
@@ -89,22 +89,22 @@ export function executeCookAction(ctx: ScriptActionHandlerContext): ActionExecut
 }
 
 export function registerCookingInteractions(registry: IScriptRegistry, services: ScriptServices) {
-    const requestAction = services.requestAction;
-    const openDialogOptions = services.openDialogOptions;
-    const closeDialog = services.closeDialog;
+    const requestAction = services.combat.requestAction;
+    const openDialogOptions = services.dialog.openDialogOptions;
+    const closeDialog = services.dialog.closeDialog;
 
     const tryCookingRecipe = (player: PlayerState, recipe: CookingRecipe, tick?: number, opts?: { desiredCount?: number; heatSource?: CookingHeatSource }) => {
-        const cookLevel = services.getSkill?.(player, SkillId.Cooking)?.baseLevel ?? 1;
-        if (cookLevel < recipe.level) { services.sendGameMessage(player, `You need Cooking level ${recipe.level} to cook that.`); return; }
+        const cookLevel = services.skills.getSkill(player, SkillId.Cooking)?.baseLevel ?? 1;
+        if (cookLevel < recipe.level) { services.messaging.sendGameMessage(player, `You need Cooking level ${recipe.level} to cook that.`); return; }
         const inventoryNow = getInventory(services, player);
         const batch = Math.max(0, Math.min(MAX_BATCH, countItem(inventoryNow, recipe.rawItemId)));
-        if (batch <= 0) { services.sendGameMessage(player, "You need something raw to cook."); return; }
+        if (batch <= 0) { services.messaging.sendGameMessage(player, "You need something raw to cook."); return; }
         const desired = Math.max(1, Math.min(batch, opts?.desiredCount ?? batch));
-        enqueueSkillAction(requestAction, "cook", player, recipe.id, desired, recipe.delayTicks ?? 3, tick, services.sendGameMessage, opts?.heatSource ? { heatSource: opts.heatSource } : undefined);
+        enqueueSkillAction(requestAction, "cook", player, recipe.id, desired, recipe.delayTicks ?? 3, tick, services.messaging.sendGameMessage, opts?.heatSource ? { heatSource: opts.heatSource } : undefined);
     };
 
     registry.registerLocAction("cook", (event) => {
-        const level = services.getSkill?.(event.player, SkillId.Cooking)?.baseLevel ?? 1;
+        const level = services.skills.getSkill(event.player, SkillId.Cooking)?.baseLevel ?? 1;
         const inventory = getInventory(services, event.player);
         const heatSource = resolveCookingHeatSource(services, event.locId);
         const cookingCandidates = COOKING_RECIPES.filter((r) => hasItem(inventory, r.rawItemId)).map<SkillDialogChoice<CookingRecipe>>((recipe) => {
@@ -115,7 +115,7 @@ export function registerCookingInteractions(registry: IScriptRegistry, services:
             const label = craftable ? `${recipe.name} (${readyCount}x ready)` : !levelMet ? `${recipe.name} (Lvl ${recipe.level})` : `${recipe.name} (${totalRaw} raw)`;
             return { recipe, label, craftable, batch: readyCount };
         });
-        if (!cookingCandidates.length) { services.sendGameMessage(event.player, "You need something raw to cook."); return; }
+        if (!cookingCandidates.length) { services.messaging.sendGameMessage(event.player, "You need something raw to cook."); return; }
         const craftableChoices = cookingCandidates.filter((c) => c.craftable);
         const orderedChoices = craftableChoices.concat(cookingCandidates.filter((c) => !c.craftable)).slice(0, MAX_DIALOG_OPTIONS);
         const meta = SKILL_DIALOG_META.cook;
@@ -125,15 +125,15 @@ export function registerCookingInteractions(registry: IScriptRegistry, services:
             disabledOptions: orderedChoices.map((c) => !c.craftable),
             onSelect: (idx) => {
                 const selected = orderedChoices[idx];
-                if (!selected) { services.sendGameMessage(event.player, "You stop cooking."); return; }
-                if (!selected.craftable) { services.sendGameMessage(event.player, "You can't cook that yet."); return; }
+                if (!selected) { services.messaging.sendGameMessage(event.player, "You stop cooking."); return; }
+                if (!selected.craftable) { services.messaging.sendGameMessage(event.player, "You can't cook that yet."); return; }
                 closeDialog?.(event.player, meta.id);
                 tryCookingRecipe(event.player, selected.recipe, event.tick, { desiredCount: selected.batch, heatSource });
             },
         });
         if (!openedDialog) {
             const fallback = craftableChoices[0];
-            if (!fallback) { services.sendGameMessage(event.player, "You need a higher Cooking level."); return; }
+            if (!fallback) { services.messaging.sendGameMessage(event.player, "You need a higher Cooking level."); return; }
             tryCookingRecipe(event.player, fallback.recipe, event.tick, { desiredCount: fallback.batch, heatSource });
         }
     });
@@ -149,7 +149,7 @@ export function registerCookingInteractions(registry: IScriptRegistry, services:
             if (!recipe) return;
             const player = event.player;
             const delay = recipe.delayTicks !== undefined ? Math.max(1, recipe.delayTicks) : 4;
-            const result = services.requestAction(
+            const result = services.combat.requestAction(
                 player,
                 {
                     kind: "skill.cook",
@@ -165,10 +165,10 @@ export function registerCookingInteractions(registry: IScriptRegistry, services:
                 event.tick,
             );
             if (!result.ok) {
-                services.sendGameMessage(player, "You're too busy to do that right now.");
+                services.messaging.sendGameMessage(player, "You're too busy to do that right now.");
                 return;
             }
-            services.sendGameMessage(player, "You start cooking.");
+            services.messaging.sendGameMessage(player, "You start cooking.");
         });
     }
 }

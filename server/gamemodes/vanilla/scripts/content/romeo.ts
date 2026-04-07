@@ -15,7 +15,7 @@ export function registerRomeoHandlers(registry: IScriptRegistry, services: Scrip
         };
 
         const openNpcDialog = (id: string, lines: string[], onContinue?: () => void) =>
-            services.openDialog?.(event.player, {
+            services.dialog.openDialog(event.player, {
                 kind: "npc",
                 id,
                 npcId,
@@ -28,7 +28,7 @@ export function registerRomeoHandlers(registry: IScriptRegistry, services: Scrip
             });
 
         const openPlayerDialog = (id: string, lines: string[], onContinue?: () => void) =>
-            services.openDialog?.(event.player, {
+            services.dialog.openDialog(event.player, {
                 kind: "player",
                 id,
                 playerName: event.player.name ?? "You",
@@ -45,9 +45,9 @@ export function registerRomeoHandlers(registry: IScriptRegistry, services: Scrip
             `${convoId}_intro`,
             ["Greetings, traveller!", "I'm searching for Juliet — have you seen her?"],
             () => {
-                services.closeDialog?.(event.player, `${convoId}_intro`);
+                services.dialog.closeDialog(event.player, `${convoId}_intro`);
 
-                services.openDialogOptions?.(event.player, {
+                services.dialog.openDialogOptions(event.player, {
                     id: `${convoId}_choice`,
                     title: "Romeo",
                     options: [

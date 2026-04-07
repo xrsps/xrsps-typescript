@@ -45,10 +45,10 @@ function handleDitchCross(event: LocInteractionEvent): void {
     const angle = goingNorth ? DITCH_ANGLE_NORTH : DITCH_ANGLE_SOUTH;
 
     // Teleport first — queueForcedMovement uses player.tileX/tileY after teleport as startTile
-    services.teleportPlayer?.(player, destX, destY, destLevel);
+    services.movement.teleportPlayer(player, destX, destY, destLevel);
 
     // ForcedMovement (exactmove): from old position to new position over 2 ticks
-    services.queueForcedMovement?.(player, {
+    services.movement.queueForcedMovement(player, {
         startTile,
         endTile,
         endTick: tick + DITCH_FORCED_MOVE_TICKS,
@@ -60,13 +60,13 @@ function handleDitchCross(event: LocInteractionEvent): void {
     player.clearPendingSeqs();
 
     // Jump animation: sequence id=6132
-    services.playPlayerSeq?.(player, DITCH_CROSS_ANIM_ID);
+    services.animation.playPlayerSeq(player, DITCH_CROSS_ANIM_ID);
 
     // face_angle: snap orientation to the crossing direction
     player.setForcedOrientation(angle);
 
     // Synth sound: id=2462, delay=25 client cycles = 500ms
-    services.sendSound?.(player, DITCH_CROSS_SOUND_ID, { delayMs: DITCH_CROSS_SOUND_DELAY_MS });
+    services.sound.sendSound(player, DITCH_CROSS_SOUND_ID, { delayMs: DITCH_CROSS_SOUND_DELAY_MS });
 }
 
 export function registerWildernessAccessHandlers(registry: IScriptRegistry, _services: ScriptServices): void {

@@ -11,14 +11,14 @@ export function registerMusicWidgetHandlers(registry: IScriptRegistry, services:
     const playTrack = (player: PlayerState, trackId: number, trackName: string): void => {
         if (player.varps.getVarpValue(VARP_MUSICPLAY) !== 2) {
             player.varps.setVarpValue(VARP_MUSICPLAY, 2);
-            services.sendVarp?.(player, VARP_MUSICPLAY, 2);
+            services.variables.sendVarp?.(player, VARP_MUSICPLAY, 2);
         }
-        services.playSong?.(player, trackId, trackName);
+        services.sound.playSong(player, trackId, trackName);
     };
 
     registry.onButton(MUSIC_GROUP_ID, MUSIC_JUKEBOX_CHILD_ID, (event) => {
         const slot = event.slot ?? event.childId;
-        const track = services.getMusicTrackBySlot?.(slot);
+        const track = services.sound.getMusicTrackBySlot(slot);
         if (!track) {
             return;
         }
@@ -29,7 +29,7 @@ export function registerMusicWidgetHandlers(registry: IScriptRegistry, services:
         if (event.player.varps.getVarpValue(VARP_MUSICPLAY) !== 1) {
             return;
         }
-        services.skipMusicTrack?.(event.player);
+        services.sound.skipMusicTrack(event.player);
     });
 
     // Register for "Play" option without a specific widgetId - filter by groupId in handler
@@ -46,7 +46,7 @@ export function registerMusicWidgetHandlers(registry: IScriptRegistry, services:
             if (!trackName) return;
 
             // Look up the track ID from the database
-            const trackId = services.getMusicTrackId?.(trackName) ?? -1;
+            const trackId = services.sound.getMusicTrackId(trackName) ?? -1;
             if (trackId < 0) return;
 
             playTrack(event.player, trackId, trackName);

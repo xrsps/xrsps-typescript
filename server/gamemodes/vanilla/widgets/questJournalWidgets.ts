@@ -62,7 +62,7 @@ interface QuestEntry {
  */
 function buildQuestMap(services: ScriptServices): Map<number, QuestEntry> {
     const map = new Map<number, QuestEntry>();
-    const dbRepo = services.getDbRepository?.();
+    const dbRepo = services.data.getDbRepository();
     if (!dbRepo) return map;
 
     const rows = dbRepo.getRows(QUEST_DB_TABLE_ID);
@@ -87,7 +87,7 @@ function buildQuestMap(services: ScriptServices): Map<number, QuestEntry> {
     }
 
     if (idColumnId === -1 || nameColumnId === -1) {
-        services.logger?.warn?.(
+        services.system.logger.warn?.(
             `[quest-journal] Could not discover quest DB columns: id=${idColumnId} name=${nameColumnId}`,
         );
         return map;
@@ -109,7 +109,7 @@ function buildQuestMap(services: ScriptServices): Map<number, QuestEntry> {
         }
     }
 
-    services.logger?.info?.(
+    services.system.logger.info?.(
         `[quest-journal] Loaded ${map.size} quests from cache DB table ${QUEST_DB_TABLE_ID}`,
     );
     return map;
@@ -253,7 +253,7 @@ export function registerQuestJournalWidgetHandlers(registry: IScriptRegistry, se
 
         const quest = getQuestMap().get(questId);
         if (!quest) {
-            services.logger?.info?.(
+            services.system.logger.info?.(
                 `[quest-journal] No quest found for slot=${questId}`,
             );
             return;
@@ -265,7 +265,7 @@ export function registerQuestJournalWidgetHandlers(registry: IScriptRegistry, se
     // Handle quest journal Close button (119:8)
     registry.onButton(QUEST_JOURNAL_GROUP_ID, QJ_CLOSE_CHILD, (event) => {
         const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
-        services.closeSubInterface?.(event.player, floaterUid, QUEST_JOURNAL_GROUP_ID);
+        services.dialog.closeSubInterface(event.player, floaterUid, QUEST_JOURNAL_GROUP_ID);
     });
 
     // Handle quest journal Switch View button (119:9)
@@ -287,29 +287,29 @@ export function registerQuestJournalWidgetHandlers(registry: IScriptRegistry, se
 
         // Re-open journal with overview text
         const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
-        services.openSubInterface?.(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
+        services.dialog.openSubInterface(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
 
-        services.queueWidgetEvent?.(player.id, {
+        services.dialog.queueWidgetEvent(player.id, {
             action: "run_script",
             scriptId: SCRIPT_QUEST_JOURNAL_RESET,
             args: [],
         });
 
         const titleUid = (QUEST_JOURNAL_GROUP_ID << 16) | QJ_TITLE_CHILD;
-        services.queueWidgetEvent?.(player.id, {
+        services.dialog.queueWidgetEvent(player.id, {
             action: "set_text",
             uid: titleUid,
             text: `<col=7f0000>${questName}</col>`,
         });
 
         const lineUid = (QUEST_JOURNAL_GROUP_ID << 16) | QJ_FIRST_LINE_CHILD;
-        services.queueWidgetEvent?.(player.id, {
+        services.dialog.queueWidgetEvent(player.id, {
             action: "set_text",
             uid: lineUid,
             text: "Quest overview not yet available.",
         });
 
-        services.queueWidgetEvent?.(player.id, {
+        services.dialog.queueWidgetEvent(player.id, {
             action: "run_script",
             scriptId: SCRIPT_QUEST_JOURNAL_SCROLL,
             args: [0, 1],
@@ -346,21 +346,21 @@ function openQuestJournal(
 
     // 1. Set varps (sent before widget events in broadcast order)
     player.varps.setVarpValue(VARP_LATEST_QUEST_JOURNAL, quest.dbrowId);
-    services.sendVarp?.(player, VARP_LATEST_QUEST_JOURNAL, quest.dbrowId);
+    services.variables.sendVarp?.(player, VARP_LATEST_QUEST_JOURNAL, quest.dbrowId);
     player.varps.setVarpValue(VARP_QJ_LINES, lineCount);
-    services.sendVarp?.(player, VARP_QJ_LINES, lineCount);
+    services.variables.sendVarp?.(player, VARP_QJ_LINES, lineCount);
 
     // 2. Open quest journal interface on the floater container.
     // Use type=0 (modal) so PlayerWidgetManager tracks it and closeInterruptibleInterfaces
     // closes it on walk/interaction, matching OSRS behavior where the journal dismisses on move.
     const floaterUid = BaseComponentUids.FLOATER_OVERLAY;
-    services.openSubInterface?.(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
+    services.dialog.openSubInterface(player, floaterUid, QUEST_JOURNAL_GROUP_ID, 0);
 
     // 2b. Enable transmit flags on Close (119:8) and Switch View (119:9) buttons.
     // Static widgets use fromSlot=-1, toSlot=-1.
     const OP1_TRANSMIT = 1 << 1; // transmit op1
     for (const childId of [QJ_CLOSE_CHILD, QJ_SWITCH_VIEW_CHILD]) {
-        services.queueWidgetEvent?.(playerId, {
+        services.dialog.queueWidgetEvent(playerId, {
             action: "set_flags_range",
             uid: (QUEST_JOURNAL_GROUP_ID << 16) | childId,
             fromSlot: -1,
@@ -370,7 +370,7 @@ function openQuestJournal(
     }
 
     // 3. Clear stale journal line text
-    services.queueWidgetEvent?.(playerId, {
+    services.dialog.queueWidgetEvent(playerId, {
         action: "run_script",
         scriptId: SCRIPT_QUEST_JOURNAL_RESET,
         args: [],
@@ -378,7 +378,7 @@ function openQuestJournal(
 
     // 4. Set title text
     const titleUid = (QUEST_JOURNAL_GROUP_ID << 16) | QJ_TITLE_CHILD;
-    services.queueWidgetEvent?.(playerId, {
+    services.dialog.queueWidgetEvent(playerId, {
         action: "set_text",
         uid: titleUid,
         text: `<col=7f0000>${quest.displayName}</col>`,
@@ -387,7 +387,7 @@ function openQuestJournal(
     // 5. Set journal line text
     for (let i = 0; i < lineCount; i++) {
         const lineUid = (QUEST_JOURNAL_GROUP_ID << 16) | (QJ_FIRST_LINE_CHILD + i);
-        services.queueWidgetEvent?.(playerId, {
+        services.dialog.queueWidgetEvent(playerId, {
             action: "set_text",
             uid: lineUid,
             text: lines[i],
@@ -395,13 +395,13 @@ function openQuestJournal(
     }
 
     // 6. Run scroll configuration script
-    services.queueWidgetEvent?.(playerId, {
+    services.dialog.queueWidgetEvent(playerId, {
         action: "run_script",
         scriptId: SCRIPT_QUEST_JOURNAL_SCROLL,
         args: [0, lineCount],
     });
 
-    services.logger?.info?.(
+    services.system.logger.info?.(
         `[quest-journal] Opened journal for player=${playerId} quest="${quest.displayName}" (id=${quest.questId}, dbrow=${quest.dbrowId}) lines=${lineCount}`,
     );
 }

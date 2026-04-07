@@ -14,8 +14,8 @@ export const triggerLocEffect = (
     if (!tile) return false;
     const effect = getLocEffect(locId);
     if (!effect) return false;
-    if (effect.graphic && services.playLocGraphic) {
-        services.playLocGraphic({
+    if (effect.graphic) {
+        services.animation.playLocGraphic({
             spotId: effect.graphic.spotId,
             tile: { x: tile.x, y: tile.y },
             level: level,
@@ -23,8 +23,8 @@ export const triggerLocEffect = (
             delayTicks: effect.graphic.delayTicks,
         });
     }
-    if (effect.sound && services.playLocSound) {
-        services.playLocSound({
+    if (effect.sound) {
+        services.sound.playLocSound({
             soundId: effect.sound.soundId,
             tile: { x: tile.x, y: tile.y },
             level: level,

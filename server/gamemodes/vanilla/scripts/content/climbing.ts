@@ -261,7 +261,7 @@ console.log(`[climbing] Loaded ${stairFloors.size} stair floor entries`);
  * Called lazily on first interaction when PathService is available.
  */
 function ensureResolved(services: LocInteractionEvent["services"]): void {
-    const pathService = services.getPathService?.();
+    const pathService = services.movement.getPathService();
     if (pathService) {
         intermapLinks.resolveWalkableDestinations(pathService);
     }
@@ -305,7 +305,7 @@ function getStairEntry(
     if (fromFile !== undefined) return fromFile;
 
     // 2. Internal name suffix fallback (rarely populated via getLocDefinition)
-    const def = services.getLocDefinition?.(locId);
+    const def = services.data.getLocDefinition(locId);
     if (!def?.name) return undefined;
     const match = (def.name as string).match(/_(\d+)$/);
     if (match) {
@@ -383,7 +383,7 @@ function resolveWalkableDest(
     services: LocInteractionEvent["services"],
     dest: TraversalDestination,
 ): TraversalDestination {
-    const pathService = services.getPathService?.();
+    const pathService = services.movement.getPathService();
     if (!pathService) return dest;
 
     // Check the destination tile itself first.
@@ -421,7 +421,7 @@ function executeInstantTraversal(
 
     const resolved = resolveWalkableDest(services, dest);
 
-    services.requestTeleportAction?.(player, {
+    services.movement.requestTeleportAction(player, {
         x: resolved.x,
         y: resolved.y,
         level: resolved.level,
@@ -454,9 +454,9 @@ function executeTraversal(
 
     const anim = direction === "down" ? LADDER_CLIMB_DOWN_ANIM : LADDER_CLIMB_UP_ANIM;
 
-    services.playPlayerSeq?.(player, anim);
+    services.animation.playPlayerSeq(player, anim);
 
-    services.requestTeleportAction?.(player, {
+    services.movement.requestTeleportAction(player, {
         x: dest.x,
         y: dest.y,
         level: dest.level,
@@ -493,7 +493,7 @@ export function registerClimbingHandlers(registry: IScriptRegistry, _services: S
         ensureResolved(event.services);
         const link = intermapLinks.find(event.tile.x, event.tile.y, event.level);
         if (!link) {
-            event.services.sendGameMessage(event.player, "Nothing interesting happens.");
+            event.services.messaging.sendGameMessage(event.player, "Nothing interesting happens.");
             return;
         }
         const dir = link.level < event.level ? "down" : "up";
@@ -567,7 +567,7 @@ export function registerClimbingHandlers(registry: IScriptRegistry, _services: S
         const downDest = canGoDown ? resolveDestination(event, -1) : null;
 
         if (upDest && downDest) {
-            services.openDialogOptions?.(player, {
+            services.dialog.openDialogOptions(player, {
                 id: "climb-direction",
                 title: "Climb up or down?",
                 options: ["Climb-up.", "Climb-down."],

@@ -94,7 +94,7 @@ function openEquipmentStats(player: PlayerState, services: ScriptServices): void
 
     // Helper to queue scripts
     const runScript = (scriptId: number, args: (number | string)[]) => {
-        services.queueWidgetEvent?.(playerId, {
+        services.dialog.queueWidgetEvent(playerId, {
             action: "run_script",
             scriptId,
             args,
@@ -102,11 +102,11 @@ function openEquipmentStats(player: PlayerState, services: ScriptServices): void
     };
 
     // 1. Set varbit 12393 = 1 (equipment stats open)
-    services.queueVarbit?.(playerId, VARBIT_EQUIPMENT_STATS_OPEN, 1);
+    services.variables.queueVarbit?.(playerId, VARBIT_EQUIPMENT_STATS_OPEN, 1);
 
     // 2. Open equipment stats (84) in mainmodal
-    const mainmodalUid = services.getMainmodalUid!(displayMode);
-    services.queueWidgetEvent?.(playerId, {
+    const mainmodalUid = services.viewport.getMainmodalUid(displayMode);
+    services.dialog.queueWidgetEvent(playerId, {
         action: "open_sub",
         targetUid: mainmodalUid,
         groupId: EQUIPMENT_STATS_INTERFACE_ID,
@@ -114,8 +114,8 @@ function openEquipmentStats(player: PlayerState, services: ScriptServices): void
     });
 
     // 3. Open equipment inventory (85) in sidemodal
-    const sidemodalUid = services.getSidemodalUid!(displayMode);
-    services.queueWidgetEvent?.(playerId, {
+    const sidemodalUid = services.viewport.getSidemodalUid(displayMode);
+    services.dialog.queueWidgetEvent(playerId, {
         action: "open_sub",
         targetUid: sidemodalUid,
         groupId: EQUIPMENT_INVENTORY_INTERFACE_ID,
@@ -157,7 +157,7 @@ function openEquipmentStats(player: PlayerState, services: ScriptServices): void
         "",
     ]);
 
-    services.logger?.info?.(`[equipment-widgets] Opened equipment stats for player=${playerId}`);
+    services.system.logger.info?.(`[equipment-widgets] Opened equipment stats for player=${playerId}`);
 }
 
 export function registerEquipmentWidgetHandlers(registry: IScriptRegistry, services: ScriptServices): void {
@@ -175,7 +175,7 @@ export function registerEquipmentWidgetHandlers(registry: IScriptRegistry, servi
 
         const result = services.followers?.callFollower(player);
         if (!result?.ok) {
-            services.sendGameMessage(
+            services.messaging.sendGameMessage(
                 player,
                 result?.reason === "missing"
                     ? "You do not have a follower."
@@ -193,17 +193,17 @@ export function registerEquipmentWidgetHandlers(registry: IScriptRegistry, servi
                 const player = event.player;
                 if (!player) return;
 
-                services.logger?.info?.(
+                services.system.logger.info?.(
                     `[equipment-widgets] Remove clicked: interface=${interfaceId} component=${component} slot=${slot} player=${player.id}`,
                 );
 
-                const success = services.unequipItem?.(player, slot);
+                const success = services.equipment.unequipItem(player, slot);
                 if (success) {
-                    services.logger?.info?.(
+                    services.system.logger.info?.(
                         `[equipment-widgets] Unequipped slot=${slot} for player=${player.id}`,
                     );
                 } else {
-                    services.logger?.info?.(
+                    services.system.logger.info?.(
                         `[equipment-widgets] Failed to unequip slot=${slot} for player=${player.id}`,
                     );
                 }

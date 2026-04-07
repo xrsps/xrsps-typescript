@@ -612,7 +612,7 @@ export class BankingManager implements BankingProvider {
      * Deposit entire equipment to bank.
      */
     depositEquipment(player: PlayerState, tab?: number): boolean {
-        const equip = this.services.getEquipArray(player);
+        const equip = this.services.equipment.getEquipArray(player);
         const equipQty = this.services.getEquipQtyArray(player);
         let moved = false;
         let bankFull = false;
@@ -954,7 +954,7 @@ export class BankingManager implements BankingProvider {
             return { ok: false, message: resolved.message ?? "You can't withdraw that item." };
         }
 
-        const result = this.services.addItemToInventory(player, resolved.itemId, removal.quantity);
+        const result = this.services.inventory.addItemToInventory(player, resolved.itemId, removal.quantity);
         if (result.added <= 0) {
             this.restoreBankSlot(player, serverSlot, removal.itemId, removal.quantity);
             return { ok: false, message: "You don't have enough inventory space." };
@@ -1134,7 +1134,7 @@ export class BankingManager implements BankingProvider {
 
         for (let i = 0; i < BankLimits.MAX_TABS; i++) {
             const varbitId = BankVarbit.TAB_1 + i;
-            this.services.queueVarbit(player.id, varbitId, tabSizes[i] ?? 0);
+            this.services.variables.queueVarbit(player.id, varbitId, tabSizes[i] ?? 0);
         }
     }
 

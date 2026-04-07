@@ -83,11 +83,11 @@ function queueLeaguePackedVarpUpdates(
     playerId: number,
     updates: Array<{ id: number; value: number }>,
 ): void {
-    if (!services.queueVarp) {
+    if (!services.variables?.queueVarp) {
         return;
     }
     for (const update of updates) {
-        services.queueVarp(playerId, update.id, update.value);
+        services.variables.queueVarp(playerId, update.id, update.value);
     }
 }
 
@@ -1000,7 +1000,7 @@ function tryUnlockLeagueArea(
             // Karamja goes into slot 1 (the second area slot after Misthalin)
             const slotVarbitId = AREA_SELECTION_VARBITS[1];
             player.varps.setVarbitValue(slotVarbitId, regionId);
-            services.queueVarbit?.(player.id, slotVarbitId, regionId);
+            services.variables.queueVarbit?.(player.id, slotVarbitId, regionId);
             return { ok: true };
         }
         return { ok: false, reason: "no_slots" };
@@ -1016,7 +1016,7 @@ function tryUnlockLeagueArea(
     }
 
     player.varps.setVarbitValue(stage.slotVarbitId, regionId);
-    services.queueVarbit?.(player.id, stage.slotVarbitId, regionId);
+    services.variables.queueVarbit?.(player.id, stage.slotVarbitId, regionId);
     return { ok: true };
 }
 
@@ -1107,7 +1107,7 @@ function refreshLeagueSidePanelProgress(
     const panelGroupId = isL3 ? 736 : 656;
     const fillChildId = isL3 ? 10 : 23; // league_3_side_panel:fill / league_side_panel:fill
     const fillUid = ((panelGroupId & 0xffff) << 16) | (fillChildId & 0xffff);
-    services.queueWidgetEvent?.(player.id, {
+    services.dialog.queueWidgetEvent(player.id, {
         action: "run_script",
         scriptId: isL3 ? 5800 : 3226, // league_3_side_panel_update_bar / league_side_panel_update_bar
         args: [fillUid, -1],
@@ -1119,22 +1119,22 @@ function refreshLeagueSidePanelProgress(
 function syncLeagueGeneralVarpAndQueue(player: PlayerState, services: ScriptServices): void {
     const res = syncLeagueGeneralVarp(player);
     if (res.changed) {
-        services.queueVarp?.(player.id, VARP_LEAGUE_GENERAL, res.value);
+        services.variables.queueVarp?.(player.id, VARP_LEAGUE_GENERAL, res.value);
     }
 }
 
 function getLeagueWidgetUiBridge(player: PlayerState, services: ScriptServices): LeagueWsUiBridge {
     return {
         queueWidgetEvent: (playerId, action) => {
-            services.queueWidgetEvent?.(playerId, action);
+            services.dialog.queueWidgetEvent(playerId, action);
         },
         isWidgetGroupOpenInLedger: (_playerId, groupId) =>
             (player.widgets?.isOpen?.(groupId) ?? false) === true,
         queueVarp: (playerId, varpId, value) => {
-            services.queueVarp?.(playerId, varpId, value);
+            services.variables.queueVarp?.(playerId, varpId, value);
         },
         queueVarbit: (playerId, varbitId, value) => {
-            services.queueVarbit?.(playerId, varbitId, value);
+            services.variables.queueVarbit?.(playerId, varbitId, value);
         },
     };
 }
@@ -1147,12 +1147,12 @@ function queueWidgetFlagsRange(
     toSlot: number,
     flags: number,
 ): void {
-    const interfaceService = services.getInterfaceService?.();
+    const interfaceService = services.dialog.getInterfaceService();
     if (interfaceService?.setWidgetFlags) {
         interfaceService.setWidgetFlags(player, uid, fromSlot, toSlot, flags);
         return;
     }
-    services.queueWidgetEvent?.(player.id, {
+    services.dialog.queueWidgetEvent(player.id, {
         action: "set_flags_range",
         uid: uid,
         fromSlot: fromSlot,
@@ -1167,7 +1167,7 @@ function ensureLeagueBasicsInitialized(player: PlayerState, services: ScriptServ
     if (leagueType <= 0) {
         player.varps.setVarbitValue(VARBIT_LEAGUE_TYPE, 5);
         syncLeagueGeneralVarpAndQueue(player, services);
-        services.queueVarbit?.(player.id, VARBIT_LEAGUE_TYPE, 5);
+        services.variables.queueVarbit?.(player.id, VARBIT_LEAGUE_TYPE, 5);
     }
 }
 
@@ -1210,7 +1210,7 @@ function ensureLeagueAreaSelectionsInitialized(player: PlayerState, services: Sc
             const next = sanitized[i];
             if ((player.varps.getVarbitValue?.(varbitId) ?? 0) !== next) {
                 player.varps.setVarbitValue(varbitId, next);
-                services.queueVarbit?.(player.id, varbitId, next);
+                services.variables.queueVarbit?.(player.id, varbitId, next);
             }
         }
         console.log(
@@ -1231,7 +1231,7 @@ function ensureLeagueAreaSelectionsInitialized(player: PlayerState, services: Sc
             const next = desired[i];
             if ((player.varps.getVarbitValue?.(varbitId) ?? 0) !== next) {
                 player.varps.setVarbitValue(varbitId, next);
-                services.queueVarbit?.(player.id, varbitId, next);
+                services.variables.queueVarbit?.(player.id, varbitId, next);
             }
         }
     }
@@ -1240,7 +1240,7 @@ function ensureLeagueAreaSelectionsInitialized(player: PlayerState, services: Sc
     const lastViewedRaw = player.varps.getVarbitValue?.(VARBIT_LEAGUE_AREA_LAST_VIEWED) ?? 0;
     if (lastViewedRaw <= 0) {
         player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
-        services.queueVarbit?.(player.id, VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
+        services.variables.queueVarbit?.(player.id, VARBIT_LEAGUE_AREA_LAST_VIEWED, 1);
     }
 }
 
@@ -1254,7 +1254,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const player = event.player;
         console.log(`[league] L5 View Masteries clicked`);
         ensureLeagueBasicsInitialized(player, services);
-        services.openSubInterface?.(player, mainmodalUid, LEAGUE_COMBAT_MASTERY_GROUP_ID, 0, {
+        services.dialog.openSubInterface(player, mainmodalUid, LEAGUE_COMBAT_MASTERY_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(player),
             varbits: getLeagueVarbits(player),
         });
@@ -1301,7 +1301,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const mainmodalUid = getMainmodalUid(event.player.displayMode);
         console.log(`[league] L5 View Info clicked`);
         ensureLeagueBasicsInitialized(event.player, services);
-        services.openSubInterface?.(event.player, mainmodalUid, LEAGUE_INFO_GROUP_ID, 0, {
+        services.dialog.openSubInterface(event.player, mainmodalUid, LEAGUE_INFO_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(event.player),
             varbits: getLeagueVarbits(event.player),
         });
@@ -1317,7 +1317,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // Close the tutorial modal while Tasks is open during tutorial step 5
         // It will reopen when Tasks closes (via onInterfaceClose hook)
         if (tutorial === 5) {
-            services.closeSubInterface?.(
+            services.dialog.closeSubInterface(
                 player,
                 getViewportTrackerFrontUid(player.displayMode),
                 LEAGUE_TUTORIAL_MAIN_GROUP_ID,
@@ -1325,21 +1325,21 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         // Open the tasks interface
-        services.openSubInterface?.(player, mainmodalUid, LEAGUE_TASKS_GROUP_ID, 0, {
+        services.dialog.openSubInterface(player, mainmodalUid, LEAGUE_TASKS_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(player),
             varbits: getLeagueVarbits(player),
         });
 
         // Clear Tasks button highlight and add close button highlight (progression happens on close)
         if (tutorial === 5) {
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_TASKS_BUTTON],
             });
             const tasksCloseButtonUid =
                 ((LEAGUE_TASKS_GROUP_ID & 0xffff) << 16) | (COMP_TASKS_CLOSE_BUTTON & 0xffff);
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT,
                 args: [
@@ -1355,7 +1355,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     });
 
     // Register onClose hook for tasks interface - tutorial progression happens when modal closes
-    const interfaceService = services.getInterfaceService?.();
+    const interfaceService = services.dialog.getInterfaceService();
     if (interfaceService) {
         interfaceService.onInterfaceClose(LEAGUE_TASKS_GROUP_ID, (player) => {
             const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
@@ -1363,7 +1363,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             if (tutorial === 5) {
                 // Clear the tasks close button highlight
-                services.queueWidgetEvent?.(player.id, {
+                services.dialog.queueWidgetEvent(player.id, {
                     action: "run_script",
                     scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                     args: [
@@ -1376,12 +1376,12 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                     // L3 tutorial: Tasks (5) -> Unlocks (8)
                     player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 8);
                     syncLeagueGeneralVarpAndQueue(player, services);
-                    services.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 8);
+                    services.variables.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 8);
 
                     const unlocksUid =
                         ((LEAGUE_SIDE_PANEL_L3_GROUP_ID & 0xffff) << 16) |
                         (L3_COMP_VIEW_UNLOCKS & 0xffff);
-                    services.queueWidgetEvent?.(player.id, {
+                    services.dialog.queueWidgetEvent(player.id, {
                         action: "run_script",
                         scriptId: SCRIPT_UI_HIGHLIGHT,
                         args: [
@@ -1395,7 +1395,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                     });
 
                     // Reopen the tutorial modal with new step content
-                    services.openSubInterface?.(
+                    services.dialog.openSubInterface(
                         player,
                         getViewportTrackerFrontUid(player.displayMode),
                         LEAGUE_TUTORIAL_MAIN_GROUP_ID,
@@ -1409,10 +1409,10 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                     // L5 tutorial: Tasks (5) -> Areas (7)
                     player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 7);
                     syncLeagueGeneralVarpAndQueue(player, services);
-                    services.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 7);
+                    services.variables.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 7);
 
                     // Highlight Areas button after tasks window closes
-                    services.queueWidgetEvent?.(player.id, {
+                    services.dialog.queueWidgetEvent(player.id, {
                         action: "run_script",
                         scriptId: SCRIPT_UI_HIGHLIGHT,
                         args: [
@@ -1426,7 +1426,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                     });
 
                     // Reopen the tutorial modal with new step content
-                    services.openSubInterface?.(
+                    services.dialog.openSubInterface(
                         player,
                         getViewportTrackerFrontUid(player.displayMode),
                         LEAGUE_TUTORIAL_MAIN_GROUP_ID,
@@ -1455,10 +1455,10 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             if (tutorial === 9) {
                 player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 11);
                 syncLeagueGeneralVarpAndQueue(player, services);
-                services.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 11);
+                services.variables.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 11);
 
                 // Clear the relics close button highlight and all tier 0 relic highlights
-                services.queueWidgetEvent?.(player.id, {
+                services.dialog.queueWidgetEvent(player.id, {
                     action: "run_script",
                     scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                     args: [
@@ -1467,7 +1467,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                     ],
                 });
                 for (let i = 0; i < 10; i++) {
-                    services.queueWidgetEvent?.(player.id, {
+                    services.dialog.queueWidgetEvent(player.id, {
                         action: "run_script",
                         scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                         args: [
@@ -1478,7 +1478,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 }
 
                 // Reopen the tutorial modal with finishing step content
-                services.openSubInterface?.(
+                services.dialog.openSubInterface(
                     player,
                     getViewportTrackerFrontUid(player.displayMode),
                     LEAGUE_TUTORIAL_MAIN_GROUP_ID,
@@ -1504,14 +1504,14 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         if (tutorial === 9) {
             // Close the tutorial modal while Relics is open
             // It will reopen when Relics closes (via close button handler or onInterfaceClose hook)
-            services.closeSubInterface?.(
+            services.dialog.closeSubInterface(
                 player,
                 getViewportTrackerFrontUid(player.displayMode),
                 LEAGUE_TUTORIAL_MAIN_GROUP_ID,
             );
 
             // Clear the relics button highlight when opening
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_RELICS_BUTTON],
@@ -1521,7 +1521,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         // Open the relics interface
-        services.openSubInterface?.(event.player, mainmodalUid, LEAGUE_RELICS_GROUP_ID, 0, {
+        services.dialog.openSubInterface(event.player, mainmodalUid, LEAGUE_RELICS_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(event.player),
             varbits: getLeagueVarbits(event.player),
         });
@@ -1580,7 +1580,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 // Find all tier 0 relics and highlight each one
                 for (const entry of indexMap) {
                     if (entry.tierIndex === 0) {
-                        services.queueWidgetEvent?.(player.id, {
+                        services.dialog.queueWidgetEvent(player.id, {
                             action: "run_script",
                             scriptId: SCRIPT_UI_HIGHLIGHT,
                             args: [
@@ -1617,7 +1617,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // Close the tutorial modal while the Areas interface is open during the
         // Karamja selection/close-gate steps. The modal will reopen when Areas closes.
         if (needsKaramjaHighlight || needsAreasCloseHighlight) {
-            services.closeSubInterface?.(
+            services.dialog.closeSubInterface(
                 player,
                 getViewportTrackerFrontUid(player.displayMode),
                 LEAGUE_TUTORIAL_MAIN_GROUP_ID,
@@ -1625,19 +1625,19 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         // Open interface with varbits - CS2 onload handles the rest.
-        services.openSubInterface?.(player, mainmodalUid, LEAGUE_AREAS_GROUP_ID, 0, {
+        services.dialog.openSubInterface(player, mainmodalUid, LEAGUE_AREAS_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(player),
             varbits: getLeagueVarbits(player),
         });
 
         // Clear Areas button highlight and add Karamja shield highlight
         if (needsKaramjaHighlight) {
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_AREAS_BUTTON],
             });
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT,
                 args: [
@@ -1651,27 +1651,27 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             });
         }
         if (needsAreasCloseHighlight) {
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_AREAS_BUTTON],
             });
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_KARAMJA_SHIELD],
             });
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_UNLOCK_BUTTON],
             });
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_RELICS_BUTTON],
             });
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT,
                 args: [
@@ -1690,7 +1690,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const mainmodalUid = getMainmodalUid(event.player.displayMode);
         console.log(`[league] L5 Show Summary clicked`);
         ensureLeagueBasicsInitialized(event.player, services);
-        services.openSubInterface?.(event.player, mainmodalUid, LEAGUE_SUMMARY_GROUP_ID, 0, {
+        services.dialog.openSubInterface(event.player, mainmodalUid, LEAGUE_SUMMARY_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(event.player),
             varbits: getLeagueVarbits(event.player),
         });
@@ -1700,7 +1700,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const mainmodalUid = getMainmodalUid(event.player.displayMode);
         console.log(`[league] L5 Show Ranks clicked`);
         ensureLeagueBasicsInitialized(event.player, services);
-        services.openSubInterface?.(event.player, mainmodalUid, LEAGUE_RANK_GROUP_ID, 0, {
+        services.dialog.openSubInterface(event.player, mainmodalUid, LEAGUE_RANK_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(event.player),
             varbits: getLeagueVarbits(event.player),
         });
@@ -1730,7 +1730,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             }
 
             player.varps.setVarbitValue(VARBIT_LEAGUE_AREA_LAST_VIEWED, area.regionId);
-            services.queueVarbit?.(player.id, VARBIT_LEAGUE_AREA_LAST_VIEWED, area.regionId);
+            services.variables.queueVarbit?.(player.id, VARBIT_LEAGUE_AREA_LAST_VIEWED, area.regionId);
 
             const buttonState = getLeagueAreaButtonState(player, services, area.regionId);
 
@@ -1750,7 +1750,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             // Trigger the detailed view (the click script only shows the loading overlay).
             // This script also calls script7630 which reads %league_area_last_viewed.
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_LEAGUE_AREAS_SHOW_DETAILED,
                 // Args are (int0, component1..component10, int11..int13, component14, int15..int16, component17..component21, int22)
@@ -1803,12 +1803,12 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 buttonState === 2
             ) {
                 // Clear Karamja shield highlight, show unlock button highlight
-                services.queueWidgetEvent?.(player.id, {
+                services.dialog.queueWidgetEvent(player.id, {
                     action: "run_script",
                     scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                     args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_KARAMJA_SHIELD],
                 });
-                services.queueWidgetEvent?.(player.id, {
+                services.dialog.queueWidgetEvent(player.id, {
                     action: "run_script",
                     scriptId: SCRIPT_UI_HIGHLIGHT,
                     args: [
@@ -1857,9 +1857,9 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 return;
             }
             const { x, y, level } = decodeCoord(coord);
-            const requestTeleportAction = services.requestTeleportAction;
+            const requestTeleportAction = services.movement.requestTeleportAction;
             if (!requestTeleportAction) {
-                services.logger?.warn?.(
+                services.system.logger.warn?.(
                     "[script:league] requestTeleportAction service unavailable; area teleport skipped",
                 );
                 return;
@@ -1876,7 +1876,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             });
             if (!teleportResult.ok) {
                 if (teleportResult.reason === "cooldown") {
-                    services.sendGameMessage(player, "You're already teleporting.");
+                    services.messaging.sendGameMessage(player, "You're already teleporting.");
                 }
                 return;
             }
@@ -1911,7 +1911,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // (The confirm overlay is made visible by the local onOp handler: [clientscript,league_area_confirm] 3674.)
         const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 7 && currentRegion === 2 && state === 2) {
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT,
                 args: [
@@ -1949,7 +1949,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             console.log(`[league] Area unlocked: regionId=${currentRegion}`);
 
             // Play area unlock sound
-            services.sendSound?.(player, SYNTH_TRAILBLAZER_UNLOCK_TWUNKLES);
+            services.sound.sendSound(player, SYNTH_TRAILBLAZER_UNLOCK_TWUNKLES);
 
             refreshLeagueSidePanelProgress(player, services);
 
@@ -1959,27 +1959,27 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             if (currentRegion === 2 && tutorial === 7) {
                 player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 9);
                 syncLeagueGeneralVarpAndQueue(player, services);
-                services.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 9);
+                services.variables.queueVarbit?.(player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 9);
 
                 // Clear previous highlights
-                services.queueWidgetEvent?.(player.id, {
+                services.dialog.queueWidgetEvent(player.id, {
                     action: "run_script",
                     scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                     args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_KARAMJA_SHIELD],
                 });
-                services.queueWidgetEvent?.(player.id, {
+                services.dialog.queueWidgetEvent(player.id, {
                     action: "run_script",
                     scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                     args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_UNLOCK_BUTTON],
                 });
-                services.queueWidgetEvent?.(player.id, {
+                services.dialog.queueWidgetEvent(player.id, {
                     action: "run_script",
                     scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                     args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_RELICS_BUTTON],
                 });
 
                 // Guide the player to close the Areas interface first.
-                services.queueWidgetEvent?.(player.id, {
+                services.dialog.queueWidgetEvent(player.id, {
                     action: "run_script",
                     scriptId: SCRIPT_UI_HIGHLIGHT,
                     args: [
@@ -1995,7 +1995,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             // Hide the confirm overlay after a successful unlock.
             // Client script 3680 does: if_sethide(true, confirm_layer)
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: 3680, // [clientscript,league_area_confirm_back]
                 args: [uidForTrailblazerAreas(COMP_AREAS_CONFIRM_LAYER)],
@@ -2005,7 +2005,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             // Refresh the detailed view so the Select button updates to Teleport immediately.
             const buttonState = getLeagueAreaButtonState(player, services, currentRegion);
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_LEAGUE_AREAS_SHOW_DETAILED,
                 args: [
@@ -2051,12 +2051,12 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
         if (tutorial === 7 && currentRegion === 2 && !isLeagueAreaUnlocked(player, 2)) {
             // Re-target tutorial guidance back to Unlock once confirm overlay is dismissed.
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_KARAMJA_SHIELD],
             });
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT,
                 args: [
@@ -2080,12 +2080,12 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // CS2 onop handler manages the UI transition.
         // Re-target tutorial guidance to Karamja while player is back on the map view.
         if (tutorial === 7 && !isLeagueAreaUnlocked(player, 2)) {
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_UNLOCK_BUTTON],
             });
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT,
                 args: [
@@ -2114,7 +2114,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         const mainmodalUid = getMainmodalUid(player.displayMode);
-        services.closeSubInterface?.(player, mainmodalUid, LEAGUE_AREAS_GROUP_ID);
+        services.dialog.closeSubInterface(player, mainmodalUid, LEAGUE_AREAS_GROUP_ID);
     });
 
     // ========== League Relics (655) ==========
@@ -2149,7 +2149,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         if (tutorial === 9) {
             // Clear highlights for all tier 0 relics (typically 3)
             for (let i = 0; i < 10; i++) {
-                services.queueWidgetEvent?.(player.id, {
+                services.dialog.queueWidgetEvent(player.id, {
                     action: "run_script",
                     scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                     args: [
@@ -2217,7 +2217,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
         // league_relic_expanded_view (3193) expects concrete components (not the dynamic clickzone entries)
         // plus availability + (relic struct, tier passive struct).
-        services.queueWidgetEvent?.(player.id, {
+        services.dialog.queueWidgetEvent(player.id, {
             action: "run_script",
             scriptId: SCRIPT_LEAGUE_RELIC_EXPANDED_VIEW,
             args: [
@@ -2266,7 +2266,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // but if the click is transmitted to the server (non-parity client paths), still close
         // the correct sub-interface rather than closing whatever mainmodal is active.
         const mainmodalUid = getMainmodalUid(player.displayMode);
-        services.closeSubInterface?.(player, mainmodalUid, LEAGUE_RELICS_GROUP_ID);
+        services.dialog.closeSubInterface(player, mainmodalUid, LEAGUE_RELICS_GROUP_ID);
     });
 
     registry.onButton(LEAGUE_RELICS_GROUP_ID, L5_RELIC_CANCEL_BUTTON_CHILD, (event) => {
@@ -2334,10 +2334,10 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 | number
                 | undefined;
             if (rewardObjId !== undefined && rewardObjId > 0) {
-                const res = services.addItemToInventory(player, rewardObjId, 1);
+                const res = services.inventory.addItemToInventory(player, rewardObjId, 1);
                 // Don't block relic selection if inventory is full - player can reclaim from Sage
                 if (res.added >= 1) {
-                    services.snapshotInventory(player);
+                    services.inventory.snapshotInventory(player);
                 }
             }
 
@@ -2346,7 +2346,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             queueLeaguePackedVarpUpdates(services, player.id, packedVarpUpdates);
 
             // Send varbit immediately so client has the new state before running scripts
-            services.sendVarbit?.(player, tierVarbitId, pending.relicKey);
+            services.variables.sendVarbit?.(player, tierVarbitId, pending.relicKey);
 
             console.log(
                 `[league] Relic unlocked! tier=${pending.tierIndex} key=${pending.relicKey} varbit=${tierVarbitId}`,
@@ -2357,7 +2357,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         // Play relic unlock sound
-        services.sendSound?.(player, SYNTH_RELIC_UNLOCK_PULSING);
+        services.sound.sendSound(player, SYNTH_RELIC_UNLOCK_PULSING);
 
         const updatedVarps = getLeagueVarpsForPlayer(player);
         const updatedVarbits = getLeagueVarbits(player);
@@ -2366,14 +2366,14 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             ((LEAGUE_RELICS_GROUP_ID & 0xffff) << 16) | (childId & 0xffff);
 
         // Hide the confirm overlay immediately (Confirm button only plays sound client-side).
-        services.queueWidgetEvent?.(player.id, {
+        services.dialog.queueWidgetEvent(player.id, {
             action: "set_hidden",
             uid: uidForRelics(12), // confirm overlay container
             hidden: true,
         });
 
         // Script 3196 = league_relic_back - closes expanded view and returns to list
-        services.queueWidgetEvent?.(player.id, {
+        services.dialog.queueWidgetEvent(player.id, {
             action: "run_script",
             scriptId: 3196, // league_relic_back
             args: [
@@ -2391,7 +2391,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // league_relics_init sets an onResize handler on league_relics:infinity that calls
         // league_relics_draw_selections with captured args. Calling script6110(infinity, -1) forces
         // proc2459 to call if_callonresize (since -1 != computed size bucket), which triggers that redraw.
-        services.queueWidgetEvent?.(player.id, {
+        services.dialog.queueWidgetEvent(player.id, {
             action: "run_script",
             scriptId: 6110, // script6110(component, int) -> proc2459 -> if_callonresize
             args: [
@@ -2405,7 +2405,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // Tutorial: show close button highlight after unlocking a relic
         const tutorial = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 9) {
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT,
                 args: [
@@ -2540,7 +2540,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // 16: passive description text (51)
         // 17: mastery struct ID
         // 18: passive struct ID
-        services.queueWidgetEvent?.(player.id, {
+        services.dialog.queueWidgetEvent(player.id, {
             action: "run_script",
             scriptId: SCRIPT_LEAGUE_MASTERY_EXPANDED_VIEW,
             args: [
@@ -2590,7 +2590,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             const player = event.player;
             clearPendingMasterySelection(player);
             const mainmodalUid = getMainmodalUid(player.displayMode);
-            services.closeSubInterface?.(player, mainmodalUid, LEAGUE_COMBAT_MASTERY_GROUP_ID);
+            services.dialog.closeSubInterface(player, mainmodalUid, LEAGUE_COMBAT_MASTERY_GROUP_ID);
         },
     );
 
@@ -2661,8 +2661,8 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             queueLeaguePackedVarpUpdates(services, player.id, packedVarpUpdates);
 
             // Sync to client
-            services.queueVarbit?.(player.id, masteryVarbitId, newLevel);
-            services.queueVarbit?.(
+            services.variables.queueVarbit?.(player.id, masteryVarbitId, newLevel);
+            services.variables.queueVarbit?.(
                 player.id,
                 VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND,
                 pointsToSpend - 1,
@@ -2679,7 +2679,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             // CCs and recreates them based on current varbits.
             // Args: (int $tab, int $flag) — matching cc_setonop("script7673(0, 1)")
             // from league_combat_mastery_tabs_draw.
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: 7673,
                 args: [
@@ -2716,7 +2716,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 ((LEAGUE_COMBAT_MASTERY_GROUP_ID & 0xffff) << 16) | (childId & 0xffff);
 
             // Hide the confirm overlay
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "set_hidden",
                 uid: uidForMastery(13), // confirm overlay container
                 hidden: true,
@@ -2791,8 +2791,8 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             queueLeaguePackedVarpUpdates(services, player.id, packedVarpUpdates);
 
             // Sync to client
-            services.queueVarbit?.(player.id, masteryVarbitId, newLevel);
-            services.queueVarbit?.(
+            services.variables.queueVarbit?.(player.id, masteryVarbitId, newLevel);
+            services.variables.queueVarbit?.(
                 player.id,
                 VARBIT_LEAGUE_MASTERY_POINTS_TO_SPEND,
                 pointsToSpend - 1,
@@ -2808,7 +2808,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 ((LEAGUE_COMBAT_MASTERY_GROUP_ID & 0xffff) << 16) | (childId & 0xffff);
 
             // Hide the confirm overlay
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "set_hidden",
                 uid: uidForMastery(13), // confirm overlay container
                 hidden: true,
@@ -2819,7 +2819,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             // CCs and recreates them based on current varbits.
             // This also hides the confirm overlay via draw_content's
             // if_sethide(true, $confirm).
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: 7673,
                 args: [
@@ -2849,7 +2849,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
     registry.onButton(LEAGUE_SIDE_PANEL_L3_GROUP_ID, L3_COMP_VIEW_INFO, (event) => {
         const mainmodalUid = getMainmodalUid(event.player.displayMode);
         ensureLeagueBasicsInitialized(event.player, services);
-        services.openSubInterface?.(event.player, mainmodalUid, LEAGUE_INFO_GROUP_ID, 0, {
+        services.dialog.openSubInterface(event.player, mainmodalUid, LEAGUE_INFO_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(event.player),
             varbits: getLeagueVarbits(event.player),
         });
@@ -2864,7 +2864,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         // Close the tutorial modal while Tasks is open during tutorial step 5
         // It will reopen when Tasks closes (via onInterfaceClose hook)
         if (tutorial === 5) {
-            services.closeSubInterface?.(
+            services.dialog.closeSubInterface(
                 player,
                 getViewportTrackerFrontUid(player.displayMode),
                 LEAGUE_TUTORIAL_MAIN_GROUP_ID,
@@ -2872,21 +2872,21 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         // Open the tasks interface
-        services.openSubInterface?.(player, mainmodalUid, LEAGUE_TASKS_GROUP_ID, 0, {
+        services.dialog.openSubInterface(player, mainmodalUid, LEAGUE_TASKS_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(player),
             varbits: getLeagueVarbits(player),
         });
 
         // Clear Tasks button highlight and add close button highlight (progression happens on close via onInterfaceClose hook)
         if (tutorial === 5) {
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_TASKS_BUTTON],
             });
             const tasksCloseButtonUid =
                 ((LEAGUE_TASKS_GROUP_ID & 0xffff) << 16) | (COMP_TASKS_CLOSE_BUTTON & 0xffff);
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT,
                 args: [
@@ -2907,7 +2907,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const tutorial = event.player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 10) {
             // L3 tutorial: Fragments -> Finishing (completeStep-1)
-            services.queueWidgetEvent?.(event.player.id, {
+            services.dialog.queueWidgetEvent(event.player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_RELICS_BUTTON],
@@ -2916,13 +2916,13 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             const finishingStep = Math.max(0, getLeagueTutorialCompleteStep(event.player) - 1);
             event.player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, finishingStep);
             syncLeagueGeneralVarpAndQueue(event.player, services);
-            services.queueVarbit?.(
+            services.variables.queueVarbit?.(
                 event.player.id,
                 VARBIT_LEAGUE_TUTORIAL_COMPLETED,
                 finishingStep,
             );
         }
-        services.openSubInterface?.(
+        services.dialog.openSubInterface(
             event.player,
             mainmodalUid,
             LEAGUE_3_FRAGMENTS_GROUP_ID,
@@ -2940,7 +2940,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         const tutorial = event.player.varps.getVarbitValue?.(VARBIT_LEAGUE_TUTORIAL_COMPLETED) ?? 0;
         if (tutorial === 8) {
             // L3 tutorial: Unlocks -> Fragments
-            services.queueWidgetEvent?.(event.player.id, {
+            services.dialog.queueWidgetEvent(event.player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_UNLOCK_BUTTON],
@@ -2948,12 +2948,12 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             event.player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, 10);
             syncLeagueGeneralVarpAndQueue(event.player, services);
-            services.queueVarbit?.(event.player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 10);
+            services.variables.queueVarbit?.(event.player.id, VARBIT_LEAGUE_TUTORIAL_COMPLETED, 10);
 
             const fragmentsUid =
                 ((LEAGUE_SIDE_PANEL_L3_GROUP_ID & 0xffff) << 16) |
                 (L3_COMP_VIEW_FRAGMENTS & 0xffff);
-            services.queueWidgetEvent?.(event.player.id, {
+            services.dialog.queueWidgetEvent(event.player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT,
                 args: [
@@ -2966,7 +2966,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 ],
             });
         }
-        services.openSubInterface?.(event.player, mainmodalUid, LEAGUE_UNLOCKS_GROUP_ID, 0, {
+        services.dialog.openSubInterface(event.player, mainmodalUid, LEAGUE_UNLOCKS_GROUP_ID, 0, {
             varps: getLeagueVarpsForPlayer(event.player),
             varbits: getLeagueVarbits(event.player),
         });
@@ -2984,7 +2984,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
         // Close the interface
         const mainmodalUid = getMainmodalUid(player.displayMode);
-        services.closeSubInterface?.(player, mainmodalUid, LEAGUE_TASKS_GROUP_ID);
+        services.dialog.closeSubInterface(player, mainmodalUid, LEAGUE_TASKS_GROUP_ID);
     });
 
     registry.onButton(LEAGUE_TASKS_GROUP_ID, COMP_VIEW_RELICS, (event) => {
@@ -3005,7 +3005,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
                 : 0;
 
         if (tutorial === 9) {
-            services.queueWidgetEvent?.(player.id, {
+            services.dialog.queueWidgetEvent(player.id, {
                 action: "run_script",
                 scriptId: SCRIPT_UI_HIGHLIGHT_CLEAR,
                 args: [UI_HIGHLIGHT_KIND_LEAGUE_TUTORIAL, UI_HIGHLIGHT_ID_RELICS_BUTTON],
@@ -3013,7 +3013,7 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
         }
 
         // Open the interface
-        services.openSubInterface?.(player, mainmodalUid, groupId, 0, {
+        services.dialog.openSubInterface(player, mainmodalUid, groupId, 0, {
             varps: getLeagueVarpsForPlayer(player),
             varbits: getLeagueVarbits(player),
         });

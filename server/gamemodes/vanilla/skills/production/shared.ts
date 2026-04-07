@@ -63,11 +63,11 @@ export const hasItem = (entries: InventoryEntry[], itemId: number, quantity: num
 };
 
 export const getInventory = (services: ScriptServices, player: PlayerState): InventoryEntry[] =>
-    services.getInventoryItems(player);
+    services.inventory.getInventoryItems(player);
 
 export const resolveCookingHeatSource = (services: ScriptServices, locId?: number): CookingHeatSource => {
     if (locId === undefined || !(locId > 0)) return "range";
-    const definition = services.getLocDefinition?.(locId);
+    const definition = services.data.getLocDefinition(locId);
     const supportItems = definition?.supportItems ?? 1;
     const name = definition?.name?.toLowerCase() ?? "";
     if (supportItems <= 0 || name === "fire") return "fire";
