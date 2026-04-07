@@ -2,8 +2,7 @@ import {
     VARBIT_SKILL_GUIDE_SKILL,
     VARBIT_SKILL_GUIDE_SUBSECTION,
 } from "../../../../src/shared/vars";
-import { BaseComponentUids } from "../../../src/widgets/viewport/ViewportEnumService";
-import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices, BaseComponentUids } from "../../../src/game/scripts/types";
 
 /**
  * Skill guide widget handlers - opens skill guide overlay when skill tab is clicked.

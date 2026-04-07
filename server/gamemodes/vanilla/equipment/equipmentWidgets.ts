@@ -1,4 +1,3 @@
-import { getMainmodalUid, getSidemodalUid } from "../../../src/widgets/viewport";
 import type { IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
 import type { PlayerState } from "../../../src/game/player";
 
@@ -106,7 +105,7 @@ function openEquipmentStats(player: PlayerState, services: ScriptServices): void
     services.queueVarbit?.(playerId, VARBIT_EQUIPMENT_STATS_OPEN, 1);
 
     // 2. Open equipment stats (84) in mainmodal
-    const mainmodalUid = getMainmodalUid(displayMode);
+    const mainmodalUid = services.getMainmodalUid!(displayMode);
     services.queueWidgetEvent?.(playerId, {
         action: "open_sub",
         targetUid: mainmodalUid,
@@ -115,7 +114,7 @@ function openEquipmentStats(player: PlayerState, services: ScriptServices): void
     });
 
     // 3. Open equipment inventory (85) in sidemodal
-    const sidemodalUid = getSidemodalUid(displayMode);
+    const sidemodalUid = services.getSidemodalUid!(displayMode);
     services.queueWidgetEvent?.(playerId, {
         action: "open_sub",
         targetUid: sidemodalUid,

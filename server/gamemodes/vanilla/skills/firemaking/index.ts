@@ -11,7 +11,7 @@ import {
     getFiremakingLogDefinition,
 } from "./firemakingData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../../src/game/scripts/types";
-import { ResourceNodeTracker, buildTileKey } from "../../../../src/game/systems/ResourceNodeTracker";
+import { ResourceNodeTracker, buildTileKey } from "../../systems/ResourceNodeTracker";
 
 const FIRE_LIT_SYNTH_SOUND = 2596;
 

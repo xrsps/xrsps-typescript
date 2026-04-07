@@ -9,7 +9,7 @@ import {
     selectHatchetByLevel,
 } from "./woodcuttingData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../../src/game/scripts/types";
-import { ResourceNodeTracker, buildTileKey } from "../../../../src/game/systems/ResourceNodeTracker";
+import { ResourceNodeTracker, buildTileKey } from "../../systems/ResourceNodeTracker";
 
 const WOODCUT_ACTIONS = ["chop down", "chop-down"];
 const WOODCUTTING_DEPLETE_SOUND = 2734;

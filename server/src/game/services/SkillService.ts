@@ -3,7 +3,7 @@ import type { WebSocket } from "ws";
 import { logger } from "../../utils/logger";
 import type { SkillId } from "../../../../src/rs/skill/skills";
 import type { GameEventBus } from "../events/GameEventBus";
-import { getSpellBaseXp } from "../combat/SpellXpData";
+import { getSpellBaseXp } from "../combat/SpellXpProvider";
 import {
     type AttackType as CombatXpAttackType,
     type StyleMode,

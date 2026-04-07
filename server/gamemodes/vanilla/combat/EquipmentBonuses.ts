@@ -8,8 +8,8 @@
  * - Passive effects
  */
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
-import type { AttackType } from "../../../src/game/combat/AttackType";
 import type {
+    AttackType,
     EquipmentBonusProvider,
     EquipmentBonusResult,
     SlayerTaskInfo,

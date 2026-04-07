@@ -10,7 +10,7 @@ import { PathService } from "../pathfinding/PathService";
 import { CollisionFlag } from "../pathfinding/legacy/pathfinder/flag/CollisionFlag";
 import { logger } from "../utils/logger";
 import { MapCollisionService } from "../world/MapCollisionService";
-import { BossScript, createBossScript } from "./combat/BossCombatScript";
+import { BossScript, createBossScript } from "./combat/BossScriptFramework";
 import { canNpcAttackPlayerFromCurrentPosition } from "./combat/CombatAction";
 import { resolveNpcAttackRange, resolveNpcAttackType } from "./combat/CombatRules";
 import { StatusHitsplat } from "./combat/HitEffects";

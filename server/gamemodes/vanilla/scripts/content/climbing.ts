@@ -1,8 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-import { CollisionFlag } from "../../../../src/pathfinding/legacy/pathfinder/flag/CollisionFlag";
-import type { PathService } from "../../../../src/pathfinding/PathService";
+import { CollisionFlag } from "../../../../../src/shared/CollisionFlag";
 import { type IScriptRegistry, type ScriptServices, type LocInteractionEvent } from "../../../../src/game/scripts/types";
 
 // ---------------------------------------------------------------------------
@@ -21,6 +20,10 @@ import { type IScriptRegistry, type ScriptServices, type LocInteractionEvent } f
 //   3. Generic defaults    – registerLocAction("climb-up" | "climb-down" | ...)
 //      Handles simple stairs/ladders: same tile, plane +/- 1.
 // ---------------------------------------------------------------------------
+
+interface CollisionChecker {
+    getCollisionFlagAt(x: number, y: number, plane: number): number | undefined;
+}
 
 // -- Animations (from animation_names.txt) -----------------------------------
 const LADDER_CLIMB_UP_ANIM = 828; // human_reachforladder
@@ -98,7 +101,7 @@ class IntermapLinkIndex {
      * Resolve all destination tiles to walkable adjacent tiles using collision data.
      * Called once on first interaction when PathService is available.
      */
-    resolveWalkableDestinations(pathService: PathService): void {
+    resolveWalkableDestinations(pathService: CollisionChecker): void {
         if (this.resolved) return;
         this.resolved = true;
 

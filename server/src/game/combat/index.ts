@@ -206,17 +206,6 @@ export {
     calculateXpShare,
 } from "./DamageTracker";
 
-// Boss combat scripts
-export {
-    BossScript,
-    createBossScript,
-    registerBossScript,
-    getBossScript,
-    type BossPhase,
-    type BossSpecialAttack,
-    type BossMechanic,
-} from "./BossCombatScript";
-
 // NPC Combat AI
 export { NpcCombatAI, npcCombatAI, type AggroTarget } from "./NpcCombatAI";
 

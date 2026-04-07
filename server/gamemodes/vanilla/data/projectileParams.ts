@@ -1,12 +1,10 @@
 import {
     PROJECTILE_ARCHETYPES,
     type ProjectileArchetypeName,
-} from "../../../src/game/projectiles/ProjectileType";
-import type {
-    ProjectileAliasTarget,
-    ProjectileParams,
-    ProjectileParamsProvider,
-    ProjectileTarget,
+    type ProjectileAliasTarget,
+    type ProjectileParams,
+    type ProjectileParamsProvider,
+    type ProjectileTarget,
 } from "../../../src/game/data/ProjectileParamsProvider";
 
 const DEFAULT_PROJECTILE_PARAMS: ProjectileParams = {

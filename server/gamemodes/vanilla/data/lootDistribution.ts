@@ -1,4 +1,4 @@
-import type { NpcLootConfig } from "../../../src/game/combat/DamageTracker";
+import type { NpcLootConfig } from "../../../src/game/scripts/types";
 
 export const NPC_LOOT_CONFIGS: Map<number, NpcLootConfig> = new Map([
     // Raids bosses - shared loot based on participation

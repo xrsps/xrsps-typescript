@@ -1,8 +1,3 @@
-import {
-    FOLLOWER_ITEM_DEFINITIONS,
-    getFollowerDefinitionByItemId,
-    getFollowerDefinitionByNpcTypeId,
-} from "../../../../src/game/followers/followerDefinitions";
 import { type IScriptRegistry, type ScriptServices } from "../../../../src/game/scripts/types";
 
 function mapFollowerFailure(reason: string): string {
@@ -17,7 +12,8 @@ function mapFollowerFailure(reason: string): string {
 }
 
 export function registerFollowerItemHandlers(registry: IScriptRegistry, services: ScriptServices): void {
-    for (const definition of FOLLOWER_ITEM_DEFINITIONS) {
+    const followerDefs = services.followers?.getItemDefinitions() ?? [];
+    for (const definition of followerDefs) {
         registry.registerItemAction(
             definition.itemId,
             ({ player, source, services: svc }) => {
@@ -96,9 +92,9 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
         );
     }
 
-    const primaryNpcTypeIds = new Set(FOLLOWER_ITEM_DEFINITIONS.map((d) => d.npcTypeId));
+    const primaryNpcTypeIds = new Set(followerDefs.map((d) => d.npcTypeId));
     const variantNpcTypeIds = new Set<number>();
-    for (const definition of FOLLOWER_ITEM_DEFINITIONS) {
+    for (const definition of followerDefs) {
         for (const variant of definition.variants ?? []) {
             if (!primaryNpcTypeIds.has(variant.npcTypeId)) {
                 variantNpcTypeIds.add(variant.npcTypeId);
@@ -157,8 +153,8 @@ export function registerFollowerItemHandlers(registry: IScriptRegistry, services
                 }
 
                 const definition =
-                    getFollowerDefinitionByItemId(follower.itemId) ??
-                    getFollowerDefinitionByNpcTypeId(npc.typeId);
+                    svc.followers?.getDefinitionByItemId(follower.itemId) ??
+                    svc.followers?.getDefinitionByNpcTypeId(npc.typeId);
                 if (!definition) {
                     return;
                 }

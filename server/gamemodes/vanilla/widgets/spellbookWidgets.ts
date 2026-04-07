@@ -2,7 +2,6 @@ import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import { SkillId } from "../../../../src/rs/skill/skills";
 import { VARP_LAST_HOME_TELEPORT } from "../../../../src/shared/vars";
 import { RUNE_IDS } from "../../../src/game/data/RuneDataProvider";
-import { getSpellWidgetId } from "../../../src/data/spellWidgetLoader";
 import {
     canWeaponAutocastSpell,
     getAutocastCompatibilityMessage,
@@ -10,19 +9,22 @@ import {
     getSpellDataByWidget,
     isSpellAutocastable,
 } from "../../../src/game/spells/SpellDataProvider";
-import { type TeleportSpellData, getTeleportByWidgetId } from "../../../src/data/teleportDestinations";
-import { getMainmodalUid } from "../../../src/widgets/viewport";
-import type { SkillBoltEnchantActionData as BoltEnchantActionData } from "../../../src/game/actions/skillActionPayloads";
-import { applyAutocastState } from "../../../src/game/combat/AutocastState";
-import { WaitCondition } from "../../../src/game/model/queue/QueueTask";
-import { HOME_TELEPORT_TIMER } from "../../../src/game/model/timer/Timers";
-import { type PlayerState } from "../../../src/game/player";
+import type { PlayerState } from "../../../src/game/player";
 import {
-    type InventoryItem,
+    type TeleportSpellData,
+    type SkillBoltEnchantActionData as BoltEnchantActionData,
+    type RuneInventoryItem as InventoryItem,
     type RuneValidationResult,
+    type IScriptRegistry,
+    type ScriptServices,
+    type WidgetActionEvent,
+    getTeleportByWidgetId,
+    getSpellWidgetId,
+    applyAutocastState,
+    WaitCondition,
+    HOME_TELEPORT_TIMER,
     RuneValidator,
-} from "../../../src/game/spells/RuneValidator";
-import { type IScriptRegistry, type ScriptServices, type WidgetActionEvent } from "../../../src/game/scripts/types";
+} from "../../../src/game/scripts/types";
 
 const SPELLBOOK_GROUP_ID = 218;
 const BOLT_ENCHANT_CHATBOX_GROUP_ID = 270;
@@ -701,7 +703,7 @@ function clearBoltEnchantUiSession(
 }
 
 function openMinigameTeleportInterface(player: PlayerState, services: ScriptServices): void {
-    const mainmodalUid = getMainmodalUid(player.displayMode);
+    const mainmodalUid = services.getMainmodalUid!(player.displayMode ?? 1);
 
     player.varps.setVarbitValue(MINIGAME_TELEPORT_OPEN_VARBIT_ID, 1);
 

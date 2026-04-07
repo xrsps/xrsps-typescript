@@ -1,6 +1,5 @@
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
-import { getEmoteSeq } from "../../../src/game/emotes";
-import { getSkillcapeSeqId, getSkillcapeSpotId } from "../../../src/game/equipment";
+import { getEmoteSeq, getSkillcapeSeqId, getSkillcapeSpotId } from "../../../src/game/scripts/types";
 import { type IScriptRegistry, type ScriptServices, type WidgetActionEvent } from "../../../src/game/scripts/types";
 
 /**

@@ -10,10 +10,9 @@ import {
     VARP_LEAGUE_GENERAL,
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../../src/shared/vars";
-import { getViewportTrackerFrontUid } from "../../../src/widgets/viewport";
 import { LeagueTaskService } from "../LeagueTaskService";
 import { syncLeagueGeneralVarp } from "../leagueGeneral";
-import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices, getViewportTrackerFrontUid } from "../../../src/game/scripts/types";
 import type { PlayerState } from "../../../src/game/player";
 
 // Interface/group IDs

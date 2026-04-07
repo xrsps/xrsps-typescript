@@ -13,7 +13,7 @@ import {
     WidgetGroup,
     slotToTabIndex,
 } from "./bankConstants";
-import { getItemDefinition } from "../../../src/data/items";
+import { getItemDefinition } from "../../../src/game/scripts/types";
 import { BANK_INTERFACE_ID, type BankOpenData } from "./BankInterfaceHooks";
 import type { BankingProvider, BankingProviderServices, BankOperationResult, BankServerUpdate } from "./BankingProvider";
 import {

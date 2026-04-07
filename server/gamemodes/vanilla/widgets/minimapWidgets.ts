@@ -1,6 +1,5 @@
 import { VARBIT_XPDROPS_ENABLED } from "../../../../src/shared/vars";
-import { DisplayMode, getMainmodalUid } from "../../../src/widgets/viewport";
-import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices, DisplayMode } from "../../../src/game/scripts/types";
 
 function getXpCounterMountUid(displayMode: number): number {
     // DisplayMode enum:
@@ -85,7 +84,7 @@ export function registerMinimapWidgetHandlers(registry: IScriptRegistry, service
             }
             lastSetupTickByPlayerId.set(pid, currentTick);
 
-            const mainmodalUid = getMainmodalUid(player.displayMode as DisplayMode);
+            const mainmodalUid = services.getMainmodalUid!(player.displayMode ?? 1);
             services.openSubInterface?.(player, mainmodalUid, XP_DROPS_SETUP_GROUP_ID, 0);
 
             services.logger?.info?.(

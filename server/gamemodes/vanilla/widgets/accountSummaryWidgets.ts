@@ -6,8 +6,7 @@ import {
     buildAccountSummarySetTimeScriptArgs,
 } from "../../../../src/shared/ui/accountSummary";
 import { VARBIT_ACCOUNT_SUMMARY_DISPLAY_PLAYTIME } from "../../../../src/shared/vars";
-import { getAccountSummaryTimeMinutes } from "../../../src/game/accountSummaryTime";
-import { type IScriptRegistry, type ScriptServices, type WidgetActionEvent } from "../../../src/game/scripts/types";
+import { getAccountSummaryTimeMinutes, type IScriptRegistry, type ScriptServices, type WidgetActionEvent } from "../../../src/game/scripts/types";
 
 function resolveAccountSummaryEntryIndex(event: WidgetActionEvent): number {
     const slotVal = event.slot ?? -1;

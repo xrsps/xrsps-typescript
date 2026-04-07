@@ -1,5 +1,5 @@
 import { SkillId } from "../../../../../src/rs/skill/skills";
-import type { SmithingOptionMessage, SmithingServerPayload } from "../../../../src/network/messages";
+import type { SmithingOptionMessage, SmithingServerPayload } from "../../../../src/game/scripts/types";
 import type { PlayerState } from "../../../../src/game/player";
 import type { ScriptServices } from "../../../../src/game/scripts/types";
 import {

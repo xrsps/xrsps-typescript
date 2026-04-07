@@ -1,4 +1,5 @@
 import type { AttackType } from "./AttackType";
+export type { AttackType } from "./AttackType";
 
 // =============================================================================
 // Types

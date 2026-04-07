@@ -1,5 +1,5 @@
 import { SkillId } from "../../../../src/rs/skill/skills";
-import type { PlayerState } from "../player";
+import type { PlayerState } from "../../../src/game/player";
 
 export const ROCK_KNOCKER_SOUND_ID = 2530; // dragon_axe_thunder
 export const ROCK_KNOCKER_MINING_BOOST = 3;

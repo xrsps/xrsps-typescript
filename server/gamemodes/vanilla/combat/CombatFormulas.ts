@@ -1,5 +1,5 @@
-import type { AttackType } from "../../../src/game/combat/AttackType";
 import type {
+    AttackType,
     AttackerStats,
     CombatFormulaProvider,
     DefenderStats,

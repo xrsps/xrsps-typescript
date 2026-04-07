@@ -236,6 +236,51 @@ export class VanillaGamemode implements GamemodeDefinition {
         const ss = context.serverServices;
         this.serverServices = ss;
 
+        // === Spell XP Data ===
+        const { SPELL_BASE_XP } = require("./combat/SpellXpData") as typeof import("./combat/SpellXpData");
+        const { registerSpellXpProvider } = require("../../src/game/combat/SpellXpProvider") as typeof import("../../src/game/combat/SpellXpProvider");
+        registerSpellXpProvider({ getSpellBaseXp: (spellId) => SPELL_BASE_XP[spellId] ?? 0 });
+
+        // === Special Attack Visuals ===
+        const { pickSpecialAttackVisualOverride } = require("./combat/SpecialAttackVisuals") as typeof import("./combat/SpecialAttackVisuals");
+        const { registerSpecialAttackVisualProvider } = require("../../src/game/combat/SpecialAttackVisualProvider") as typeof import("../../src/game/combat/SpecialAttackVisualProvider");
+        registerSpecialAttackVisualProvider({ pickSpecialAttackVisualOverride });
+
+        // === Instant Utility Specials (Rock Knocker, Fishstabber, Lumber Up) ===
+        const {
+            getRockKnockerSpecialSequence,
+            getFishstabberSpecialSequence,
+            getLumberUpSpecialSequence,
+            ROCK_KNOCKER_SOUND_ID,
+            applyRockKnockerMiningBoost,
+            applyFishstabberFishingBoost,
+            applyLumberUpWoodcuttingBoost,
+            markInstantUtilitySpecialHandledAtTick: markHandled,
+            wasInstantUtilitySpecialHandledAtTick: wasHandled,
+        } = require("./combat/RockKnockerSpecial") as typeof import("./combat/RockKnockerSpecial");
+        const { registerInstantUtilitySpecialProvider } = require("../../src/game/combat/InstantUtilitySpecialProvider") as typeof import("../../src/game/combat/InstantUtilitySpecialProvider");
+        registerInstantUtilitySpecialProvider({
+            getInstantUtilitySpecial(weaponId) {
+                const rkSeq = getRockKnockerSpecialSequence(weaponId);
+                if (rkSeq !== undefined) return { kind: "rock_knocker", seqId: rkSeq, soundId: ROCK_KNOCKER_SOUND_ID };
+                const fsSeq = getFishstabberSpecialSequence(weaponId);
+                if (fsSeq !== undefined) return { kind: "fishstabber", seqId: fsSeq };
+                const luSeq = getLumberUpSpecialSequence(weaponId);
+                if (luSeq !== undefined) return { kind: "lumber_up", seqId: luSeq };
+                return undefined;
+            },
+            applySpecialBoost(player, kind) {
+                if (kind === "rock_knocker") applyRockKnockerMiningBoost(player);
+                else if (kind === "fishstabber") applyFishstabberFishingBoost(player);
+                else applyLumberUpWoodcuttingBoost(player);
+            },
+            markHandledAtTick: markHandled,
+            wasHandledAtTick: wasHandled,
+        });
+
+        // === Boss Scripts ===
+        require("./combat/BossCombatScript");
+
         // === Weapon Data ===
         const { createWeaponDataProvider } = require("./data/weapons") as typeof import("./data/weapons");
         const { registerWeaponDataProvider } = require("../../src/game/combat/WeaponDataProvider") as typeof import("../../src/game/combat/WeaponDataProvider");

@@ -50,7 +50,7 @@ import {
     OSRS_HITSPLAT_POISON,
     OSRS_HITSPLAT_POISON_MAX,
 } from "./OsrsHitsplatIds";
-import { getSpellBaseXp } from "./SpellXpData";
+import { getSpellBaseXp } from "./SpellXpProvider";
 
 // =============================================================================
 // Types

@@ -50,8 +50,7 @@ import {
     FEATURE_FLAG_LEAGUES,
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../../src/shared/vars";
-import type { WidgetAction } from "../../../src/widgets/WidgetManager";
-import { type DisplayMode, getMainmodalUid, getViewportTrackerFrontUid } from "../../../src/widgets/viewport";
+import { type WidgetAction, type DisplayMode, getMainmodalUid, getViewportTrackerFrontUid } from "../../../src/game/scripts/types";
 import { syncLeagueGeneralVarp } from "../leagueGeneral";
 import {
     getLeaguePackedVarpsForPlayer,

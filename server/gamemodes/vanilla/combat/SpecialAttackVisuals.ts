@@ -1,15 +1,14 @@
-import { getItemDefinition } from "../../data/items";
-import {
-    SPEC_ANIM_DRAGON_DAGGER,
-    SPEC_SPOT_DRAGON_DAGGER,
-    SPEC_ANIM_DRAGON_SCIMITAR,
-    SPEC_SPOT_DRAGON_SCIMITAR_TRAIL,
-    SPEC_ANIM_GODSWORD,
-    SPEC_SPOT_GODSWORD_ZAMORAK,
-    SPEC_SPOT_GODSWORD_ARMADYL,
-    SPEC_SPOT_GODSWORD_SARADOMIN,
-    SPEC_SPOT_GODSWORD_BANDOS,
-} from "../../network/wsServerTypes";
+import { getItemDefinition } from "../../../src/game/scripts/types";
+
+const SPEC_ANIM_DRAGON_DAGGER = 1062;
+const SPEC_SPOT_DRAGON_DAGGER = 252;
+const SPEC_ANIM_DRAGON_SCIMITAR = 1872;
+const SPEC_SPOT_DRAGON_SCIMITAR_TRAIL = 347;
+const SPEC_ANIM_GODSWORD = 7004;
+const SPEC_SPOT_GODSWORD_ZAMORAK = 1205;
+const SPEC_SPOT_GODSWORD_ARMADYL = 1206;
+const SPEC_SPOT_GODSWORD_SARADOMIN = 1207;
+const SPEC_SPOT_GODSWORD_BANDOS = 1208;
 
 export function pickSpecialAttackVisualOverride(
     weaponItemId: number,

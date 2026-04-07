@@ -3,7 +3,11 @@ import type { PathService } from "../../pathfinding/PathService";
 import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { WidgetAction } from "../../widgets/WidgetManager";
 import type { DoorStateManager } from "../../world/DoorStateManager";
+import type { DoorToggleResult, GateDef, GatePair, GateOpenStyle, DoorPartnerResult } from "../../world/DoorDefinitions";
 import type { ActionRequest } from "../actions";
+import type { Actor } from "../actor";
+import type { DropEligibility } from "../combat/DamageTracker";
+import type { ItemDefinition } from "../../data/items";
 import type { GameEventBus } from "../events/GameEventBus";
 import type { OwnedItemLocation } from "../items/playerItemOwnership";
 import type { NpcSpawnConfig, NpcState } from "../npc";
@@ -16,6 +20,8 @@ import type {
     ScriptInventoryAddResult,
     ScriptInventoryEntry,
 } from "./types";
+
+export type { DoorToggleResult, GateDef, GatePair, GateOpenStyle, DoorPartnerResult };
 
 // ============================================================================
 // Data Loaders
@@ -34,6 +40,8 @@ export interface DataLoaderServices {
     getLocDefinition?: (locId: number) => Record<string, unknown> | undefined;
     getLocTypeLoader?: () => { load(id: number): unknown } | undefined;
     getNpcTypeLoader?: () => { load(id: number): unknown } | undefined;
+    getItemDefinition?: (itemId: number) => ItemDefinition | undefined;
+    loadItemDefinitions?: () => ItemDefinition[];
 }
 
 // ============================================================================
@@ -120,6 +128,9 @@ export interface AnimationServices {
     sendSound?: (player: PlayerState, soundId: number, opts?: { loops?: number; delayMs?: number }) => void;
     enqueueSoundBroadcast?: (soundId: number, x: number, y: number, level: number) => void;
     stopPlayerAnimation?: (player: PlayerState) => void;
+    getEmoteSeq?: (index: number) => number | undefined;
+    getSkillcapeSeqId?: (capeItemId: number | undefined) => number | undefined;
+    getSkillcapeSpotId?: (capeItemId: number | undefined) => number | undefined;
 }
 
 // ============================================================================
@@ -199,6 +210,7 @@ export interface MovementServices {
 
 export interface LocationServices {
     doorManager?: DoorStateManager;
+    resolveLocTransformId?: (player: PlayerState, locDef: Record<string, unknown> | undefined) => number | undefined;
     emitLocChange?: (
         oldId: number, newId: number, tile: { x: number; y: number }, level: number,
         opts?: { oldTile?: { x: number; y: number }; newTile?: { x: number; y: number }; oldRotation?: number; newRotation?: number },
@@ -206,6 +218,7 @@ export interface LocationServices {
     sendLocChangeToPlayer?: (player: PlayerState, oldId: number, newId: number, tile: { x: number; y: number }, level: number) => void;
     spawnLoc?: (locId: number, tile: { x: number; y: number }, level: number, shape: number, rotation: number) => void;
     spawnLocForPlayer?: (player: PlayerState, locId: number, tile: { x: number; y: number }, level: number, shape: number, rotation: number) => void;
+    triggerLocEffect?: (locId: number, tile: { x: number; y: number }, level: number) => boolean;
 }
 
 // ============================================================================
@@ -224,6 +237,17 @@ export interface CombatServices {
     stunPlayer?: (player: PlayerState, ticks: number) => void;
     scheduleAction?: (playerId: number, request: ActionRequest, tick: number) => { ok: boolean; reason?: string };
     clearPlayerFaceTarget?: (player: PlayerState) => void;
+    getDropEligibility?: (npc: NpcState) => DropEligibility;
+    clearNpcDamageRecords?: (npc: NpcState) => void;
+    getLastAttacker?: (actor: Actor, currentTick: number) => Actor | null;
+    isMultiCombat?: (x: number, y: number, plane: number) => boolean;
+    applyAutocastState?: (player: PlayerState, spellId: number, autocastIndex: number, isDefensive: boolean, callbacks?: { sendVarbit?: (player: PlayerState, varbitId: number, value: number) => void; queueCombatState?: (player: PlayerState) => void }) => void;
+    clearAutocastState?: (player: PlayerState, callbacks?: { sendVarbit?: (player: PlayerState, varbitId: number, value: number) => void; queueCombatState?: (player: PlayerState) => void }) => void;
+    validateRunes?: (
+        runeCosts: Array<{ runeId: number; quantity: number }>,
+        inventory: Array<{ itemId: number; quantity: number }>,
+        equippedItems: number[],
+    ) => { canCast: boolean; missingRunes?: Array<{ runeId: number; need: number; have: number }>; runesConsumed?: Array<{ runeId: number; quantity: number }> };
 }
 
 // ============================================================================
@@ -258,9 +282,27 @@ export interface CollectionLogServices {
     populateCollectionLogCategories?: (player: PlayerState, tabIndex: number) => void;
 }
 
+export {
+    COLLECTION_LOG_GROUP_ID,
+    COLLECTION_OVERVIEW_GROUP_ID,
+    SCRIPT_COLLECTION_TAB_CHANGE,
+    VARBIT_COLLECTION_LAST_CATEGORY,
+    VARBIT_COLLECTION_LAST_TAB,
+    VARP_COLLECTION_CATEGORY_COUNT,
+    VARP_COLLECTION_CATEGORY_COUNT2,
+    VARP_COLLECTION_CATEGORY_COUNT3,
+    buildTabChangeArgs,
+} from "../collectionlog";
+
 // ============================================================================
 // Followers
 // ============================================================================
+
+export interface FollowerItemDefinition {
+    itemId: number;
+    npcTypeId: number;
+    variants?: readonly { npcTypeId: number }[];
+}
 
 export interface FollowerServiceFacade {
     summonFollowerFromItem: (player: PlayerState, itemId: number, npcTypeId: number) => { ok: true; npcId: number } | { ok: false; reason: string };
@@ -268,6 +310,9 @@ export interface FollowerServiceFacade {
     metamorphFollower: (player: PlayerState, npcId: number) => { ok: true; npcId: number; npcTypeId: number } | { ok: false; reason: string };
     callFollower: (player: PlayerState) => { ok: true; npcId: number } | { ok: false; reason: string };
     despawnFollowerForPlayer: (playerId: number, clearPersistentState?: boolean) => boolean;
+    getItemDefinitions: () => readonly FollowerItemDefinition[];
+    getDefinitionByItemId: (itemId: number) => FollowerItemDefinition | undefined;
+    getDefinitionByNpcTypeId: (npcTypeId: number) => FollowerItemDefinition | undefined;
 }
 
 export interface FollowerServices {
@@ -393,3 +438,87 @@ export interface SailingServiceFacade {
 export interface SailingServices {
     sailing?: SailingServiceFacade;
 }
+
+// ============================================================================
+// Viewport
+// ============================================================================
+
+export { DisplayMode } from "../../widgets/viewport";
+export type { InterfaceMount } from "../../widgets/viewport";
+export { BaseComponentUids } from "../../widgets/viewport/ViewportEnumService";
+
+import type { InterfaceMount } from "../../widgets/viewport";
+
+export interface ViewportServices {
+    getMainmodalUid?: (displayMode: number) => number;
+    getSidemodalUid?: (displayMode: number) => number;
+    getPrayerTabUid?: (displayMode: number) => number;
+    getViewportTrackerFrontUid?: (displayMode: number) => number;
+    getDefaultInterfaces?: (displayMode: number) => InterfaceMount[];
+}
+
+export type { WidgetAction } from "../../widgets/WidgetManager";
+
+// ============================================================================
+// Smithing message types (re-exported for gamemode consumption)
+// ============================================================================
+
+export type { SmithingOptionMessage, SmithingServerPayload } from "../../network/messages";
+
+// ============================================================================
+// Combat type re-exports (for gamemode consumption without reaching into impl)
+// ============================================================================
+
+export type { DropEligibility, NpcLootConfig, LootDistribution, DamageType } from "../combat/DamageTracker";
+export { damageTracker } from "../combat/DamageTracker";
+export { multiCombatSystem } from "../combat/MultiCombatZones";
+export { getItemDefinition, loadItemDefinitions } from "../../data/items";
+export type { ItemDefinition, ItemBonuses, ItemRequirements, EquipmentType, WeaponInterface } from "../../data/items";
+
+// Emote and equipment helpers for gamemode consumption
+export { getEmoteSeq } from "../emotes";
+export { getSkillcapeSeqId, getSkillcapeSpotId } from "../equipment";
+
+// Autocast state helpers for gamemode consumption
+export { applyAutocastState, clearAutocastState } from "../combat/AutocastState";
+
+// Sailing configuration constants for gamemode consumption
+export {
+    buildSailingOverlayTemplates,
+    SAILING_DOCKED_NPC_SPAWNS,
+    SAILING_DOCKED_PLAYER_LEVEL,
+    SAILING_DOCKED_PLAYER_X,
+    SAILING_DOCKED_PLAYER_Y,
+    SAILING_INTRO_BOAT_LOCS,
+    SAILING_INTRO_BUILD_AREAS,
+    SAILING_WORLD_ENTITY_CONFIG_ID,
+    SAILING_WORLD_ENTITY_INDEX,
+    SAILING_WORLD_ENTITY_SIZE_X,
+    SAILING_WORLD_ENTITY_SIZE_Z,
+    PORT_SARIM_RETURN_LEVEL,
+    PORT_SARIM_RETURN_X,
+    PORT_SARIM_RETURN_Y,
+} from "../sailing/SailingInstance";
+
+// Account summary helpers for gamemode consumption
+export { getAccountSummaryTimeMinutes } from "../accountSummaryTime";
+
+// Teleport spell data for gamemode consumption
+export { getTeleportByWidgetId } from "../../data/teleportDestinations";
+export type { TeleportSpellData } from "../../data/teleportDestinations";
+
+// Spell widget lookup for gamemode consumption
+export { getSpellWidgetId } from "../../data/spellWidgetLoader";
+
+// Queue task types for gamemode consumption
+export { WaitCondition } from "../model/queue/QueueTask";
+
+// Timer keys for gamemode consumption
+export { HOME_TELEPORT_TIMER } from "../model/timer/Timers";
+
+// Rune validation types for gamemode consumption
+export { RuneValidator } from "../spells/RuneValidator";
+export type { InventoryItem as RuneInventoryItem, RuneValidationResult } from "../spells/RuneValidator";
+
+// Skill action payload types for gamemode consumption
+export type { SkillBoltEnchantActionData } from "../actions/skillActionPayloads";

@@ -1,7 +1,6 @@
 import { SkillId } from "../../../../../src/rs/skill/skills";
 import type { ActionEffect, ActionExecutionResult } from "../../../../src/game/actions/types";
 import type { PlayerState } from "../../../../src/game/player";
-import { type InventoryItem as RuneInventoryItem, RuneValidator } from "../../../../src/game/spells/RuneValidator";
 import type { ScriptActionHandlerContext, ScriptServices } from "../../../../src/game/scripts/types";
 import { buildMessageEffect, buildSkillFailure } from "./shared";
 
@@ -44,7 +43,7 @@ export function executeBoltEnchantAction(ctx: ScriptActionHandlerContext): Actio
 
     const inventory = services.getInventoryItems(player);
     let sourceQuantity = 0;
-    const runeInventory: RuneInventoryItem[] = [];
+    const runeInventory: Array<{ itemId: number; quantity: number }> = [];
     for (const entry of inventory) {
         if (!entry || entry.itemId <= 0 || entry.quantity <= 0) continue;
         if (entry.itemId === sourceItemId) sourceQuantity += entry.quantity;
@@ -55,7 +54,7 @@ export function executeBoltEnchantAction(ctx: ScriptActionHandlerContext): Actio
     }
 
     const equipped = (services.getEquipArray?.(player) ?? []).filter((id) => id > 0);
-    const runeValidation = RuneValidator.validateAndCalculate(runeCosts, runeInventory, equipped);
+    const runeValidation = services.validateRunes?.(runeCosts, runeInventory, equipped) ?? { canCast: false };
     if (!runeValidation.canCast) {
         return buildSkillFailure(player, "You do not have the runes to cast this spell.", "bolt_enchant_missing_runes");
     }

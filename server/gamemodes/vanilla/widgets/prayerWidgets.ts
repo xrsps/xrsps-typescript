@@ -12,8 +12,7 @@ import {
     VARBIT_PRAYER_FILTER_BLOCK_LOW_TIER,
 } from "../../../../src/shared/vars";
 import { GameframeTab } from "../../../src/widgets/InterfaceService";
-import { DisplayMode, getPrayerTabUid } from "../../../src/widgets/viewport";
-import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices, DisplayMode } from "../../../src/game/scripts/types";
 import type { PlayerState } from "../../../src/game/player";
 
 /**
@@ -342,7 +341,7 @@ function openQuickPrayerSetupTab(
     services: ScriptServices,
 ): void {
     const displayMode = (player?.displayMode ?? DisplayMode.RESIZABLE_NORMAL) as DisplayMode;
-    const prayerTabUid = getPrayerTabUid(displayMode);
+    const prayerTabUid = services.getPrayerTabUid!(displayMode);
     const interfaceService = services.getInterfaceService?.();
     interfaceService?.focusTab(player, GameframeTab.PRAYER);
     services.openSubInterface?.(

@@ -3,7 +3,6 @@ import {
     VARP_OPTION_ATTACK_PRIORITY_NPC,
     VARP_OPTION_ATTACK_PRIORITY_PLAYER,
 } from "../../../../src/shared/vars";
-import { getMainmodalUid } from "../../../src/widgets/viewport";
 import { type IScriptRegistry, type ScriptServices, WidgetActionEvent } from "../../../src/game/scripts/types";
 
 /**
@@ -56,7 +55,7 @@ export function registerSettingsWidgetHandlers(registry: IScriptRegistry, servic
 
             // Open the settings modal (134) in the mainmodal container
             // Use display-mode-aware helper to get correct mount target for mobile vs desktop
-            const mainmodalUid = getMainmodalUid(player.displayMode);
+            const mainmodalUid = services.getMainmodalUid!(player.displayMode ?? 1);
 
             svc.openSubInterface?.(player, mainmodalUid, SETTINGS_MODAL_GROUP_ID, 0);
 
@@ -167,7 +166,7 @@ export function registerSettingsWidgetHandlers(registry: IScriptRegistry, servic
             if (groupId !== SETTINGS_MODAL_GROUP_ID) return;
 
             // Close the settings modal in the mainmodal container
-            const mainmodalUid = getMainmodalUid(player.displayMode);
+            const mainmodalUid = services.getMainmodalUid!(player.displayMode ?? 1);
 
             svc.closeSubInterface?.(player, mainmodalUid);
 

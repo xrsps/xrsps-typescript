@@ -9,7 +9,7 @@ import {
     selectPickaxeByLevel,
 } from "./miningData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../../src/game/scripts/types";
-import { ResourceNodeTracker, buildTileKey } from "../../../../src/game/systems/ResourceNodeTracker";
+import { ResourceNodeTracker, buildTileKey } from "../../systems/ResourceNodeTracker";
 
 const MINING_ACTIONS = ["mine", "mine rocks"];
 const ECHO_PICKAXE_ITEM_IDS = [25112, 25063, 25369, 25376];

@@ -3,12 +3,12 @@ import { CacheSystem } from "../../../../src/rs/cache/CacheSystem";
 import { CombatCategoryConst as CombatCategory } from "../../../src/game/combat/WeaponDataProvider";
 import { getWeaponData } from "../../../src/game/combat/WeaponDataProvider";
 import { applyProjectileDefaults } from "../../../src/game/data/ProjectileParamsProvider";
-import { buildSpellNameToWidgetMap } from "../../../src/data/spellWidgetLoader";
-import type {
-    AutocastCompatibilityResult,
-    PoweredStaffSpellData,
-    SpellDataEntry,
-    SpellDataProvider,
+import {
+    buildSpellNameToWidgetMap,
+    type AutocastCompatibilityResult,
+    type PoweredStaffSpellData,
+    type SpellDataEntry,
+    type SpellDataProvider,
 } from "../../../src/game/spells/SpellDataProvider";
 
 const ENTRIES: SpellDataEntry[] = [

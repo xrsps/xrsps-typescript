@@ -1,7 +1,6 @@
 import { ScriptVarTypeId } from "../../../../src/rs/config/db/ScriptVarType";
-import { BaseComponentUids } from "../../../src/widgets/viewport/ViewportEnumService";
 import type { PlayerState } from "../../../src/game/player";
-import { type IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, ScriptServices, BaseComponentUids } from "../../../src/game/scripts/types";
 
 // ============================================================================
 // Constants

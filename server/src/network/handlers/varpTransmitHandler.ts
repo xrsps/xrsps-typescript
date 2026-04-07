@@ -14,16 +14,11 @@ import {
 } from "../../../../src/shared/vars";
 import { decodeSideJournalTabFromStateVarp } from "../../../../src/shared/ui/sideJournal";
 import {
-    ROCK_KNOCKER_SOUND_ID,
-    applyFishstabberFishingBoost,
-    applyLumberUpWoodcuttingBoost,
-    applyRockKnockerMiningBoost,
-    getFishstabberSpecialSequence,
-    getLumberUpSpecialSequence,
-    getRockKnockerSpecialSequence,
+    getInstantUtilitySpecial,
+    applyInstantUtilitySpecialBoost,
     markInstantUtilitySpecialHandledAtTick,
     wasInstantUtilitySpecialHandledAtTick,
-} from "../../game/combat/RockKnockerSpecial";
+} from "../../game/combat/InstantUtilitySpecialProvider";
 import type { PlayerState } from "../../game/player";
 import type { MessageHandler } from "../MessageRouter";
 import type { MessageHandlerServices } from "../MessageHandlers";
@@ -106,12 +101,10 @@ function handleSpecialAttackVarp(
     const weaponId = equip[EquipmentSlot.WEAPON];
     const weaponCost = weaponId > 0 ? services.getWeaponSpecialCostPercent(weaponId) : undefined;
 
-    const rockKnockerSeqId = desired ? getRockKnockerSpecialSequence(weaponId) : undefined;
-    const fishstabberSeqId = desired ? getFishstabberSpecialSequence(weaponId) : undefined;
-    const lumberUpSeqId = desired ? getLumberUpSpecialSequence(weaponId) : undefined;
+    const utilitySpecial = desired ? getInstantUtilitySpecial(weaponId) : undefined;
 
-    if (desired && (rockKnockerSeqId !== undefined || fishstabberSeqId !== undefined || lumberUpSeqId !== undefined)) {
-        handleInstantUtilitySpecial(services, ws, p, weaponId, weaponCost, rockKnockerSeqId, fishstabberSeqId, lumberUpSeqId);
+    if (desired && utilitySpecial !== undefined) {
+        handleInstantUtilitySpecial(services, ws, p, weaponId, weaponCost, utilitySpecial);
         return;
     }
 
@@ -145,11 +138,8 @@ function handleInstantUtilitySpecial(
     p: PlayerState,
     weaponId: number,
     weaponCost: number | undefined,
-    rockKnockerSeqId: number | undefined,
-    fishstabberSeqId: number | undefined,
-    lumberUpSeqId: number | undefined,
+    special: { kind: string; seqId: number; soundId?: number },
 ): void {
-    const seqId = (rockKnockerSeqId ?? fishstabberSeqId ?? lumberUpSeqId) as number;
     const currentTick = services.getCurrentTick();
 
     if (wasInstantUtilitySpecialHandledAtTick(p as unknown as Record<string, number | undefined>, currentTick) || weaponCost === undefined) {
@@ -169,23 +159,17 @@ function handleInstantUtilitySpecial(
     }
 
     markInstantUtilitySpecialHandledAtTick(p as unknown as Record<string, number | undefined>, currentTick);
-    if (rockKnockerSeqId !== undefined) applyRockKnockerMiningBoost(p);
-    else if (fishstabberSeqId !== undefined) applyFishstabberFishingBoost(p);
-    else applyLumberUpWoodcuttingBoost(p);
+    applyInstantUtilitySpecialBoost(p, special.kind as "rock_knocker" | "fishstabber" | "lumber_up");
 
     p.specEnergy.setActivated(false);
     p.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
-    p.queueOneShotSeq(seqId, 0);
-    if (rockKnockerSeqId !== undefined) services.sendSound?.(p, ROCK_KNOCKER_SOUND_ID);
+    p.queueOneShotSeq(special.seqId, 0);
+    if (special.soundId !== undefined) services.sendSound?.(p, special.soundId);
     services.queueCombatState(p);
     sendVarpCorrection(services, ws, VARP_SPECIAL_ATTACK, 0);
 
     logger.info(
-        `[combat] instant utility special activated: player=${p.id} weapon=${weaponId} kind=${
-            rockKnockerSeqId !== undefined ? "rock_knocker"
-            : fishstabberSeqId !== undefined ? "fishstabber"
-            : "lumber_up"
-        } seq=${seqId}`,
+        `[combat] instant utility special activated: player=${p.id} weapon=${weaponId} kind=${special.kind} seq=${special.seqId}`,
     );
 }
 

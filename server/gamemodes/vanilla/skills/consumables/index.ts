@@ -1,7 +1,7 @@
 import { SKILL_IDS, SkillId } from "../../../../../src/rs/skill/skills";
 import type { PlayerState } from "../../../../src/game/player";
 import type { IScriptRegistry, ScriptServices } from "../../../../src/game/scripts/types";
-import { type ConsumableProfile, scheduleConsumableAction } from "../../../../src/game/scripts/utils/consumables";
+import { type ConsumableProfile, scheduleConsumableAction } from "../../scripts/utils/consumables";
 
 // ============================================================================
 // Common constants

@@ -11,8 +11,8 @@ import {
     getAutocastCompatibilityMessage,
     getSpellIdFromAutocastIndex,
 } from "../../../src/game/spells/SpellDataProvider";
-import { DisplayMode, getDefaultInterfaces } from "../../../src/widgets/WidgetManager";
-import { applyAutocastState, clearAutocastState } from "../../../src/game/combat/AutocastState";
+import { DisplayMode } from "../../../src/game/scripts/types";
+import { applyAutocastState, clearAutocastState } from "../../../src/game/scripts/types";
 import {
     ROCK_KNOCKER_SOUND_ID,
     applyFishstabberFishingBoost,
@@ -23,7 +23,7 @@ import {
     getRockKnockerSpecialSequence,
     markInstantUtilitySpecialHandledAtTick,
     wasInstantUtilitySpecialHandledAtTick,
-} from "../../../src/game/combat/RockKnockerSpecial";
+} from "../combat/RockKnockerSpecial";
 import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
 import type { PlayerState } from "../../../src/game/player";
 
@@ -111,9 +111,10 @@ function getPlayerDisplayMode(player: PlayerState): DisplayMode {
  * Autocast "Choose spell" (interface 201) should mount into the Combat tab container,
  * replacing the Combat Options interface while the chooser is open.
  */
-function getCombatTabUid(player: PlayerState): number {
+function getCombatTabUid(player: PlayerState, services: ScriptServices): number {
     const displayMode = getPlayerDisplayMode(player);
-    const combat = getDefaultInterfaces(displayMode).find(
+    const interfaces = services.getDefaultInterfaces?.(displayMode) ?? [];
+    const combat = interfaces.find(
         (entry) => entry.groupId === COMBAT_WIDGET_GROUP_ID,
     );
     if (!combat) {
@@ -325,7 +326,7 @@ export function registerCombatWidgetHandlers(registry: IScriptRegistry, services
         player.combat.pendingAutocastDefensive = undefined;
         player.combat.pendingAutocastWeaponId = undefined;
 
-        const combatTabUid = getCombatTabUid(player);
+        const combatTabUid = getCombatTabUid(player, services);
         services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
         services.logger?.info?.(
             `[script:combat-widgets] Autocast popup cancelled for player=${player.id}`,
@@ -347,7 +348,7 @@ function openAutocastPopup(player: PlayerState, isDefensive: boolean, services: 
     player.combat.pendingAutocastWeaponId = weaponObjId;
 
     // Open the autocast popup (interface 201) in the Combat tab container
-    const combatTabUid = getCombatTabUid(player);
+    const combatTabUid = getCombatTabUid(player, services);
     services.openSubInterface?.(player, combatTabUid, AUTOCAST_POPUP_GROUP_ID, 1, {
         varps: { [VARP_AUTOCAST_SPELLPOS]: spellposSelector },
     });
@@ -414,7 +415,7 @@ function handleAutocastSpellSelection(player: PlayerState, spellIndex: number, s
         // Clear temporary state and close popup
         player.combat.pendingAutocastDefensive = undefined;
         player.combat.pendingAutocastWeaponId = undefined;
-        const combatTabUid = getCombatTabUid(player);
+        const combatTabUid = getCombatTabUid(player, services);
         services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
         return;
     }
@@ -427,7 +428,7 @@ function handleAutocastSpellSelection(player: PlayerState, spellIndex: number, s
     player.combat.pendingAutocastWeaponId = undefined;
 
     // Return to the combat options tab UI
-    const combatTabUid = getCombatTabUid(player);
+    const combatTabUid = getCombatTabUid(player, services);
     services.openSubInterface?.(player, combatTabUid, COMBAT_WIDGET_GROUP_ID, 1);
 
     services.logger?.info?.(

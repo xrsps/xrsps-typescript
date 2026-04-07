@@ -6,7 +6,7 @@ import {
     isFlaxLocId,
 } from "./flaxData";
 import type { IScriptRegistry, ScriptActionHandlerContext, ScriptServices } from "../../../../src/game/scripts/types";
-import { ResourceNodeTracker, buildTileKey } from "../../../../src/game/systems/ResourceNodeTracker";
+import { ResourceNodeTracker, buildTileKey } from "../../systems/ResourceNodeTracker";
 
 const FLAX_ACTIONS = ["pick", "pick-flax"];
 const FLAX_GROUP = "skill.flax";

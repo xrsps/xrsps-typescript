@@ -1,7 +1,7 @@
 import { SKILL_IDS, SkillId } from "../../../../../src/rs/skill/skills";
 import { RUN_ENERGY_MAX } from "../../../../src/game/actor";
 import { type IScriptRegistry, type ScriptServices } from "../../../../src/game/scripts/types";
-import { readPositiveEnvInteger } from "../../../../src/game/scripts/utils/env";
+import { readPositiveEnvInteger } from "../utils/env";
 
 const DEFAULT_TICK_MS = readPositiveEnvInteger("TICK_MS") ?? 600;
 

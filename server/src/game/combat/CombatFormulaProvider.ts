@@ -1,4 +1,6 @@
 import type { AttackType } from "./AttackType";
+export type { AttackType } from "./AttackType";
+export { normalizeAttackType } from "./AttackType";
 
 export interface AttackerStats {
     effectiveLevel: number;

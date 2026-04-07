@@ -1,6 +1,4 @@
-import type { DoorToggleResult, GateDef } from "../../../../src/world/DoorDefinitions";
-import { resolveLocTransformId } from "../../../../src/world/LocTransforms";
-import { type IScriptRegistry, type ScriptServices, type LocInteractionEvent, type NpcInteractionEvent } from "../../../../src/game/scripts/types";
+import { type DoorToggleResult, type GateDef, type IScriptRegistry, type ScriptServices, type LocInteractionEvent, type NpcInteractionEvent } from "../../../../src/game/scripts/types";
 
 const GATE_LEVEL = 0;
 const GATE_SOUND_ID = 71;
@@ -368,12 +366,12 @@ export function registerAlKharidBorderHandlers(registry: IScriptRegistry, servic
 
     const resolveCurrentGateState = (event: LocInteractionEvent) => {
         const southVisible =
-            resolveLocTransformId(
+            services.resolveLocTransformId?.(
                 event.player,
                 services.getLocDefinition?.(SOUTH_PART.baseId),
             ) ?? SOUTH_PART.freeClosedId;
         const northVisible =
-            resolveLocTransformId(
+            services.resolveLocTransformId?.(
                 event.player,
                 services.getLocDefinition?.(NORTH_PART.baseId),
             ) ?? NORTH_PART.freeClosedId;

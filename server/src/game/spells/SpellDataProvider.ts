@@ -213,3 +213,7 @@ export function hasPoweredStaffSpellData(weaponId: number): boolean {
 export function calculatePoweredStaffBaseDamage(magicLevel: number, formula: PoweredStaffSpellData["maxHitFormula"]): number {
     return ensureProvider().calculatePoweredStaffBaseDamage(magicLevel, formula);
 }
+
+// Re-exports for gamemode consumption (avoids reaching into spellWidgetLoader directly)
+export { buildSpellNameToWidgetMap, getSpellWidgetId, getSpellWidgetInfo } from "../../data/spellWidgetLoader";
+export type { SpellWidgetInfo, SpellbookName } from "../../data/spellWidgetLoader";

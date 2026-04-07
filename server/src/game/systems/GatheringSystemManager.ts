@@ -1,4 +1,4 @@
-import { ResourceNodeTracker, type TrackedNode } from "./ResourceNodeTracker";
+import type { IResourceNodeTracker, TrackedNode } from "./ResourceNodeTypes";
 
 export interface GatheringSystemServices {
     emitLocChange: (
@@ -20,7 +20,7 @@ export interface GatheringSystemServices {
 export type TrackerExpireCallback<T = unknown> = (node: TrackedNode<T>, services: GatheringSystemServices) => void;
 
 interface RegisteredTracker {
-    tracker: ResourceNodeTracker<any>;
+    tracker: IResourceNodeTracker<any>;
     onExpire: TrackerExpireCallback<any>;
 }
 
@@ -32,12 +32,12 @@ export class GatheringSystemManager {
         this.services = services;
     }
 
-    registerTracker<T>(name: string, tracker: ResourceNodeTracker<T>, onExpire: TrackerExpireCallback<T>): void {
+    registerTracker<T>(name: string, tracker: IResourceNodeTracker<T>, onExpire: TrackerExpireCallback<T>): void {
         this.registeredTrackers.set(name, { tracker, onExpire });
     }
 
-    getTracker<T = unknown>(name: string): ResourceNodeTracker<T> | undefined {
-        return this.registeredTrackers.get(name)?.tracker as ResourceNodeTracker<T> | undefined;
+    getTracker<T = unknown>(name: string): IResourceNodeTracker<T> | undefined {
+        return this.registeredTrackers.get(name)?.tracker as IResourceNodeTracker<T> | undefined;
     }
 
     processTick(tick: number): void {

@@ -1,5 +1,6 @@
-import { BaseComponentUids } from "../../../../src/widgets/viewport/ViewportEnumService";
+import type { PlayerState } from "../../../../src/game/player";
 import {
+    BaseComponentUids,
     buildSailingOverlayTemplates,
     SAILING_DOCKED_NPC_SPAWNS,
     SAILING_DOCKED_PLAYER_LEVEL,
@@ -14,13 +15,10 @@ import {
     PORT_SARIM_RETURN_LEVEL,
     PORT_SARIM_RETURN_X,
     PORT_SARIM_RETURN_Y,
-} from "../../../../src/game/sailing/SailingInstance";
-import type { PlayerState } from "../../../../src/game/player";
-import type {
-    IScriptRegistry,
-    NpcInteractionEvent,
-    ScriptDialogRequest,
-    ScriptServices,
+    type IScriptRegistry,
+    type NpcInteractionEvent,
+    type ScriptDialogRequest,
+    type ScriptServices,
 } from "../../../../src/game/scripts/types";
 
 // ============================================================================

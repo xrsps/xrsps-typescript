@@ -25,7 +25,7 @@ import {
     createBossScript,
     getBossScript,
     registerBossScript,
-} from "./BossCombatScript";
+} from "./BossScriptFramework";
 import {
     DamageTracker,
     DamageType,

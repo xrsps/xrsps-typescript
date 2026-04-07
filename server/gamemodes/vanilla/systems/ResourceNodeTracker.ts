@@ -1,14 +1,8 @@
-export type Vec2 = { x: number; y: number };
+import type { IResourceNodeTracker, Vec2, TrackedNode } from "../../../src/game/systems/ResourceNodeTypes";
+import { buildTileKey } from "../../../src/game/systems/ResourceNodeTypes";
+export { type Vec2, type TrackedNode, type IResourceNodeTracker, buildTileKey } from "../../../src/game/systems/ResourceNodeTypes";
 
-export interface TrackedNode<T = unknown> {
-    key: string;
-    tile: Vec2;
-    level: number;
-    expiryTick: number;
-    data: T;
-}
-
-export class ResourceNodeTracker<T = unknown> {
+export class ResourceNodeTracker<T = unknown> implements IResourceNodeTracker<T> {
     private nodes = new Map<string, TrackedNode<T>>();
 
     has(key: string): boolean {
@@ -60,10 +54,6 @@ export class ResourceNodeTracker<T = unknown> {
     get size(): number {
         return this.nodes.size;
     }
-}
-
-export function buildTileKey(tile: Vec2, level: number): string {
-    return `${level}:${tile.x}:${tile.y}`;
 }
 
 function randomInRange(min: number, max: number): number {

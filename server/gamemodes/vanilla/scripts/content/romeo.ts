@@ -1,4 +1,4 @@
-import { type IScriptRegistry, type NpcInteractionEvent, type ScriptServices } from "../../../../src/game/scripts";
+import { type IScriptRegistry, type NpcInteractionEvent, type ScriptServices } from "../../../../src/game/scripts/types";
 
 export function registerRomeoHandlers(registry: IScriptRegistry, services: ScriptServices): void {
     const activeConvos = new Set<number>();

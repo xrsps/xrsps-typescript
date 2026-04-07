@@ -64,7 +64,8 @@ import { CombatCategoryData } from "../game/combat/CombatCategoryData";
 import { combatEffectApplicator } from "../game/combat";
 import {
     HITMARK_DAMAGE,
-    multiCombatSystem
+    multiCombatSystem,
+    damageTracker,
 } from "../game/combat";
 import { FollowerCombatManager } from "../game/followers/FollowerCombatManager";
 import { FollowerManager } from "../game/followers/FollowerManager";
@@ -155,7 +156,6 @@ import {
     DEBUG_LOG_TILE,
     DEBUG_LOG_STACK_QTY,
 } from "./wsServerTypes";
-import { pickSpecialAttackVisualOverride } from "../game/combat/SpecialAttackVisuals";
 import { testRandFloat, TEST_HIT_FORCE } from "../game/testing/TestRng";
 
 
@@ -648,6 +648,8 @@ export class WSServer {
                 inventoryActionHandler: undefined!, // Deferred: wired after creation
                 effectDispatcher: undefined!, // Deferred: wired after creation
                 combatEffectApplicator: combatEffectApplicator,
+                damageTracker: damageTracker,
+                multiCombatSystem: multiCombatSystem,
                 getPlayers: () => this.players,
                 enqueueSpotAnimation: (anim) => this.broadcastService.enqueueSpotAnimation(anim),
                 enqueueForcedMovement: (data) => this.broadcastService.enqueueForcedMovement(data),
@@ -1302,6 +1304,10 @@ export class WSServer {
 
     private withDirectSendBypass<T>(context: string, fn: () => T): T {
         return this.networkLayer.withDirectSendBypass(context, fn);
+    }
+
+    sendWithGuard(ws: WebSocket | undefined, msg: string | Uint8Array, context: string): void {
+        this.networkLayer.sendWithGuard(ws, msg, context);
     }
 
     getScriptScheduler(): ScriptScheduler {

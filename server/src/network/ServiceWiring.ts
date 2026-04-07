@@ -75,7 +75,7 @@ import { canWeaponAutocastSpell, getAutocastCompatibilityMessage, getSpellData, 
 import { ensureEquipQtyArrayOn, consumeEquippedAmmoApply, pickEquipSound, unequipItemApply } from "../game/equipment";
 import { hasDirectMeleePath, hasDirectMeleeReach, isWithinAttackRange } from "../game/combat/CombatAction";
 import { getSpecialAttack } from "../game/combat/SpecialAttackProvider";
-import { getSpellBaseXp } from "../game/combat/SpellXpData";
+import { getSpellBaseXp } from "../game/combat/SpellXpProvider";
 import { getProjectileParams } from "../game/data/ProjectileParamsProvider";
 import { SpellCaster } from "../game/spells/SpellCaster";
 import { isInWilderness, getWildernessLevel } from "../game/combat/MultiCombatZones";
@@ -91,7 +91,7 @@ import type { TickFrame } from "./wsServerTypes";
 import type { SkillSyncUpdate } from "../game/player";
 import type { PlayerState } from "../game/player";
 import type { NpcState, NpcSpawnConfig } from "../game/npc";
-import { pickSpecialAttackVisualOverride } from "../game/combat/SpecialAttackVisuals";
+import { pickSpecialAttackVisualOverride } from "../game/combat/SpecialAttackVisualProvider";
 import { testRandFloat, TEST_HIT_FORCE } from "../game/testing/TestRng";
 import { faceAngleRs } from "../../../src/rs/utils/rotation";
 import { getItemDefinition } from "../data/items";

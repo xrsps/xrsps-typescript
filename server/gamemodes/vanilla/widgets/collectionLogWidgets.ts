@@ -12,7 +12,7 @@ import {
     VARP_COLLECTION_CATEGORY_COUNT2,
     VARP_COLLECTION_CATEGORY_COUNT3,
     buildTabChangeArgs,
-} from "../../../src/game/collectionlog";
+} from "../../../src/game/scripts/types";
 import { type IScriptRegistry, type ScriptServices, type WidgetActionEvent } from "../../../src/game/scripts/types";
 
 /**

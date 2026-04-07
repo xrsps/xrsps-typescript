@@ -3,7 +3,17 @@ import { faceAngleRs } from "../../../../src/rs/utils/rotation";
 import type { SkillId } from "../../../../src/rs/skill/skills";
 import type { PrayerName } from "../../../../src/rs/prayer/prayers";
 import { STUN_TIMER } from "../model/timer/Timers";
+import { resolveLocTransformId } from "../../world/LocTransforms";
+import { triggerLocEffect } from "../scripts/utils/locEffects";
+import { RuneValidator } from "../spells/RuneValidator";
+import {
+    FOLLOWER_ITEM_DEFINITIONS,
+    getFollowerDefinitionByItemId,
+    getFollowerDefinitionByNpcTypeId,
+} from "../followers/followerDefinitions";
 import type { ScriptServices, ScriptDialogRequest, ScriptDialogOptionRequest } from "../scripts/types";
+import { getMainmodalUid, getSidemodalUid, getPrayerTabUid, getViewportTrackerFrontUid } from "../../widgets/viewport";
+import { getDefaultInterfaces } from "../../widgets/WidgetManager";
 import type { DataLoaderService } from "./DataLoaderService";
 import type { VariableService } from "./VariableService";
 import type { MessagingService } from "./MessagingService";
@@ -35,6 +45,12 @@ import type { MusicCatalogService } from "../../audio/MusicCatalogService";
 import type { InventoryActionHandler } from "../actions/handlers/InventoryActionHandler";
 import type { EffectDispatcher } from "../actions/handlers/EffectDispatcher";
 import type { CombatEffectApplicator } from "../combat/CombatEffectApplicator";
+import type { DamageTracker } from "../combat/DamageTracker";
+import type { MultiCombatSystem } from "../combat/MultiCombatZones";
+import { applyAutocastState, clearAutocastState } from "../combat/AutocastState";
+import { getEmoteSeq } from "../emotes";
+import { getSkillcapeSeqId, getSkillcapeSpotId } from "../equipment";
+import { getItemDefinition, loadItemDefinitions } from "../../data/items";
 import type { PlayerManager } from "../PlayerManager";
 import type { PendingSpotAnimation, ForcedMovementBroadcast } from "../systems/BroadcastScheduler";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
@@ -78,6 +94,8 @@ export interface ScriptServiceAdapterDeps {
     inventoryActionHandler: InventoryActionHandler;
     effectDispatcher: EffectDispatcher;
     combatEffectApplicator: CombatEffectApplicator;
+    damageTracker: DamageTracker;
+    multiCombatSystem: MultiCombatSystem;
     getPlayers: () => PlayerManager | undefined;
     enqueueSpotAnimation: (anim: PendingSpotAnimation) => void;
     enqueueForcedMovement: (data: ForcedMovementBroadcast) => void;
@@ -105,7 +123,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         deps.inventoryService.snapshotInventory(player);
     };
 
-    return {
+    const services: ScriptServices = {
         // --- DataLoaderServices ---
         getDbRepository: () => deps.dataLoaders.getDbRepository(),
         getEnumTypeLoader: () => deps.dataLoaders.getEnumTypeLoader(),
@@ -115,9 +133,12 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         getLocTypeLoader: () => deps.dataLoaders.getLocTypeLoader(),
         getNpcTypeLoader: () => deps.dataLoaders.getNpcTypeLoader(),
         getLocDefinition: (id) => deps.dataLoaders.getLocDefinition(id),
+        getItemDefinition: (itemId) => getItemDefinition(itemId),
+        loadItemDefinitions: () => loadItemDefinitions(),
 
         // --- LocationServices ---
         doorManager: deps.doorManager,
+        resolveLocTransformId: (player, locDef) => resolveLocTransformId(player as any, locDef as any),
         emitLocChange: (oldId, newId, tile, level, opts) =>
             deps.locationService.emitLocChange(oldId, newId, tile, level, opts),
         sendLocChangeToPlayer: (player, oldId, newId, tile, level) =>
@@ -205,6 +226,9 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         sendSound: (player, soundId, opts) => deps.soundService.sendSound(player, soundId, opts),
         enqueueSoundBroadcast: (soundId, x, y, level) => deps.enqueueSoundBroadcast(soundId, x, y, level),
         stopPlayerAnimation: (player) => { try { player.stopAnimation(); } catch (err) { logger.warn("Failed to stop player animation", err); } },
+        getEmoteSeq: (index) => getEmoteSeq(index),
+        getSkillcapeSeqId: (capeItemId) => getSkillcapeSeqId(capeItemId),
+        getSkillcapeSpotId: (capeItemId) => getSkillcapeSpotId(capeItemId),
 
         // --- AppearanceServices ---
         refreshAppearanceKits: (player) => deps.appearanceService.refreshAppearanceKits(player),
@@ -297,6 +321,16 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         clearPlayerFaceTarget: (player) => { try { player.clearInteraction(); } catch (err) { logger.warn("Failed to clear player face target", err); } },
         scheduleAction: (playerId, request, tick) =>
             deps.actionScheduler.requestAction(playerId, request, tick),
+        getDropEligibility: (npc) => deps.damageTracker.getDropEligibility(npc),
+        clearNpcDamageRecords: (npc) => deps.damageTracker.clearNpc(npc),
+        getLastAttacker: (actor, currentTick) => deps.multiCombatSystem.getLastAttacker(actor, currentTick),
+        isMultiCombat: (x, y, plane) => deps.multiCombatSystem.isMultiCombat(x, y, plane),
+        applyAutocastState: (player, spellId, autocastIndex, isDefensive, callbacks) =>
+            applyAutocastState(player, spellId, autocastIndex, isDefensive, callbacks),
+        clearAutocastState: (player, callbacks) =>
+            clearAutocastState(player, callbacks),
+        validateRunes: (runeCosts, inventory, equippedItems) =>
+            RuneValidator.validateAndCalculate(runeCosts, inventory, equippedItems),
 
         // --- NpcServices ---
         spawnNpc: (config) => deps.npcManager?.spawnTransientNpc(config),
@@ -375,6 +409,9 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
                 deps.followerCombatManager?.resetPlayer(playerId);
                 return deps.followerManager?.despawnFollowerForPlayer(playerId, clearPersistentState) ?? false;
             },
+            getItemDefinitions: () => FOLLOWER_ITEM_DEFINITIONS,
+            getDefinitionByItemId: (itemId) => getFollowerDefinitionByItemId(itemId),
+            getDefinitionByNpcTypeId: (npcTypeId) => getFollowerDefinitionByNpcTypeId(npcTypeId),
         },
 
         // --- SailingServices ---
@@ -392,6 +429,13 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             buildSailingDockedCollision: () => deps.sailingInstanceManager?.buildDockedCollision(),
         },
 
+        // --- ViewportServices ---
+        getMainmodalUid: (displayMode) => getMainmodalUid(displayMode),
+        getSidemodalUid: (displayMode) => getSidemodalUid(displayMode),
+        getPrayerTabUid: (displayMode) => getPrayerTabUid(displayMode),
+        getViewportTrackerFrontUid: (displayMode) => getViewportTrackerFrontUid(displayMode),
+        getDefaultInterfaces: (displayMode) => getDefaultInterfaces(displayMode),
+
         // --- Remaining tabs ---
         openRemainingTabs: (player) => {
             const { getRemainingTabInterfaces } = require("../../widgets/WidgetManager");
@@ -405,4 +449,9 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             }
         },
     } as ScriptServices;
+
+    services.triggerLocEffect = (locId, tile, level) =>
+        triggerLocEffect(services, locId, tile, level);
+
+    return services;
 }

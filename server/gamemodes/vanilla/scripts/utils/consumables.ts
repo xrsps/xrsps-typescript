@@ -1,5 +1,5 @@
-import { INVENTORY_SLOT_COUNT, type PlayerState } from "../../player";
-import type { ScriptServices } from "../types";
+import { INVENTORY_SLOT_COUNT, type PlayerState } from "../../../../src/game/player";
+import type { ScriptServices } from "../../../../src/game/scripts/types";
 
 export type ConsumableExecuteContext = {
     player: PlayerState;

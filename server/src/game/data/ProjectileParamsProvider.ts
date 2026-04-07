@@ -1,4 +1,6 @@
 import type { ProjectileArchetypeName, ProjectileLifeModel } from "../projectiles/ProjectileType";
+export type { ProjectileArchetypeName, ProjectileLifeModel } from "../projectiles/ProjectileType";
+export { PROJECTILE_ARCHETYPES, calculateProjectileLifeFrames } from "../projectiles/ProjectileType";
 
 export interface ProjectileParams {
     startHeight: number;

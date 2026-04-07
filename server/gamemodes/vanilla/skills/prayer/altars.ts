@@ -1,9 +1,15 @@
 import { SkillId } from "../../../../../src/rs/skill/skills";
-import { ALTAR_LOC_IDS } from "../../../../src/data/locEffects";
 import type { IScriptRegistry, ScriptServices } from "../../../../src/game/scripts/types";
-import { triggerLocEffect } from "../../../../src/game/scripts/utils/locEffects";
 import { BURIABLE_BONES_XP } from "./prayerData";
 import { formatOfferMessage } from "./prayerMessages";
+
+const ALTAR_LOC_IDS: readonly number[] = [
+    409, 410, 411, 3521, 4090, 4091, 4092, 6552, 13179, 13180, 13181, 13182, 13183, 13184, 13185,
+    13186, 13187, 13188, 13189, 13190, 13191, 13192, 13193, 13194, 13195, 13196, 13197, 13198,
+    13199, 14860, 15050, 15051, 15270, 18258, 20377, 20378, 20379, 21893, 26363, 26364, 26366,
+    28455, 28922, 29140, 29147, 29148, 29149, 29631, 29941, 31624, 31858, 31859, 31860, 31861,
+    32508, 32630, 33523, 33524,
+];
 
 const ALTAR_LOC_ID_SET = new Set(ALTAR_LOC_IDS);
 const POH_ALTAR_IDS = new Set<number>([
@@ -140,7 +146,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
                 services.sendGameMessage(player, text);
             }
             services.sendGameMessage(player, OFFER_SUCCESS_MESSAGE);
-            triggerLocEffect(services, event.locId, event.tile, event.level);
+            services.triggerLocEffect?.(event.locId, event.tile, event.level);
             markCooldown(lastOfferTickByPlayer, pid, tick);
         });
     }

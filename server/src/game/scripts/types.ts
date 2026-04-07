@@ -299,9 +299,44 @@ export interface ScriptRegistrationResult {
     unregister(): void;
 }
 
-export { type DataLoaderServices, type SystemServices, type MessagingServices, type VariableServices, type InventoryServices, type EquipmentServices, type AnimationServices, type AppearanceServices, type DialogServices, type MovementServices, type LocationServices, type CombatServices, type NpcServices, type SkillServices, type CollectionLogServices, type FollowerServices, type BankingServices, type ShoppingServices, type GatheringServices, type CookingServices, type ProductionServices, type SailingServices } from "./serviceInterfaces";
+export { type DataLoaderServices, type SystemServices, type MessagingServices, type VariableServices, type InventoryServices, type EquipmentServices, type AnimationServices, type AppearanceServices, type DialogServices, type MovementServices, type LocationServices, type CombatServices, type NpcServices, type SkillServices, type CollectionLogServices, type FollowerServices, type BankingServices, type ShoppingServices, type GatheringServices, type CookingServices, type ProductionServices, type SailingServices, type ViewportServices } from "./serviceInterfaces";
+export { DisplayMode, BaseComponentUids, type InterfaceMount, type SmithingOptionMessage, type SmithingServerPayload, type WidgetAction } from "./serviceInterfaces";
+export { getMainmodalUid, getSidemodalUid, getPrayerTabUid, getViewportTrackerFrontUid } from "../../widgets/viewport";
+export type { DoorToggleResult, GateDef, GatePair, GateOpenStyle, DoorPartnerResult } from "./serviceInterfaces";
+export type { FollowerItemDefinition } from "./serviceInterfaces";
 
-import type { DataLoaderServices, SystemServices, MessagingServices, VariableServices, InventoryServices, EquipmentServices, AnimationServices, AppearanceServices, DialogServices, MovementServices, LocationServices, CombatServices, NpcServices, SkillServices, CollectionLogServices, FollowerServices, BankingServices, ShoppingServices, GatheringServices, CookingServices, ProductionServices, SailingServices } from "./serviceInterfaces";
+// Re-exports for gamemode consumption (avoid reaching into core impl files)
+export {
+    buildSailingOverlayTemplates,
+    SAILING_DOCKED_NPC_SPAWNS,
+    SAILING_DOCKED_PLAYER_LEVEL,
+    SAILING_DOCKED_PLAYER_X,
+    SAILING_DOCKED_PLAYER_Y,
+    SAILING_INTRO_BOAT_LOCS,
+    SAILING_INTRO_BUILD_AREAS,
+    SAILING_WORLD_ENTITY_CONFIG_ID,
+    SAILING_WORLD_ENTITY_INDEX,
+    SAILING_WORLD_ENTITY_SIZE_X,
+    SAILING_WORLD_ENTITY_SIZE_Z,
+    PORT_SARIM_RETURN_LEVEL,
+    PORT_SARIM_RETURN_X,
+    PORT_SARIM_RETURN_Y,
+} from "./serviceInterfaces";
+export { getAccountSummaryTimeMinutes } from "./serviceInterfaces";
+export { getTeleportByWidgetId, getSpellWidgetId } from "./serviceInterfaces";
+export type { TeleportSpellData } from "./serviceInterfaces";
+export { WaitCondition } from "./serviceInterfaces";
+export { HOME_TELEPORT_TIMER } from "./serviceInterfaces";
+export { RuneValidator } from "./serviceInterfaces";
+export type { RuneInventoryItem, RuneValidationResult, SkillBoltEnchantActionData } from "./serviceInterfaces";
+export { getItemDefinition, loadItemDefinitions } from "./serviceInterfaces";
+export type { ItemDefinition, WeaponInterface } from "./serviceInterfaces";
+export { damageTracker, multiCombatSystem } from "./serviceInterfaces";
+export type { DropEligibility, NpcLootConfig } from "./serviceInterfaces";
+export { applyAutocastState, clearAutocastState } from "./serviceInterfaces";
+export { getEmoteSeq, getSkillcapeSeqId, getSkillcapeSpotId } from "./serviceInterfaces";
+
+import type { DataLoaderServices, SystemServices, MessagingServices, VariableServices, InventoryServices, EquipmentServices, AnimationServices, AppearanceServices, DialogServices, MovementServices, LocationServices, CombatServices, NpcServices, SkillServices, CollectionLogServices, FollowerServices, BankingServices, ShoppingServices, GatheringServices, CookingServices, ProductionServices, SailingServices, ViewportServices } from "./serviceInterfaces";
 
 export interface ScriptServices extends
     DataLoaderServices,
@@ -325,4 +360,5 @@ export interface ScriptServices extends
     GatheringServices,
     CookingServices,
     ProductionServices,
-    SailingServices {}
+    SailingServices,
+    ViewportServices {}

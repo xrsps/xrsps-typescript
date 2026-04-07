@@ -4,7 +4,7 @@ import {
     buildLeagueSummaryAccountAgeArgs,
 } from "../../../src/shared/ui/leagueSummary";
 import type { PlayerState } from "../../src/game/player";
-import type { WidgetAction } from "../../src/widgets/WidgetManager";
+import type { WidgetAction } from "../../src/game/scripts/types";
 
 export interface LeagueSummaryServices {
     queueWidgetEvent: (playerId: number, action: WidgetAction) => void;
