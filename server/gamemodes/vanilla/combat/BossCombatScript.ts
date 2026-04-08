@@ -1,8 +1,5 @@
-/**
- * Vanilla Boss Script Implementations
- *
- * Re-exports the core BossScript framework and registers vanilla-specific boss scripts.
- */
+import { BossScript, registerBossScript } from "../../../src/game/combat/BossScriptFramework";
+
 export {
     BossScript,
     BossPhase,
@@ -12,8 +9,6 @@ export {
     getBossScript,
     createBossScript,
 } from "../../../src/game/combat/BossScriptFramework";
-
-import { BossScript, registerBossScript } from "../../../src/game/combat/BossScriptFramework";
 
 // ============================================
 // Boss Implementations

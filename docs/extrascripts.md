@@ -62,6 +62,47 @@ Extrascripts support hot-reload during development. Set the `SCRIPT_HOT_RELOAD=1
 
 **Rule of thumb:** if it makes sense on every server, it's an extrascript. If it defines or changes how the server plays, it's a gamemode.
 
+## Custom Content
+
+Both gamemodes and extrascripts can define **custom items** and **custom widgets** using the built-in registries. These are automatically sent to the client at login and resolved seamlessly alongside cache data.
+
+### Custom Items
+
+Use `CustomItemBuilder` and `CustomItemRegistry` to define items that don't exist in the OSRS cache. Custom items use IDs starting at **50000+** to avoid conflicts.
+
+```typescript
+import { CustomItemBuilder } from "../../src/custom/items/CustomItemBuilder";
+import { CustomItemRegistry } from "../../src/custom/items/CustomItemRegistry";
+
+CustomItemRegistry.register(
+    CustomItemBuilder.create(50100)
+        .basedOn(3834)               // clone properties from an existing cache item
+        .name("My Custom Item")
+        .inventoryActions("Activate", null, null, null, "Drop")
+        .build(),
+    "my-source-id",
+);
+```
+
+The client resolves custom items via `CustomObjTypeLoader`, which wraps the base cache loader. No client-side changes needed — registered items appear in inventories, shops, and tooltips like any cache item.
+
+### Custom Widgets
+
+Use `CustomWidgetRegistry` to define widget groups that don't exist in the cache:
+
+```typescript
+import { CustomWidgetRegistry } from "../../src/game/scripts/CustomWidgetRegistry";
+
+const widgetGroup = buildMyWidgetGroup(); // your widget definition
+CustomWidgetRegistry.register(widgetGroup);
+```
+
+Custom widgets are serialized into the gamemode content data packet and delivered to the client at login.
+
+### Content Data Packet
+
+Gamemodes can send arbitrary data to the client by implementing `getContentDataPacket()`. This is how custom items, widgets, and gamemode-specific data (like league tasks) reach the client. The core engine handles packet delivery at login — gamemodes just build the payload.
+
 ## Bundled Extrascripts
 
 | Extrascript | Description |

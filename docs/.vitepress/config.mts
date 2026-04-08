@@ -2,11 +2,11 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
     title: 'XRSPS',
-    description: 'A community-driven project inspired by Project Zanaris',
+    description: 'Build gamemodes and extrascripts for OSRS in the browser',
     base: '/',
     head: [
         ['meta', { property: 'og:title', content: 'XRSPS' }],
-        ['meta', { property: 'og:description', content: 'A community-driven project inspired by Project Zanaris' }],
+        ['meta', { property: 'og:description', content: 'Build gamemodes and extrascripts for OSRS in the browser' }],
         ['meta', { name: 'theme-color', content: '#4a9eff' }],
     ],
     themeConfig: {

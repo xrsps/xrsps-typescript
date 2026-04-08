@@ -42,6 +42,20 @@ Each gamemode gets its own directory under `server/data/gamemodes/{id}/`. Player
 
 A gamemode defines server identity — XP rates, drop tables, tutorials, progression. An extrascript is a universal module that works on any server — debug tools, admin commands, content that isn't gamemode-specific. See [Gamemodes vs Extrascripts](extrascripts.md#gamemodes-vs-extrascripts).
 
+## Custom Content
+
+### How do I add a custom item?
+
+Use `CustomItemBuilder` and `CustomItemRegistry`. Custom items use IDs 50000+ and can clone properties from existing cache items. See [Custom Content](extrascripts.md#custom-content).
+
+### Do custom items work on any gamemode?
+
+Yes. `CustomItemRegistry` is a core system — both gamemodes and extrascripts can register items, and they're resolved automatically on both client and server.
+
+### How does custom content reach the client?
+
+Via `getContentDataPacket()` on `GamemodeDefinition`. The engine sends this packet during login. The client unpacks it and registers items/widgets into their respective client-side registries. See [Architecture — Custom Content](ARCHITECTURE.md#custom-content).
+
 ## Development
 
 ### How do varps and varbits work?

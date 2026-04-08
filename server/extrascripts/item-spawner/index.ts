@@ -28,18 +28,24 @@ const SCRIPT_STONEBUTTON_INIT = 2424;
 const FONT_BOLD_12 = 496;
 const STONEBUTTON_STYLE_OUTLINE = 0;
 
-CustomItemRegistry.register(
-    CustomItemBuilder.create(ITEM_SPAWNER_ID)
-        .basedOn(BASE_ITEM_ID)
-        .name("Item Spawner")
-        .inventoryActions("Activate", null, null, null, "Drop")
-        .build(),
-    "extrascript.item-spawner",
-);
+let registered = false;
 
-// Register the custom widget for client delivery
-const widgetGroup = buildItemSpawnerModalGroup();
-CustomWidgetRegistry.register(widgetGroup);
+function ensureRegistered(): void {
+    if (registered) return;
+    registered = true;
+
+    CustomItemRegistry.register(
+        CustomItemBuilder.create(ITEM_SPAWNER_ID)
+            .basedOn(BASE_ITEM_ID)
+            .name("Item Spawner")
+            .inventoryActions("Activate", null, null, null, "Drop")
+            .build(),
+        "extrascript.item-spawner",
+    );
+
+    const widgetGroup = buildItemSpawnerModalGroup();
+    CustomWidgetRegistry.register(widgetGroup);
+}
 
 function getWidgetUid(groupId: number, componentId: number): number {
     return ((groupId & 0xffff) << 16) | (componentId & 0xffff);
@@ -149,6 +155,8 @@ function spawnInventoryItem(
 }
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
+    ensureRegistered();
+
     registry.registerItemAction(ITEM_SPAWNER_ID, (event) => {
         openItemSpawnerModal(event.services, event.player);
     });

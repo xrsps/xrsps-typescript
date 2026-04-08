@@ -124,6 +124,27 @@ Then swap it in at `server/src/network/wsServer.ts` where `PlayerPersistence` is
 
 For backends that need setup/teardown (database connections), implement `ManagedPersistenceProvider` which adds optional `initialize()` and `dispose()` hooks.
 
+## Custom Content
+
+Gamemodes and extrascripts can define content that doesn't exist in the OSRS cache. The custom content pipeline handles registration, serialization, and client-side resolution automatically.
+
+### Custom Items
+
+`CustomItemRegistry` (`src/custom/items/`) stores item definitions keyed by ID (50000+). Items can clone properties from existing cache items via `basedOn` and override specific fields.
+
+- **Server:** `ServerCustomItemRegistry` merges custom definitions with base cache lookups
+- **Client:** `CustomObjTypeLoader` wraps the base `ObjTypeLoader` and injects custom items transparently
+
+### Custom Widgets
+
+`CustomWidgetRegistry` (`server/src/game/scripts/`) stores widget group definitions that don't exist in the cache.
+
+### Delivery
+
+Custom content reaches the client via the **gamemode content data packet** (`getContentDataPacket()` on `GamemodeDefinition`). The engine calls this during login and sends the result over WebSocket. The client unpacks it in `GamemodeContentStore` and re-registers items/widgets into their respective client-side registries.
+
+This is a generic pipeline — any gamemode can use it to deliver arbitrary datasets alongside custom items and widgets.
+
 ## Content Systems
 
 All gameplay content (skills, combat, shops, UI, etc.) is registered through the **script system** via `ScriptRegistry`. Content is organized into [Gamemodes](gamemodes.md) (server identity and rules) and [Extrascripts](extrascripts.md) (universal modules).

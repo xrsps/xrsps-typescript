@@ -1,4 +1,3 @@
 [
-    { "name": "Local Development", "address": "localhost:43594", "secure": false, "maxPlayers": 2047 },
-    { "name": "Grizz Island", "address": "grizzisland.playit.plus:48165", "secure": false, "maxPlayers": 2047 }
+    { "name": "Local Development", "address": "localhost:43594", "secure": false, "maxPlayers": 2047 }
 ]
