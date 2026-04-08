@@ -729,7 +729,7 @@ export class WidgetDialogHandler {
             this.triggerAndClearActiveDialogCloseHandler(player.id, groupId);
         }
         if (groupId === SHOP_GROUP_ID) {
-            this.svc.scriptRuntime.getServices().closeShop?.(player);
+            this.svc.scriptRuntime.getServices().shopping?.closeShop?.(player);
         } else if (groupId === BANK_GROUP_ID) {
             this.svc.interfaceService?.closeModal(player);
         } else if (groupId === 312) {

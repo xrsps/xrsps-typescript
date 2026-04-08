@@ -76,7 +76,7 @@ export class ActionDispatchService {
                 return this.services.movementService.executeEmotePlayAction(player, action.data as EmotePlayActionData);
             case "npc.trade": {
                 const tradeData = action.data as { npcTypeId?: number; shopId?: string };
-                this.services.scriptRuntime.getServices().openShop?.(player, tradeData);
+                this.services.scriptRuntime.getServices().shopping?.openShop?.(player, tradeData);
                 return { ok: true, effects: [] };
             }
             default: {
