@@ -24,7 +24,7 @@ import {
     CombatEngine,
     type PlayerAttackPlan,
 } from "../systems/combat/CombatEngine";
-import { type AttackType, normalizeAttackType } from "./AttackType";
+import { AttackType, normalizeAttackType } from "./AttackType";
 import {
     hasDirectMeleePath,
     hasDirectMeleeReach,
