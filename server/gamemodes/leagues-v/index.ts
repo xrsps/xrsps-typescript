@@ -435,13 +435,14 @@ export class LeaguesVGamemode extends VanillaGamemode {
         );
     }
 
-    dispose(): void {
+    override dispose(): void {
         for (const sub of this.eventSubscriptions) {
             sub.unsubscribe();
         }
         this.eventSubscriptions = [];
         this.taskManager = undefined;
         this.initBridge = undefined;
+        super.dispose();
     }
 }
 

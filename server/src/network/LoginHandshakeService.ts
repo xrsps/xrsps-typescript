@@ -22,6 +22,8 @@ import { getItemDefinition } from "../data/items";
 import { DIARY_VARBITS } from "../../data/diaryVarbits";
 import { logger } from "../utils/logger";
 import type { ServerServices } from "../game/ServerServices";
+import { getDefaultInterfaces, getRootInterfaceId, DisplayMode, getMainmodalUid } from "../widgets/WidgetManager";
+import { getViewportRootInitScripts } from "../widgets/viewport";
 
 const NPC_STREAM_RADIUS_TILES = 15;
 const DEBUG_NPC_STREAM =
@@ -401,12 +403,6 @@ export class LoginHandshakeService {
                 const isMobileClient = clientType === 1;
 
                 {
-                    const {
-                        getDefaultInterfaces,
-                        getRootInterfaceId,
-                        DisplayMode,
-                    } = require("../widgets/WidgetManager");
-                    const { getViewportRootInitScripts } = require("../widgets/viewport");
                     const displayMode = isMobileClient
                         ? DisplayMode.MOBILE
                         : DisplayMode.RESIZABLE_NORMAL;
@@ -561,7 +557,6 @@ export class LoginHandshakeService {
 
                 if (p.account.accountStage === 0) {
                     try {
-                        const { getMainmodalUid } = require("../widgets/WidgetManager");
                         const targetUid = getMainmodalUid(p.displayMode);
                         p.widgets.open(679, { targetUid, type: 0 });
                     } catch (err) {
@@ -738,8 +733,7 @@ export class LoginHandshakeService {
                             } else {
                                 p.account.accountStage = 2;
                                 const displayMode = p.displayMode ?? 1;
-                                const { getDefaultInterfaces: getDefIntf } = require("../widgets/WidgetManager");
-                                const allInterfaces = getDefIntf(displayMode);
+                                const allInterfaces = getDefaultInterfaces(displayMode);
                                 for (const intf of allInterfaces) {
                                     this.svc.queueWidgetEvent(p.id, {
                                         action: "open_sub",

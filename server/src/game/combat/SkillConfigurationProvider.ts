@@ -13,21 +13,22 @@ export interface SkillConfiguration {
 // Provider Registration & Delegation
 // =============================================================================
 
-let _config: SkillConfiguration | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerSkillConfiguration(config: SkillConfiguration): void {
-    _config = config;
+    getProviderRegistry().skillConfiguration = config;
 }
 
 export function getSkillConfiguration(): SkillConfiguration | undefined {
-    return _config;
+    return getProviderRegistry().skillConfiguration;
 }
 
 function ensureConfig(): SkillConfiguration {
-    if (!_config) {
+    const c = getProviderRegistry().skillConfiguration;
+    if (!c) {
         throw new Error("[SkillConfiguration] SkillConfiguration not registered. Ensure the gamemode has initialized.");
     }
-    return _config;
+    return c;
 }
 
 export function computeCombatLevel(skills: SkillEntry[]): number {

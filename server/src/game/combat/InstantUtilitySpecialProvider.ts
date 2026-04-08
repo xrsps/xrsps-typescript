@@ -20,33 +20,33 @@ export interface InstantUtilitySpecialProvider {
     wasHandledAtTick(player: Record<string, number | undefined> | null | undefined, tick: number): boolean;
 }
 
-let activeProvider: InstantUtilitySpecialProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerInstantUtilitySpecialProvider(provider: InstantUtilitySpecialProvider): void {
-    activeProvider = provider;
+    getProviderRegistry().instantUtilitySpecial = provider;
 }
 
 export function getInstantUtilitySpecial(weaponId: number): InstantUtilitySpecialResult | undefined {
-    return activeProvider?.getInstantUtilitySpecial(weaponId);
+    return getProviderRegistry().instantUtilitySpecial?.getInstantUtilitySpecial(weaponId);
 }
 
 export function applyInstantUtilitySpecialBoost(
     player: PlayerState,
     kind: InstantUtilitySpecialResult["kind"],
 ): void {
-    activeProvider?.applySpecialBoost(player, kind);
+    getProviderRegistry().instantUtilitySpecial?.applySpecialBoost(player, kind);
 }
 
 export function markInstantUtilitySpecialHandledAtTick(
     player: Record<string, number | undefined> | null | undefined,
     tick: number,
 ): void {
-    activeProvider?.markHandledAtTick(player, tick);
+    getProviderRegistry().instantUtilitySpecial?.markHandledAtTick(player, tick);
 }
 
 export function wasInstantUtilitySpecialHandledAtTick(
     player: Record<string, number | undefined> | null | undefined,
     tick: number,
 ): boolean {
-    return activeProvider?.wasHandledAtTick(player, tick) ?? false;
+    return getProviderRegistry().instantUtilitySpecial?.wasHandledAtTick(player, tick) ?? false;
 }

@@ -10,7 +10,6 @@ import type { EquipmentService } from "./EquipmentService";
 import type { AppearanceService } from "./AppearanceService";
 import type { PlayerState } from "../player";
 import type { InterfaceService } from "../../widgets/InterfaceService";
-import type { WidgetEvent } from "../../network/wsServerTypes";
 import { logger } from "../../utils/logger";
 
 export interface GamemodeServiceAdapterDeps {

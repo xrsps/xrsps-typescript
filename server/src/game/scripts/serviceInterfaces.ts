@@ -224,6 +224,40 @@ export type { WidgetAction } from "../../widgets/WidgetManager";
 export type { SmithingOptionMessage, SmithingServerPayload } from "../../network/messages";
 
 // ============================================================================
+// Provider Registration (for gamemode/extrascript data provider registration)
+// ============================================================================
+
+import type { WeaponDataProvider } from "../combat/WeaponDataProvider";
+import type { CombatFormulaProvider } from "../combat/CombatFormulaProvider";
+import type { SpecialAttackProvider } from "../combat/SpecialAttackProvider";
+import type { CombatStyleSequenceProvider } from "../combat/CombatStyleSequenceProvider";
+import type { EquipmentBonusProvider } from "../combat/EquipmentBonusProvider";
+import type { SpellXpProvider } from "../combat/SpellXpProvider";
+import type { SpecialAttackVisualProvider } from "../combat/SpecialAttackVisualProvider";
+import type { InstantUtilitySpecialProvider } from "../combat/InstantUtilitySpecialProvider";
+import type { SkillConfiguration } from "../combat/SkillConfigurationProvider";
+import type { SpellDataProvider } from "../spells/SpellDataProvider";
+import type { RuneDataProvider } from "../data/RuneDataProvider";
+import type { ProjectileParamsProvider } from "../data/ProjectileParamsProvider";
+import type { AmmoDataProvider } from "../combat/AmmoDataProvider";
+
+export interface ProviderRegistrationFacade {
+    registerWeaponData(provider: WeaponDataProvider): void;
+    registerCombatFormula(provider: CombatFormulaProvider): void;
+    registerSpecialAttack(provider: SpecialAttackProvider): void;
+    registerCombatStyleSequence(provider: CombatStyleSequenceProvider): void;
+    registerEquipmentBonus(provider: EquipmentBonusProvider): void;
+    registerSpellXp(provider: SpellXpProvider): void;
+    registerSpecialAttackVisual(provider: SpecialAttackVisualProvider): void;
+    registerInstantUtilitySpecial(provider: InstantUtilitySpecialProvider): void;
+    registerSkillConfiguration(config: SkillConfiguration): void;
+    registerSpellData(provider: SpellDataProvider): void;
+    registerRuneData(provider: RuneDataProvider): void;
+    registerProjectileParams(provider: ProjectileParamsProvider): void;
+    registerAmmoData(provider: AmmoDataProvider): void;
+}
+
+// ============================================================================
 // Combat type re-exports (for gamemode consumption without reaching into impl)
 // ============================================================================
 

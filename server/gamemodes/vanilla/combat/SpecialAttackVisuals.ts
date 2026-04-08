@@ -45,3 +45,9 @@ export function pickSpecialAttackVisualOverride(
 
     return undefined;
 }
+
+import type { SpecialAttackVisualProvider } from "../../../src/game/combat/SpecialAttackVisualProvider";
+
+export function createSpecialAttackVisualProvider(): SpecialAttackVisualProvider {
+    return { pickSpecialAttackVisualOverride };
+}

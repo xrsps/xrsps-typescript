@@ -7,6 +7,7 @@ import { getEmoteSeq } from "../emotes";
 import { LockState } from "../model/LockState";
 import type { PlayerState } from "../player";
 import type { ServerServices } from "../ServerServices";
+import { buildRebuildRegionPayload } from "../../network/encoding/RebuildRegionEncoder";
 import { logger } from "../../utils/logger";
 
 export interface RunEnergyPayload {
@@ -153,7 +154,6 @@ export class MovementService {
         const regionX = x >> 3;
         const regionY = y >> 3;
 
-        const { buildRebuildRegionPayload } = require("../../network/encoding/RebuildRegionEncoder");
         const payload = buildRebuildRegionPayload(regionX, regionY, templateChunks, this.services.cacheEnv, false);
         const packet = encodeMessage({ type: "rebuild_region", payload } as unknown as Parameters<typeof encodeMessage>[0]);
         this.services.networkLayer.withDirectSendBypass("rebuild_region", () =>

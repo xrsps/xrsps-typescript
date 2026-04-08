@@ -39,21 +39,22 @@ export interface ProjectileParamsProvider {
 // Provider Registration & Delegation
 // =============================================================================
 
-let _provider: ProjectileParamsProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerProjectileParamsProvider(provider: ProjectileParamsProvider): void {
-    _provider = provider;
+    getProviderRegistry().projectileParams = provider;
 }
 
 export function getProjectileParamsProvider(): ProjectileParamsProvider | undefined {
-    return _provider;
+    return getProviderRegistry().projectileParams;
 }
 
 function ensureProvider(): ProjectileParamsProvider {
-    if (!_provider) {
+    const p = getProviderRegistry().projectileParams;
+    if (!p) {
         throw new Error("[projectileParams] ProjectileParamsProvider not registered. Ensure the gamemode has initialized.");
     }
-    return _provider;
+    return p;
 }
 
 export function getProjectileParams(projectileId: number | undefined): ProjectileParams | undefined {

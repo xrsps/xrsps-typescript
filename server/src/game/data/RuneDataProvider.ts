@@ -48,21 +48,22 @@ export interface RuneDataProvider {
 // Provider Registration & Delegation
 // =============================================================================
 
-let _provider: RuneDataProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerRuneDataProvider(provider: RuneDataProvider): void {
-    _provider = provider;
+    getProviderRegistry().runeData = provider;
 }
 
 export function getRuneDataProvider(): RuneDataProvider | undefined {
-    return _provider;
+    return getProviderRegistry().runeData;
 }
 
 function ensureProvider(): RuneDataProvider {
-    if (!_provider) {
+    const p = getProviderRegistry().runeData;
+    if (!p) {
         throw new Error("[runes] RuneDataProvider not registered. Ensure the gamemode has initialized.");
     }
-    return _provider;
+    return p;
 }
 
 export const RUNE_IDS: RuneId = new Proxy(

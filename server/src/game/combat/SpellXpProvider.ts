@@ -9,12 +9,12 @@ export interface SpellXpProvider {
     getSpellBaseXp(spellId: number): number;
 }
 
-let activeProvider: SpellXpProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerSpellXpProvider(provider: SpellXpProvider): void {
-    activeProvider = provider;
+    getProviderRegistry().spellXp = provider;
 }
 
 export function getSpellBaseXp(spellId: number): number {
-    return activeProvider?.getSpellBaseXp(spellId) ?? 0;
+    return getProviderRegistry().spellXp?.getSpellBaseXp(spellId) ?? 0;
 }

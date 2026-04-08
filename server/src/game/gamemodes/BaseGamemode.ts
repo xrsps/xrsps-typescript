@@ -134,4 +134,6 @@ export abstract class BaseGamemode implements GamemodeDefinition {
     // === Server Lifecycle ===
 
     initialize(_context: GamemodeInitContext): void {}
+
+    dispose(): void {}
 }

@@ -171,21 +171,22 @@ export const CombatCategoryConst = {
 // Provider Registration & Delegation
 // =============================================================================
 
-let _provider: WeaponDataProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerWeaponDataProvider(provider: WeaponDataProvider): void {
-    _provider = provider;
+    getProviderRegistry().weaponData = provider;
 }
 
 export function getWeaponDataProvider(): WeaponDataProvider | undefined {
-    return _provider;
+    return getProviderRegistry().weaponData;
 }
 
 function ensureProvider(): WeaponDataProvider {
-    if (!_provider) {
+    const p = getProviderRegistry().weaponData;
+    if (!p) {
         throw new Error("[weapons] WeaponDataProvider not registered. Ensure the gamemode has initialized.");
     }
-    return _provider;
+    return p;
 }
 
 export function getWeaponData(itemId: number): WeaponDataEntry | undefined {

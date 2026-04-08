@@ -133,21 +133,22 @@ export interface SpellDataProvider {
 // Provider Registration & Delegation
 // =============================================================================
 
-let _provider: SpellDataProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerSpellDataProvider(provider: SpellDataProvider): void {
-    _provider = provider;
+    getProviderRegistry().spellData = provider;
 }
 
 export function getSpellDataProvider(): SpellDataProvider | undefined {
-    return _provider;
+    return getProviderRegistry().spellData;
 }
 
 function ensureProvider(): SpellDataProvider {
-    if (!_provider) {
+    const p = getProviderRegistry().spellData;
+    if (!p) {
         throw new Error("[spells] SpellDataProvider not registered. Ensure the gamemode has initialized.");
     }
-    return _provider;
+    return p;
 }
 
 export function getSpellData(spellId: number): SpellDataEntry | undefined {

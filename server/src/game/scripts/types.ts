@@ -305,7 +305,7 @@ export interface ScriptRegistrationResult {
     unregister(): void;
 }
 
-export { type BankingServices, type ShoppingServices, type GatheringServices, type WidgetCloseHandler, type WidgetOpenHandler, type ModalActionHandler } from "./serviceInterfaces";
+export { type BankingServices, type ShoppingServices, type GatheringServices, type WidgetCloseHandler, type WidgetOpenHandler, type ModalActionHandler, type ProviderRegistrationFacade } from "./serviceInterfaces";
 export { DisplayMode, BaseComponentUids, type InterfaceMount, type SmithingOptionMessage, type SmithingServerPayload, type WidgetAction } from "./serviceInterfaces";
 export { getMainmodalUid, getSidemodalUid, getPrayerTabUid, getViewportTrackerFrontUid } from "../../widgets/viewport";
 export type { DoorToggleResult, GateDef, GatePair, GateOpenStyle, DoorPartnerResult } from "./serviceInterfaces";
@@ -342,7 +342,7 @@ export type { DropEligibility, NpcLootConfig } from "./serviceInterfaces";
 export { applyAutocastState, clearAutocastState } from "./serviceInterfaces";
 export { getEmoteSeq, getSkillcapeSeqId, getSkillcapeSpotId } from "./serviceInterfaces";
 
-import type { GatheringServices, MessagingFacade, VariableFacade, SkillFacade, DataLoaderFacade, SystemFacade, InventoryFacade, EquipmentFacade, AnimationFacade, SoundFacade, AppearanceFacade, DialogFacade, MovementFacade, LocationFacade, CombatFacade, NpcFacade, CollectionLogFacade, ViewportFacade, FollowerServiceFacade, ProductionServiceFacade, SailingServiceFacade, BankingServices, ShoppingServices, WidgetCloseHandler, WidgetOpenHandler, ModalActionHandler } from "./serviceInterfaces";
+import type { GatheringServices, MessagingFacade, VariableFacade, SkillFacade, DataLoaderFacade, SystemFacade, InventoryFacade, EquipmentFacade, AnimationFacade, SoundFacade, AppearanceFacade, DialogFacade, MovementFacade, LocationFacade, CombatFacade, NpcFacade, CollectionLogFacade, ViewportFacade, FollowerServiceFacade, ProductionServiceFacade, SailingServiceFacade, BankingServices, ShoppingServices, WidgetCloseHandler, WidgetOpenHandler, ModalActionHandler, ProviderRegistrationFacade } from "./serviceInterfaces";
 
 export interface ScriptServices extends GatheringServices {
     messaging: MessagingFacade;
@@ -362,6 +362,8 @@ export interface ScriptServices extends GatheringServices {
     npc: NpcFacade;
     collectionLog: CollectionLogFacade;
     viewport: ViewportFacade;
+    // Provider registration (available to gamemodes and extrascripts)
+    providers: ProviderRegistrationFacade;
     // Gamemode-contributed (optional, populated by contributeScriptServices)
     followers?: FollowerServiceFacade;
     production?: ProductionServiceFacade;

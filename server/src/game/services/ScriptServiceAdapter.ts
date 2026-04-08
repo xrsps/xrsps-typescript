@@ -11,9 +11,10 @@ import {
     getFollowerDefinitionByItemId,
     getFollowerDefinitionByNpcTypeId,
 } from "../followers/followerDefinitions";
-import type { ScriptServices, ScriptDialogRequest, ScriptDialogOptionRequest } from "../scripts/types";
+import type { ScriptServices, ScriptDialogRequest, ScriptDialogOptionRequest, ProviderRegistrationFacade } from "../scripts/types";
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 import { getMainmodalUid, getSidemodalUid, getPrayerTabUid, getViewportTrackerFrontUid } from "../../widgets/viewport";
-import { getDefaultInterfaces } from "../../widgets/WidgetManager";
+import { getDefaultInterfaces, getRemainingTabInterfaces } from "../../widgets/WidgetManager";
 import type { DataLoaderService } from "./DataLoaderService";
 import type { VariableService } from "./VariableService";
 import type { MessagingService } from "./MessagingService";
@@ -114,6 +115,25 @@ export interface ScriptServiceAdapterDeps {
     eventBus?: GameEventBus;
 }
 
+function buildProviderRegistrationFacade(): ProviderRegistrationFacade {
+    const reg = getProviderRegistry();
+    return {
+        registerWeaponData: (p) => { reg.weaponData = p; },
+        registerCombatFormula: (p) => { reg.combatFormula = p; },
+        registerSpecialAttack: (p) => { reg.specialAttack = p; },
+        registerCombatStyleSequence: (p) => { reg.combatStyleSequence = p; },
+        registerEquipmentBonus: (p) => { reg.equipmentBonus = p; },
+        registerSpellXp: (p) => { reg.spellXp = p; },
+        registerSpecialAttackVisual: (p) => { reg.specialAttackVisual = p; },
+        registerInstantUtilitySpecial: (p) => { reg.instantUtilitySpecial = p; },
+        registerSkillConfiguration: (c) => { reg.skillConfiguration = c; },
+        registerSpellData: (p) => { reg.spellData = p; },
+        registerRuneData: (p) => { reg.runeData = p; },
+        registerProjectileParams: (p) => { reg.projectileParams = p; },
+        registerAmmoData: (p) => { reg.ammoData = p; },
+    };
+}
+
 /**
  * Adapts the extracted service classes into the ScriptServices interface
  * consumed by scripts and gamemodes. Replaces the 559-line buildScriptServiceObject
@@ -125,6 +145,8 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
     };
 
     const services: ScriptServices = {
+        // Provider registration facade (available to gamemodes and extrascripts)
+        providers: buildProviderRegistrationFacade(),
         // Gamemode-contributed facades (populated by contributeScriptServices)
         gathering: deps.gatheringSystem,
         stopGatheringInteraction: (player) => {
@@ -337,7 +359,6 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             closeModal: (player) => deps.interfaceService?.closeModal(player),
             getInterfaceService: () => deps.interfaceService,
             openRemainingTabs: (player) => {
-                const { getRemainingTabInterfaces } = require("../../widgets/WidgetManager");
                 const displayMode = player.displayMode ?? 1;
                 for (const intf of getRemainingTabInterfaces(displayMode)) {
                     player.widgets?.open(intf.groupId, {

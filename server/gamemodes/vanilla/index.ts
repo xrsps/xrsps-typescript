@@ -5,15 +5,13 @@ import type { ObjType } from "../../../src/rs/config/objtype/ObjType";
 import type { GamemodeDefinition, GamemodeInitContext, GamemodeServerServices } from "../../src/game/gamemodes/GamemodeDefinition";
 import { BaseGamemode } from "../../src/game/gamemodes/BaseGamemode";
 import { SHOP_INTERFACE_ID } from "./shops/shopConstants";
-import { BankingManager, registerBankingHandlers } from "./banking";
-import { registerBankInterfaceHooks } from "./banking";
+import { BankingManager, registerBankingHandlers, registerBankInterfaceHooks } from "./banking";
 import { registerEquipmentHandlers } from "./equipment/equipment";
 import { registerEquipmentWidgetHandlers } from "./equipment/equipmentWidgets";
 import { registerEquipmentStatsInterfaceHooks } from "./equipment/EquipmentStatsInterfaceHooks";
 import { handleSailingPlayerRestore } from "./skills/sailing";
 import { register as registerSkillHandlers } from "./skills";
-import { ShopManager, type ShopStockEntry, type ShopOpenData } from "./shops";
-import { registerShopInterfaceHooks } from "./shops";
+import { ShopManager, type ShopStockEntry, type ShopOpenData, registerShopInterfaceHooks } from "./shops";
 import { registerShopInteractionHandlers } from "./shops/shopInteractions";
 import { registerShopWidgetHandlers } from "./shops/shopWidgets";
 import { registerZaffHandlers } from "./shops/zaff";
@@ -47,6 +45,23 @@ import { DEFAULT_LOGIN_VARBITS } from "./data/loginVarbits";
 import { DEFAULT_LOGIN_VARPS } from "./data/loginVarps";
 import { NPC_LOOT_CONFIGS } from "./data/lootDistribution";
 import { registerLevelUpHandlers, handleResumePauseButton, handleDismiss } from "./scripts/levelup";
+import { getProviderRegistry, resetProviderRegistry } from "../../src/game/providers/ProviderRegistry";
+import { getWeaponDataProvider } from "../../src/game/combat/WeaponDataProvider";
+import { createSpellXpProvider } from "./combat/SpellXpData";
+import { createSpecialAttackVisualProvider } from "./combat/SpecialAttackVisuals";
+import { createInstantUtilitySpecialProvider } from "./combat/RockKnockerSpecial";
+import { createWeaponDataProvider } from "./data/weapons";
+import { createSpecialAttackProvider } from "./combat/SpecialAttackRegistry";
+import { createCombatFormulaProvider } from "./combat/CombatFormulas";
+import { createCombatStyleSequenceProvider } from "./combat/CombatStyleSequences";
+import { createSkillConfiguration } from "./combat/SkillConfiguration";
+import { createEquipmentBonusProvider } from "./combat/EquipmentBonuses";
+import { createProjectileParamsProvider } from "./data/projectileParams";
+import { createSpellDataProvider } from "./data/spells";
+import { createRuneDataProvider } from "./data/runes";
+import { createDefaultAmmoDataProvider } from "../../src/game/combat/AmmoSystem";
+import { encodeMessage } from "../../src/network/messages";
+import "./combat/BossCombatScript";
 
 export class VanillaGamemode extends BaseGamemode {
     override readonly id = "vanilla";
@@ -77,11 +92,27 @@ export class VanillaGamemode extends BaseGamemode {
     }
 
     getGamemodeServices(): Record<string, unknown> {
-        const { getWeaponDataProvider } = require("../../src/game/combat/WeaponDataProvider") as typeof import("../../src/game/combat/WeaponDataProvider");
         return {
             banking: this.bankingManager,
             weaponDataProvider: getWeaponDataProvider(),
         };
+    }
+
+    private registerProviders(): void {
+        const registry = getProviderRegistry();
+        registry.spellXp = createSpellXpProvider();
+        registry.specialAttackVisual = createSpecialAttackVisualProvider();
+        registry.instantUtilitySpecial = createInstantUtilitySpecialProvider();
+        registry.weaponData = createWeaponDataProvider();
+        registry.specialAttack = createSpecialAttackProvider();
+        registry.combatFormula = createCombatFormulaProvider();
+        registry.combatStyleSequence = createCombatStyleSequenceProvider();
+        registry.skillConfiguration = createSkillConfiguration();
+        registry.equipmentBonus = createEquipmentBonusProvider();
+        registry.projectileParams = createProjectileParamsProvider();
+        registry.spellData = createSpellDataProvider();
+        registry.runeData = createRuneDataProvider();
+        registry.ammoData = createDefaultAmmoDataProvider();
     }
 
     contributeScriptServices(services: ScriptServices): void {
@@ -204,104 +235,7 @@ export class VanillaGamemode extends BaseGamemode {
         const ss = context.serverServices;
         this.serverServices = ss;
 
-        // === Spell XP Data ===
-        const { SPELL_BASE_XP } = require("./combat/SpellXpData") as typeof import("./combat/SpellXpData");
-        const { registerSpellXpProvider } = require("../../src/game/combat/SpellXpProvider") as typeof import("../../src/game/combat/SpellXpProvider");
-        registerSpellXpProvider({ getSpellBaseXp: (spellId) => SPELL_BASE_XP[spellId] ?? 0 });
-
-        // === Special Attack Visuals ===
-        const { pickSpecialAttackVisualOverride } = require("./combat/SpecialAttackVisuals") as typeof import("./combat/SpecialAttackVisuals");
-        const { registerSpecialAttackVisualProvider } = require("../../src/game/combat/SpecialAttackVisualProvider") as typeof import("../../src/game/combat/SpecialAttackVisualProvider");
-        registerSpecialAttackVisualProvider({ pickSpecialAttackVisualOverride });
-
-        // === Instant Utility Specials (Rock Knocker, Fishstabber, Lumber Up) ===
-        const {
-            getRockKnockerSpecialSequence,
-            getFishstabberSpecialSequence,
-            getLumberUpSpecialSequence,
-            ROCK_KNOCKER_SOUND_ID,
-            applyRockKnockerMiningBoost,
-            applyFishstabberFishingBoost,
-            applyLumberUpWoodcuttingBoost,
-            markInstantUtilitySpecialHandledAtTick: markHandled,
-            wasInstantUtilitySpecialHandledAtTick: wasHandled,
-        } = require("./combat/RockKnockerSpecial") as typeof import("./combat/RockKnockerSpecial");
-        const { registerInstantUtilitySpecialProvider } = require("../../src/game/combat/InstantUtilitySpecialProvider") as typeof import("../../src/game/combat/InstantUtilitySpecialProvider");
-        registerInstantUtilitySpecialProvider({
-            getInstantUtilitySpecial(weaponId) {
-                const rkSeq = getRockKnockerSpecialSequence(weaponId);
-                if (rkSeq !== undefined) return { kind: "rock_knocker", seqId: rkSeq, soundId: ROCK_KNOCKER_SOUND_ID };
-                const fsSeq = getFishstabberSpecialSequence(weaponId);
-                if (fsSeq !== undefined) return { kind: "fishstabber", seqId: fsSeq };
-                const luSeq = getLumberUpSpecialSequence(weaponId);
-                if (luSeq !== undefined) return { kind: "lumber_up", seqId: luSeq };
-                return undefined;
-            },
-            applySpecialBoost(player, kind) {
-                if (kind === "rock_knocker") applyRockKnockerMiningBoost(player);
-                else if (kind === "fishstabber") applyFishstabberFishingBoost(player);
-                else applyLumberUpWoodcuttingBoost(player);
-            },
-            markHandledAtTick: markHandled,
-            wasHandledAtTick: wasHandled,
-        });
-
-        // === Boss Scripts ===
-        require("./combat/BossCombatScript");
-
-        // === Weapon Data ===
-        const { createWeaponDataProvider } = require("./data/weapons") as typeof import("./data/weapons");
-        const { registerWeaponDataProvider } = require("../../src/game/combat/WeaponDataProvider") as typeof import("../../src/game/combat/WeaponDataProvider");
-        const weaponProvider = createWeaponDataProvider();
-        registerWeaponDataProvider(weaponProvider);
-
-        // === Special Attacks ===
-        const { createSpecialAttackProvider } = require("./combat/SpecialAttackRegistry") as typeof import("./combat/SpecialAttackRegistry");
-        const { registerSpecialAttackProvider } = require("../../src/game/combat/SpecialAttackProvider") as typeof import("../../src/game/combat/SpecialAttackProvider");
-        const specialAttackProvider = createSpecialAttackProvider();
-        registerSpecialAttackProvider(specialAttackProvider);
-
-        // === Combat Formulas ===
-        const { createCombatFormulaProvider } = require("./combat/CombatFormulas") as typeof import("./combat/CombatFormulas");
-        const { registerCombatFormulaProvider } = require("../../src/game/combat/CombatFormulaProvider") as typeof import("../../src/game/combat/CombatFormulaProvider");
-        const combatFormulaProvider = createCombatFormulaProvider();
-        registerCombatFormulaProvider(combatFormulaProvider);
-
-        // === Combat Style Sequences ===
-        const { createCombatStyleSequenceProvider } = require("./combat/CombatStyleSequences") as typeof import("./combat/CombatStyleSequences");
-        const { registerCombatStyleSequenceProvider } = require("../../src/game/combat/CombatStyleSequenceProvider") as typeof import("../../src/game/combat/CombatStyleSequenceProvider");
-        const combatStyleSequenceProvider = createCombatStyleSequenceProvider();
-        registerCombatStyleSequenceProvider(combatStyleSequenceProvider);
-
-        // === Skill Configuration ===
-        const { createSkillConfiguration } = require("./combat/SkillConfiguration") as typeof import("./combat/SkillConfiguration");
-        const { registerSkillConfiguration } = require("../../src/game/combat/SkillConfigurationProvider") as typeof import("../../src/game/combat/SkillConfigurationProvider");
-        const skillConfig = createSkillConfiguration();
-        registerSkillConfiguration(skillConfig);
-
-        // === Equipment Bonuses ===
-        const { createEquipmentBonusProvider } = require("./combat/EquipmentBonuses") as typeof import("./combat/EquipmentBonuses");
-        const { registerEquipmentBonusProvider } = require("../../src/game/combat/EquipmentBonusProvider") as typeof import("../../src/game/combat/EquipmentBonusProvider");
-        const equipmentBonusProvider = createEquipmentBonusProvider();
-        registerEquipmentBonusProvider(equipmentBonusProvider);
-
-        // === Projectile Params ===
-        const { createProjectileParamsProvider } = require("./data/projectileParams") as typeof import("./data/projectileParams");
-        const { registerProjectileParamsProvider } = require("../../src/game/data/ProjectileParamsProvider") as typeof import("../../src/game/data/ProjectileParamsProvider");
-        const projectileParamsProvider = createProjectileParamsProvider();
-        registerProjectileParamsProvider(projectileParamsProvider);
-
-        // === Spell Data ===
-        const { createSpellDataProvider } = require("./data/spells") as typeof import("./data/spells");
-        const { registerSpellDataProvider } = require("../../src/game/spells/SpellDataProvider") as typeof import("../../src/game/spells/SpellDataProvider");
-        const spellDataProvider = createSpellDataProvider();
-        registerSpellDataProvider(spellDataProvider);
-
-        // === Rune Data ===
-        const { createRuneDataProvider } = require("./data/runes") as typeof import("./data/runes");
-        const { registerRuneDataProvider } = require("../../src/game/data/RuneDataProvider") as typeof import("../../src/game/data/RuneDataProvider");
-        const runeDataProvider = createRuneDataProvider();
-        registerRuneDataProvider(runeDataProvider);
+        this.registerProviders();
 
         // === Banking ===
         const bankingServices: BankingProviderServices = {
@@ -318,7 +252,7 @@ export class VanillaGamemode extends BaseGamemode {
         ss.registerSnapshotEncoder(
             "bank",
             (_playerId, payload) => {
-                const { encodeMessage } = require("../../src/network/messages");
+    
                 return {
                     message: encodeMessage({ type: "bank", payload }),
                     context: "bank_snapshot",
@@ -347,7 +281,7 @@ export class VanillaGamemode extends BaseGamemode {
         });
 
         ss.registerSnapshotEncoder("shop", (_playerId, payload) => {
-            const { encodeMessage } = require("../../src/network/messages");
+
             return {
                 message: encodeMessage({ type: "shop", payload }),
                 context: "shop_event",
@@ -546,6 +480,7 @@ export class VanillaGamemode extends BaseGamemode {
             });
         }
     }
+
     onResumePauseButton(player: PlayerState, widgetId: number, childIndex: number): boolean {
         if (!this.scriptServices) return false;
         return handleResumePauseButton(this.scriptServices, player, widgetId, childIndex);
@@ -555,6 +490,15 @@ export class VanillaGamemode extends BaseGamemode {
         if (this.scriptServices) {
             handleDismiss(this.scriptServices, playerId);
         }
+    }
+
+    override dispose(): void {
+        resetProviderRegistry();
+
+        this.bankingManager = undefined;
+        this.shopManager = undefined;
+        this.serverServices = undefined;
+        this.scriptServices = undefined;
     }
 }
 

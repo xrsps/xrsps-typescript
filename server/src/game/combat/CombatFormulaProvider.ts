@@ -88,21 +88,22 @@ export interface CombatFormulaProvider {
 // Provider Registration & Delegation
 // =============================================================================
 
-let _provider: CombatFormulaProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerCombatFormulaProvider(provider: CombatFormulaProvider): void {
-    _provider = provider;
+    getProviderRegistry().combatFormula = provider;
 }
 
 export function getCombatFormulaProvider(): CombatFormulaProvider | undefined {
-    return _provider;
+    return getProviderRegistry().combatFormula;
 }
 
 function ensureProvider(): CombatFormulaProvider {
-    if (!_provider) {
+    const p = getProviderRegistry().combatFormula;
+    if (!p) {
         throw new Error("[CombatFormulas] CombatFormulaProvider not registered. Ensure the gamemode has initialized.");
     }
-    return _provider;
+    return p;
 }
 
 export function attackRoll(attacker: AttackerStats): number {

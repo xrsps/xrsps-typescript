@@ -129,21 +129,22 @@ export interface SpecialAttackProvider {
 // Provider Registration & Delegation
 // =============================================================================
 
-let _provider: SpecialAttackProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerSpecialAttackProvider(provider: SpecialAttackProvider): void {
-    _provider = provider;
+    getProviderRegistry().specialAttack = provider;
 }
 
 export function getSpecialAttackProvider(): SpecialAttackProvider | undefined {
-    return _provider;
+    return getProviderRegistry().specialAttack;
 }
 
 function ensureProvider(): SpecialAttackProvider {
-    if (!_provider) {
+    const p = getProviderRegistry().specialAttack;
+    if (!p) {
         throw new Error("[SpecialAttackRegistry] SpecialAttackProvider not registered. Ensure the gamemode has initialized.");
     }
-    return _provider;
+    return p;
 }
 
 export const SpecialAttackRegistry = {

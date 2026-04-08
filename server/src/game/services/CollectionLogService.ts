@@ -12,6 +12,7 @@ import {
 import { encodeMessage } from "../../network/messages";
 import type { PlayerState } from "../player";
 import type { WidgetAction } from "../../widgets/WidgetManager";
+import { getMainmodalUid } from "../../widgets/viewport";
 import { logger } from "../../utils/logger";
 import type { ServerServices } from "../ServerServices";
 
@@ -46,7 +47,6 @@ export class CollectionLogService {
     }
 
     getCollectionLogServices(): CollectionLogServices {
-        const { getMainmodalUid } = require("../../widgets/viewport");
         return {
             queueVarp: (playerId: number, varpId: number, value: number) =>
                 this.services.variableService.queueVarp(playerId, varpId, value),

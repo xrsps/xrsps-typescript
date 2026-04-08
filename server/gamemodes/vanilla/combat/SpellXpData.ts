@@ -111,3 +111,9 @@ export function getSpellBaseXp(spellId: number): number {
 export function isCombatSpell(spellId: number): boolean {
     return spellId in SPELL_BASE_XP;
 }
+
+import type { SpellXpProvider } from "../../../src/game/combat/SpellXpProvider";
+
+export function createSpellXpProvider(): SpellXpProvider {
+    return { getSpellBaseXp };
+}

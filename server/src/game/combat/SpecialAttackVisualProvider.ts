@@ -15,14 +15,14 @@ export interface SpecialAttackVisualProvider {
     pickSpecialAttackVisualOverride(weaponItemId: number): SpecialAttackVisualOverride | undefined;
 }
 
-let activeProvider: SpecialAttackVisualProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerSpecialAttackVisualProvider(provider: SpecialAttackVisualProvider): void {
-    activeProvider = provider;
+    getProviderRegistry().specialAttackVisual = provider;
 }
 
 export function pickSpecialAttackVisualOverride(
     weaponItemId: number,
 ): SpecialAttackVisualOverride | undefined {
-    return activeProvider?.pickSpecialAttackVisualOverride(weaponItemId);
+    return getProviderRegistry().specialAttackVisual?.pickSpecialAttackVisualOverride(weaponItemId);
 }

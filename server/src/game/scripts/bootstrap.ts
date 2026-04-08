@@ -6,7 +6,6 @@ import { logger } from "../../utils/logger";
 import type { GamemodeDefinition } from "../gamemodes/GamemodeDefinition";
 import { loadExtrascriptEntries } from "./ExtrascriptLoader";
 import { ScriptRuntime } from "./ScriptRuntime";
-
 const EXTRASCRIPTS_DIR = path.resolve(__dirname, "../../../../server/extrascripts");
 
 const debounce = (fn: () => void, delayMs: number): (() => void) => {

@@ -74,21 +74,22 @@ export interface EquipmentBonusProvider {
 // Provider Registration & Delegation
 // =============================================================================
 
-let _provider: EquipmentBonusProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerEquipmentBonusProvider(provider: EquipmentBonusProvider): void {
-    _provider = provider;
+    getProviderRegistry().equipmentBonus = provider;
 }
 
 export function getEquipmentBonusProvider(): EquipmentBonusProvider | undefined {
-    return _provider;
+    return getProviderRegistry().equipmentBonus;
 }
 
 function ensureProvider(): EquipmentBonusProvider {
-    if (!_provider) {
+    const p = getProviderRegistry().equipmentBonus;
+    if (!p) {
         throw new Error("[EquipmentBonuses] EquipmentBonusProvider not registered. Ensure the gamemode has initialized.");
     }
-    return _provider;
+    return p;
 }
 
 export function calculateEquipmentBonuses(

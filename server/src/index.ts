@@ -90,6 +90,7 @@ async function main() {
     const shutdown = (signal: string) => () => {
         logger.info(`Received ${signal}, shutting down...`);
         ticker.stop();
+        gamemode.dispose?.();
         process.exit(0);
     };
     process.on("SIGINT", shutdown("SIGINT"));

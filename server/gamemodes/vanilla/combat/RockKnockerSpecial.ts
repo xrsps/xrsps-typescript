@@ -115,3 +115,26 @@ export function applyLumberUpWoodcuttingBoost(player: RockKnockerBoostPlayer): v
     const targetLevel = Math.max(currentLevel, baseLevel + LUMBER_UP_WOODCUTTING_BOOST);
     player.skillSystem.setSkillBoost(SkillId.Woodcutting, targetLevel);
 }
+
+import type { InstantUtilitySpecialProvider } from "../../../src/game/combat/InstantUtilitySpecialProvider";
+
+export function createInstantUtilitySpecialProvider(): InstantUtilitySpecialProvider {
+    return {
+        getInstantUtilitySpecial(weaponId) {
+            const rkSeq = getRockKnockerSpecialSequence(weaponId);
+            if (rkSeq !== undefined) return { kind: "rock_knocker", seqId: rkSeq, soundId: ROCK_KNOCKER_SOUND_ID };
+            const fsSeq = getFishstabberSpecialSequence(weaponId);
+            if (fsSeq !== undefined) return { kind: "fishstabber", seqId: fsSeq };
+            const luSeq = getLumberUpSpecialSequence(weaponId);
+            if (luSeq !== undefined) return { kind: "lumber_up", seqId: luSeq };
+            return undefined;
+        },
+        applySpecialBoost(player, kind) {
+            if (kind === "rock_knocker") applyRockKnockerMiningBoost(player);
+            else if (kind === "fishstabber") applyFishstabberFishingBoost(player);
+            else applyLumberUpWoodcuttingBoost(player);
+        },
+        markHandledAtTick: markInstantUtilitySpecialHandledAtTick,
+        wasHandledAtTick: wasInstantUtilitySpecialHandledAtTick,
+    };
+}

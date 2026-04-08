@@ -11,6 +11,8 @@
  * Reference: RSMod RangedCombatStrategy, OSRS Wiki
  */
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
+import type { AmmoDataProvider } from "./AmmoDataProvider";
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 // =============================================================================
 // Item ID Constants
@@ -663,13 +665,44 @@ const ENCHANTED_BOLT_EFFECTS: Map<number, EnchantedBoltEffect> = new Map([
 ]);
 
 // =============================================================================
-// Ammo System Functions
+// Provider Registration
 // =============================================================================
 
+export function registerAmmoDataProvider(provider: AmmoDataProvider): void {
+    getProviderRegistry().ammoData = provider;
+}
+
+export function getAmmoDataProvider(): AmmoDataProvider | undefined {
+    return getProviderRegistry().ammoData;
+}
+
 /**
- * Get the ammo type required by a weapon.
+ * Default OSRS ammo data provider built from the hardcoded data above.
+ * Gamemodes that need standard OSRS ammo compatibility should register this.
  */
-export function getAmmoType(weaponId: number): AmmoType {
+export function createDefaultAmmoDataProvider(): AmmoDataProvider {
+    return {
+        getAmmoType: defaultGetAmmoType,
+        isAmmoCompatible: defaultIsAmmoCompatible,
+        getValidAmmo: defaultGetValidAmmo,
+        isNoAmmoWeapon: (weaponId) => NO_AMMO_WEAPONS.has(weaponId),
+        isDarkBow: (weaponId) => weaponId === DARK_BOW,
+        getAvasDeviceType: (capeSlotItemId) => {
+            if (capeSlotItemId === AVAS_ASSEMBLER || capeSlotItemId === MASORI_ASSEMBLER || capeSlotItemId === MAX_CAPE || capeSlotItemId === RANGING_CAPE || capeSlotItemId === RANGING_CAPE_T) return "assembler";
+            if (capeSlotItemId === AVAS_ACCUMULATOR) return "accumulator";
+            if (capeSlotItemId === AVAS_ATTRACTOR) return "attractor";
+            return null;
+        },
+        isAvasDevice: (capeSlotItemId) => AVAS_DEVICES.has(capeSlotItemId),
+        getEnchantedBoltEffect: (boltId) => ENCHANTED_BOLT_EFFECTS.get(boltId),
+    };
+}
+
+// =============================================================================
+// Ammo System Functions (delegate to provider if registered, else use defaults)
+// =============================================================================
+
+function defaultGetAmmoType(weaponId: number): AmmoType {
     if (NO_AMMO_WEAPONS.has(weaponId)) return "none";
     if (BOW_WEAPONS.has(weaponId)) return "arrow";
     if (CROSSBOW_WEAPONS.has(weaponId)) return "bolt";
@@ -678,39 +711,35 @@ export function getAmmoType(weaponId: number): AmmoType {
 }
 
 /**
+ * Get the ammo type required by a weapon.
+ */
+export function getAmmoType(weaponId: number): AmmoType {
+    const provider = getProviderRegistry().ammoData;
+    return provider ? provider.getAmmoType(weaponId) : defaultGetAmmoType(weaponId);
+}
+
+function defaultIsAmmoCompatible(weaponId: number, ammoId: number): boolean {
+    if (NO_AMMO_WEAPONS.has(weaponId)) return true;
+    if (BOW_WEAPONS.has(weaponId)) {
+        const validArrows = BOW_ARROW_REQUIREMENTS.get(weaponId);
+        if (validArrows) return validArrows.includes(ammoId);
+        return [BRONZE_ARROW, IRON_ARROW, STEEL_ARROW, MITHRIL_ARROW, BROAD_ARROWS].includes(ammoId);
+    }
+    if (CROSSBOW_WEAPONS.has(weaponId)) {
+        const validBolts = CROSSBOW_BOLT_REQUIREMENTS.get(weaponId);
+        if (validBolts) return validBolts.includes(ammoId);
+        return ALL_BOLTS.includes(ammoId);
+    }
+    if (BALLISTA_WEAPONS.has(weaponId)) return ALL_JAVELINS.includes(ammoId);
+    return false;
+}
+
+/**
  * Check if ammo is compatible with weapon.
  */
 export function isAmmoCompatible(weaponId: number, ammoId: number): boolean {
-    // No ammo weapons don't need ammo
-    if (NO_AMMO_WEAPONS.has(weaponId)) return true;
-
-    // Bows + arrows
-    if (BOW_WEAPONS.has(weaponId)) {
-        const validArrows = BOW_ARROW_REQUIREMENTS.get(weaponId);
-        if (validArrows) {
-            return validArrows.includes(ammoId);
-        }
-        // Default: allow broad arrows and below
-        return [BRONZE_ARROW, IRON_ARROW, STEEL_ARROW, MITHRIL_ARROW, BROAD_ARROWS].includes(
-            ammoId,
-        );
-    }
-
-    // Crossbows + bolts
-    if (CROSSBOW_WEAPONS.has(weaponId)) {
-        const validBolts = CROSSBOW_BOLT_REQUIREMENTS.get(weaponId);
-        if (validBolts) {
-            return validBolts.includes(ammoId);
-        }
-        return ALL_BOLTS.includes(ammoId);
-    }
-
-    // Ballistae + javelins
-    if (BALLISTA_WEAPONS.has(weaponId)) {
-        return ALL_JAVELINS.includes(ammoId);
-    }
-
-    return false;
+    const provider = getProviderRegistry().ammoData;
+    return provider ? provider.isAmmoCompatible(weaponId, ammoId) : defaultIsAmmoCompatible(weaponId, ammoId);
 }
 
 /**
@@ -886,7 +915,8 @@ export function calculateAmmoConsumption(
  * Get enchanted bolt effect for a bolt ID.
  */
 export function getEnchantedBoltEffect(boltId: number): EnchantedBoltEffect | undefined {
-    return ENCHANTED_BOLT_EFFECTS.get(boltId);
+    const provider = getProviderRegistry().ammoData;
+    return provider ? provider.getEnchantedBoltEffect(boltId) : ENCHANTED_BOLT_EFFECTS.get(boltId);
 }
 
 /**
@@ -908,25 +938,20 @@ export function doesBoltEffectActivate(
     return random() < chance;
 }
 
+function defaultGetValidAmmo(weaponId: number): number[] {
+    if (NO_AMMO_WEAPONS.has(weaponId)) return [];
+    if (BOW_WEAPONS.has(weaponId)) return BOW_ARROW_REQUIREMENTS.get(weaponId) ?? [];
+    if (CROSSBOW_WEAPONS.has(weaponId)) return CROSSBOW_BOLT_REQUIREMENTS.get(weaponId) ?? ALL_BOLTS;
+    if (BALLISTA_WEAPONS.has(weaponId)) return ALL_JAVELINS;
+    return [];
+}
+
 /**
  * Get all valid ammo IDs for a weapon.
  */
 export function getValidAmmo(weaponId: number): number[] {
-    if (NO_AMMO_WEAPONS.has(weaponId)) return [];
-
-    if (BOW_WEAPONS.has(weaponId)) {
-        return BOW_ARROW_REQUIREMENTS.get(weaponId) ?? [];
-    }
-
-    if (CROSSBOW_WEAPONS.has(weaponId)) {
-        return CROSSBOW_BOLT_REQUIREMENTS.get(weaponId) ?? ALL_BOLTS;
-    }
-
-    if (BALLISTA_WEAPONS.has(weaponId)) {
-        return ALL_JAVELINS;
-    }
-
-    return [];
+    const provider = getProviderRegistry().ammoData;
+    return provider ? provider.getValidAmmo(weaponId) : defaultGetValidAmmo(weaponId);
 }
 
 // =============================================================================

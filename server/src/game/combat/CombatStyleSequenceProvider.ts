@@ -11,21 +11,22 @@ export interface CombatStyleSequenceProvider {
 // Provider Registration & Delegation
 // =============================================================================
 
-let _provider: CombatStyleSequenceProvider | undefined;
+import { getProviderRegistry } from "../providers/ProviderRegistry";
 
 export function registerCombatStyleSequenceProvider(provider: CombatStyleSequenceProvider): void {
-    _provider = provider;
+    getProviderRegistry().combatStyleSequence = provider;
 }
 
 export function getCombatStyleSequenceProvider(): CombatStyleSequenceProvider | undefined {
-    return _provider;
+    return getProviderRegistry().combatStyleSequence;
 }
 
 function ensureProvider(): CombatStyleSequenceProvider {
-    if (!_provider) {
+    const p = getProviderRegistry().combatStyleSequence;
+    if (!p) {
         throw new Error("[CombatStyleSequences] CombatStyleSequenceProvider not registered. Ensure the gamemode has initialized.");
     }
-    return _provider;
+    return p;
 }
 
 export function getMeleeAttackSequenceForCategory(
