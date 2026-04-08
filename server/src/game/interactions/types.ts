@@ -1,7 +1,11 @@
 import { NpcState } from "../npc";
 import { PlayerState } from "../player";
 
-export type FollowInteractionKind = "follow" | "trade";
+export const FollowInteractionKind = {
+    Follow: "follow",
+    Trade: "trade",
+} as const;
+export type FollowInteractionKind = (typeof FollowInteractionKind)[keyof typeof FollowInteractionKind];
 
 export interface FollowInteractionState {
     kind: FollowInteractionKind;

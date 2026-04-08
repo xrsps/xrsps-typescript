@@ -3,6 +3,7 @@ import type { WebSocket } from "ws";
 import { logger } from "../../utils/logger";
 import type { SkillId } from "../../../../src/rs/skill/skills";
 import { getSpellBaseXp } from "../combat/SpellXpProvider";
+import { AttackType } from "../combat/AttackType";
 import {
     type AttackType as CombatXpAttackType,
     type StyleMode,
@@ -114,7 +115,7 @@ export class SkillService {
         const resolvedStyleMode: StyleMode | string = styleMode ?? "accurate";
 
         const spellBaseXp =
-            resolvedAttackType === "magic" &&
+            resolvedAttackType === AttackType.Magic &&
             !spellBaseXpAtCast &&
             spellId !== undefined &&
             spellId > 0

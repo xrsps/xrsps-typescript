@@ -12,7 +12,7 @@
 import { logger } from "../../../utils/logger";
 import { getPoweredStaffSpellData } from "../../spells/SpellDataProvider";
 import type { PoweredStaffSpellData } from "../../spells/SpellDataProvider";
-import type { AttackType } from "../../combat/AttackType";
+import { AttackType } from "../../combat/AttackType";
 import { HITMARK_DAMAGE } from "../../combat/HitEffects";
 import type { NpcState } from "../../npc";
 import type { PlayerState } from "../../player";
@@ -98,7 +98,7 @@ export class NpcHitHandler {
         const attackTypeHint = this.services.normalizeAttackType(
             data.hit?.attackType ?? data.attackType,
         );
-        const isMagicAttack = attackTypeHint === "magic";
+        const isMagicAttack = attackTypeHint === AttackType.Magic;
 
         // Once an attack is initiated (animation starts), the hit always lands
         // regardless of whether the player switches targets or clicks away mid-attack.
@@ -596,7 +596,7 @@ export class NpcHitHandler {
 
         // Play ranged projectile impact sound at target location
         // This is the sound of arrows/bolts/darts hitting (separate from weapon fire sound)
-        if (attackType === "ranged") {
+        if (attackType === AttackType.Ranged) {
             const impactSoundId = this.services.getRangedImpactSound?.(player);
             if (impactSoundId !== undefined && impactSoundId > 0) {
                 this.services.withDirectSendBypass("combat_ranged_impact_sound", () =>

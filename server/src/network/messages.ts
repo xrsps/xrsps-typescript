@@ -166,7 +166,7 @@ export type TradeServerPayload =
     | {
           kind: "open" | "update";
           sessionId: string;
-          stage: "offer" | "confirm";
+          stage: TradeStage;
           self: TradePartyMessage;
           other: TradePartyMessage;
           info?: string;
@@ -191,13 +191,29 @@ export type WidgetActionRequest = {
     itemId?: number;
 };
 
+export const TradeAction = {
+    Offer: "offer",
+    Remove: "remove",
+    Accept: "accept",
+    Decline: "decline",
+    ConfirmAccept: "confirm_accept",
+    ConfirmDecline: "confirm_decline",
+} as const;
+export type TradeAction = (typeof TradeAction)[keyof typeof TradeAction];
+
+export const TradeStage = {
+    Offer: "offer",
+    Confirm: "confirm",
+} as const;
+export type TradeStage = (typeof TradeStage)[keyof typeof TradeStage];
+
 export type TradeActionClientPayload =
-    | { action: "offer"; slot: number; quantity: number; itemId?: number }
-    | { action: "remove"; slot: number; quantity: number }
-    | { action: "accept" }
-    | { action: "decline" }
-    | { action: "confirm_accept" }
-    | { action: "confirm_decline" };
+    | { action: typeof TradeAction.Offer; slot: number; quantity: number; itemId?: number }
+    | { action: typeof TradeAction.Remove; slot: number; quantity: number }
+    | { action: typeof TradeAction.Accept }
+    | { action: typeof TradeAction.Decline }
+    | { action: typeof TradeAction.ConfirmAccept }
+    | { action: typeof TradeAction.ConfirmDecline };
 
 export type GroundItemActionPayload = {
     stackId: number;

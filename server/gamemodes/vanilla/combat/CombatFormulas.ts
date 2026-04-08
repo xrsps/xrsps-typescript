@@ -1,5 +1,5 @@
+import { AttackType } from "../../../src/game/combat/AttackType";
 import type {
-    AttackType,
     AttackerStats,
     CombatFormulaProvider,
     DefenderStats,
@@ -68,11 +68,11 @@ function getNpcAttackBonus(
     attackType: AttackType,
 ): number {
     switch (attackType) {
-        case "magic":
+        case AttackType.Magic:
             return profile.magicBonus;
-        case "ranged":
+        case AttackType.Ranged:
             return profile.rangedBonus;
-        case "melee":
+        case AttackType.Melee:
         default:
             return profile.attackBonus;
     }
@@ -84,11 +84,11 @@ function getNpcDefenceBonus(
     meleeStyle: "stab" | "slash" | "crush" = "slash",
 ): number {
     switch (attackType) {
-        case "magic":
+        case AttackType.Magic:
             return profile.defenceMagic;
-        case "ranged":
+        case AttackType.Ranged:
             return profile.defenceRanged;
-        case "melee":
+        case AttackType.Melee:
         default:
             switch (meleeStyle) {
                 case "stab":
@@ -122,7 +122,7 @@ function calculateNpcVsPlayer(
     const npcAtkRoll = attackRoll({ effectiveLevel: npcEffAtk, bonus: npcAtkBonus });
 
     let playerEffDef: number;
-    if (type === "magic") {
+    if (type === AttackType.Magic) {
         playerEffDef = effectiveMagicDefence(playerDefence.magicLevel, playerDefence.defenceLevel);
     } else {
         playerEffDef = effectiveLevel(playerDefence.defenceLevel, 1, 0);

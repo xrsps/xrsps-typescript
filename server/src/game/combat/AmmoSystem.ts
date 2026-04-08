@@ -165,7 +165,34 @@ const DRAGON_JAVELIN = 19484;
 // Types
 // =============================================================================
 
-export type AmmoType = "arrow" | "bolt" | "javelin" | "thrown" | "chinchompa" | "none";
+export const AmmoType = {
+    Arrow: "arrow",
+    Bolt: "bolt",
+    Javelin: "javelin",
+    Thrown: "thrown",
+    Chinchompa: "chinchompa",
+    None: "none",
+} as const;
+export type AmmoType = (typeof AmmoType)[keyof typeof AmmoType];
+
+export const BoltEffectType = {
+    DamageBoost: "damage_boost",
+    HpDrain: "hp_drain",
+    DefenseDrain: "defense_drain",
+    Lightning: "lightning",
+    Poison: "poison",
+    Heal: "heal",
+    LifeLeech: "life_leech",
+    MagicDrain: "magic_drain",
+} as const;
+export type BoltEffectType = (typeof BoltEffectType)[keyof typeof BoltEffectType];
+
+export const AvasDeviceType = {
+    Assembler: "assembler",
+    Accumulator: "accumulator",
+    Attractor: "attractor",
+} as const;
+export type AvasDeviceType = (typeof AvasDeviceType)[keyof typeof AvasDeviceType];
 
 export interface AmmoRequirement {
     ammoType: AmmoType;
@@ -190,16 +217,7 @@ export interface EnchantedBoltEffect {
     activationChance: number;
     /** Whether Kandarin hard diary doubles activation chance */
     kandarinBoost: boolean;
-    /** Effect type */
-    effectType:
-        | "damage_boost"
-        | "hp_drain"
-        | "defense_drain"
-        | "lightning"
-        | "poison"
-        | "heal"
-        | "life_leech"
-        | "magic_drain";
+    effectType: BoltEffectType;
     /** Damage multiplier or flat bonus */
     damageMultiplier?: number;
     flatDamageBonus?: number;
@@ -969,7 +987,7 @@ export class AmmoSystem {
     shouldConsumeAmmo(
         ammoId: number,
         hasAvasDevice: boolean,
-        avasType: "assembler" | "accumulator" | "attractor" | null,
+        avasType: AvasDeviceType | null,
         random: () => number,
     ): boolean {
         if (!hasAvasDevice || !avasType) {
@@ -979,13 +997,13 @@ export class AmmoSystem {
 
         const roll = random();
         switch (avasType) {
-            case "assembler":
+            case AvasDeviceType.Assembler:
                 // 80% retrieved, 20% break
                 return roll >= 0.8;
-            case "accumulator":
+            case AvasDeviceType.Accumulator:
                 // 72% retrieved, 28% consumed
                 return roll >= 0.72;
-            case "attractor":
+            case AvasDeviceType.Attractor:
                 // 60% retrieved, 40% consumed
                 return roll >= 0.6;
             default:

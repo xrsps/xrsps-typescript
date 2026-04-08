@@ -18,7 +18,7 @@ import { handleRangedAmmoConsumption, handleAutocastRuneConsumption } from "./Co
 import type { ProjectileLaunch } from "../../../../../src/shared/projectiles/ProjectileLaunch";
 import type { SpellDataEntry } from "../../spells/SpellDataProvider";
 import type { PathService } from "../../../pathfinding/PathService";
-import { normalizeAttackType, type AttackType } from "../../combat/AttackType";
+import { AttackType, normalizeAttackType } from "../../combat/AttackType";
 import {
     hasProjectileLineOfSightToNpc,
     hasDirectMeleeReach,
@@ -845,7 +845,7 @@ export class CombatActionHandler {
             }
         } else {
             // do not allow long-reach melee attacks through walls
-            const isMelee = resolvePlayerAttackType(player.combat) === "melee";
+            const isMelee = resolvePlayerAttackType(player.combat) === AttackType.Melee;
             if (isMelee && pathService) {
                 if (!hasDirectMeleePath(player, npc, pathService)) {
                     return { ok: false, reason: "not_in_range" };
@@ -893,7 +893,7 @@ export class CombatActionHandler {
 
         // Ranged ammo consumption
         const plannedAttackType = normalizeAttackType(hitPayload.attackType);
-        if (plannedAttackType === "ranged") {
+        if (plannedAttackType === AttackType.Ranged) {
             const result = handleRangedAmmoConsumption(
                 this.subServices,
                 player,
@@ -910,7 +910,7 @@ export class CombatActionHandler {
 
         // Magic autocast rune consumption
         // Skip if onMagicAttack already handled runes at schedule time (prevents double consumption)
-        if (plannedAttackType === "magic" && player.combat.autocastEnabled && !data.magicAutocastHandled) {
+        if (plannedAttackType === AttackType.Magic && player.combat.autocastEnabled && !data.magicAutocastHandled) {
             const result = handleAutocastRuneConsumption(this.subServices, player, npc, weaponItemId);
             if (!result.ok) {
                 return result;
@@ -919,7 +919,7 @@ export class CombatActionHandler {
 
         // Queue ranged attack spot animation (only after ammo check passes)
         // This was moved from CombatSystem.ts to ensure animation doesn't play when out of ammo
-        if (plannedAttackType === "ranged") {
+        if (plannedAttackType === AttackType.Ranged) {
             const scheduleTick = Number.isFinite(tick) ? tick : this.svc.ticker.currentTick();
             this.svc.broadcastService.enqueueSpotAnimation({
                 tick: scheduleTick,
@@ -1145,7 +1145,7 @@ export class CombatActionHandler {
             const resolvedAttackType =
                 normalizeAttackType(entryAttackType) ?? plannedAttackType;
             const shouldGrantXpOnAttack =
-                resolvedAttackType !== "magic" && this.resolveHitLanded(landed, style, damage);
+                resolvedAttackType !== AttackType.Magic && this.resolveHitLanded(landed, style, damage);
             if (shouldGrantXpOnAttack && damage > 0) {
                 hitData.xpGrantedOnAttack = true;
                 this.svc.skillService.awardCombatXp(player, damage, hitData as { attackType?: string; attackStyleMode?: string; spellId?: number; spellBaseXpAtCast?: boolean }, effects);
@@ -1291,7 +1291,7 @@ export class CombatActionHandler {
             }
         }
 
-        if (attackType !== "magic") {
+        if (attackType !== AttackType.Magic) {
             return undefined;
         }
 
@@ -1331,7 +1331,7 @@ export class CombatActionHandler {
         hitPayload: HitPayload | undefined,
         effects: ActionEffect[],
     ): void {
-        if (attackType !== "magic") return;
+        if (attackType !== AttackType.Magic) return;
 
         const spellId = player.combat.spellId ?? -1;
         const spellData = spellId > 0 ? getSpellData(spellId) : undefined;

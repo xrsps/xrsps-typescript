@@ -268,13 +268,13 @@ export class PlayerInteractionSystem {
 
     getInteractingForSocket(
         ws: WebSocket,
-    ): { targetId: number; mode: "follow" | "trade" | "combat" } | undefined {
+    ): { targetId: number; mode: FollowInteractionKind | "combat" } | undefined {
         const player = this.players.get(ws);
         const interaction = player?.getInteractionTarget();
         if (!interaction) return undefined;
         const state = this.interactions.get(ws);
-        let mode: "follow" | "trade" | "combat" = "combat";
-        if (state && (state.kind === "follow" || state.kind === "trade")) {
+        let mode: FollowInteractionKind | "combat" = "combat";
+        if (state && (state.kind === FollowInteractionKind.Follow || state.kind === FollowInteractionKind.Trade)) {
             mode = state.kind;
         }
         return { targetId: interaction.id, mode };
@@ -419,7 +419,7 @@ export class PlayerInteractionSystem {
         if (existing) {
             if (existing.kind === "npcCombat") {
                 this.stopNpcAttack(ws);
-            } else if (existing.kind === "follow" || existing.kind === "trade") {
+            } else if (existing.kind === FollowInteractionKind.Follow || existing.kind === FollowInteractionKind.Trade) {
                 this.stopFollowing(ws);
             } else if (existing.kind === "npcInteract") {
                 this.interactions.delete(ws);

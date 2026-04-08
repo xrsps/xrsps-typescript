@@ -45,7 +45,13 @@ export interface ValuedItem {
 /**
  * Source location of an item
  */
-export type ItemSource = { type: "inventory"; slot: number } | { type: "equipment"; slot: number };
+export const ItemSourceType = {
+    Inventory: "inventory",
+    Equipment: "equipment",
+} as const;
+export type ItemSourceType = (typeof ItemSourceType)[keyof typeof ItemSourceType];
+
+export type ItemSource = { type: typeof ItemSourceType.Inventory; slot: number } | { type: typeof ItemSourceType.Equipment; slot: number };
 
 /**
  * Result of item protection calculation

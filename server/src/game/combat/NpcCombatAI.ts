@@ -10,7 +10,7 @@
  *
  * Reference: OSRS Wiki, RSMod
  */
-import type { AttackType } from "./AttackType";
+import { AttackType } from "./AttackType";
 import { resolveNpcAttackRange } from "./CombatRules";
 
 // =============================================================================
@@ -684,9 +684,9 @@ export function calculateNpcAttack(
     // Calculate hit delay based on attack type
     // Melee resolves 1 tick after swing; ranged/magic include projectile travel.
     let hitDelay = 1;
-    if (npcStats.attackType === "ranged") {
+    if (npcStats.attackType === AttackType.Ranged) {
         hitDelay = 1 + Math.floor((3 + distance) / 6);
-    } else if (npcStats.attackType === "magic") {
+    } else if (npcStats.attackType === AttackType.Magic) {
         hitDelay = 1 + Math.floor((1 + distance) / 3);
     }
 

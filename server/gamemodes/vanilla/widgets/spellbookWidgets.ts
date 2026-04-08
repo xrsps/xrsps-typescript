@@ -1,3 +1,4 @@
+import { SpellbookName } from "../../../src/data/spellWidgetLoader";
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import { SkillId } from "../../../../src/rs/skill/skills";
 import { VARP_LAST_HOME_TELEPORT } from "../../../../src/shared/vars";
@@ -1171,9 +1172,9 @@ function executeTeleport(
     // Standard: 111 at height 92, Ancient: 392 at height 0, Lunar/Arceuus: 747 at height 120
     if (castSpotAnim) {
         let gfxHeight = 92; // Standard default
-        if (spell.spellbook === "ancient") {
+        if (spell.spellbook === SpellbookName.Ancient) {
             gfxHeight = 0;
-        } else if (spell.spellbook === "lunar" || spell.spellbook === "arceuus") {
+        } else if (spell.spellbook === SpellbookName.Lunar || spell.spellbook === SpellbookName.Arceuus) {
             gfxHeight = 120;
         }
         services.animation.broadcastPlayerSpot(player, castSpotAnim, gfxHeight, 0);

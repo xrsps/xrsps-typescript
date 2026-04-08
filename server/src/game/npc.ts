@@ -12,6 +12,7 @@ import {
     StatusHitsplat,
 } from "./combat/HitEffects";
 import { AGGRESSION_TIMER_TICKS, TARGET_SEARCH_INTERVAL } from "./combat/NpcCombatAI";
+import { EntityType } from "./collision/EntityCollisionService";
 import { ACTIVE_COMBAT_TIMER_TICKS } from "./model/timer";
 
 /**
@@ -476,7 +477,7 @@ export class NpcState extends Actor {
         // ACTIVE_COMBAT_TIMER = 17 ticks (10.2 seconds)
         this.combatTimeoutTick = currentTick + ACTIVE_COMBAT_TIMER_TICKS;
         // Face the combat target immediately (RSMod/OSRS behavior while chasing/attacking).
-        this.setInteraction("player", normalized);
+        this.setInteraction(EntityType.Player, normalized);
         // Only clear roaming path when first entering combat or switching targets.
         if (changedTarget) {
             // If NPC was walking, force a sync update so client knows it stopped
@@ -589,7 +590,7 @@ export class NpcState extends Actor {
         const target = this.getInteractionTarget();
         if (!target) return false;
         // RSMod considers "player" and "npc" as pawns
-        return target.type === "player" || target.type === "npc";
+        return target.type === EntityType.Player || target.type === EntityType.Npc;
     }
 
     /**
@@ -647,7 +648,7 @@ export class NpcState extends Actor {
             return false;
         }
         const interaction = this.getInteractionTarget();
-        if (interaction && (interaction.type === "player" || interaction.type === "npc")) {
+        if (interaction && (interaction.type === EntityType.Player || interaction.type === EntityType.Npc)) {
             return false;
         }
         if (this.isStationary()) {

@@ -5,8 +5,7 @@
  */
 
 // Core types
-export type { AttackType } from "./AttackType";
-export { normalizeAttackType } from "./AttackType";
+export { AttackType, normalizeAttackType } from "./AttackType";
 export {
     DEFAULT_NPC_MAGIC_RANGE,
     DEFAULT_NPC_MELEE_RANGE,
@@ -89,7 +88,9 @@ export {
 export {
     calculateCombatXp,
     getDefaultStyleMode,
-    type AttackType as CombatXpAttackType,
+    MeleeStyle,
+    RangedStyle,
+    MagicStyle,
     type StyleMode,
     type MeleeStyleMode,
     type RangedStyleMode,

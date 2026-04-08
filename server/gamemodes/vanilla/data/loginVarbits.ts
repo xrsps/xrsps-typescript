@@ -214,4 +214,8 @@ export const DEFAULT_LOGIN_VARBITS: Array<[number, number]> = [
     ...DIARY_VARBITS,
     [VARBIT_XPDROPS_ENABLED, 1],
     [VARBIT_MUSIC_UNLOCK_TEXT_TOGGLE, 1],
+    // Quest journal defaults
+    [6347, 0],   // quests_completed_count
+    [11877, 158], // quests_total_count (158 total quests in OSRS)
+    [1782, 300],  // qp_max
 ];

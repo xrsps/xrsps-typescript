@@ -19,4 +19,7 @@ export const DEFAULT_LOGIN_VARPS: Array<[number, number]> = [
     [VARP_AREA_SOUNDS_VOLUME, DEFAULT_SOUND_VOLUME],
     [VARP_MASTER_VOLUME, DEFAULT_SOUND_VOLUME],
     [VARP_MUSIC_CURRENT_TRACK, -1],
+    // Quest journal defaults
+    [101, 0],   // qp (current quest points)
+    [904, 300], // qp_total (triggers questlist_qp script)
 ];

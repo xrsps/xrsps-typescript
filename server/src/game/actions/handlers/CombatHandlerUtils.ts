@@ -1,5 +1,5 @@
 import { logger } from "../../../utils/logger";
-import type { AttackType } from "../../combat/AttackType";
+import { AttackType } from "../../combat/AttackType";
 import {
     DegradationSystem,
     getChargesUsed,
@@ -251,7 +251,7 @@ export function calculateMinimumProjectileHitDelay(
         }
     }
 
-    if (attackType !== "magic") {
+    if (attackType !== AttackType.Magic) {
         return undefined;
     }
 
@@ -292,7 +292,7 @@ export function awardMagicBaseXpOnCast(
     hitPayload: HitPayload | undefined,
     effects: ActionEffect[],
 ): void {
-    if (attackType !== "magic") return;
+    if (attackType !== AttackType.Magic) return;
 
     const spellId = player.combat.spellId ?? -1;
     const spellData = spellId > 0 ? services.getSpellData(spellId) : undefined;

@@ -38,6 +38,7 @@ import {
     DEFAULT_RESPAWN_LOCATIONS,
     type DeathContext,
     DeathType,
+    ItemSourceType,
     type RespawnLocation,
     type ValuedItem,
 } from "./types";
@@ -344,7 +345,7 @@ export class PlayerDeathService {
         // OSRS behavior: All equipment is unequipped on death.
         // Kept equipment items are moved to inventory.
         for (const item of itemProtection.kept) {
-            if (item.source.type === "equipment") {
+            if (item.source.type === ItemSourceType.Equipment) {
                 this.moveEquipmentToInventory(player, item);
                 logger.info(
                     `[death] Moved kept item ${item.itemId} x${item.quantity} from equipment:${item.source.slot} to inventory`,
@@ -402,7 +403,7 @@ export class PlayerDeathService {
      * Remove an item from player inventory or equipment.
      */
     private removeItemFromPlayer(player: PlayerState, item: ValuedItem): void {
-        if (item.source.type === "inventory") {
+        if (item.source.type === ItemSourceType.Inventory) {
             const inventory = player.getInventoryEntries();
             const entry = inventory[item.source.slot];
             if (entry && entry.itemId === item.itemId) {
@@ -438,7 +439,7 @@ export class PlayerDeathService {
      * Move an equipment item to inventory (for kept items on death).
      */
     private moveEquipmentToInventory(player: PlayerState, item: ValuedItem): void {
-        if (item.source.type !== "equipment") return;
+        if (item.source.type !== ItemSourceType.Equipment) return;
 
         const inventory = player.getInventoryEntries();
 

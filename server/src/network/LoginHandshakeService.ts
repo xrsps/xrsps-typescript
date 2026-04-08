@@ -456,13 +456,6 @@ export class LoginHandshakeService {
                                 ?? { varps: {}, varbits: {} };
                             Object.assign(questVarps, gamemodeSideJournalBootstrap.varps);
                             Object.assign(questVarbits, gamemodeSideJournalBootstrap.varbits);
-
-                            questVarbits[6347] = 0; // quests_completed_count (0 completed)
-                            questVarbits[11877] = 158; // quests_total_count (158 total quests in OSRS)
-                            questVarbits[1782] = 300; // qp_max (300 max quest points)
-
-                            questVarps[101] = 0; // qp (0 current quest points)
-                            questVarps[904] = 300; // qp_total (triggers questlist_qp script)
                         }
                         const mergedVarbits = {
                             ...(intf.varbits ?? {}),

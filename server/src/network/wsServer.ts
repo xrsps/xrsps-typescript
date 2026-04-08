@@ -800,6 +800,7 @@ export class WSServer {
                 enqueueSpotAnimation: (anim) => this.broadcastService.enqueueSpotAnimation(anim),
                 enqueueForcedMovement: (data) => this.broadcastService.enqueueForcedMovement(data),
                 enqueueSoundBroadcast: (soundId, x, y, level) => this.broadcastService.enqueueSoundBroadcast(soundId, x, y, level),
+                syncMusicInterface: (player) => this.soundManager?.syncMusicInterfaceForPlayer(player),
                 queueCombatSnapshot: (...args: Parameters<typeof this.queueCombatSnapshot>) => this.queueCombatSnapshot(...args),
                 queueWidgetEvent: (pid, evt) => this.queueWidgetEvent(pid, evt),
                 queueSmithingInterfaceMessage: (pid, p) => this.broadcastService.queueSmithingInterfaceMessage(pid, p as any),

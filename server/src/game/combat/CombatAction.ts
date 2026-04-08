@@ -8,7 +8,7 @@ import { Actor } from "../actor";
 import { QueueTask, SuspendCondition, WaitCondition } from "../model/queue/QueueTask";
 import { NpcState } from "../npc";
 import { PlayerState } from "../player";
-import type { AttackType } from "./AttackType";
+import { AttackType } from "./AttackType";
 import { resolvePlayerAttackType } from "./CombatRules";
 
 /**
@@ -512,7 +512,7 @@ export function canNpcAttackPlayerFromCurrentPosition(
     }
 
     const pathService = options.pathService;
-    if (attackType === "melee") {
+    if (attackType === AttackType.Melee) {
         if (!pathService) {
             return true;
         }
@@ -643,7 +643,7 @@ export function walkToAttackRange(
     const strategy =
         attackRange <= 1
             ? new CardinalAdjacentRouteStrategy(tx, tz, targetSize, targetSize)
-            : pawn instanceof PlayerState && resolvePlayerAttackType(pawn.combat) !== "melee"
+            : pawn instanceof PlayerState && resolvePlayerAttackType(pawn.combat) !== AttackType.Melee
             ? new RectWithinRangeLineOfSightRouteStrategy(
                   tx,
                   tz,

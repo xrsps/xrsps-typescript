@@ -37,8 +37,10 @@ import { registerSettingsWidgetHandlers } from "./widgets/settingsWidgets";
 import { registerQuestJournalWidgetHandlers } from "./widgets/questJournalWidgets";
 import { registerAccountSummaryWidgetHandlers } from "./widgets/accountSummaryWidgets";
 import { registerCollectionLogWidgetHandlers } from "./widgets/collectionLogWidgets";
-import { registerWidgetCloseHandlers } from "./widgets/widgetCloseHandlers";
-import { registerSmithingBarModalHandler } from "./widgets/smithingBarModalHandler";
+import { computeTargetBonusPercentages } from "./equipment/targetBonuses";
+import { registerWidgetCloseHandlers } from "./modals/widgetCloseHandlers";
+import { registerWidgetOpenHandlers } from "./modals/widgetOpenHandlers";
+import { registerSmithingBarModalHandler } from "./modals/smithingBarModalHandler";
 import type { NpcLootConfig } from "../../src/game/combat/DamageTracker";
 import { DEFAULT_LOGIN_VARBITS } from "./data/loginVarbits";
 import { DEFAULT_LOGIN_VARPS } from "./data/loginVarps";
@@ -198,10 +200,15 @@ export class VanillaGamemode implements GamemodeDefinition {
             };
         }
 
-        // Widget close handlers
+        // Equipment target-specific bonuses
+        services.equipment.computeTargetBonusPercentages = (player) =>
+            computeTargetBonusPercentages(player, services.equipment.getEquipArray(player));
+
+        // Widget lifecycle handlers
         registerWidgetCloseHandlers(services, {
             closeModal: (player) => ss?.getInterfaceService()?.closeModal(player),
         });
+        registerWidgetOpenHandlers(services);
 
         // Smithing bar modal handler
         registerSmithingBarModalHandler(services, {

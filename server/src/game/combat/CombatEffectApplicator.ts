@@ -14,6 +14,7 @@ import { SkillId } from "../../../../src/rs/skill/skills";
 import type { NpcState } from "../npc";
 import type { PlayerState } from "../player";
 import type { HitsplatResult, SpecialAttackEffects } from "./CombatState";
+import { AttackType } from "./AttackType";
 import {
     type AttackType as CombatXpAttackType,
     type CombatXpAward,
@@ -399,11 +400,11 @@ export class CombatEffectApplicator {
     ): CombatXpAward[] {
         // Get spell base XP for magic attacks
         const spellBaseXp =
-            attackType === "magic" && spellId !== undefined && spellId > 0
+            attackType === AttackType.Magic && spellId !== undefined && spellId > 0
                 ? getSpellBaseXp(spellId)
                 : 0;
 
-        if (!(damage > 0) && !(attackType === "magic" && spellBaseXp > 0)) {
+        if (!(damage > 0) && !(attackType === AttackType.Magic && spellBaseXp > 0)) {
             return [];
         }
 

@@ -733,7 +733,7 @@ export class PlayerCombatManager {
 
             // Record damage for loot attribution
             if (damage !== undefined && damage > 0) {
-                const damageType: DamageType = attackType ?? "melee";
+                const damageType: DamageType = attackType ?? DamageType.Melee;
                 damageTracker.recordDamage(player, npc, damage, damageType, tick);
             }
         }
@@ -1249,7 +1249,7 @@ export class PlayerCombatManager {
         // Track whether onMagicAttack already handled rune consumption and base XP
         // to prevent double processing in executeCombatAttackAction.
         let magicAutocastHandled = false;
-        if (basePlan.attackStyle.kind === "magic") {
+        if (basePlan.attackStyle.kind === AttackType.Magic) {
             const autocastActive = player.combat.autocastEnabled && player.combat.spellId > 0;
             const handlerResult = ctx.onMagicAttack?.({
                 player,
@@ -1300,10 +1300,10 @@ export class PlayerCombatManager {
         // Include attackStyleMode for combat XP calculation.
         const combatSpellId = player.combat.spellId;
         const spellId =
-            basePlan.attackStyle.kind === "magic" && combatSpellId > 0 ? combatSpellId : undefined;
+            basePlan.attackStyle.kind === AttackType.Magic && combatSpellId > 0 ? combatSpellId : undefined;
         const spellDataForXp = spellId ? getSpellData(spellId) : undefined;
         const spellBaseXpAtCast =
-            basePlan.attackStyle.kind === "magic" &&
+            basePlan.attackStyle.kind === AttackType.Magic &&
             !!spellDataForXp &&
             spellDataForXp.category === "combat";
         const hits = plans.map((plan) => {
@@ -1648,7 +1648,7 @@ export class PlayerCombatManager {
                       Math.max(1, npc.size),
                       Math.max(1, npc.size),
                   )
-                : attackType !== "melee"
+                : attackType !== AttackType.Melee
                   ? new RectWithinRangeLineOfSightRouteStrategy(
                         npc.tileX,
                         npc.tileY,
@@ -1699,7 +1699,7 @@ export class PlayerCombatManager {
         }
         const resolvedAttackType =
             normalizeAttackType(player.getCurrentAttackType?.()) ?? resolvePlayerAttackType(player.combat);
-        if (resolvedAttackType === "melee") {
+        if (resolvedAttackType === AttackType.Melee) {
             return hasDirectMeleePath(player, npc, pathService);
         }
         return hasProjectileLineOfSightToNpc(player.tileX, player.tileY, player.level, npc, pathService);
@@ -1724,7 +1724,7 @@ export class PlayerCombatManager {
                 const resolvedAttackType =
                     normalizeAttackType(player.getCurrentAttackType?.()) ??
                     resolvePlayerAttackType(player.combat);
-                if (resolvedAttackType === "melee") {
+                if (resolvedAttackType === AttackType.Melee) {
                     return hasDirectMeleePath(player, npc, ctx.pathService);
                 }
             }

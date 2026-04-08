@@ -11,7 +11,13 @@ import { logger } from "../utils/logger";
 
 export const SPELLBOOK_GROUP_ID = 218;
 
-export type SpellbookName = "standard" | "ancient" | "lunar" | "arceuus";
+export const SpellbookName = {
+    Standard: "standard",
+    Ancient: "ancient",
+    Lunar: "lunar",
+    Arceuus: "arceuus",
+} as const;
+export type SpellbookName = (typeof SpellbookName)[keyof typeof SpellbookName];
 
 export type SpellWidgetInfo = {
     objectId: number;
@@ -26,10 +32,10 @@ const SPELL_BUTTON_PARAM_ID = 596;
 const SPELL_NAME_PARAM_ID = 601;
 
 const SPELLBOOK_ENUM_KEY_TO_NAME: Record<number, SpellbookName> = {
-    0: "standard",
-    1: "ancient",
-    2: "lunar",
-    3: "arceuus",
+    0: SpellbookName.Standard,
+    1: SpellbookName.Ancient,
+    2: SpellbookName.Lunar,
+    3: SpellbookName.Arceuus,
 };
 
 const SPELL_NAME_LOOKUP_ALIASES: Record<string, string[]> = {

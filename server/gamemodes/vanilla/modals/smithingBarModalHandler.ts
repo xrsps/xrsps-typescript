@@ -1,8 +1,10 @@
 import {
+    SMITHING_BAR_MODAL_COMPONENT_BODY,
     SMITHING_BAR_MODAL_COMPONENT_BRONZE,
     SMITHING_BAR_MODAL_COMPONENT_BRONZE_ICON,
     SMITHING_BAR_MODAL_COMPONENT_BRONZE_TEXT,
     SMITHING_BAR_MODAL_COMPONENT_CLOSE,
+    SMITHING_BAR_MODAL_COMPONENT_FRAME,
     SMITHING_BAR_MODAL_COMPONENT_IRON,
     SMITHING_BAR_MODAL_COMPONENT_IRON_ICON,
     SMITHING_BAR_MODAL_COMPONENT_IRON_TEXT,
@@ -21,8 +23,10 @@ import {
     SMITHING_BAR_MODAL_COMPONENT_LOVAKITE,
     SMITHING_BAR_MODAL_COMPONENT_LOVAKITE_ICON,
     SMITHING_BAR_MODAL_COMPONENT_LOVAKITE_TEXT,
+    SMITHING_BAR_MODAL_COMPONENT_TITLE,
     SMITHING_BAR_MODAL_GROUP_ID,
 } from "../../../../src/shared/ui/widgets";
+import { FONT_BOLD_12 } from "../../../../src/ui/fonts";
 import type { ScriptServices } from "../../../src/game/scripts/types";
 import type { PlayerState } from "../../../src/game/player";
 
@@ -76,4 +80,37 @@ export function registerSmithingBarModalHandler(
     });
 
     services.modalActionHandlers = handlers;
+}
+
+const SCRIPT_STEELBORDER_NOCLOSE = 3737;
+const SCRIPT_STONEBUTTON_INIT = 2424;
+const STONEBUTTON_STYLE_OUTLINE = 0;
+
+function packUid(groupId: number, componentId: number): number {
+    return ((groupId & 0xffff) << 16) | (componentId & 0xffff);
+}
+
+export function openSmithingBarModal(player: PlayerState, services: ScriptServices): void {
+    services.production?.openSmithingModal?.(player, SMITHING_BAR_MODAL_GROUP_ID);
+    const pid = player.id;
+    services.dialog.queueWidgetEvent(pid, {
+        action: "run_script",
+        scriptId: SCRIPT_STEELBORDER_NOCLOSE,
+        args: [packUid(SMITHING_BAR_MODAL_GROUP_ID, SMITHING_BAR_MODAL_COMPONENT_FRAME), "Select Bar"],
+    });
+    services.dialog.queueWidgetEvent(pid, {
+        action: "run_script",
+        scriptId: SCRIPT_STONEBUTTON_INIT,
+        args: [packUid(SMITHING_BAR_MODAL_GROUP_ID, SMITHING_BAR_MODAL_COMPONENT_CLOSE), FONT_BOLD_12, STONEBUTTON_STYLE_OUTLINE, "Close"],
+    });
+    services.dialog.queueWidgetEvent(pid, {
+        action: "set_text",
+        uid: packUid(SMITHING_BAR_MODAL_GROUP_ID, SMITHING_BAR_MODAL_COMPONENT_TITLE),
+        text: "<col=ffcf70>Select your smithing bar</col>",
+    });
+    services.dialog.queueWidgetEvent(pid, {
+        action: "set_text",
+        uid: packUid(SMITHING_BAR_MODAL_GROUP_ID, SMITHING_BAR_MODAL_COMPONENT_BODY),
+        text: "Choose a metal type, then the anvil list updates to that bar.",
+    });
 }

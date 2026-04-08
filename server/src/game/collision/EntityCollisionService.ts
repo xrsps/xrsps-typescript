@@ -133,7 +133,11 @@ export function shouldBlockLineOfSight(npcName: string): boolean {
 /**
  * Entity type for collision tracking.
  */
-export type EntityType = "player" | "npc";
+export const EntityType = {
+    Player: "player",
+    Npc: "npc",
+} as const;
+export type EntityType = (typeof EntityType)[keyof typeof EntityType];
 
 /**
  * Tile key for the occupation map.
@@ -197,7 +201,7 @@ export class EntityCollisionService {
                 const key = tileKey(tileX, tileY, level);
 
                 // Track counts
-                if (type === "player") {
+                if (type === EntityType.Player) {
                     this.playerCounts.set(key, (this.playerCounts.get(key) ?? 0) + 1);
                 } else {
                     this.npcCounts.set(key, (this.npcCounts.get(key) ?? 0) + 1);
@@ -206,7 +210,7 @@ export class EntityCollisionService {
                 // Set collision flags (unless entity ignores collision)
                 if (!ignoreCollision && this.setFlag) {
                     const flag =
-                        type === "player"
+                        type === EntityType.Player
                             ? CollisionFlag.OCCUPIED_PLAYER
                             : CollisionFlag.OCCUPIED_NPC;
                     this.setFlag(tileX, tileY, level, flag);
@@ -247,7 +251,7 @@ export class EntityCollisionService {
                 const key = tileKey(tileX, tileY, level);
 
                 // Update counts
-                if (type === "player") {
+                if (type === EntityType.Player) {
                     const count = this.playerCounts.get(key) ?? 0;
                     if (count > 1) {
                         this.playerCounts.set(key, count - 1);
@@ -267,7 +271,7 @@ export class EntityCollisionService {
                 // This is intentional - enables entity stacking
                 if (!ignoreCollision && this.clearFlag) {
                     const flag =
-                        type === "player"
+                        type === EntityType.Player
                             ? CollisionFlag.OCCUPIED_PLAYER
                             : CollisionFlag.OCCUPIED_NPC;
                     this.clearFlag(tileX, tileY, level, flag);

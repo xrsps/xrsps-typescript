@@ -41,6 +41,8 @@ export const OSRS_HITSPLAT_SANITY_RESTORE = 72;
 export const OSRS_HITSPLAT_DOOM = 73;
 export const OSRS_HITSPLAT_BURN = 74;
 
+import { EntityType } from "../collision/EntityCollisionService";
+
 export type HitsplatSourceType = "player" | "npc" | "follower" | "status";
 
 function isMinePerspective(
@@ -51,12 +53,12 @@ function isMinePerspective(
     sourceType: HitsplatSourceType | undefined,
 ): boolean {
     const viewerId = viewerPlayerId ?? 0;
-    const targetPlayerId = targetType === "player" ? targetId ?? 0 : 0;
+    const targetPlayerId = targetType === EntityType.Player ? targetId ?? 0 : 0;
     const sourceId = sourcePlayerId ?? 0;
     const isViewerTarget =
         viewerId > 0 && targetPlayerId > 0 && (viewerId | 0) === (targetPlayerId | 0);
     const isViewerSource =
-        sourceType === "player" &&
+        sourceType === EntityType.Player &&
         viewerId > 0 &&
         sourceId > 0 &&
         (viewerId | 0) === (sourceId | 0);

@@ -1,5 +1,6 @@
 import { MAX_REAL_LEVEL, SkillId, getXpForLevel } from "../../../../src/rs/skill/skills";
 import { VARBIT_ACTIVE_SPELLBOOK } from "../../../../src/shared/vars";
+import { SpellbookName } from "../../data/spellWidgetLoader";
 import { getItemDefinition } from "../../data/items";
 import { ALL_RUNE_ITEM_IDS, RUNE_IDS } from "../../game/data/RuneDataProvider";
 import { getSpellData } from "../../game/spells/SpellDataProvider";
@@ -531,10 +532,10 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
                     logger.info(`[cmd] ::kill - Player ${sender.id} killed themselves`);
                     sender.skillSystem.setHitpointsCurrent(0);
                 } else if (
-                    root === "standard" ||
-                    root === "ancient" ||
-                    root === "lunar" ||
-                    root === "arceuus"
+                    root === SpellbookName.Standard ||
+                    root === SpellbookName.Ancient ||
+                    root === SpellbookName.Lunar ||
+                    root === SpellbookName.Arceuus
                 ) {
                     // Varbit 4070 controls the active spellbook in CS2 scripts
                     // 0 = standard, 1 = ancient, 2 = lunar, 3 = arceuus

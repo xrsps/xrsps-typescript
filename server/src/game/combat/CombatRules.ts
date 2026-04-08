@@ -1,6 +1,6 @@
 import { getSpellData } from "../spells/SpellDataProvider";
 import { SpellCaster } from "../spells/SpellCaster";
-import type { AttackType } from "./AttackType";
+import { AttackType } from "./AttackType";
 
 export const RANGED_WEAPON_CATEGORIES = new Set<number>([3, 5, 6, 7, 8, 19]);
 export const MAGIC_WEAPON_CATEGORIES = new Set<number>([18, 24, 29]);
@@ -69,24 +69,24 @@ export function resolvePlayerAttackType(state: PlayerCombatRuleState): AttackTyp
     const autocastEnabled = !!state.autocastEnabled;
 
     if (category === SALAMANDER_WEAPON_CATEGORY) {
-        if (styleSlot === 0) return "melee";
-        if (styleSlot === 1) return "ranged";
-        return "magic";
+        if (styleSlot === 0) return AttackType.Melee;
+        if (styleSlot === 1) return AttackType.Ranged;
+        return AttackType.Magic;
     }
 
     if (POWERED_STAFF_CATEGORIES.has(category)) {
-        return "magic";
+        return AttackType.Magic;
     }
 
     if (RANGED_WEAPON_CATEGORIES.has(category)) {
-        return "ranged";
+        return AttackType.Ranged;
     }
 
     if (MAGIC_WEAPON_CATEGORIES.has(category)) {
-        return spellId > 0 && autocastEnabled ? "magic" : "melee";
+        return spellId > 0 && autocastEnabled ? AttackType.Magic : AttackType.Melee;
     }
 
-    return "melee";
+    return AttackType.Melee;
 }
 
 /**
@@ -109,7 +109,7 @@ export function resolvePlayerAttackReach(
         return 10;
     }
 
-    if (attackType === "magic") {
+    if (attackType === AttackType.Magic) {
         if (POWERED_STAFF_CATEGORIES.has(category)) return 10;
         if (spellId > 0 && autocastEnabled && MAGIC_WEAPON_CATEGORIES.has(category)) {
             const spellRange =
@@ -119,7 +119,7 @@ export function resolvePlayerAttackReach(
         return 1;
     }
 
-    if (attackType === "ranged") {
+    if (attackType === AttackType.Ranged) {
         const isLongrange = styleSlot === 2 || styleSlot === 3;
         const range = baseRange ?? 7;
         return Math.max(1, range + (isLongrange ? 2 : 0));
@@ -131,26 +131,26 @@ export function resolvePlayerAttackReach(
 }
 
 export function resolveNpcAttackType(state: NpcCombatRuleState, explicit?: AttackType): AttackType {
-    if (explicit === "melee" || explicit === "ranged" || explicit === "magic") {
+    if (explicit === AttackType.Melee || explicit === AttackType.Ranged || explicit === AttackType.Magic) {
         return explicit;
     }
     const direct = state.getAttackType?.();
-    if (direct === "melee" || direct === "ranged" || direct === "magic") {
+    if (direct === AttackType.Melee || direct === AttackType.Ranged || direct === AttackType.Magic) {
         return direct;
     }
     const rootAttackType = (state as { attackType?: AttackType }).attackType;
     if (
-        rootAttackType === "melee" ||
-        rootAttackType === "ranged" ||
-        rootAttackType === "magic"
+        rootAttackType === AttackType.Melee ||
+        rootAttackType === AttackType.Ranged ||
+        rootAttackType === AttackType.Magic
     ) {
         return rootAttackType;
     }
     const profile = state.combat?.attackType;
-    if (profile === "melee" || profile === "ranged" || profile === "magic") {
+    if (profile === AttackType.Melee || profile === AttackType.Ranged || profile === AttackType.Magic) {
         return profile;
     }
-    return "melee";
+    return AttackType.Melee;
 }
 
 export function resolveNpcAttackRange(state: NpcCombatRuleState, attackType?: AttackType): number {
@@ -166,11 +166,11 @@ export function resolveNpcAttackRange(state: NpcCombatRuleState, attackType?: At
 
     const resolvedType = resolveNpcAttackType(state, attackType);
     switch (resolvedType) {
-        case "magic":
+        case AttackType.Magic:
             return DEFAULT_NPC_MAGIC_RANGE;
-        case "ranged":
+        case AttackType.Ranged:
             return DEFAULT_NPC_RANGED_RANGE;
-        case "melee":
+        case AttackType.Melee:
         default:
             return DEFAULT_NPC_MELEE_RANGE;
     }

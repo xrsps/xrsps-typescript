@@ -12,6 +12,7 @@ import {
     setSpriteDialogFlags,
 } from "../../../widgets/hooks/DialogInterfaceHooks";
 import { logger } from "../../../utils/logger";
+import { ScriptDialogKind } from "../../scripts/types";
 import type { ServerServices } from "../../ServerServices";
 import type { PlayerState } from "../../player";
 
@@ -53,7 +54,7 @@ export interface WidgetAction {
 
 /** Script dialog request. */
 export interface ScriptDialogRequest {
-    kind: "npc" | "player" | "sprite" | "double_sprite";
+    kind: ScriptDialogKind;
     id?: string;
     lines?: string[] | string;
     clickToContinue?: boolean;
@@ -204,24 +205,24 @@ export class WidgetDialogHandler {
             modal: request.modal ?? true,
         };
 
-        if (request.kind === "npc") {
+        if (request.kind === ScriptDialogKind.Npc) {
             groupId = DIALOG_GROUP_NPC;
             payload.npcId = request.npcId;
             payload.npcName =
                 trimmedNpcName && trimmedNpcName.length > 0 ? trimmedNpcName : undefined;
             payload.animationId = request.animationId;
-        } else if (request.kind === "player") {
+        } else if (request.kind === ScriptDialogKind.Player) {
             groupId = DIALOG_GROUP_PLAYER;
             payload.playerName =
                 trimmedPlayerName && trimmedPlayerName.length > 0 ? trimmedPlayerName : undefined;
             payload.animationId = request.animationId;
-        } else if (request.kind === "sprite") {
+        } else if (request.kind === ScriptDialogKind.Sprite) {
             groupId = DIALOG_GROUP_SPRITE;
             payload.itemId = request.itemId;
             payload.itemQuantity =
                 request.itemQuantity != null ? Math.max(1, request.itemQuantity) : undefined;
             payload.title = trimmedTitle && trimmedTitle.length > 0 ? trimmedTitle : undefined;
-        } else if (request.kind === "double_sprite") {
+        } else if (request.kind === ScriptDialogKind.DoubleSprite) {
             groupId = DIALOG_GROUP_DOUBLE_SPRITE;
             payload.leftItemId = request.leftItemId;
             payload.rightItemId = request.rightItemId;
@@ -244,9 +245,9 @@ export class WidgetDialogHandler {
         // Open chatbox modal - handles mounting, visibility, and varbit
         // RSMod parity: itemMessageBox (sprite dialog) does NOT call script 2379 or set chatmodal_unclamp.
         // Other dialog types (NPC, player, double_sprite) DO call script 2379.
-        const isSpriteDialog = request.kind === "sprite";
-        const isNpcDialog = request.kind === "npc";
-        const isPlayerDialog = request.kind === "player";
+        const isSpriteDialog = request.kind === ScriptDialogKind.Sprite;
+        const isNpcDialog = request.kind === ScriptDialogKind.Npc;
+        const isPlayerDialog = request.kind === ScriptDialogKind.Player;
         const chatDialogGroupForScript55 = isNpcDialog
             ? DIALOG_GROUP_NPC
             : isPlayerDialog
@@ -295,14 +296,14 @@ export class WidgetDialogHandler {
 
         let resumeWidgetId: number | undefined;
         let resumeChildIndex: number | undefined;
-        if (request.kind === "npc" || request.kind === "player") {
+        if (request.kind === ScriptDialogKind.Npc || request.kind === ScriptDialogKind.Player) {
             resumeWidgetId = (groupId << 16) | CHAT_DIALOG_CONTINUE_COMPONENT;
             resumeChildIndex = CHAT_DIALOG_CONTINUE_COMPONENT;
-        } else if (request.kind === "sprite") {
+        } else if (request.kind === ScriptDialogKind.Sprite) {
             // Script 2868 creates the continue widget as dynamic child 2 under 193:0.
             resumeWidgetId = DIALOG_GROUP_SPRITE << 16;
             resumeChildIndex = 2;
-        } else if (request.kind === "double_sprite") {
+        } else if (request.kind === ScriptDialogKind.DoubleSprite) {
             resumeWidgetId = (groupId << 16) | DOUBLE_SPRITE_CONTINUE_COMPONENT;
             resumeChildIndex = DOUBLE_SPRITE_CONTINUE_COMPONENT;
         }
@@ -325,23 +326,23 @@ export class WidgetDialogHandler {
             onClose: request.onClose,
         });
 
-        if (request.kind === "npc" || request.kind === "player") {
+        if (request.kind === ScriptDialogKind.Npc || request.kind === ScriptDialogKind.Player) {
             const headUid = (groupId << 16) | CHAT_DIALOG_HEAD_COMPONENT;
             const titleUid = (groupId << 16) | CHAT_DIALOG_TITLE_COMPONENT;
             const continueUid = (groupId << 16) | CHAT_DIALOG_CONTINUE_COMPONENT;
             const textUid = (groupId << 16) | CHAT_DIALOG_TEXT_COMPONENT;
             const titleText =
-                request.kind === "npc"
+                request.kind === ScriptDialogKind.Npc
                     ? payload.npcName || trimmedTitle || ""
                     : payload.playerName || trimmedTitle || "";
 
-            if (request.kind === "npc" && payload.npcId != null) {
+            if (request.kind === ScriptDialogKind.Npc && payload.npcId != null) {
                 this.svc.queueWidgetEvent(playerId, {
                     action: "set_npc_head",
                     uid: headUid,
                     npcId: payload.npcId,
                 });
-            } else if (request.kind === "player") {
+            } else if (request.kind === ScriptDialogKind.Player) {
                 this.svc.queueWidgetEvent(playerId, {
                     action: "set_player_head",
                     uid: headUid,
@@ -375,7 +376,7 @@ export class WidgetDialogHandler {
         // - Component 1: set_item (item display)
         // - Component 2: set_text (message text)
         // - Script 2868: creates continue button with blue text
-        if (request.kind === "sprite") {
+        if (request.kind === ScriptDialogKind.Sprite) {
             // Set item on component 1 (RSMod: setComponentItem(193, 1, item, amountOrZoom))
             // The amountOrZoom value determines both the displayed quantity
             // and the model used (via getCountObj). For sprite dialogs, OSRS uses a capped
@@ -405,7 +406,7 @@ export class WidgetDialogHandler {
             return;
         }
 
-        if (request.kind === "double_sprite") {
+        if (request.kind === ScriptDialogKind.DoubleSprite) {
             const bodyLines = payload.title ? [payload.title, ...lines] : lines;
 
             if (payload.leftItemId != null && payload.leftItemId >= 0) {

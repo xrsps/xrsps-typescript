@@ -1,4 +1,5 @@
 import { ANY_LOC_ID, type IScriptRegistry, type ScriptServices } from "../../../../src/game/scripts/types";
+import { openSmithingBarModal } from "../../modals/smithingBarModalHandler";
 import { executeSmeltAction, registerSmeltingInteractions } from "./smelting";
 import { executeSmithAction, registerSmithingInteractions } from "./smithing";
 import { SMITHING_RECIPES } from "./smithingData";
@@ -22,6 +23,7 @@ export function register(registry: IScriptRegistry, services: ScriptServices): v
         production.updateSmithingInterface = (player) => smithingUI.updateSmithingInterface(player);
         production.updateSmeltingInterface = (player) => smithingUI.updateSmeltingInterface(player);
         production.getBarTypeByItemId = (itemId) => smithingUI.getBarTypeByItemId(itemId);
+        production.openSmithingBarModal = (player) => openSmithingBarModal(player, services);
     }
 
     registry.registerClientMessageHandler("smithing_make", (event) => {

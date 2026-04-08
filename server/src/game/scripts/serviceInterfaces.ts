@@ -111,6 +111,8 @@ export interface BankingServices {
 
 export type WidgetCloseHandler = (player: PlayerState) => void;
 
+export type WidgetOpenHandler = (player: PlayerState) => void;
+
 export type ModalActionHandler = (player: PlayerState, componentId: number, option?: string) => boolean;
 
 // ============================================================================
@@ -326,6 +328,7 @@ export interface EquipmentFacade {
     getEquippedItem(player: PlayerState, slot: number): number;
     getEquipArray(player: PlayerState): number[];
     unequipItem(player: PlayerState, slot: number): boolean;
+    computeTargetBonusPercentages?(player: PlayerState): { undeadPercent: number; slayerPercent: number };
 }
 
 export interface AnimationFacade {
@@ -349,6 +352,7 @@ export interface SoundFacade {
     sendSound(player: PlayerState, soundId: number, opts?: { loops?: number; delayMs?: number }): void;
     sendJingle(player: PlayerState, jingleId: number, delay?: number): void;
     enqueueSoundBroadcast(soundId: number, x: number, y: number, level: number): void;
+    syncMusicInterface?(player: PlayerState): void;
 }
 
 export interface AppearanceFacade {

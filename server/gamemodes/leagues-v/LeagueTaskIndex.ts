@@ -13,6 +13,7 @@ import {
     getAllCustomChallenges,
     getAllCustomTasks,
 } from "./data/custom";
+import { TriggerType } from "./triggers/TriggerTypes";
 import { LEAGUE_TASKS } from "./data/leagueTasks.data";
 import type { LeagueTaskRow } from "../../../src/shared/gamemode/GamemodeDataTypes";
 import {
@@ -113,25 +114,25 @@ export class LeagueTaskIndex {
 
         // Index by trigger type
         switch (trigger.type) {
-            case "npc_kill":
+            case TriggerType.NpcKill:
                 for (const npcId of trigger.npcIds) {
                     this.addToIndex(this.npcIdToTasks, npcId, parsed);
                 }
                 break;
 
-            case "item_equip":
+            case TriggerType.ItemEquip:
                 for (const itemId of trigger.itemIds) {
                     this.addToIndex(this.itemEquipToTasks, itemId, parsed);
                 }
                 break;
 
-            case "item_obtain":
+            case TriggerType.ItemObtain:
                 for (const itemId of trigger.itemIds) {
                     this.addToIndex(this.itemObtainToTasks, itemId, parsed);
                 }
                 break;
 
-            case "item_craft":
+            case TriggerType.ItemCraft:
                 for (const itemId of trigger.itemIds) {
                     this.addToIndex(this.itemCraftToTasks, itemId, parsed);
                 }
@@ -178,25 +179,25 @@ export class LeagueTaskIndex {
 
         // Index by trigger type
         switch (trigger.type) {
-            case "npc_kill":
+            case TriggerType.NpcKill:
                 for (const npcId of trigger.npcIds) {
                     this.addToIndex(this.npcIdToTasks, npcId, parsed);
                 }
                 break;
 
-            case "item_equip":
+            case TriggerType.ItemEquip:
                 for (const itemId of trigger.itemIds) {
                     this.addToIndex(this.itemEquipToTasks, itemId, parsed);
                 }
                 break;
 
-            case "item_obtain":
+            case TriggerType.ItemObtain:
                 for (const itemId of trigger.itemIds) {
                     this.addToIndex(this.itemObtainToTasks, itemId, parsed);
                 }
                 break;
 
-            case "item_craft":
+            case TriggerType.ItemCraft:
                 for (const itemId of trigger.itemIds) {
                     this.addToIndex(this.itemCraftToTasks, itemId, parsed);
                 }
@@ -236,31 +237,31 @@ export class LeagueTaskIndex {
 
         // Index by trigger type
         switch (trigger.type) {
-            case "npc_kill":
+            case TriggerType.NpcKill:
                 for (const npcId of trigger.npcIds) {
                     this.addToChallengeIndex(this.npcIdToChallenges, npcId, parsed);
                 }
                 break;
 
-            case "item_equip":
+            case TriggerType.ItemEquip:
                 for (const itemId of trigger.itemIds) {
                     this.addToChallengeIndex(this.itemEquipToChallenges, itemId, parsed);
                 }
                 break;
 
-            case "item_obtain":
+            case TriggerType.ItemObtain:
                 for (const itemId of trigger.itemIds) {
                     this.addToChallengeIndex(this.itemObtainToChallenges, itemId, parsed);
                 }
                 break;
 
-            case "item_craft":
+            case TriggerType.ItemCraft:
                 for (const itemId of trigger.itemIds) {
                     this.addToChallengeIndex(this.itemCraftToChallenges, itemId, parsed);
                 }
                 break;
 
-            case "npc_kill_combat_level":
+            case TriggerType.NpcKillCombatLevel:
                 this.npcKillCombatLevelChallenges.push(parsed);
                 break;
 
@@ -345,7 +346,7 @@ export class LeagueTaskIndex {
     getChallengesForNpcKillCombatLevel(combatLevel: number): ParsedChallenge[] {
         return this.npcKillCombatLevelChallenges.filter((parsed) => {
             const trigger = parsed.trigger;
-            if (trigger.type !== "npc_kill_combat_level") return false;
+            if (trigger.type !== TriggerType.NpcKillCombatLevel) return false;
             return combatLevel >= trigger.minCombatLevel;
         });
     }

@@ -2,7 +2,7 @@
  * Parses task names to extract trigger criteria.
  * Uses pattern matching to identify trigger type and target.
  */
-import type { TaskTrigger } from "./TriggerTypes";
+import { TriggerType, type TaskTrigger } from "./TriggerTypes";
 
 export type NameToIdsLookup = (name: string) => number[];
 
@@ -53,7 +53,7 @@ export function parseTaskTrigger(
             const npcIds = loaders.getNpcIdsByName(npcName);
             if (npcIds.length > 0) {
                 return {
-                    type: "npc_kill",
+                    type: TriggerType.NpcKill,
                     npcIds,
                     count: count > 1 ? count : undefined,
                 };
@@ -76,7 +76,7 @@ export function parseTaskTrigger(
         const itemIds = loaders.getItemIdsByName(itemName);
         if (itemIds.length > 0) {
             return {
-                type: "item_equip",
+                type: TriggerType.ItemEquip,
                 itemIds,
             };
         }
@@ -94,7 +94,7 @@ export function parseTaskTrigger(
         const itemIds = loaders.getItemIdsByName(itemName);
         if (itemIds.length > 0) {
             return {
-                type: "item_obtain",
+                type: TriggerType.ItemObtain,
                 itemIds,
                 count: count > 1 ? count : undefined,
             };
@@ -116,7 +116,7 @@ export function parseTaskTrigger(
         const itemIds = loaders.getItemIdsByName(itemName);
         if (itemIds.length > 0) {
             return {
-                type: "item_craft",
+                type: TriggerType.ItemCraft,
                 itemIds,
                 count: count > 1 ? count : undefined,
             };
@@ -136,7 +136,7 @@ export function parseTaskTrigger(
         if (itemIds.length > 0) {
             // Gathering is essentially obtaining the item
             return {
-                type: "item_obtain",
+                type: TriggerType.ItemObtain,
                 itemIds,
                 count: count > 1 ? count : undefined,
             };

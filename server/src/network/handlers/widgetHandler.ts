@@ -5,7 +5,6 @@ import { encodeMessage } from "../messages";
 import { logger } from "../../utils/logger";
 
 const SIDE_JOURNAL_GROUP_ID = 629;
-const MUSIC_GROUP_ID = 239;
 
 export function createWidgetHandler(services: MessageHandlerServices): MessageHandler<"widget"> {
     return (ctx) => {
@@ -49,9 +48,8 @@ export function createWidgetHandler(services: MessageHandlerServices): MessageHa
                     );
                     services.queueSideJournalGamemodeUi(p);
                 }
-                if (groupId === MUSIC_GROUP_ID) {
-                    services.syncMusicInterface(p);
-                }
+                const openHandler = services.getWidgetOpenHandler(groupId);
+                openHandler?.(p);
             } else if (action === "close") {
                 logger.info(`[widget-close] player=${p.id} group=${groupId}`);
                 services.noteWidgetEventForLedger(p.id, { action: "close", groupId });

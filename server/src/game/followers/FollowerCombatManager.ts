@@ -1,4 +1,5 @@
 import { PathService } from "../../pathfinding/PathService";
+import { AttackType } from "../combat/AttackType";
 import {
     hasDirectMeleeReach,
     isWithinAttackRange,
@@ -151,7 +152,7 @@ export class FollowerCombatManager {
         const attackRange = Math.max(1, combat.attackRange ?? 1);
         const inRange = isWithinAttackRange(companion, target, attackRange);
         const canAttackNow =
-            combat.attackType === "melee" || attackRange <= 1
+            combat.attackType === AttackType.Melee || attackRange <= 1
                 ? inRange && hasDirectMeleeReach(companion, target, this.pathService)
                 : inRange;
 

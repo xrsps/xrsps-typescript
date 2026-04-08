@@ -10,6 +10,7 @@
 import { logger } from "../../../utils/logger";
 import { getPoweredStaffSpellData } from "../../spells/SpellDataProvider";
 import type { PoweredStaffSpellData } from "../../spells/SpellDataProvider";
+import { AttackType } from "../../combat/AttackType";
 import { HITMARK_DAMAGE } from "../../combat/HitEffects";
 import type { PlayerState } from "../../player";
 import type { CombatAutocastActionData, CombatPlayerHitActionData } from "../actionPayloads";
@@ -185,7 +186,7 @@ export class PvpCombatHandler {
 
         // Emit hitsplat
         const hitsplatTick = expectedHitTick > 0 ? expectedHitTick : tick;
-        const isMagicAttack = attackType === "magic";
+        const isMagicAttack = attackType === AttackType.Magic;
         const didLand = landedFlag ?? targetHitsplat.amount > 0;
 
         if (!(isMagicAttack && !didLand)) {

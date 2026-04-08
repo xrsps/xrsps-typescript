@@ -13,7 +13,7 @@ import {
 import type { NpcState } from "../game/npc";
 import type { PlayerState } from "../game/player";
 import type { NpcSpawnConfig } from "../game/npc";
-import type { ScriptDialogRequest } from "../game/scripts/types";
+import type { ScriptDialogRequest, WidgetOpenHandler } from "../game/scripts/types";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import type { WorldEntityBuildArea } from "../../../src/shared/worldentity/WorldEntityTypes";
 import type { WorldEntityMaskUpdate, WorldEntityPosition } from "./encoding/WorldEntityInfoEncoder";
@@ -290,6 +290,7 @@ export interface MessageHandlerServices {
     normalizeSideJournalState: (player: PlayerState, value?: number) => { tab: number; stateVarp: number };
     queueSideJournalGamemodeUi: (player: PlayerState) => void;
     syncMusicInterface: (player: PlayerState) => void;
+    getWidgetOpenHandler: (groupId: number) => WidgetOpenHandler | undefined;
     handleCs2ModalCloseState: (player: PlayerState, groupId: number) => void;
     handleDialogCloseState: (player: PlayerState, groupId: number) => void;
     getInterfaceService: () => InterfaceService | undefined;

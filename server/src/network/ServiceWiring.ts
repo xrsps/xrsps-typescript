@@ -225,6 +225,7 @@ export function registerMessageHandlers(svc: ServerServices, router: MessageRout
                 ?? { tab: 0, stateVarp: value ?? 0 },
         queueSideJournalGamemodeUi: (player) => svc.gamemodeUi?.applySideJournalUi(player),
         syncMusicInterface: (player) => svc.soundManager!.syncMusicInterfaceForPlayer(player),
+        getWidgetOpenHandler: (groupId) => svc.scriptRuntime.getServices().widgetOpenHandlers?.get(groupId),
         handleCs2ModalCloseState: (player, groupId) => svc.cs2ModalManager!.handleWidgetCloseState(player, groupId),
         handleDialogCloseState: (player, groupId) => svc.widgetDialogHandler!.handleWidgetCloseState(player, groupId),
         getInterfaceService: () => svc.interfaceService,

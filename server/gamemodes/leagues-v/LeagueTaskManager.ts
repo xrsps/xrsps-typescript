@@ -13,6 +13,7 @@ import {
 } from "../../../src/shared/vars";
 import { logger } from "../../src/utils/logger";
 import { LeagueTaskIndex, type ParsedChallenge, type ParsedTask } from "./LeagueTaskIndex";
+import { TriggerType } from "./triggers/TriggerTypes";
 import { type LeagueTaskPlayer, LeagueTaskService, clearTaskProgress, getTaskProgress, setTaskProgress } from "./LeagueTaskService";
 import { syncLeaguePackedVarps } from "./leaguePackedVarps";
 
@@ -319,9 +320,9 @@ export class LeagueTaskManager {
 
     private getRequiredCount(task: ParsedTask): number {
         switch (task.trigger.type) {
-            case "npc_kill":
-            case "item_obtain":
-            case "item_craft":
+            case TriggerType.NpcKill:
+            case TriggerType.ItemObtain:
+            case TriggerType.ItemCraft:
                 return Math.max(1, task.trigger.count ?? 1);
             default:
                 return 1;
@@ -382,9 +383,9 @@ export class LeagueTaskManager {
 
         // Determine the required count for completion
         const requiredCount =
-            (trigger.type === "npc_kill_combat_level" && trigger.count > 1)
+            (trigger.type === TriggerType.NpcKillCombatLevel && trigger.count > 1)
                 ? trigger.count
-                : (trigger.type === "npc_kill" && trigger.count !== undefined && trigger.count > 1)
+                : (trigger.type === TriggerType.NpcKill && trigger.count !== undefined && trigger.count > 1)
                     ? trigger.count
                     : 1;
 

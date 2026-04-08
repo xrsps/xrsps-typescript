@@ -83,7 +83,7 @@ export class FollowingHandler {
 
     public isFollowingSocket(ws: WebSocket, targetId: number): boolean {
         const st = this.interactions.get(ws);
-        if (!st || st.kind !== "follow") return false;
+        if (!st || st.kind !== FollowInteractionKind.Follow) return false;
         return st.targetId === targetId;
     }
 
@@ -123,7 +123,7 @@ export class FollowingHandler {
     public stopFollowing(ws: WebSocket): void {
         const st = this.interactions.get(ws);
         if (!st) return;
-        if (st.kind === "follow" || st.kind === "trade") {
+        if (st.kind === FollowInteractionKind.Follow || st.kind === FollowInteractionKind.Trade) {
             this.interactions.delete(ws);
             const me = this.players.get(ws);
             me?.clearInteraction();
@@ -132,7 +132,7 @@ export class FollowingHandler {
 
     public updateFollowing(currentTick: number = 0): void {
         for (const [ws, interaction] of this.interactions.entries()) {
-            if (interaction.kind !== "follow" && interaction.kind !== "trade") continue;
+            if (interaction.kind !== FollowInteractionKind.Follow && interaction.kind !== FollowInteractionKind.Trade) continue;
             const st = interaction as FollowInteractionState;
             const me = this.players.get(ws);
             if (!me) {
@@ -161,7 +161,7 @@ export class FollowingHandler {
             const adjacent = dCheb <= 1;
             const edgeReachable =
                 adjacent && this.hasDirectReach({ x: px, y: py }, { x: tx, y: ty }, 1, 1, me.level);
-            if (st.kind === "trade" && adjacent) {
+            if (st.kind === FollowInteractionKind.Trade && adjacent) {
                 if (edgeReachable) {
                     this.interactions.delete(ws);
                     me.clearInteraction();
@@ -181,14 +181,14 @@ export class FollowingHandler {
             const wsTargetForAtSlot = this.players.getSocketByPlayerId(target.id);
             const mutualAtSlot =
                 wsTargetForAtSlot != null &&
-                this.isFollowingWithMode(wsTargetForAtSlot, me.id, "follow");
+                this.isFollowingWithMode(wsTargetForAtSlot, me.id, FollowInteractionKind.Follow);
             if (!mutualAtSlot && !targetMoved && !targetTurned && atSlot && edgeReachable) {
                 continue;
             }
 
             let candidates: { x: number; y: number }[] = [];
             let enforceSingleStep = false;
-            if (st.kind === "follow") {
+            if (st.kind === FollowInteractionKind.Follow) {
                 const ring = this.getFollowRing(tx, ty, tsec);
                 const distCheb = Math.max(Math.abs(tx - px), Math.abs(ty - py));
                 if (distCheb > 1) {
@@ -230,7 +230,7 @@ export class FollowingHandler {
                 } else {
                     const wsTarget = this.players.getSocketByPlayerId(target.id);
                     const targetFollowingMe =
-                        wsTarget != null && this.isFollowingWithMode(wsTarget, me.id, "follow");
+                        wsTarget != null && this.isFollowingWithMode(wsTarget, me.id, FollowInteractionKind.Follow);
                     if (!targetFollowingMe) {
                         st.swirlIndex = 0;
 
@@ -398,7 +398,7 @@ export class FollowingHandler {
                 continue;
             }
 
-            if (!routed && st.kind === "follow" && st.slotX != null && st.slotY != null) {
+            if (!routed && st.kind === FollowInteractionKind.Follow && st.slotX != null && st.slotY != null) {
                 // Skip if fallback slot is target's current tile
                 if (st.slotX === tx && st.slotY === ty) {
                     // Skip fallback
@@ -441,7 +441,7 @@ export class FollowingHandler {
             st.lastRot = trot;
             st.lastSector = tsec;
 
-            if (!routed && st.kind === "trade") {
+            if (!routed && st.kind === FollowInteractionKind.Trade) {
                 this.interactions.delete(ws);
                 me.clearInteraction();
                 me.clearPath();

@@ -5,14 +5,6 @@ import {
     INDEXED_MENU_PAUSE_BUTTON_FLAGS,
     INDEXED_MENU_SCRIPT_ID,
 } from "../../../../src/shared/ui/indexedMenu";
-import {
-    SMITHING_BAR_MODAL_COMPONENT_BODY,
-    SMITHING_BAR_MODAL_COMPONENT_CLOSE,
-    SMITHING_BAR_MODAL_COMPONENT_FRAME,
-    SMITHING_BAR_MODAL_COMPONENT_TITLE,
-    SMITHING_BAR_MODAL_GROUP_ID,
-} from "../../../../src/shared/ui/widgets";
-import { FONT_BOLD_12 } from "../../../../src/ui/fonts";
 import type { ServerServices } from "../../game/ServerServices";
 import type { PlayerState } from "../../game/player";
 
@@ -31,11 +23,6 @@ type IndexedMenuState = {
 };
 
 
-const SCRIPT_STEELBORDER_NOCLOSE = 3737;
-const SCRIPT_STONEBUTTON_INIT = 2424;
-
-const STONEBUTTON_STYLE_OUTLINE = 0;
-
 /**
  * Reusable manager for custom CS2-driven modals mounted in mainmodal.
  */
@@ -43,11 +30,6 @@ export class Cs2ModalManager {
     private readonly activeIndexedMenus = new Map<number, IndexedMenuState>();
 
     constructor(private readonly svc: ServerServices) {}
-
-    openSmithingBarModal(player: PlayerState): void {
-        this.svc.interfaceService?.openModal(player, SMITHING_BAR_MODAL_GROUP_ID);
-        this.applySmithingBarModalLayout(player);
-    }
 
     openIndexedMenu(player: PlayerState, request: IndexedMenuRequest): void {
         const title = String(request.title ?? "").trim();
@@ -154,71 +136,4 @@ export class Cs2ModalManager {
         });
     }
 
-    private applySmithingBarModalLayout(player: PlayerState): void {
-        const playerId = player.id;
-        this.runScript(playerId, SCRIPT_STEELBORDER_NOCLOSE, [
-            this.getWidgetUidInGroup(
-                SMITHING_BAR_MODAL_GROUP_ID,
-                SMITHING_BAR_MODAL_COMPONENT_FRAME,
-            ),
-            "Select Bar",
-        ]);
-        this.drawStoneButtonInGroup(
-            playerId,
-            SMITHING_BAR_MODAL_GROUP_ID,
-            SMITHING_BAR_MODAL_COMPONENT_CLOSE,
-            "Close",
-        );
-        this.setWidgetTextInGroup(
-            playerId,
-            SMITHING_BAR_MODAL_GROUP_ID,
-            SMITHING_BAR_MODAL_COMPONENT_TITLE,
-            "<col=ffcf70>Select your smithing bar</col>",
-        );
-        this.setWidgetTextInGroup(
-            playerId,
-            SMITHING_BAR_MODAL_GROUP_ID,
-            SMITHING_BAR_MODAL_COMPONENT_BODY,
-            "Choose a metal type, then the anvil list updates to that bar.",
-        );
-    }
-
-    private drawStoneButtonInGroup(
-        playerId: number,
-        groupId: number,
-        componentId: number,
-        label: string,
-    ): void {
-        this.runScript(playerId, SCRIPT_STONEBUTTON_INIT, [
-            this.getWidgetUidInGroup(groupId, componentId),
-            FONT_BOLD_12,
-            STONEBUTTON_STYLE_OUTLINE,
-            label,
-        ]);
-    }
-
-    private runScript(playerId: number, scriptId: number, args: Array<number | string>): void {
-        this.svc.queueWidgetEvent(playerId, {
-            action: "run_script",
-            scriptId: scriptId,
-            args,
-        });
-    }
-
-    private setWidgetTextInGroup(
-        playerId: number,
-        groupId: number,
-        componentId: number,
-        text: string,
-    ): void {
-        this.svc.queueWidgetEvent(playerId, {
-            action: "set_text",
-            uid: this.getWidgetUidInGroup(groupId, componentId),
-            text: String(text ?? ""),
-        });
-    }
-
-    private getWidgetUidInGroup(groupId: number, componentId: number): number {
-        return ((groupId & 0xffff) << 16) | (componentId & 0xffff);
-    }
 }

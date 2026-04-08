@@ -1,5 +1,5 @@
 import { logger } from "../../utils/logger";
-import { TradeActionClientPayload, TradeServerPayload } from "../../network/messages";
+import { TradeAction, TradeActionClientPayload, TradeServerPayload, TradeStage } from "../../network/messages";
 import { getItemDefinition } from "../../data/items";
 import { type InventoryEntry, PlayerState } from "../player";
 import type { ServerServices } from "../ServerServices";
@@ -19,7 +19,7 @@ type TradePartyState = {
 type TradeSession = {
     id: string;
     parties: [TradePartyState, TradePartyState];
-    stage: "offer" | "confirm";
+    stage: TradeStage;
 };
 
 type TradeRequestState = {
@@ -118,7 +118,7 @@ export class TradeManager {
             return;
         }
         switch (action.action) {
-            case "offer":
+            case TradeAction.Offer:
                 this.handleOfferAction(
                     session,
                     player,
@@ -127,19 +127,19 @@ export class TradeManager {
                     action.itemId,
                 );
                 break;
-            case "remove":
+            case TradeAction.Remove:
                 this.handleRemoveAction(session, player, action.slot, action.quantity);
                 break;
-            case "accept":
+            case TradeAction.Accept:
                 this.handleAccept(session, player);
                 break;
-            case "decline":
+            case TradeAction.Decline:
                 this.closeSession(session, "You decline the trade.");
                 break;
-            case "confirm_accept":
+            case TradeAction.ConfirmAccept:
                 this.handleConfirmAccept(session, player);
                 break;
-            case "confirm_decline":
+            case TradeAction.ConfirmDecline:
                 this.closeSession(session, "You decline the trade.");
                 break;
         }
@@ -161,7 +161,7 @@ export class TradeManager {
         const session: TradeSession = {
             id: `trade:${Math.min(a.id, b.id)}:${Math.max(a.id, b.id)}:${this.sessionCounter++}`,
             parties: [this.createParty(a), this.createParty(b)],
-            stage: "offer",
+            stage: TradeStage.Offer,
         };
         this.sessions.set(session.id, session);
         this.sessionByPlayer.set(a.id, session);
@@ -229,8 +229,8 @@ export class TradeManager {
     ): void {
         const party = this.getParty(session, player.id);
         if (!party) return;
-        if (session.stage === "confirm") {
-            session.stage = "offer";
+        if (session.stage === TradeStage.Confirm) {
+            session.stage = TradeStage.Offer;
             party.confirmAccepted = false;
             const other = this.getCounterparty(session, player.id);
             if (other) other.confirmAccepted = false;
@@ -285,8 +285,8 @@ export class TradeManager {
             party.offers.splice(idx, 1);
         }
         this.queueInventorySnapshot(player);
-        if (session.stage === "confirm") {
-            session.stage = "offer";
+        if (session.stage === TradeStage.Confirm) {
+            session.stage = TradeStage.Offer;
             party.confirmAccepted = false;
             const otherParty = this.getCounterparty(session, player.id);
             if (otherParty) otherParty.confirmAccepted = false;
@@ -300,8 +300,8 @@ export class TradeManager {
         if (!party) return;
         party.accepted = true;
         const other = this.getCounterparty(session, player.id);
-        if (session.stage === "offer" && other?.accepted) {
-            session.stage = "confirm";
+        if (session.stage === TradeStage.Offer && other?.accepted) {
+            session.stage = TradeStage.Confirm;
             party.confirmAccepted = false;
             if (other) other.confirmAccepted = false;
         }
@@ -309,7 +309,7 @@ export class TradeManager {
     }
 
     private handleConfirmAccept(session: TradeSession, player: PlayerState): void {
-        if (session.stage !== "confirm") return;
+        if (session.stage !== TradeStage.Confirm) return;
         const party = this.getParty(session, player.id);
         if (!party) return;
         party.confirmAccepted = true;
@@ -324,13 +324,13 @@ export class TradeManager {
     private finalizeTrade(session: TradeSession): void {
         const [a, b] = session.parties;
         if (!this.transferOffers(a, b)) {
-            session.stage = "offer";
+            session.stage = TradeStage.Offer;
             this.resetAcceptances(session);
             this.broadcastSession(session);
             return;
         }
         if (!this.transferOffers(b, a)) {
-            session.stage = "offer";
+            session.stage = TradeStage.Offer;
             this.resetAcceptances(session);
             this.broadcastSession(session);
             return;
@@ -489,13 +489,13 @@ export class TradeManager {
         party: TradePartyState,
         other: TradePartyState | null,
     ): string | undefined {
-        if (session.stage === "offer") {
+        if (session.stage === TradeStage.Offer) {
             if (party.accepted && other && !other.accepted)
                 return "Waiting for the other player...";
             if (!party.accepted && other?.accepted) return "Other player accepted.";
             return undefined;
         }
-        if (session.stage === "confirm") {
+        if (session.stage === TradeStage.Confirm) {
             if (party.confirmAccepted && other && !other.confirmAccepted) {
                 return "Waiting for the other player...";
             }

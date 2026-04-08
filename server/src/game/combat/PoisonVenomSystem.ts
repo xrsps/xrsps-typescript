@@ -100,7 +100,12 @@ const SERPENTINE_HELM_UNCHARGED = 12929;
 // Types
 // =============================================================================
 
-export type PoisonType = "none" | "poison" | "venom";
+export const PoisonType = {
+    None: "none",
+    Poison: "poison",
+    Venom: "venom",
+} as const;
+export type PoisonType = (typeof PoisonType)[keyof typeof PoisonType];
 
 export interface PoisonState {
     type: PoisonType;
@@ -136,7 +141,7 @@ export interface PoisonApplicationResult {
  */
 export function createPoisonState(): PoisonState {
     return {
-        type: "none",
+        type: PoisonType.None,
         damage: 0,
         nextDamageTick: 0,
         hitsSinceDecrease: 0,
@@ -148,14 +153,14 @@ export function createPoisonState(): PoisonState {
  * Check if entity is poisoned or envenomed.
  */
 export function isPoisoned(state: PoisonState): boolean {
-    return state.type !== "none" && state.damage > 0;
+    return state.type !== PoisonType.None && state.damage > 0;
 }
 
 /**
  * Check if entity is envenomed (venom is worse than poison).
  */
 export function isEnvenomed(state: PoisonState): boolean {
-    return state.type === "venom" && state.damage > 0;
+    return state.type === PoisonType.Venom && state.damage > 0;
 }
 
 /**
@@ -193,7 +198,7 @@ export function applyPoison(
     }
 
     // Venom takes priority over poison - can't downgrade
-    if (state.type === "venom") {
+    if (state.type === PoisonType.Venom) {
         return {
             applied: false,
             stateUpdate: state,
@@ -203,7 +208,7 @@ export function applyPoison(
 
     // Apply poison
     const newState: PoisonState = {
-        type: "poison",
+        type: PoisonType.Poison,
         damage: Math.max(state.damage, startingDamage),
         nextDamageTick: currentTick + POISON_TICK_INTERVAL,
         hitsSinceDecrease: 0,
@@ -239,7 +244,7 @@ export function applyVenom(
 
     // Venom always starts at 6 damage
     const newState: PoisonState = {
-        type: "venom",
+        type: PoisonType.Venom,
         damage: 6,
         nextDamageTick: currentTick + VENOM_TICK_INTERVAL,
         hitsSinceDecrease: 0,
@@ -269,7 +274,7 @@ export function processPoisonTick(
     currentTick: number,
 ): PoisonDamageResult | undefined {
     // Not poisoned/venomed
-    if (state.type === "none" || state.damage <= 0) {
+    if (state.type === PoisonType.None || state.damage <= 0) {
         return undefined;
     }
 
@@ -279,13 +284,13 @@ export function processPoisonTick(
     }
 
     const damage = state.damage;
-    const hitsplatStyle = state.type === "venom" ? HITMARK_VENOM : HITMARK_POISON;
+    const hitsplatStyle = state.type === PoisonType.Venom ? HITMARK_VENOM : HITMARK_POISON;
 
     let newDamage = damage;
     let hitsSinceDecrease = state.hitsSinceDecrease + 1;
     let cured = false;
 
-    if (state.type === "poison") {
+    if (state.type === PoisonType.Poison) {
         // Poison: Decrease damage by 1 every 5 hits
         if (hitsSinceDecrease >= POISON_DECREASE_INTERVAL) {
             newDamage = damage - 1;
@@ -302,7 +307,7 @@ export function processPoisonTick(
                 cured: true,
             };
         }
-    } else if (state.type === "venom") {
+    } else if (state.type === PoisonType.Venom) {
         // Venom: Increase damage by 2 every hit, cap at 20
         newDamage = Math.min(MAX_VENOM_DAMAGE, damage + 2);
         hitsSinceDecrease = 0; // Not used for venom
@@ -312,7 +317,7 @@ export function processPoisonTick(
         type: state.type,
         damage: newDamage,
         nextDamageTick:
-            currentTick + (state.type === "venom" ? VENOM_TICK_INTERVAL : POISON_TICK_INTERVAL),
+            currentTick + (state.type === PoisonType.Venom ? VENOM_TICK_INTERVAL : POISON_TICK_INTERVAL),
         hitsSinceDecrease,
         immunityExpiryTick: state.immunityExpiryTick,
     };
@@ -344,10 +349,10 @@ export interface CureResult {
  * Regular antipoison only cures poison, not venom.
  */
 export function cureWithAntipoison(state: PoisonState, currentTick: number): CureResult {
-    if (state.type === "venom") {
+    if (state.type === PoisonType.Venom) {
         // Antipoison can convert venom to poison but not cure it
         const newState: PoisonState = {
-            type: "poison",
+            type: PoisonType.Poison,
             damage: state.damage,
             nextDamageTick: state.nextDamageTick,
             hitsSinceDecrease: 0,
@@ -362,7 +367,7 @@ export function cureWithAntipoison(state: PoisonState, currentTick: number): Cur
         };
     }
 
-    if (state.type === "poison") {
+    if (state.type === PoisonType.Poison) {
         // Cure poison completely
         return {
             cured: true,
@@ -409,13 +414,13 @@ export function cureWithSuperAntipoison(state: PoisonState, currentTick: number)
 export function cureWithAntidotePlus(state: PoisonState, currentTick: number): CureResult {
     const immunityTicks = 750; // 7.5 minutes
 
-    if (state.type === "venom") {
+    if (state.type === PoisonType.Venom) {
         // Antidote+ converts venom to poison
         return {
             cured: false,
             immunityTicks,
             newState: {
-                type: "poison",
+                type: PoisonType.Poison,
                 damage: state.damage,
                 nextDamageTick: state.nextDamageTick,
                 hitsSinceDecrease: 0,
@@ -427,7 +432,7 @@ export function cureWithAntidotePlus(state: PoisonState, currentTick: number): C
 
     // Cure poison
     return {
-        cured: state.type === "poison",
+        cured: state.type === PoisonType.Poison,
         immunityTicks,
         newState: {
             ...createPoisonState(),
@@ -444,7 +449,7 @@ export function cureWithAntidotePlusPlus(state: PoisonState, currentTick: number
 
     // Antidote++ cures both poison and venom
     return {
-        cured: state.type !== "none",
+        cured: state.type !== PoisonType.None,
         immunityTicks,
         newState: {
             ...createPoisonState(),
@@ -461,7 +466,7 @@ export function cureWithAntivenom(state: PoisonState, currentTick: number): Cure
 
     // Anti-venom cures both poison and venom
     return {
-        cured: state.type !== "none",
+        cured: state.type !== PoisonType.None,
         immunityTicks,
         newState: {
             ...createPoisonState(),
@@ -478,7 +483,7 @@ export function cureWithAntivenomPlus(state: PoisonState, currentTick: number): 
 
     // Anti-venom+ cures both and grants longer immunity
     return {
-        cured: state.type !== "none",
+        cured: state.type !== PoisonType.None,
         immunityTicks,
         newState: {
             ...createPoisonState(),

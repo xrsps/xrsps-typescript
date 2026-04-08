@@ -3,62 +3,76 @@
  * These define what event completes a task.
  */
 
+export const TriggerType = {
+    NpcKill: "npc_kill",
+    NpcKillCombatLevel: "npc_kill_combat_level",
+    ItemEquip: "item_equip",
+    ItemObtain: "item_obtain",
+    ItemCraft: "item_craft",
+    QuestComplete: "quest_complete",
+    LevelReach: "level_reach",
+    XpGain: "xp_gain",
+    AreaEnter: "area_enter",
+    Custom: "custom",
+} as const;
+export type TriggerType = (typeof TriggerType)[keyof typeof TriggerType];
+
 // Tier 1 - Direct ID lookup triggers
 export type NpcKillTrigger = {
-    type: "npc_kill";
+    type: typeof TriggerType.NpcKill;
     npcIds: number[];
     count?: number; // For "Kill 10 Goblins" style tasks
 };
 
 export type NpcKillCombatLevelTrigger = {
-    type: "npc_kill_combat_level";
+    type: typeof TriggerType.NpcKillCombatLevel;
     minCombatLevel: number;
     count: number;
 };
 
 export type ItemEquipTrigger = {
-    type: "item_equip";
+    type: typeof TriggerType.ItemEquip;
     itemIds: number[];
 };
 
 export type ItemObtainTrigger = {
-    type: "item_obtain";
+    type: typeof TriggerType.ItemObtain;
     itemIds: number[];
     count?: number;
 };
 
 export type ItemCraftTrigger = {
-    type: "item_craft";
+    type: typeof TriggerType.ItemCraft;
     itemIds: number[];
     count?: number;
 };
 
 export type QuestCompleteTrigger = {
-    type: "quest_complete";
+    type: typeof TriggerType.QuestComplete;
     questId: number;
 };
 
 // Tier 2 - Stateful triggers (future)
 export type LevelReachTrigger = {
-    type: "level_reach";
+    type: typeof TriggerType.LevelReach;
     skillId?: number; // undefined = any skill
     level: number;
 };
 
 export type XpGainTrigger = {
-    type: "xp_gain";
+    type: typeof TriggerType.XpGain;
     skillId: number;
     amount: number;
 };
 
 export type AreaEnterTrigger = {
-    type: "area_enter";
+    type: typeof TriggerType.AreaEnter;
     regionIds: number[];
 };
 
 // Tier 3 - Custom validator
 export type CustomTrigger = {
-    type: "custom";
+    type: typeof TriggerType.Custom;
     validator: string; // Name of registered validator function
 };
 
@@ -77,27 +91,27 @@ export type TaskTrigger =
 
 // Event types emitted by game systems
 export type NpcKillEvent = {
-    type: "npc_kill";
+    type: typeof TriggerType.NpcKill;
     npcId: number;
     npcName: string;
     playerId: number;
 };
 
 export type ItemEquipEvent = {
-    type: "item_equip";
+    type: typeof TriggerType.ItemEquip;
     itemId: number;
     playerId: number;
 };
 
 export type ItemObtainEvent = {
-    type: "item_obtain";
+    type: typeof TriggerType.ItemObtain;
     itemId: number;
     count: number;
     playerId: number;
 };
 
 export type ItemCraftEvent = {
-    type: "item_craft";
+    type: typeof TriggerType.ItemCraft;
     itemId: number;
     count: number;
     playerId: number;

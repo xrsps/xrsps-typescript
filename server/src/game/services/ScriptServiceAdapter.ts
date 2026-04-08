@@ -100,6 +100,7 @@ export interface ScriptServiceAdapterDeps {
     enqueueSpotAnimation: (anim: PendingSpotAnimation) => void;
     enqueueForcedMovement: (data: ForcedMovementBroadcast) => void;
     enqueueSoundBroadcast: (soundId: number, x: number, y: number, level: number) => void;
+    syncMusicInterface?: (player: PlayerState) => void;
     queueCombatSnapshot: (playerId: number, weaponCategory: number, weaponItemId: number, autoRetaliate: boolean, activeStyle?: number, activePrayers?: string[], activeSpellId?: number) => void;
     queueWidgetEvent: (playerId: number, event: WidgetAction) => void;
     queueSmithingInterfaceMessage: (playerId: number, payload: Record<string, unknown>) => void;
@@ -141,7 +142,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
                 deps.interfaceService?.openModal(player, groupId, undefined, varbits ? { varbits } : undefined),
             closeSmithingModal: (player) => deps.interfaceService?.closeModal(player),
             isSmithingModalOpen: (player, groupId) => deps.interfaceService?.isModalOpen(player, groupId) ?? false,
-            openSmithingBarModal: (player) => deps.cs2ModalManager.openSmithingBarModal(player),
+            openSmithingBarModal: undefined,
             getBarTypeByItemId: (_itemId) => undefined,
         },
         followers: {
@@ -287,6 +288,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             sendSound: (player, soundId, opts) => deps.soundService.sendSound(player, soundId, opts),
             sendJingle: (player, jingleId, delay) => deps.soundService.sendJingle(player, jingleId, delay),
             enqueueSoundBroadcast: (soundId, x, y, level) => deps.enqueueSoundBroadcast(soundId, x, y, level),
+            syncMusicInterface: deps.syncMusicInterface ? (player) => deps.syncMusicInterface!(player) : undefined,
         },
         appearance: {
             refreshAppearanceKits: (player) => deps.appearanceService.refreshAppearanceKits(player),

@@ -1,4 +1,9 @@
-export type OwnedItemLocation = "inventory" | "equipment" | "bank";
+export const OwnedItemLocation = {
+    Inventory: "inventory",
+    Equipment: "equipment",
+    Bank: "bank",
+} as const;
+export type OwnedItemLocation = (typeof OwnedItemLocation)[keyof typeof OwnedItemLocation];
 
 type InventoryLikeEntry = {
     itemId: number;
@@ -34,7 +39,7 @@ export function findOwnedItemLocation(
             if (!entry) continue;
             if (entry.itemId !== target) continue;
             if (entry.quantity <= 0) continue;
-            return "inventory";
+            return OwnedItemLocation.Inventory;
         }
     }
 
@@ -42,14 +47,14 @@ export function findOwnedItemLocation(
         for (const entry of snapshot.equipment) {
             if (typeof entry === "number" && Number.isFinite(entry)) {
                 const equippedItemId = entry;
-                if (equippedItemId === target) return "equipment";
+                if (equippedItemId === target) return OwnedItemLocation.Equipment;
                 continue;
             }
             if (!entry || typeof entry !== "object") continue;
             if (entry.itemId !== target) continue;
             const quantity = entry.quantity ?? 1;
             if (quantity <= 0) continue;
-            return "equipment";
+            return OwnedItemLocation.Equipment;
         }
     }
 
@@ -58,7 +63,7 @@ export function findOwnedItemLocation(
             if (!entry) continue;
             if (entry.itemId !== target) continue;
             if (entry.quantity <= 0) continue;
-            return "bank";
+            return OwnedItemLocation.Bank;
         }
     }
 

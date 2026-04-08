@@ -420,11 +420,11 @@ export class CombatEffectService {
     ): number {
         const distance = this.getDistanceToNpcBounds(player, npc);
         switch (attackType) {
-            case "magic":
+            case AttackType.Magic:
                 return Math.max(1, 1 + Math.floor((1 + distance) / 3));
-            case "ranged":
+            case AttackType.Ranged:
                 return Math.max(1, 1 + Math.floor((3 + distance) / 6));
-            case "melee":
+            case AttackType.Melee:
             default:
                 return 1;
         }

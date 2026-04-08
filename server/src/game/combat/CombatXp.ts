@@ -1,9 +1,29 @@
 import { SkillId } from "../../../../src/rs/skill/skills";
+import { AttackType } from "./AttackType";
 
-export type AttackType = "melee" | "ranged" | "magic";
-export type MeleeStyleMode = "accurate" | "aggressive" | "controlled" | "defensive";
-export type RangedStyleMode = "accurate" | "rapid" | "longrange";
-export type MagicStyleMode = "accurate" | "defensive";
+export type { AttackType };
+
+export const MeleeStyle = {
+    Accurate: "accurate",
+    Aggressive: "aggressive",
+    Controlled: "controlled",
+    Defensive: "defensive",
+} as const;
+export type MeleeStyleMode = (typeof MeleeStyle)[keyof typeof MeleeStyle];
+
+export const RangedStyle = {
+    Accurate: "accurate",
+    Rapid: "rapid",
+    Longrange: "longrange",
+} as const;
+export type RangedStyleMode = (typeof RangedStyle)[keyof typeof RangedStyle];
+
+export const MagicStyle = {
+    Accurate: "accurate",
+    Defensive: "defensive",
+} as const;
+export type MagicStyleMode = (typeof MagicStyle)[keyof typeof MagicStyle];
+
 export type StyleMode = MeleeStyleMode | RangedStyleMode | MagicStyleMode;
 
 /**
@@ -74,17 +94,17 @@ export function calculateCombatXp(
 
     // Calculate primary skill XP based on attack type and style
     switch (attackType) {
-        case "melee":
+        case AttackType.Melee:
             if (damage > 0) {
                 awards.push(...calculateMeleeXp(damage, styleMode as MeleeStyleMode));
             }
             break;
-        case "ranged":
+        case AttackType.Ranged:
             if (damage > 0) {
                 awards.push(...calculateRangedXp(damage, styleMode as RangedStyleMode));
             }
             break;
-        case "magic":
+        case AttackType.Magic:
             // Magic always grants spell base XP on cast, even on splash.
             if (damage > 0 || spellBaseXp > 0) {
                 awards.push(...calculateMagicXp(damage, styleMode as MagicStyleMode, spellBaseXp));
@@ -106,13 +126,13 @@ export function calculateCombatXp(
  */
 function calculateMeleeXp(damage: number, mode: MeleeStyleMode): CombatXpAward[] {
     switch (mode) {
-        case "accurate":
+        case MeleeStyle.Accurate:
             return [{ skillId: SkillId.Attack, xp: damage * BASE_XP_PER_DAMAGE }];
 
-        case "aggressive":
+        case MeleeStyle.Aggressive:
             return [{ skillId: SkillId.Strength, xp: damage * BASE_XP_PER_DAMAGE }];
 
-        case "controlled":
+        case MeleeStyle.Controlled:
             // Split 4 XP evenly between Attack, Strength, and Defence
             return [
                 { skillId: SkillId.Attack, xp: damage * CONTROLLED_XP_PER_DAMAGE },
@@ -120,7 +140,7 @@ function calculateMeleeXp(damage: number, mode: MeleeStyleMode): CombatXpAward[]
                 { skillId: SkillId.Defence, xp: damage * CONTROLLED_XP_PER_DAMAGE },
             ];
 
-        case "defensive":
+        case MeleeStyle.Defensive:
             return [{ skillId: SkillId.Defence, xp: damage * BASE_XP_PER_DAMAGE }];
 
         default:
@@ -139,11 +159,11 @@ function calculateMeleeXp(damage: number, mode: MeleeStyleMode): CombatXpAward[]
  */
 function calculateRangedXp(damage: number, mode: RangedStyleMode): CombatXpAward[] {
     switch (mode) {
-        case "accurate":
-        case "rapid":
+        case RangedStyle.Accurate:
+        case RangedStyle.Rapid:
             return [{ skillId: SkillId.Ranged, xp: damage * BASE_XP_PER_DAMAGE }];
 
-        case "longrange":
+        case RangedStyle.Longrange:
             // Split between Ranged and Defence
             return [
                 { skillId: SkillId.Ranged, xp: damage * SHARED_XP_PER_DAMAGE },
@@ -172,7 +192,7 @@ function calculateMagicXp(
     mode: MagicStyleMode,
     spellBaseXp: number,
 ): CombatXpAward[] {
-    if (mode === "defensive") {
+    if (mode === MagicStyle.Defensive) {
         // Defensive casting: split between Magic and Defence
         // OSRS: Magic gets (damage * 1.33) + full spell base XP
         // Defence gets: damage * 1
@@ -193,13 +213,13 @@ function calculateMagicXp(
  */
 export function getDefaultStyleMode(attackType: AttackType): StyleMode {
     switch (attackType) {
-        case "melee":
-            return "accurate";
-        case "ranged":
-            return "accurate";
-        case "magic":
-            return "accurate";
+        case AttackType.Melee:
+            return MeleeStyle.Accurate;
+        case AttackType.Ranged:
+            return RangedStyle.Accurate;
+        case AttackType.Magic:
+            return MagicStyle.Accurate;
         default:
-            return "accurate";
+            return MeleeStyle.Accurate;
     }
 }

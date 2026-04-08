@@ -15,6 +15,7 @@ import { NpcState } from "../npc";
 import { PlayerState } from "../player";
 import {
     AmmoSystem,
+    type AvasDeviceType,
     EnchantedBoltEffect,
     doesBoltEffectActivate,
     getEnchantedBoltEffect,
@@ -245,7 +246,7 @@ export class CombatManager {
         weaponId: number,
         ammoId: number,
         hasAvasDevice: boolean,
-        avasDeviceType: "assembler" | "accumulator" | "attractor" | null,
+        avasDeviceType: AvasDeviceType | null,
     ): { consumed: boolean; boltEffect?: EnchantedBoltEffect } {
         // Check compatibility
         if (!this.ammoSystem.isAmmoCompatible(weaponId, ammoId)) {

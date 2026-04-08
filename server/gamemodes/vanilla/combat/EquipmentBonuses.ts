@@ -8,8 +8,8 @@
  * - Passive effects
  */
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
+import { AttackType } from "../../../src/game/combat/AttackType";
 import type {
-    AttackType,
     EquipmentBonusProvider,
     EquipmentBonusResult,
     SlayerTaskInfo,
@@ -279,7 +279,7 @@ function applyVoidBonus(
     const isElite = hasEliteVoidSet(equipment);
 
     switch (attackType) {
-        case "melee":
+        case AttackType.Melee:
             if (helm === VOID_MELEE_HELM) {
                 result.accuracyMultiplier *= 1.1;
                 result.damageMultiplier *= 1.1;
@@ -287,7 +287,7 @@ function applyVoidBonus(
             }
             break;
 
-        case "ranged":
+        case AttackType.Ranged:
             if (helm === VOID_RANGER_HELM) {
                 result.accuracyMultiplier *= 1.1;
                 result.damageMultiplier *= isElite ? 1.125 : 1.1;
@@ -299,7 +299,7 @@ function applyVoidBonus(
             }
             break;
 
-        case "magic":
+        case AttackType.Magic:
             if (helm === VOID_MAGE_HELM) {
                 result.accuracyMultiplier *= 1.45;
                 result.damageMultiplier *= isElite ? 1.025 : 1.0;
@@ -345,7 +345,7 @@ function applyInquisitorBonus(
     attackType: AttackType,
     result: EquipmentBonusResult,
 ): void {
-    if (attackType !== "melee") return;
+    if (attackType !== AttackType.Melee) return;
 
     const helm = equipment[EquipmentSlot.HEAD];
     const body = equipment[EquipmentSlot.BODY];
@@ -373,7 +373,7 @@ function applyObsidianBonus(
     attackType: AttackType,
     result: EquipmentBonusResult,
 ): void {
-    if (attackType !== "melee") return;
+    if (attackType !== AttackType.Melee) return;
 
     const weapon = equipment[EquipmentSlot.WEAPON];
     const isObsidianWeapon =
@@ -406,7 +406,7 @@ function applyCrystalBonus(
     attackType: AttackType,
     result: EquipmentBonusResult,
 ): void {
-    if (attackType !== "ranged") return;
+    if (attackType !== AttackType.Ranged) return;
 
     const weapon = equipment[EquipmentSlot.WEAPON];
     const isCrystalBow = CRYSTAL_BOW_IDS.has(weapon) || weapon === BOW_OF_FAERDHINEN;
@@ -493,14 +493,14 @@ function applySlayerBonus(
 
     if (!hasHelm && !hasHelmImbued) return;
 
-    if (attackType === "melee") {
+    if (attackType === AttackType.Melee) {
         result.accuracyMultiplier *= 7 / 6;
         result.damageMultiplier *= 7 / 6;
         result.notes.push("Slayer helmet (melee): +16.67% accuracy, +16.67% damage");
         return;
     }
 
-    if (hasHelmImbued && (attackType === "ranged" || attackType === "magic")) {
+    if (hasHelmImbued && (attackType === AttackType.Ranged || attackType === AttackType.Magic)) {
         result.accuracyMultiplier *= 1.15;
         result.damageMultiplier *= 1.15;
         result.notes.push(`Slayer helmet (i) (${attackType}): +15% accuracy, +15% damage`);
@@ -524,7 +524,7 @@ function applySalveBonus(
 
     if (!hasSalve && !hasSalveE && !hasSalveI && !hasSalveEI) return;
 
-    if (attackType === "melee") {
+    if (attackType === AttackType.Melee) {
         if (hasSalveEI || hasSalveE) {
             result.accuracyMultiplier *= 1.2;
             result.damageMultiplier *= 1.2;
@@ -534,7 +534,7 @@ function applySalveBonus(
             result.damageMultiplier *= 7 / 6;
             result.notes.push("Salve amulet: +16.67% accuracy/damage vs undead");
         }
-    } else if (attackType === "ranged" || attackType === "magic") {
+    } else if (attackType === AttackType.Ranged || attackType === AttackType.Magic) {
         if (hasSalveEI) {
             result.accuracyMultiplier *= 1.2;
             result.damageMultiplier *= 1.2;
@@ -557,13 +557,13 @@ function applyDragonHunterBonus(
 
     const weapon = equipment[EquipmentSlot.WEAPON];
 
-    if (weapon === DRAGON_HUNTER_LANCE && attackType === "melee") {
+    if (weapon === DRAGON_HUNTER_LANCE && attackType === AttackType.Melee) {
         result.accuracyMultiplier *= 1.2;
         result.damageMultiplier *= 1.2;
         result.notes.push("Dragon hunter lance: +20% accuracy/damage vs dragons");
     }
 
-    if (weapon === DRAGON_HUNTER_CROSSBOW && attackType === "ranged") {
+    if (weapon === DRAGON_HUNTER_CROSSBOW && attackType === AttackType.Ranged) {
         result.accuracyMultiplier *= 1.3;
         result.damageMultiplier *= 1.25;
         result.notes.push("Dragon hunter crossbow: +30% accuracy, +25% damage vs dragons");
@@ -576,7 +576,7 @@ function applyDemonbaneBonus(
     target: TargetInfo,
     result: EquipmentBonusResult,
 ): void {
-    if (!target.isDemon || attackType !== "melee") return;
+    if (!target.isDemon || attackType !== AttackType.Melee) return;
 
     const weapon = equipment[EquipmentSlot.WEAPON];
 
@@ -597,7 +597,7 @@ function applyKerisBonus(
     target: TargetInfo,
     result: EquipmentBonusResult,
 ): void {
-    if (!target.isKalphite || attackType !== "melee") return;
+    if (!target.isKalphite || attackType !== AttackType.Melee) return;
 
     const weapon = equipment[EquipmentSlot.WEAPON];
     const kerisWeapons = [
@@ -658,7 +658,7 @@ function applyMagicBonuses(
     spellId: number | undefined,
     result: EquipmentBonusResult,
 ): void {
-    if (attackType !== "magic") return;
+    if (attackType !== AttackType.Magic) return;
 
     const weapon = equipment[EquipmentSlot.WEAPON];
     const shield = equipment[EquipmentSlot.SHIELD];
@@ -690,7 +690,7 @@ function applyTumekensShadowPassive(
     isInsideToA: boolean,
     result: EquipmentBonusResult,
 ): void {
-    if (attackType !== "magic") return;
+    if (attackType !== AttackType.Magic) return;
 
     const weapon = equipment[EquipmentSlot.WEAPON];
     if (weapon !== TUMEKENS_SHADOW && weapon !== TUMEKENS_SHADOW_UNCHARGED) return;

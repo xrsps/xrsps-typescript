@@ -4,6 +4,7 @@ import {
     VARBIT_LEAGUE_TYPE,
 } from "../../../../src/shared/vars";
 import { type IScriptRegistry, type NpcInteractionEvent, type ScriptServices } from "../../../src/game/scripts/types";
+import { OwnedItemLocation } from "../../../src/game/items/playerItemOwnership";
 import type { PlayerState } from "../../../src/game/player";
 import { queueLeagueTutorialOverlayUi } from "./leagueWidgets";
 
@@ -130,13 +131,13 @@ function reclaimLostEchoTool(player: PlayerState, services: ScriptServices): str
     }
 
     const ownedLocation = services.inventory.findOwnedItemLocation(player, rewardItemId);
-    if (ownedLocation === "inventory") {
+    if (ownedLocation === OwnedItemLocation.Inventory) {
         return ["You already have your Echo tool with you.", "Check your inventory first."];
     }
-    if (ownedLocation === "equipment") {
+    if (ownedLocation === OwnedItemLocation.Equipment) {
         return ["You already have your Echo tool equipped.", "No replacement is needed."];
     }
-    if (ownedLocation === "bank") {
+    if (ownedLocation === OwnedItemLocation.Bank) {
         return [
             "You already have that Echo tool stored in your bank.",
             "Withdraw it first before asking for another replacement.",

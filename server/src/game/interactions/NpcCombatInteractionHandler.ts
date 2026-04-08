@@ -7,6 +7,7 @@ import {
 } from "../../pathfinding/legacy/pathfinder/RouteStrategy";
 import { CollisionFlag } from "../../pathfinding/legacy/pathfinder/flag/CollisionFlag";
 import { hasProjectileLineOfSightToNpc } from "../combat/CombatAction";
+import { AttackType } from "../combat/AttackType";
 import {
     POWERED_STAFF_CATEGORIES,
     resolvePlayerAttackReach,
@@ -330,7 +331,7 @@ export class NpcCombatInteractionHandler {
                       Math.max(1, npc.size),
                       Math.max(1, npc.size),
                   )
-                : attackType !== "melee"
+                : attackType !== AttackType.Melee
                 ? new RectWithinRangeLineOfSightRouteStrategy(
                       npc.tileX,
                       npc.tileY,
@@ -392,7 +393,7 @@ export class NpcCombatInteractionHandler {
             const attackType = resolvePlayerAttackType(player.combat);
             const category = player.combat.weaponCategory ?? 0;
             const isPoweredStaff = POWERED_STAFF_CATEGORIES.has(category);
-            if (attackType === "magic" && !isPoweredStaff) {
+            if (attackType === AttackType.Magic && !isPoweredStaff) {
                 return !!player.combat.autocastEnabled;
             }
         }
@@ -486,7 +487,7 @@ export class NpcCombatInteractionHandler {
         }
 
         // For reach > 1 (e.g., halberds), use attack type resolution to decide LoS vs wall-path checks.
-        const isMelee = resolvePlayerAttackType(player.combat) === "melee";
+        const isMelee = resolvePlayerAttackType(player.combat) === AttackType.Melee;
 
         // Ranged/magic attacks require LINE OF SIGHT to the target.
         // Wall checks are different from LoS - walls block melee, but projectiles

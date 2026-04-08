@@ -1,3 +1,4 @@
+import { AttackType } from "../../../src/game/combat/AttackType";
 import { VARBIT_MASTERY_POINT_UNLOCK_BASE } from "../../../../src/shared/gamemode/GamemodeDataTypes";
 import {
     ACCOUNT_SUMMARY_COLLECTION_LOG_CHILD_INDEX,
@@ -2623,11 +2624,11 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
             }
 
             const masteryVarbitId =
-                pending.masteryType === "melee"
+                pending.masteryType === AttackType.Melee
                     ? VARBIT_LEAGUE_MELEE_MASTERY
-                    : pending.masteryType === "ranged"
+                    : pending.masteryType === AttackType.Ranged
                     ? VARBIT_LEAGUE_RANGED_MASTERY
-                    : pending.masteryType === "magic"
+                    : pending.masteryType === AttackType.Magic
                     ? VARBIT_LEAGUE_MAGIC_MASTERY
                     : 0;
 
@@ -2744,11 +2745,11 @@ export function registerLeagueWidgetHandlers(registry: IScriptRegistry, services
 
             // Get current mastery level and points
             const masteryVarbitId =
-                pending.masteryType === "melee"
+                pending.masteryType === AttackType.Melee
                     ? VARBIT_LEAGUE_MELEE_MASTERY
-                    : pending.masteryType === "ranged"
+                    : pending.masteryType === AttackType.Ranged
                     ? VARBIT_LEAGUE_RANGED_MASTERY
-                    : pending.masteryType === "magic"
+                    : pending.masteryType === AttackType.Magic
                     ? VARBIT_LEAGUE_MAGIC_MASTERY
                     : 0; // shared doesn't have its own varbit
 

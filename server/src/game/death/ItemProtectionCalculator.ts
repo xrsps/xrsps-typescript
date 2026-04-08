@@ -7,7 +7,7 @@
 import { EquipmentSlot } from "../../../../src/rs/config/player/Equipment";
 import type { ItemDefinition } from "../../data/items";
 import type { EquipmentSnapshotEntry, InventoryEntry, PlayerState } from "../player";
-import { DeathType, type ItemProtectionResult, type ItemSource, type ValuedItem } from "./types";
+import { DeathType, ItemSourceType, type ItemProtectionResult, type ItemSource, type ValuedItem } from "./types";
 
 /**
  * Item IDs that are always kept on death regardless of other rules
@@ -145,7 +145,7 @@ export class ItemProtectionCalculator {
             if (!entry || entry.itemId <= 0 || entry.quantity <= 0) continue;
 
             const item = this.createValuedItem(entry.itemId, entry.quantity, {
-                type: "inventory",
+                type: ItemSourceType.Inventory,
                 slot,
             });
             if (item) {
@@ -160,7 +160,7 @@ export class ItemProtectionCalculator {
 
             const quantity = entry.quantity ?? 1;
             const item = this.createValuedItem(entry.itemId, quantity, {
-                type: "equipment",
+                type: ItemSourceType.Equipment,
                 slot: entry.slot,
             });
             if (item) {

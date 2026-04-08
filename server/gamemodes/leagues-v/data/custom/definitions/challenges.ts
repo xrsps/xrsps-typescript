@@ -9,6 +9,7 @@
  * mastery points when completed.
  */
 import type { CustomChallenge } from "../CustomContentTypes";
+import { TriggerType } from "../../../triggers/TriggerTypes";
 
 /**
  * All custom mastery challenges.
@@ -21,13 +22,13 @@ import type { CustomChallenge } from "../CustomContentTypes";
 export const CUSTOM_CHALLENGES: CustomChallenge[] = [
     {
         description: "Defeat a Man.",
-        trigger: { type: "npc_kill", npcIds: [3106, 3107, 3108] },
+        trigger: { type: TriggerType.NpcKill, npcIds: [3106, 3107, 3108] },
     },
     {
         description: "Defeat a Giant.",
         replacesStructId: 1177,
         trigger: {
-            type: "npc_kill",
+            type: TriggerType.NpcKill,
             npcIds: [
                 // Hill Giant
                 2098, 2099, 2100, 2101, 2102, 2103, 7261, 10374, 10375, 10376,
@@ -44,7 +45,7 @@ export const CUSTOM_CHALLENGES: CustomChallenge[] = [
         description: "Defeat 10 monsters with a combat level of 100 or more.",
         replacesStructId: 1178,
         trigger: {
-            type: "npc_kill_combat_level",
+            type: TriggerType.NpcKillCombatLevel,
             minCombatLevel: 100,
             count: 10,
         },

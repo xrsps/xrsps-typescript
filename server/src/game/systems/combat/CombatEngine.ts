@@ -14,8 +14,10 @@ import {
     getPoweredStaffSpellData,
     getSpellData,
 } from "../../spells/SpellDataProvider";
-import { doesBoltEffectActivate, getEnchantedBoltEffect } from "../../combat/AmmoSystem";
-import type { AttackType } from "../../combat/AttackType";
+import { BoltEffectType, doesBoltEffectActivate, getEnchantedBoltEffect } from "../../combat/AmmoSystem";
+import { AttackType } from "../../combat/AttackType";
+import { MeleeStyle, MagicStyle, RangedStyle } from "../../combat/CombatXp";
+import type { MeleeStyleMode, RangedStyleMode, MagicStyleMode } from "../../combat/CombatXp";
 import * as CombatFormulas from "../../combat/CombatFormulaProvider";
 import {
     type SlayerTaskInfo,
@@ -153,15 +155,7 @@ export interface RangedProjectilePlan {
 }
 
 export interface AmmoEffectPlan {
-    effectType:
-        | "damage_boost"
-        | "hp_drain"
-        | "defense_drain"
-        | "lightning"
-        | "poison"
-        | "heal"
-        | "life_leech"
-        | "magic_drain";
+    effectType: BoltEffectType;
     graphicId?: number;
     selfDamage?: number;
     leechPercent?: number;
@@ -225,9 +219,9 @@ const MAGIC_WEAPON_CATEGORIES = new Set<number>([18, 24, 29]);
 const POWERED_STAFF_CATEGORIES = new Set<number>([24]); // POWERED_STAFF (includes Tumeken's Shadow)
 const RANGED_WEAPON_CATEGORIES = new Set<number>([3, 5, 6, 7, 8, 19]);
 const MAGIC_DART_SPELL_ID = 4176;
-const MELEE_STYLE_BY_SLOT: MeleeStyleMode[] = ["accurate", "aggressive", "controlled", "defensive"];
-const RANGED_STYLE_BY_SLOT: RangedStyleMode[] = ["accurate", "rapid", "longrange", "longrange"];
-const MAGIC_STYLE_BY_SLOT: MagicStyleMode[] = ["accurate", "defensive", "defensive", "defensive"];
+const MELEE_STYLE_BY_SLOT: MeleeStyleMode[] = [MeleeStyle.Accurate, MeleeStyle.Aggressive, MeleeStyle.Controlled, MeleeStyle.Defensive];
+const RANGED_STYLE_BY_SLOT: RangedStyleMode[] = [RangedStyle.Accurate, RangedStyle.Rapid, RangedStyle.Longrange, RangedStyle.Longrange];
+const MAGIC_STYLE_BY_SLOT: MagicStyleMode[] = [MagicStyle.Accurate, MagicStyle.Defensive, MagicStyle.Defensive, MagicStyle.Defensive];
 
 type PrayerStat = "attack" | "strength" | "defence" | "ranged" | "ranged_strength" | "magic";
 
@@ -270,9 +264,6 @@ const PRAYER_BONUS: Record<PrayerStat, Map<string, number>> = {
     ]),
 };
 
-type MeleeStyleMode = "accurate" | "aggressive" | "controlled" | "defensive";
-type RangedStyleMode = "accurate" | "rapid" | "longrange";
-type MagicStyleMode = "accurate" | "defensive";
 
 type AttackStyle =
     | {
@@ -360,7 +351,7 @@ export class CombatEngine {
         const hp = this.getPlayerHitpoints(context.player);
         const playerMagicLevel = this.getBoostedLevel(context.player, SkillId.Magic);
         const activeSpellId =
-            baseProfile.style.kind === "magic" ? this.getActiveSpellId(context.player) : undefined;
+            baseProfile.style.kind === AttackType.Magic ? this.getActiveSpellId(context.player) : undefined;
         const equipmentBonuses = calculateEquipmentBonuses(
             equipment,
             baseProfile.style.kind,
@@ -412,7 +403,7 @@ export class CombatEngine {
             }
         }
         let ammoEffect: AmmoEffectPlan | undefined;
-        if (hitLanded && attackProfile.style.kind === "ranged") {
+        if (hitLanded && attackProfile.style.kind === AttackType.Ranged) {
             const ammoId = this.getEquippedAmmoId(context.player);
             const boltEffect = ammoId > 0 ? getEnchantedBoltEffect(ammoId) : undefined;
             if (boltEffect && doesBoltEffectActivate(ammoId, false, () => this.rng.next())) {
@@ -421,7 +412,7 @@ export class CombatEngine {
                     graphicId: boltEffect.graphicId,
                 };
                 switch (boltEffect.effectType) {
-                    case "hp_drain": {
+                    case BoltEffectType.HpDrain: {
                         const targetHp = Math.max(0, context.npc.getHitpoints());
                         const percent = boltEffect.damageMultiplier ?? 0;
                         let drained = Math.floor(targetHp * Math.max(0, percent));
@@ -439,7 +430,7 @@ export class CombatEngine {
                         }
                         break;
                     }
-                    case "life_leech": {
+                    case BoltEffectType.LifeLeech: {
                         if (boltEffect.damageMultiplier && damage > 0) {
                             damage = Math.floor(damage * boltEffect.damageMultiplier);
                         }
@@ -448,7 +439,7 @@ export class CombatEngine {
                         }
                         break;
                     }
-                    case "lightning": {
+                    case BoltEffectType.Lightning: {
                         const rangedLevel = this.getBoostedLevel(context.player, SkillId.Ranged);
                         const bonus = Math.floor(Math.max(0, rangedLevel) * 0.1);
                         if (bonus > 0) {
@@ -456,19 +447,19 @@ export class CombatEngine {
                         }
                         break;
                     }
-                    case "damage_boost":
-                    case "defense_drain": {
+                    case BoltEffectType.DamageBoost:
+                    case BoltEffectType.DefenseDrain: {
                         if (boltEffect.damageMultiplier && damage > 0) {
                             damage = Math.floor(damage * boltEffect.damageMultiplier);
                         }
                         break;
                     }
-                    case "poison": {
+                    case BoltEffectType.Poison: {
                         ammoEffect.poison = true;
                         break;
                     }
-                    case "heal":
-                    case "magic_drain":
+                    case BoltEffectType.Heal:
+                    case BoltEffectType.MagicDrain:
                     default:
                         break;
                 }
@@ -483,7 +474,7 @@ export class CombatEngine {
                 this.pickDefaultNpcHitDelay(context.npc, context.player, attackSpeed),
         );
         let projectilePlan: RangedProjectilePlan | undefined;
-        if (attackStyle.kind === "ranged") {
+        if (attackStyle.kind === AttackType.Ranged) {
             const projectileDefaults = this.getRangedProjectileParams(context);
             if (projectileDefaults?.projectileId) {
                 projectilePlan = {
@@ -495,7 +486,7 @@ export class CombatEngine {
                     startDelay: projectileDefaults.startDelay ?? 0,
                 };
             }
-        } else if (attackStyle.kind === "magic") {
+        } else if (attackStyle.kind === AttackType.Magic) {
             // Powered staff projectile planning
             const poweredStaffProjectile = this.getPoweredStaffProjectileParams(context);
             if (poweredStaffProjectile) {
@@ -624,11 +615,11 @@ export class CombatEngine {
         const distance = this.getTileDistance(context.player, context.npc);
 
         switch (attackStyle.kind) {
-            case "magic":
+            case AttackType.Magic:
                 // OSRS: 1 + floor((1 + distance) / 3)
                 return Math.max(1, 1 + Math.floor((1 + distance) / 3));
 
-            case "ranged": {
+            case AttackType.Ranged: {
                 // Check if using thrown weapons (darts, knives, throwing axes, chinchompas)
                 const rangedWeaponId = context.player.combat.weaponItemId;
                 const isThrown = this.isThrownWeapon(rangedWeaponId);
@@ -646,7 +637,7 @@ export class CombatEngine {
                 return Math.max(1, baseDelay + (isBallista ? 1 : 0));
             }
 
-            case "melee":
+            case AttackType.Melee:
             default:
                 // OSRS: Melee hits are immediate (0 tick delay)
                 return 0;
@@ -1038,16 +1029,16 @@ export class CombatEngine {
         _attackSpeed: number,
         attackType?: AttackType,
     ): number {
-        const resolvedType = attackType ?? npc.getAttackType?.() ?? "melee";
+        const resolvedType = attackType ?? npc.getAttackType?.() ?? AttackType.Melee;
         const distance = this.getTileDistance(player, npc);
         switch (resolvedType) {
-            case "magic":
+            case AttackType.Magic:
                 // OSRS: 1 + floor((1 + distance) / 3)
                 return Math.max(1, 1 + Math.floor((1 + distance) / 3));
-            case "ranged":
+            case AttackType.Ranged:
                 // OSRS: 1 + floor((3 + distance) / 6)
                 return Math.max(1, 1 + Math.floor((3 + distance) / 6));
-            case "melee":
+            case AttackType.Melee:
             default:
                 // NPC melee retaliation hit resolves 1 tick after swing.
                 return 1;
@@ -1064,7 +1055,7 @@ export class CombatEngine {
         const style = this.resolveAttackStyle(context.player, equipmentBonuses);
         const stanceBonus = this.resolveStanceBonuses(context.player, style);
         switch (style.kind) {
-            case "ranged": {
+            case AttackType.Ranged: {
                 const effectiveLevel = this.computeEffectiveLevel(
                     this.getBoostedLevel(context.player, SkillId.Ranged),
                     this.getPrayerMultiplier(context.player, "ranged"),
@@ -1085,7 +1076,7 @@ export class CombatEngine {
 
                 return { style, attackRoll, maxHit, equipmentBonuses };
             }
-            case "magic": {
+            case AttackType.Magic: {
                 const effectiveLevel = this.computeEffectiveLevel(
                     this.getBoostedLevel(context.player, SkillId.Magic),
                     this.getPrayerMultiplier(context.player, "magic"),
@@ -1102,7 +1093,7 @@ export class CombatEngine {
 
                 return { style, attackRoll, maxHit, equipmentBonuses };
             }
-            case "melee": {
+            case AttackType.Melee: {
                 const effectiveAttack = this.computeEffectiveLevel(
                     this.getBoostedLevel(context.player, SkillId.Attack),
                     this.getPrayerMultiplier(context.player, "attack"),
@@ -1143,18 +1134,18 @@ export class CombatEngine {
         const defenceBonus = this.resolveNpcDefenceBonus(profile, attackProfile.style.bonusIndex);
 
         switch (attackProfile.style.kind) {
-            case "magic": {
+            case AttackType.Magic: {
                 const effectiveMagicDefence = this.computeMagicDefenceEffectiveLevel(
                     defenceLevel,
                     magicLevel,
                 );
                 return effectiveMagicDefence * Math.max(0, defenceBonus + 64);
             }
-            case "ranged": {
+            case AttackType.Ranged: {
                 const effectiveRangedDefence = this.computeEffectiveLevel(defenceLevel, 1, 0);
                 return effectiveRangedDefence * Math.max(0, defenceBonus + 64);
             }
-            case "melee": {
+            case AttackType.Melee: {
                 const effectiveDefence = this.computeEffectiveLevel(defenceLevel, 1, 0);
                 return effectiveDefence * Math.max(0, defenceBonus + 64);
             }
@@ -1201,38 +1192,38 @@ export class CombatEngine {
         magic?: number;
     } {
         switch (style.kind) {
-            case "melee": {
+            case AttackType.Melee: {
                 switch (style.mode) {
-                    case "accurate":
+                    case MeleeStyle.Accurate:
                         return { attack: 3 };
-                    case "aggressive":
+                    case MeleeStyle.Aggressive:
                         return { strength: 3 };
-                    case "controlled":
+                    case MeleeStyle.Controlled:
                         return { attack: 1, strength: 1, defence: 1 };
-                    case "defensive":
+                    case MeleeStyle.Defensive:
                         return { defence: 3 };
                     default:
                         return {};
                 }
             }
-            case "ranged": {
+            case AttackType.Ranged: {
                 // OSRS ranged stance bonuses:
                 // Accurate: +3 ranged (used for BOTH attack roll AND max hit)
                 // Rapid: no bonus (speed bonus handled elsewhere)
                 // Longrange: +1 ranged, +3 defence (and +2 attack range)
                 switch (style.mode) {
-                    case "accurate":
+                    case RangedStyle.Accurate:
                         return { ranged: 3, rangedStrength: 3 };
-                    case "rapid":
+                    case RangedStyle.Rapid:
                         return {}; // No stat bonus, speed bonus handled in pickAttackSpeed
-                    case "longrange":
+                    case RangedStyle.Longrange:
                         return { ranged: 1, rangedStrength: 1, defence: 3 };
                     default:
                         return {};
                 }
             }
-            case "magic": {
-                if (style.mode === "defensive") {
+            case AttackType.Magic: {
+                if (style.mode === MagicStyle.Defensive) {
                     return { defence: 3 };
                 }
                 return {};
@@ -1254,32 +1245,32 @@ export class CombatEngine {
         // - Style 0 (Bash/Pound) = melee attack (crush)
         // - Style 1+ with autocast enabled = magic attack
         // If autocast is OFF, the melee styles should do melee attacks (punching).
-        if (mappedAttackType === "magic" && hasCombatSpell) {
+        if (mappedAttackType === AttackType.Magic && hasCombatSpell) {
             const autocastMode = player.combat.autocastMode;
             const mode: MagicStyleMode =
                 autocastMode === "defensive_autocast"
-                    ? "defensive"
+                    ? MagicStyle.Defensive
                     : autocastEnabled
                     ? MAGIC_STYLE_BY_SLOT[Math.min(styleSlot, MAGIC_STYLE_BY_SLOT.length - 1)] ??
-                      "accurate"
-                    : "accurate";
-            return { kind: "magic", mode, bonusIndex: AttackBonusIndex.Magic };
+                      MagicStyle.Accurate
+                    : MagicStyle.Accurate;
+            return { kind: AttackType.Magic, mode, bonusIndex: AttackBonusIndex.Magic };
         }
-        if (mappedAttackType === "ranged") {
+        if (mappedAttackType === AttackType.Ranged) {
             const mode =
                 RANGED_STYLE_BY_SLOT[Math.min(styleSlot, RANGED_STYLE_BY_SLOT.length - 1)] ??
-                "accurate";
-            return { kind: "ranged", mode, bonusIndex: AttackBonusIndex.Ranged };
+                RangedStyle.Accurate;
+            return { kind: AttackType.Ranged, mode, bonusIndex: AttackBonusIndex.Ranged };
         }
-        if (mappedAttackType === "melee") {
+        if (mappedAttackType === AttackType.Melee) {
             // Autocast overrides melee style on staves.
             // When autocast is enabled with a valid spell, the attack is magic even if
             // the style slot maps to a melee attack type (e.g., "Bash" on style 0).
             if (autocastEnabled && hasCombatSpell) {
                 const autocastMode = player.combat.autocastMode;
                 const mode: MagicStyleMode =
-                    autocastMode === "defensive_autocast" ? "defensive" : "accurate";
-                return { kind: "magic", mode, bonusIndex: AttackBonusIndex.Magic };
+                    autocastMode === "defensive_autocast" ? MagicStyle.Defensive : MagicStyle.Accurate;
+                return { kind: AttackType.Magic, mode, bonusIndex: AttackBonusIndex.Magic };
             }
             // Use weapon-specific style data for correct XP mode
             const weaponId = player.combat.weaponItemId ?? -1;
@@ -1288,7 +1279,7 @@ export class CombatEngine {
                 mappedMeleeBonusIndex !== undefined
                     ? mappedMeleeBonusIndex
                     : this.pickBestMeleeBonusIndex(bonuses);
-            return { kind: "melee", mode: meleeMode, bonusIndex };
+            return { kind: AttackType.Melee, mode: meleeMode, bonusIndex };
         }
 
         if (MAGIC_WEAPON_CATEGORIES.has(category)) {
@@ -1297,23 +1288,23 @@ export class CombatEngine {
             if (POWERED_STAFF_CATEGORIES.has(category)) {
                 // Map style slot to magic mode for powered staves
                 // Style 0 = Accurate, Style 1 = Accurate, Style 2 = Longrange (defensive)
-                const mode: MagicStyleMode = styleSlot === 2 ? "defensive" : "accurate";
-                return { kind: "magic", mode, bonusIndex: AttackBonusIndex.Magic };
+                const mode: MagicStyleMode = styleSlot === 2 ? MagicStyle.Defensive : MagicStyle.Accurate;
+                return { kind: AttackType.Magic, mode, bonusIndex: AttackBonusIndex.Magic };
             }
             // Only use magic if autocast is enabled with a valid spell
             if (autocastEnabled && hasCombatSpell) {
                 const autocastMode = player.combat.autocastMode;
                 const mode: MagicStyleMode =
-                    autocastMode === "defensive_autocast" ? "defensive" : "accurate";
-                return { kind: "magic", mode, bonusIndex: AttackBonusIndex.Magic };
+                    autocastMode === "defensive_autocast" ? MagicStyle.Defensive : MagicStyle.Accurate;
+                return { kind: AttackType.Magic, mode, bonusIndex: AttackBonusIndex.Magic };
             }
             // Autocast disabled or no spell selected - fall through to melee (e.g., "pound" style)
         }
         if (RANGED_WEAPON_CATEGORIES.has(category)) {
             const mode =
                 RANGED_STYLE_BY_SLOT[Math.min(styleSlot, RANGED_STYLE_BY_SLOT.length - 1)] ??
-                "accurate";
-            return { kind: "ranged", mode, bonusIndex: AttackBonusIndex.Ranged };
+                RangedStyle.Accurate;
+            return { kind: AttackType.Ranged, mode, bonusIndex: AttackBonusIndex.Ranged };
         }
 
         // Use weapon-specific style data for correct XP mode
@@ -1324,7 +1315,7 @@ export class CombatEngine {
             mappedMeleeBonusIndex !== undefined
                 ? mappedMeleeBonusIndex
                 : this.pickBestMeleeBonusIndex(bonuses);
-        return { kind: "melee", mode: meleeMode, bonusIndex };
+        return { kind: AttackType.Melee, mode: meleeMode, bonusIndex };
     }
 
     /**
@@ -1339,19 +1330,19 @@ export class CombatEngine {
                 // Map XpMode to MeleeStyleMode
                 switch (combatStyle.xpMode) {
                     case XpMode.ATTACK:
-                        return "accurate";
+                        return MeleeStyle.Accurate;
                     case XpMode.STRENGTH:
-                        return "aggressive";
+                        return MeleeStyle.Aggressive;
                     case XpMode.SHARED:
-                        return "controlled";
+                        return MeleeStyle.Controlled;
                     case XpMode.DEFENCE:
-                        return "defensive";
+                        return MeleeStyle.Defensive;
                 }
             }
         }
         // Fallback to generic mapping for unarmed or unknown weapons
         return (
-            MELEE_STYLE_BY_SLOT[Math.min(styleSlot, MELEE_STYLE_BY_SLOT.length - 1)] ?? "accurate"
+            MELEE_STYLE_BY_SLOT[Math.min(styleSlot, MELEE_STYLE_BY_SLOT.length - 1)] ?? MeleeStyle.Accurate
         );
     }
 
@@ -1494,13 +1485,13 @@ export class CombatEngine {
         const bonuses = this.aggregatePlayerBonuses(player);
         let defenceIndex: number;
         switch (attackType) {
-            case "magic":
+            case AttackType.Magic:
                 defenceIndex = DEFENCE_BONUS_INDEX[AttackBonusIndex.Magic];
                 break;
-            case "ranged":
+            case AttackType.Ranged:
                 defenceIndex = DEFENCE_BONUS_INDEX[AttackBonusIndex.Ranged];
                 break;
-            case "melee":
+            case AttackType.Melee:
             default:
                 // For melee, use slash defence as default (most common)
                 defenceIndex = DEFENCE_BONUS_INDEX[AttackBonusIndex.Slash];
@@ -1520,7 +1511,7 @@ export class CombatEngine {
         attackType: AttackType,
     ): number {
         let effectiveDefence: number;
-        if (attackType === "magic") {
+        if (attackType === AttackType.Magic) {
             // OSRS: Magic defence = floor(magic * 0.7 + defence * 0.3) + 8
             effectiveDefence = Math.floor(magicLevel * 0.7 + defenceLevel * 0.3) + 8;
         } else {

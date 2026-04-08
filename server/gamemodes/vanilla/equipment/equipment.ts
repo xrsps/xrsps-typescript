@@ -1,4 +1,4 @@
-import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts/types";
+import { type IScriptRegistry, type ScriptServices } from "../../../src/game/scripts";
 import type { PlayerState } from "../../../src/game/player";
 
 const DFS_ITEM_IDS = [11283, 11284];

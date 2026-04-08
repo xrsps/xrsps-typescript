@@ -23,7 +23,16 @@ interface DamageEntry {
     damageType: DamageType;
 }
 
-export type DamageType = "melee" | "ranged" | "magic" | "poison" | "venom" | "recoil" | "other";
+export const DamageType = {
+    Melee: "melee",
+    Ranged: "ranged",
+    Magic: "magic",
+    Poison: "poison",
+    Venom: "venom",
+    Recoil: "recoil",
+    Other: "other",
+} as const;
+export type DamageType = (typeof DamageType)[keyof typeof DamageType];
 
 // Damage summary for a player
 export interface PlayerDamageSummary {
@@ -52,7 +61,13 @@ export interface DropEligibility {
 }
 
 // Loot distribution type
-export type LootDistribution = "highest-damage" | "most-valuable-player" | "shared" | "ffa";
+export const LootDistribution = {
+    HighestDamage: "highest-damage",
+    MostValuablePlayer: "most-valuable-player",
+    Shared: "shared",
+    FreeForAll: "ffa",
+} as const;
+export type LootDistribution = (typeof LootDistribution)[keyof typeof LootDistribution];
 
 // Configuration for specific NPCs
 export interface NpcLootConfig {
@@ -173,13 +188,13 @@ export class DamageTracker {
         // Get NPC-specific loot configuration (gamemode resolver takes priority)
         const config = this.lootConfigResolver?.(npc.typeId)
             ?? NPC_LOOT_CONFIGS.get(npc.typeId)
-            ?? { distribution: "highest-damage" as const };
+            ?? { distribution: LootDistribution.HighestDamage as const };
 
         const eligibleLooters: Player[] = [];
         let primaryLooter: Player | null = null;
 
         switch (config.distribution) {
-            case "highest-damage":
+            case LootDistribution.HighestDamage:
                 // Simple: highest damage dealer gets the loot
                 if (summaries.length > 0) {
                     primaryLooter = summaries[0].player;
@@ -187,7 +202,7 @@ export class DamageTracker {
                 }
                 break;
 
-            case "most-valuable-player":
+            case LootDistribution.MostValuablePlayer:
                 // MVP consideration: highest damage, but with contribution weighting
                 if (summaries.length > 0) {
                     // For now, same as highest damage
@@ -197,7 +212,7 @@ export class DamageTracker {
                 }
                 break;
 
-            case "shared":
+            case LootDistribution.Shared:
                 // Shared loot: everyone above threshold is eligible
                 const threshold = config.sharedLootThreshold ?? 0.05;
                 const minDamage = config.minDamageThreshold ?? 0;
@@ -216,7 +231,7 @@ export class DamageTracker {
                 }
                 break;
 
-            case "ffa":
+            case LootDistribution.FreeForAll:
                 // Free for all: everyone gets their own loot roll
                 // All participants are eligible
                 for (const summary of summaries) {
