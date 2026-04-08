@@ -11,20 +11,30 @@ src/                    # Browser client
   network/              # Client-side networking
   ui/                   # Game UI overlays
   components/           # React components
+  shared/               # Types and constants shared with server
 
 server/
-  src/                  # Server core
+  src/                  # Server core (engine — never gamemode-specific)
     game/               # Gameplay systems (players, NPCs, combat, skills, actions)
     network/            # WebSocket server, packet encoding, message routing
     world/              # Cache environment, collision, map data
     data/               # Item/NPC/spell definitions
-    scripts/            # Script registry and built-in modules
-  gamemodes/            # Gamemode implementations
-  extrascripts/         # Optional content modules
+    scripts/            # Script registry and bootstrap loader
+  gamemodes/            # Gamemode implementations (vanilla, leagues-v, yours)
+  extrascripts/         # Optional content modules (universal tools)
   data/                 # Static JSON data (spawns, doors, combat defs)
 
 scripts/                # Cache export and build tools
 ```
+
+### Where code lives
+
+| Layer | Directory | Purpose |
+|-------|-----------|---------|
+| **Engine** | `server/src/` | Tick loop, networking, collision, pathfinding, packet routing, player sync. Never references a specific gamemode. |
+| **Gamemodes** | `server/gamemodes/{id}/` | Server identity — rules, progression, content handlers, providers. Each gamemode is a self-contained directory. |
+| **Extrascripts** | `server/extrascripts/{id}/` | Universal modules that work on any server regardless of gamemode. |
+| **Shared** | `src/shared/` | Types, constants, and utilities used by both client and server. |
 
 ## Game Loop
 
@@ -124,13 +134,14 @@ All gameplay content (skills, combat, shops, UI, etc.) is registered through the
 BaseGamemode (abstract — OSRS defaults, no content)
   └─ VanillaGamemode (banking, shops, combat providers, skills, widgets)
        └─ LeaguesVGamemode (league-specific rules and content)
+       └─ YourGamemode (extend vanilla, override what you need)
 ```
 
 `BaseGamemode` (`server/src/game/gamemodes/BaseGamemode.ts`) provides sensible defaults for every `GamemodeDefinition` hook — 1x XP, Lumbridge spawn, no tutorial, standard drop rates. It registers no content.
 
-`VanillaGamemode` (`server/gamemodes/vanilla/index.ts`) extends BaseGamemode with the full OSRS experience: banking, shops, equipment, all 12 global combat/spell providers, skill implementations, and UI widget handlers.
+`VanillaGamemode` (`server/gamemodes/vanilla/index.ts`) extends BaseGamemode with the full OSRS experience: banking, shops (via `ShopService`), equipment, all 13 global combat/spell providers, skill implementations, and UI widget handlers. Complex subsystems are extracted into dedicated service classes (e.g. `ShopService` wraps `ShopManager` + server integration) so the gamemode index stays thin.
 
-Most community gamemodes extend VanillaGamemode and override what they need. See [Gamemodes](gamemodes.md) for details.
+Most community gamemodes should extend `VanillaGamemode` and override what they need. See [Gamemodes](gamemodes.md) for details.
 
 ### Script Loading
 

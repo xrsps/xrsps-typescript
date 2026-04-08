@@ -74,6 +74,16 @@ The server will:
 
 You should see log output confirming the server is ready.
 
+By default, the server runs the **vanilla** gamemode. To run a different gamemode:
+
+```bash
+# Environment variable
+GAMEMODE=leagues-v yarn server:start
+
+# Or set it in server/config.json
+{ "gamemode": "leagues-v" }
+```
+
 ## 5. Start the Client
 
 Open a **second terminal** and run:

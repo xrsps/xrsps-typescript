@@ -17,7 +17,7 @@ const tickMsEnv = process.env.TICK_MS?.trim();
 
 let serverName = "Local Development";
 let maxPlayers = 2047;
-let gamemode = "leagues-v";
+let gamemode = "vanilla";
 try {
     const raw = readFileSync(resolve(__dirname, "../../config.json"), "utf-8");
     const parsed = JSON.parse(raw);

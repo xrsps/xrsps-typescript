@@ -32,7 +32,7 @@ There are two paths for creating a gamemode:
 | `BaseGamemode` | Building from scratch. You get valid defaults but no content — no banking, no shops, no skills. Suitable for minigame servers or highly custom experiences. |
 | `VanillaGamemode` | Most common. You inherit the full OSRS experience and override what you need. This is what Leagues V does. |
 
-## Current gamemodes
+## Bundled Gamemodes
 
 | Gamemode | Base | Description |
 |----------|------|-------------|
@@ -41,38 +41,26 @@ There are two paths for creating a gamemode:
 
 ## Creating a Gamemode
 
-### Minimal example (extending BaseGamemode)
+### 1. Create the directory
 
-```typescript
-// server/gamemodes/my-gamemode/index.ts
-import { BaseGamemode } from "../../src/game/gamemodes/BaseGamemode";
-import type { GamemodeDefinition } from "../../src/game/gamemodes/GamemodeDefinition";
-
-class MyGamemode extends BaseGamemode {
-    readonly id = "my-gamemode";
-    readonly name = "My Gamemode";
-
-    override getSkillXpMultiplier(): number {
-        return 5; // 5x XP
-    }
-}
-
-export function createGamemode(): GamemodeDefinition {
-    return new MyGamemode();
-}
+```
+server/gamemodes/my-gamemode/
+  index.ts
 ```
 
-This gives you a working gamemode with 5x XP and all other OSRS defaults (Lumbridge spawn, no tutorial, standard drop rates). It won't have banking, shops, or skills — you'd register those yourself.
+The `GamemodeRegistry` discovers gamemodes by scanning `server/gamemodes/` for directories containing an `index.ts` or `index.js` that exports `createGamemode()`.
 
-### Extending VanillaGamemode (recommended)
+### 2. Write the gamemode class
+
+#### Extending VanillaGamemode (recommended)
 
 ```typescript
 // server/gamemodes/my-gamemode/index.ts
-import { VanillaGamemode } from "../vanilla/index";
-import type { GamemodeDefinition } from "../../src/game/gamemodes/GamemodeDefinition";
+import type { GamemodeDefinition, GamemodeInitContext } from "../../src/game/gamemodes/GamemodeDefinition";
 import type { PlayerState } from "../../src/game/player";
 import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
-import type { GamemodeInitContext } from "../../src/game/gamemodes/GamemodeDefinition";
+
+import { VanillaGamemode } from "../vanilla/index";
 
 class MyGamemode extends VanillaGamemode {
     override readonly id = "my-gamemode";
@@ -108,9 +96,50 @@ export function createGamemode(): GamemodeDefinition {
 
 This gives you the full vanilla experience (banking, shops, equipment, skills, combat, all UI) with 10x XP, 3x drop rates, and infinite run energy.
 
-### Running your gamemode
+#### Extending BaseGamemode (from scratch)
 
-Set the gamemode ID in your server configuration. The `GamemodeRegistry` discovers gamemodes by scanning `server/gamemodes/` for directories containing an `index.ts` or `index.js`.
+```typescript
+// server/gamemodes/my-gamemode/index.ts
+import type { GamemodeDefinition } from "../../src/game/gamemodes/GamemodeDefinition";
+
+import { BaseGamemode } from "../../src/game/gamemodes/BaseGamemode";
+
+class MyGamemode extends BaseGamemode {
+    readonly id = "my-gamemode";
+    readonly name = "My Gamemode";
+
+    override getSkillXpMultiplier(): number {
+        return 5; // 5x XP
+    }
+}
+
+export function createGamemode(): GamemodeDefinition {
+    return new MyGamemode();
+}
+```
+
+This gives you a working gamemode with 5x XP and all other OSRS defaults (Lumbridge spawn, no tutorial, standard drop rates). It won't have banking, shops, or skills — you'd register those yourself.
+
+### 3. Run your gamemode
+
+Set the gamemode ID in your server configuration:
+
+- **config.json:** `{ "gamemode": "my-gamemode" }`
+- **Environment variable:** `GAMEMODE=my-gamemode`
+
+The default gamemode is `vanilla`.
+
+## Where Logic Should Live
+
+| Logic type | Location | Example |
+|-----------|----------|---------|
+| Engine systems (ticks, networking, player sync) | `server/src/` | Collision, pathfinding, packet routing |
+| Pluggable data providers (combat formulas, spells) | `server/src/game/providers/` interfaces, `vanilla/combat/` implementations | CombatFormulaProvider, SpellDataProvider |
+| Reusable services (shop orchestration, banking) | Service classes in the gamemode (`vanilla/shops/ShopService.ts`) | ShopService wraps ShopManager + server integration |
+| Gamemode-specific rules (XP rates, tutorials, relics) | `server/gamemodes/{id}/index.ts` overrides | LeaguesV XP multiplier, tutorial flow |
+| Universal tools (debug commands, admin) | `server/extrascripts/{id}/` | item-spawner |
+
+Keep gamemode `index.ts` files thin — they should wire systems together, not implement them. Extract complex logic into dedicated service classes (like `ShopService`) so the gamemode just instantiates and connects them.
 
 ## Structure
 
@@ -121,7 +150,7 @@ server/gamemodes/vanilla/
 ├── combat/                     # Combat formulas, special attacks, equipment bonuses
 ├── data/                       # Weapons, spells, runes, projectiles, login defaults
 ├── equipment/                  # Equipment actions + widget handlers
-├── shops/                      # ShopManager + widget handlers
+├── shops/                      # ShopManager, ShopService + widget handlers
 ├── skills/                     # All skill implementations (mining, fishing, etc.)
 ├── scripts/
 │   ├── content/                # Climbing, doors, al-kharid border, etc.
@@ -177,7 +206,7 @@ Handlers then access these via `services.banking.openBank(player)` without knowi
 
 ## Global Providers
 
-VanillaGamemode registers 13 global data providers during `initialize()` that power the core combat and spell systems. Each provider is a singleton registered via a `registerXxxProvider()` function — the last call wins, so you can replace any provider after `super.initialize()`.
+VanillaGamemode registers 13 global data providers during `initialize()` that power the core combat and spell systems. Each provider is a singleton registered to the `ProviderRegistry` — the last call wins, so you can replace any provider after `super.initialize()`.
 
 | Provider | Create function | Source file |
 |----------|----------------|-------------|
@@ -204,51 +233,56 @@ To override a specific provider while keeping the rest, call `super.initialize()
 **Replace entirely** — write your own implementation of the interface:
 
 ```typescript
+import { getProviderRegistry } from "../../src/game/providers/ProviderRegistry";
+
+// inside your gamemode class:
 override initialize(context: GamemodeInitContext): void {
     super.initialize(context); // registers all 13 vanilla providers
 
     // Replace combat formulas with custom ones
-    const { registerCombatFormulaProvider } = require("../../src/game/combat/CombatFormulaProvider");
-    registerCombatFormulaProvider({
+    const registry = getProviderRegistry();
+    registry.combatFormula = {
         maxHit: (player, target) => 99,  // everyone hits 99s
         hitChance: () => 1.0,            // never miss
         // ... implement remaining CombatFormulaProvider methods
-    });
+    };
 }
 ```
 
 **Wrap vanilla's provider** — import the create function, spread it, and override specific methods:
 
 ```typescript
+import { getProviderRegistry } from "../../src/game/providers/ProviderRegistry";
+import { createCombatFormulaProvider } from "../vanilla/combat/CombatFormulas";
+
+// inside your gamemode class:
 override initialize(context: GamemodeInitContext): void {
     super.initialize(context);
 
-    const { createCombatFormulaProvider } = require("../vanilla/combat/CombatFormulas");
-    const { registerCombatFormulaProvider } = require("../../src/game/combat/CombatFormulaProvider");
-
+    const registry = getProviderRegistry();
     const base = createCombatFormulaProvider();
-    registerCombatFormulaProvider({
+    registry.combatFormula = {
         ...base,
         maxHit: (player, target) => base.maxHit(player, target) * 2, // double max hit
-    });
+    };
 }
 ```
 
 **Reuse vanilla providers from BaseGamemode** — if you extend BaseGamemode but still want standard OSRS combat:
 
 ```typescript
+import { getProviderRegistry } from "../../src/game/providers/ProviderRegistry";
+import { createCombatFormulaProvider } from "../vanilla/combat/CombatFormulas";
+import { createWeaponDataProvider } from "../vanilla/data/weapons";
+
+// inside your gamemode class:
 override initialize(context: GamemodeInitContext): void {
     // No super.initialize() — BaseGamemode's is a no-op
 
     // Cherry-pick the providers you need
-    const { createCombatFormulaProvider } = require("../vanilla/combat/CombatFormulas");
-    const { registerCombatFormulaProvider } = require("../../src/game/combat/CombatFormulaProvider");
-    registerCombatFormulaProvider(createCombatFormulaProvider());
-
-    const { createWeaponDataProvider } = require("../vanilla/data/weapons");
-    const { registerWeaponDataProvider } = require("../../src/game/combat/WeaponDataProvider");
-    registerWeaponDataProvider(createWeaponDataProvider());
-
+    const registry = getProviderRegistry();
+    registry.combatFormula = createCombatFormulaProvider();
+    registry.weaponData = createWeaponDataProvider();
     // ... register only the providers you need
 }
 ```

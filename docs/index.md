@@ -3,7 +3,7 @@ layout: home
 hero:
     name: XRSPS
     text: OSRS in the Browser
-    tagline: Community-driven. Browser-native.
+    tagline: Build gamemodes. Write extrascripts. Run your own server.
     image:
         src: /xrsps.png
         alt: XRSPS
@@ -16,13 +16,16 @@ hero:
           link: https://discord.gg/3dzttF2q73
 
 features:
-    - icon: 🎮
-      title: Play in Your Browser
-      details: Full OSRS client running natively in the browser with WebGL rendering. No downloads, no Java.
+    - icon: 🧩
+      title: Gamemode System
+      details: Extend VanillaGamemode to build your own server experience — custom XP rates, drop tables, tutorials, UI, and progression. Override what you need, inherit what you don't.
+    - icon: 🔌
+      title: Extrascripts
+      details: Drop-in content modules that work on any server. Debug tools, admin commands, custom content — just export a register function and it loads automatically.
     - icon: 🛠️
       title: TypeScript End to End
-      details: Both client and server written in TypeScript. Suitable for web developers.
-    - icon: 🧩
-      title: Modular Architecture
-      details: Gamemode and Extrascript systems keep content separated from core engine code.
+      details: Client and server both written in TypeScript. Shared cache, shared types, shared networking protocol.
+    - icon: 🎮
+      title: Browser-Native Client
+      details: Full OSRS client running in the browser with WebGL rendering. No downloads, no Java — connect and play.
 ---

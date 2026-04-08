@@ -12,15 +12,28 @@ export function createGamemode(id: string): GamemodeDefinition {
         const available = listAvailableGamemodes().join(", ");
         throw new Error(`Unknown gamemode "${id}". Available: ${available}`);
     }
+
     const modulePath = path.resolve(gamemodeDir, "index");
+
+    // Dynamic require is intentional — gamemodes are discovered at runtime by ID.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require(modulePath);
+    const mod: Record<string, unknown> = require(modulePath);
+
     if (typeof mod.createGamemode !== "function") {
         throw new Error(
             `Gamemode "${id}" does not export a createGamemode() function from its index`,
         );
     }
-    return mod.createGamemode() as GamemodeDefinition;
+
+    const gamemode = (mod.createGamemode as () => GamemodeDefinition)();
+
+    if (!gamemode.id || !gamemode.name) {
+        throw new Error(
+            `Gamemode "${id}" createGamemode() returned an object missing required 'id' or 'name' fields`,
+        );
+    }
+
+    return gamemode;
 }
 
 export function getGamemodeDataDir(id: string): string {

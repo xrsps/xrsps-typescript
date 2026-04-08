@@ -20,8 +20,7 @@ import {
     SIDE_JOURNAL_TAB_CONTAINER_UID,
 } from "../../../src/shared/ui/sideJournal";
 import { encodeMessage } from "./messages";
-import { registerAllHandlers } from "./handlers";
-import type { BinaryHandlerExtServices } from "./handlers";
+import { registerAllHandlers, type BinaryHandlerExtServices } from "./handlers";
 import {
     resolveNpcOptionByOpNum,
     resolveLocActionByOpNum,

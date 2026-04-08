@@ -64,7 +64,7 @@ export function loadNpcCombatStats(): Map<number, NpcCombatStats> {
         return npcStatsCache;
     }
 
-    const filePath = path.resolve(__dirname, "../../../gamemodes/vanilla/data/npc-combat-stats.json");
+    const filePath = path.resolve(__dirname, "../../data/npc-combat-stats.json");
 
     if (!fs.existsSync(filePath)) {
         logger.warn(`[NpcCombatStats] File not found: ${filePath}`);

@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import type { CacheInfo } from "../../../../src/rs/cache/CacheInfo";
 import { CacheSystem } from "../../../../src/rs/cache/CacheSystem";
 import { CombatCategoryConst as CombatCategory } from "../../../src/game/combat/WeaponDataProvider";
@@ -1133,8 +1135,6 @@ export function createSpellDataProvider(): SpellDataProvider {
 
     // Load spell overrides from JSON
     try {
-        const fs = require("fs");
-        const path = require("path");
         const envPath = (process?.env?.SPELLS_OVERRIDES_FILE ?? "").toString();
         const defaultPath = path.resolve("server/cache/spells-overrides.json");
         const filePath = envPath || defaultPath;

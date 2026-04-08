@@ -1,0 +1,4163 @@
+{
+  "cache": {
+    "name": "osrs-235_2025-12-17",
+    "revision": 235,
+    "timestamp": "2025-12-17T11:45:07.048006Z"
+  },
+  "generatedAt": "2026-02-07T02:23:00.928Z",
+  "strategy": "curated_rules_all_combat",
+  "npcs": {
+    "70": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "71": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "72": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "73": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "74": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "75": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "76": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "77": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "78": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "79": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "80": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "81": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "82": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "83": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "84": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "104": {
+      "attack": 1187,
+      "hit": 1185,
+      "death": 1188
+    },
+    "105": {
+      "attack": 1187,
+      "hit": 1185,
+      "death": 1188
+    },
+    "130": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "135": {
+      "attack": 1187,
+      "hit": 1185,
+      "death": 1188
+    },
+    "397": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "398": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "399": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "400": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "510": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "512": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "513": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "516": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "517": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "518": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "519": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "526": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "527": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "528": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "529": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "531": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "639": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "690": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "695": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "734": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "735": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "736": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "737": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "924": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "995": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1025": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1026": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1144": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1208": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1211": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1281": {
+      "attack": 745,
+      "hit": 747,
+      "death": 746
+    },
+    "1283": {
+      "attack": 745,
+      "hit": 747,
+      "death": 746
+    },
+    "1379": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1380": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1381": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1382": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1383": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1448": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1461": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1545": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1546": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1547": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1548": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1549": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1550": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1685": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "1686": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "1687": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "1688": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "1792": {
+      "attack": 762,
+      "hit": 764,
+      "death": 763
+    },
+    "1793": {
+      "attack": 762,
+      "hit": 764,
+      "death": 763
+    },
+    "1795": {
+      "attack": 762,
+      "hit": 764,
+      "death": 763
+    },
+    "1796": {
+      "attack": 762,
+      "hit": 764,
+      "death": 763
+    },
+    "1798": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1799": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1800": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1829": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1889": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1890": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1891": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "1892": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2056": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2057": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2058": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2059": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2120": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2167": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2168": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2169": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2170": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2171": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2172": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2173": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2174": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2175": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2176": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2177": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2178": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2179": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "2316": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2317": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2478": {
+      "attack": 3605,
+      "hit": 3607,
+      "death": 3606
+    },
+    "2520": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "2521": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "2522": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "2523": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "2524": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "2525": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "2526": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "2536": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2537": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2538": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "2579": {
+      "attack": 918,
+      "hit": 923,
+      "death": 922
+    },
+    "3010": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3011": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3019": {
+      "attack": 3605,
+      "hit": 3607,
+      "death": 3606
+    },
+    "3055": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3056": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3057": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3058": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3059": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3060": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3061": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3062": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3064": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3065": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3066": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3067": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3068": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3069": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3070": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3071": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3072": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3114": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3133": {
+      "attack": 1187,
+      "hit": 1185,
+      "death": 1188
+    },
+    "3137": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3234": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3237": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3239": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3243": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3244": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3252": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3253": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3254": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3256": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3260": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3262": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3269": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3270": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3271": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3272": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3273": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3274": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3275": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3276": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3283": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3293": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3294": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3297": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3300": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3301": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3361": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3429": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3433": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3434": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3484": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3485": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3486": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3565": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "3584": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "3651": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3690": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3691": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3692": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3693": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3694": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3695": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3696": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3697": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3698": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3699": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3707": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3708": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "3717": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3718": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3719": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3729": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3730": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3731": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3732": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3748": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3749": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3750": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3751": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3752": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3753": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3754": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3755": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "3949": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3950": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "3972": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "3973": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "3974": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4068": {
+      "attack": 918,
+      "hit": 923,
+      "death": 922
+    },
+    "4088": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4096": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4097": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4098": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4099": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4100": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4114": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4133": {
+      "attack": 861,
+      "hit": 868,
+      "death": 866
+    },
+    "4134": {
+      "attack": 861,
+      "hit": 868,
+      "death": 866
+    },
+    "4167": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4168": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4169": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4170": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4171": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4172": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4173": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4174": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4175": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4176": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4246": {
+      "attack": 918,
+      "hit": 923,
+      "death": 922
+    },
+    "4247": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4276": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4277": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4278": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4279": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4312": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4319": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4331": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4427": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4428": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4429": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4430": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4431": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4432": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4436": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4437": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4438": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4439": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4442": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4443": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4486": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4487": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "4491": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4492": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4493": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4494": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4495": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4496": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4497": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4498": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4499": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "4516": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4517": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4518": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4519": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4520": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4521": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4522": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4523": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4524": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4525": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4526": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4561": {
+      "attack": 3605,
+      "hit": 3607,
+      "death": 3606
+    },
+    "4656": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4657": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4658": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4659": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4660": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4661": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4662": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4663": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4664": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4665": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4666": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4667": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4668": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4669": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4678": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4772": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4773": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4774": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4775": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4776": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4959": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4960": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4969": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "4970": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5086": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5087": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5088": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5089": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5141": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5185": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5186": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5187": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5188": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5189": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5217": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5218": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5219": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5220": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5237": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "5238": {
+      "attack": 3605,
+      "hit": 3607,
+      "death": 3606
+    },
+    "5342": {
+      "attack": 918,
+      "hit": 923,
+      "death": 922
+    },
+    "5343": {
+      "attack": 918,
+      "hit": 923,
+      "death": 922
+    },
+    "5344": {
+      "attack": 918,
+      "hit": 923,
+      "death": 922
+    },
+    "5345": {
+      "attack": 918,
+      "hit": 923,
+      "death": 922
+    },
+    "5418": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5421": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5457": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5634": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "5635": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "5636": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "5637": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "5638": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "5639": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "5640": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "5641": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "5642": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "5729": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5732": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5964": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "5965": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6056": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6441": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6442": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6443": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6444": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6445": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6446": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6447": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6448": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6467": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6468": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "6575": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6576": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6579": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6580": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6581": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6582": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6583": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6603": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6605": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6606": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6699": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6700": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6701": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6702": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6868": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6869": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6870": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6871": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "6956": {
+      "attack": 918,
+      "hit": 923,
+      "death": 922
+    },
+    "6996": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "7256": {
+      "attack": 1187,
+      "hit": 1185,
+      "death": 1188
+    },
+    "7265": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "7679": {
+      "attack": 251,
+      "hit": 253,
+      "death": 252
+    },
+    "7877": {
+      "attack": 1187,
+      "hit": 1185,
+      "death": 1188
+    },
+    "7916": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8070": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "8071": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "8072": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "8137": {
+      "attack": 3605,
+      "hit": 3607,
+      "death": 3606
+    },
+    "8138": {
+      "attack": 3605,
+      "hit": 3607,
+      "death": 3606
+    },
+    "8139": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "8140": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "8149": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8150": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8160": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8168": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8300": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "8301": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "8302": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "8303": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "8304": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "8305": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "8306": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "8307": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "8400": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8401": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8698": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8732": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8759": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8799": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8800": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8801": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8849": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8850": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8851": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8852": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8853": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8854": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8855": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8922": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8932": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8933": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8934": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8935": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8938": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8939": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8945": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8946": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8947": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8948": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8949": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8955": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8956": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8957": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8958": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8959": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8960": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8961": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8962": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "8963": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9143": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9144": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9182": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9183": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9184": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9185": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9186": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9187": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9188": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9189": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9502": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9503": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "9586": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9587": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9614": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9615": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9616": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9617": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9727": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9728": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9729": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9730": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9731": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9732": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9733": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9734": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9735": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "9736": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "9737": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "9738": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "9739": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "9740": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "9741": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "9742": {
+      "attack": 879,
+      "hit": 884,
+      "death": 882
+    },
+    "9756": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9757": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9758": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9759": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9760": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9761": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9762": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "9763": {
+      "attack": 888,
+      "hit": 883,
+      "death": 889
+    },
+    "10717": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "10718": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "10719": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "10720": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "10721": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "10909": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10910": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10911": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10912": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10913": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10914": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10915": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10916": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10917": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10918": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10919": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10920": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10921": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10984": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10985": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10986": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10987": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "10988": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11063": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11064": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11065": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11072": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11073": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11074": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11075": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11076": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11077": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11078": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11079": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11080": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11081": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11082": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11083": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11084": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11085": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11086": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11087": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11088": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11092": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11093": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11094": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11095": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11096": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11097": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11098": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11099": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11100": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11101": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11102": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11103": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11104": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11105": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11106": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11107": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11109": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11110": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11111": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11200": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11201": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11202": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11203": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11204": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11206": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11207": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11208": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11209": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11210": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11892": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11893": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11894": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11895": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11896": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11897": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11898": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11899": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11900": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11901": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11902": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11911": {
+      "attack": 2549,
+      "hit": 1979,
+      "death": 512
+    },
+    "11912": {
+      "attack": 2549,
+      "hit": 1979,
+      "death": 512
+    },
+    "11913": {
+      "attack": 2549,
+      "hit": 1979,
+      "death": 512
+    },
+    "11914": {
+      "attack": 2549,
+      "hit": 1979,
+      "death": 512
+    },
+    "11915": {
+      "attack": 2549,
+      "hit": 1979,
+      "death": 512
+    },
+    "11916": {
+      "attack": 2549,
+      "hit": 1979,
+      "death": 512
+    },
+    "11917": {
+      "attack": 2549,
+      "hit": 1979,
+      "death": 512
+    },
+    "11918": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11919": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11920": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11921": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11922": {
+      "attack": 2549,
+      "hit": 1979,
+      "death": 512
+    },
+    "11923": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11924": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11925": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11926": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11927": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11928": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11929": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11930": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11931": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11932": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11933": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11936": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11937": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11938": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11939": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11942": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11943": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11944": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11945": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11946": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11947": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11948": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11949": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11950": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11951": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11952": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "11953": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12019": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12020": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12021": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12022": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12023": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12024": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12460": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12461": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12618": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12619": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12668": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12669": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12670": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12671": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12672": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12673": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12674": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12675": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12676": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12677": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12678": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12679": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12680": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12681": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12682": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12683": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12684": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12685": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12686": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12687": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12688": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12689": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12690": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12691": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12692": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12693": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12694": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12695": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12696": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12697": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12713": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12714": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12715": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12716": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12717": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12718": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12719": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12924": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12925": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12926": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "12927": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13048": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13049": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13050": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13051": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13052": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13053": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13054": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13055": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13056": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13057": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13058": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13059": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13060": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13061": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13062": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13100": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13101": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13102": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13103": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13104": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13105": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13106": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13107": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13108": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13109": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13282": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13283": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13284": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13285": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13286": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13287": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13288": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13289": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13290": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13291": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13292": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13293": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13294": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13295": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13296": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13476": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13477": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13478": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13479": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13495": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13496": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13497": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13498": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13499": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13500": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13501": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "13933": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13934": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13935": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13986": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13987": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13988": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13989": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13990": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13991": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13992": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13993": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13994": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "13995": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14189": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14191": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14193": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14197": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14357": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14359": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14361": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14426": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "14427": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "14428": {
+      "attack": 776,
+      "hit": 513,
+      "death": 777
+    },
+    "14530": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14531": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14532": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14663": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14664": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14665": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14666": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14667": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14668": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14669": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14670": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14716": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14717": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14718": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14719": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14720": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14721": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14722": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14723": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14887": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14888": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14889": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    },
+    "14890": {
+      "attack": 2564,
+      "hit": 513,
+      "death": 512,
+      "defend": 511
+    }
+  }
+}

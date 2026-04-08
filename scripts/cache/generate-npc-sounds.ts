@@ -449,7 +449,7 @@ async function main() {
         .map(([name, value]) => ({ name, ...value }))
         .sort((a, b) => b.count - a.count);
 
-    const dataDir = path.resolve(__dirname, "../../server/gamemodes/vanilla/data");
+    const dataDir = path.resolve(__dirname, "../../server/data");
     const generatedPath = path.join(dataDir, "npc-sounds.generated.json");
     const unresolvedPath = path.join(dataDir, "npc-sounds.unresolved.json");
     const overridesPath = path.join(dataDir, "npc-sounds.overrides.json");

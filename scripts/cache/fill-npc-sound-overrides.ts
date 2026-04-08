@@ -90,7 +90,7 @@ function pickRule(name: string): Rule | undefined {
 
 async function main() {
     const root = path.resolve(__dirname, "../../");
-    const overridesPath = path.resolve(root, "server/gamemodes/vanilla/data/npc-sounds.overrides.json");
+    const overridesPath = path.resolve(root, "server/data/npc-sounds.overrides.json");
     const overridesRaw = fs.existsSync(overridesPath) ? loadJson<any>(overridesPath) : { npcs: {} };
     const overrides = ensureOverrideShape(overridesRaw);
 

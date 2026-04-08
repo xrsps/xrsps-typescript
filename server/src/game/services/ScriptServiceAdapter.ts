@@ -14,7 +14,7 @@ import {
 import type { ScriptServices, ScriptDialogRequest, ScriptDialogOptionRequest, ProviderRegistrationFacade } from "../scripts/types";
 import { getProviderRegistry } from "../providers/ProviderRegistry";
 import { getMainmodalUid, getSidemodalUid, getPrayerTabUid, getViewportTrackerFrontUid } from "../../widgets/viewport";
-import { getDefaultInterfaces, getRemainingTabInterfaces } from "../../widgets/WidgetManager";
+import { getDefaultInterfaces, getRemainingTabInterfaces, type WidgetAction } from "../../widgets/WidgetManager";
 import type { DataLoaderService } from "./DataLoaderService";
 import type { VariableService } from "./VariableService";
 import type { MessagingService } from "./MessagingService";
@@ -55,7 +55,7 @@ import { getItemDefinition, loadItemDefinitions } from "../../data/items";
 import type { PlayerManager } from "../PlayerManager";
 import type { PendingSpotAnimation, ForcedMovementBroadcast } from "../systems/BroadcastScheduler";
 import type { TickFrame } from "../tick/TickPhaseOrchestrator";
-import type { WidgetAction } from "../../widgets/WidgetManager";
+
 import type { GameEventBus } from "../events/GameEventBus";
 import type { WebSocket } from "ws";
 
@@ -248,7 +248,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
             loadItemDefinitions: () => loadItemDefinitions(),
         },
         system: {
-            logger: logger as any,
+            logger,
             getCurrentTick: () => deps.getCurrentTick(),
             eventBus: deps.eventBus,
         },
@@ -402,7 +402,7 @@ export function buildScriptServices(deps: ScriptServiceAdapterDeps): ScriptServi
         },
         location: {
             doorManager: deps.doorManager,
-            resolveLocTransformId: (player, locDef) => resolveLocTransformId(player as any, locDef as any),
+            resolveLocTransformId: (player, locDef) => resolveLocTransformId(player, locDef),
             emitLocChange: (oldId, newId, tile, level, opts) => deps.locationService.emitLocChange(oldId, newId, tile, level, opts),
             sendLocChangeToPlayer: (player, oldId, newId, tile, level) => deps.locationService.sendLocChangeToPlayer(player, oldId, newId, tile, level),
             spawnLocForPlayer: (player, locId, tile, level, shape, rotation) => deps.locationService.spawnLocForPlayer(player, locId, tile, level, shape, rotation),

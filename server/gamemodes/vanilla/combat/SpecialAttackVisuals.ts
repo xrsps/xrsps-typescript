@@ -1,3 +1,4 @@
+import type { SpecialAttackVisualProvider } from "../../../src/game/combat/SpecialAttackVisualProvider";
 import { getItemDefinition } from "../../../src/game/scripts/types";
 
 const SPEC_ANIM_DRAGON_DAGGER = 1062;
@@ -45,8 +46,6 @@ export function pickSpecialAttackVisualOverride(
 
     return undefined;
 }
-
-import type { SpecialAttackVisualProvider } from "../../../src/game/combat/SpecialAttackVisualProvider";
 
 export function createSpecialAttackVisualProvider(): SpecialAttackVisualProvider {
     return { pickSpecialAttackVisualOverride };

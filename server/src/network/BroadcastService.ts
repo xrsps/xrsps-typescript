@@ -5,8 +5,7 @@ import type {
     ForcedMovementBroadcast,
     PendingSpotAnimation,
 } from "../game/systems/BroadcastScheduler";
-import type { SmithingServerPayload, SpellResultPayload, TradeServerPayload } from "./messages";
-import { encodeMessage } from "./messages";
+import { encodeMessage, type SmithingServerPayload, type SpellResultPayload, type TradeServerPayload } from "./messages";
 import { logger } from "../utils/logger";
 
 const NPC_STREAM_RADIUS_TILES = 15;

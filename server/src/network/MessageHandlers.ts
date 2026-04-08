@@ -10,9 +10,8 @@ import {
     MODIFIER_FLAG_CTRL,
     MODIFIER_FLAG_CTRL_SHIFT,
 } from "../../../src/shared/input/modifierFlags";
-import type { NpcState } from "../game/npc";
+import type { NpcState, NpcSpawnConfig } from "../game/npc";
 import type { PlayerState } from "../game/player";
-import type { NpcSpawnConfig } from "../game/npc";
 import type { ScriptDialogRequest, WidgetOpenHandler } from "../game/scripts/types";
 import type { WidgetAction } from "../widgets/WidgetManager";
 import type { WorldEntityBuildArea } from "../../../src/shared/worldentity/WorldEntityTypes";

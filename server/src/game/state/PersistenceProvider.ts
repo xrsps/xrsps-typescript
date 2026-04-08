@@ -12,8 +12,7 @@
  * aggregate JSON file per gamemode.
  */
 
-import type { PlayerState } from "../player";
-import type { PlayerPersistentVars } from "../player";
+import type { PlayerState, PlayerPersistentVars } from "../player";
 
 export interface PersistenceProvider {
     /** Apply persisted state onto a player (merge defaults + player-specific data). */

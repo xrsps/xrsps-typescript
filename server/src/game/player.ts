@@ -29,8 +29,7 @@ import {
 } from "./model/timer";
 import { NpcState } from "./npc";
 import { PlayerAccountState } from "./state/PlayerAccountState";
-import { PlayerCollectionLogState } from "./state/PlayerCollectionLogState";
-import type { CollectionLogUnlockEntry } from "./state/PlayerCollectionLogState";
+import { PlayerCollectionLogState, type CollectionLogUnlockEntry } from "./state/PlayerCollectionLogState";
 import { PlayerCombatState } from "./state/PlayerCombatState";
 import { PlayerEquipmentAccessor } from "./state/PlayerEquipmentAccessor";
 import {

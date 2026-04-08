@@ -26,8 +26,25 @@ function invalidateRequireCache(filePath: string): void {
 }
 
 export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefinition): void {
+    /** Paths to invalidate before reloading (populated on first load). */
+    let watchedPaths: string[] = [];
+
     const loadAll = () => {
+        // Invalidate cached modules for hot-reload — no-op on first load
+        for (const filePath of watchedPaths) {
+            invalidateRequireCache(filePath);
+        }
+
         const extrascriptEntries = loadExtrascriptEntries();
+
+        // Collect watched paths for next reload cycle
+        watchedPaths = [];
+        for (const entry of extrascriptEntries) {
+            if (entry.watch) {
+                watchedPaths.push(...entry.watch);
+            }
+        }
+
         runtime.reset();
 
         if (gamemode?.registerHandlers) {
@@ -41,11 +58,6 @@ export function bootstrapScripts(runtime: ScriptRuntime, gamemode?: GamemodeDefi
         }
 
         for (const entry of extrascriptEntries) {
-            if (entry.watch) {
-                for (const watchTarget of entry.watch) {
-                    invalidateRequireCache(watchTarget);
-                }
-            }
             try {
                 runtime.registerHandlers(entry.id, entry.register);
             } catch (err) {

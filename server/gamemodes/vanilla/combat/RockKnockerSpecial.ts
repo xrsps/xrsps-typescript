@@ -1,4 +1,5 @@
 import { SkillId } from "../../../../src/rs/skill/skills";
+import type { InstantUtilitySpecialProvider } from "../../../src/game/combat/InstantUtilitySpecialProvider";
 import type { PlayerState } from "../../../src/game/player";
 
 export const ROCK_KNOCKER_SOUND_ID = 2530; // dragon_axe_thunder
@@ -115,8 +116,6 @@ export function applyLumberUpWoodcuttingBoost(player: RockKnockerBoostPlayer): v
     const targetLevel = Math.max(currentLevel, baseLevel + LUMBER_UP_WOODCUTTING_BOOST);
     player.skillSystem.setSkillBoost(SkillId.Woodcutting, targetLevel);
 }
-
-import type { InstantUtilitySpecialProvider } from "../../../src/game/combat/InstantUtilitySpecialProvider";
 
 export function createInstantUtilitySpecialProvider(): InstantUtilitySpecialProvider {
     return {

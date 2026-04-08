@@ -35,15 +35,27 @@ export function loadExtrascriptEntries(): ExtrascriptEntry[] {
         const hasJsIndex = fs.existsSync(path.resolve(dir, "index.js"));
         if (!hasTsIndex && !hasJsIndex) continue;
 
+        // Load the module eagerly during discovery so we fail fast
+        // on broken extrascripts rather than deferring errors to registration time.
+        let mod: { register?: (registry: IScriptRegistry, services: ScriptServices) => void };
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            mod = require(indexPath);
+        } catch (err) {
+            logger.warn(`[extrascripts] failed to load ${name}`, err);
+            continue;
+        }
+
+        if (typeof mod.register !== "function") {
+            logger.warn(`[extrascripts] ${name}/index does not export a register() function — skipping`);
+            continue;
+        }
+
+        const registerFn = mod.register;
+
         entries.push({
             id: `extrascript.${name}`,
-            register: (registry, services) => {
-                delete require.cache[require.resolve(indexPath)];
-                const mod = require(indexPath);
-                if (typeof mod.register === "function") {
-                    mod.register(registry, services);
-                }
-            },
+            register: (registry, services) => registerFn(registry, services),
             watch: hasTsIndex
                 ? [path.resolve(dir, "index.ts")]
                 : [path.resolve(dir, "index.js")],

@@ -10,6 +10,7 @@ import {
     LEAGUE_RELICS,
 } from "./data/leagueMasteries.data";
 import { getAllCustomChallenges, getAllCustomTasks } from "./data/custom";
+import "./data/custom-items/customItems";
 
 export interface GamemodeDataPayload {
     gamemodeId: string;
@@ -23,9 +24,6 @@ export class LeagueContentProvider {
     private cachedPacket: Uint8Array | null = null;
 
     build(): void {
-        // Register custom items on the server side
-        require("./data/custom-items/customItems");
-
         // Serialize custom items from the registry
         const customItems: unknown[] = [];
         for (const registered of CustomItemRegistry.getAll()) {

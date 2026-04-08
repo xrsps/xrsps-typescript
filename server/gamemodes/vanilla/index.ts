@@ -1,20 +1,42 @@
-import type { BankingProviderServices } from "./banking/BankingProvider";
-import type { PlayerState } from "../../src/game/player";
-import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
-import type { ObjType } from "../../../src/rs/config/objtype/ObjType";
 import type { GamemodeDefinition, GamemodeInitContext, GamemodeServerServices } from "../../src/game/gamemodes/GamemodeDefinition";
+import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
+import type { NpcLootConfig } from "../../src/game/combat/DamageTracker";
+import type { PlayerState } from "../../src/game/player";
+import type { BankingProviderServices } from "./banking/BankingProvider";
+
 import { BaseGamemode } from "../../src/game/gamemodes/BaseGamemode";
-import { SHOP_INTERFACE_ID } from "./shops/shopConstants";
+import { getProviderRegistry, resetProviderRegistry } from "../../src/game/providers/ProviderRegistry";
+import { getWeaponDataProvider } from "../../src/game/combat/WeaponDataProvider";
+import { createDefaultAmmoDataProvider } from "../../src/game/combat/AmmoSystem";
+import { encodeMessage } from "../../src/network/messages";
+
 import { BankingManager, registerBankingHandlers, registerBankInterfaceHooks } from "./banking";
-import { registerEquipmentHandlers } from "./equipment/equipment";
-import { registerEquipmentWidgetHandlers } from "./equipment/equipmentWidgets";
-import { registerEquipmentStatsInterfaceHooks } from "./equipment/EquipmentStatsInterfaceHooks";
-import { handleSailingPlayerRestore } from "./skills/sailing";
-import { register as registerSkillHandlers } from "./skills";
-import { ShopManager, type ShopStockEntry, type ShopOpenData, registerShopInterfaceHooks } from "./shops";
+import { registerShopInterfaceHooks } from "./shops";
+import { ShopService } from "./shops/ShopService";
 import { registerShopInteractionHandlers } from "./shops/shopInteractions";
 import { registerShopWidgetHandlers } from "./shops/shopWidgets";
 import { registerZaffHandlers } from "./shops/zaff";
+import { registerEquipmentHandlers } from "./equipment/equipment";
+import { registerEquipmentWidgetHandlers } from "./equipment/equipmentWidgets";
+import { registerEquipmentStatsInterfaceHooks } from "./equipment/EquipmentStatsInterfaceHooks";
+import { computeTargetBonusPercentages } from "./equipment/targetBonuses";
+import { createCombatFormulaProvider } from "./combat/CombatFormulas";
+import { createCombatStyleSequenceProvider } from "./combat/CombatStyleSequences";
+import { createEquipmentBonusProvider } from "./combat/EquipmentBonuses";
+import { createSpecialAttackProvider } from "./combat/SpecialAttackRegistry";
+import { createSpecialAttackVisualProvider } from "./combat/SpecialAttackVisuals";
+import { createInstantUtilitySpecialProvider } from "./combat/RockKnockerSpecial";
+import { createSpellXpProvider } from "./combat/SpellXpData";
+import { createSkillConfiguration } from "./combat/SkillConfiguration";
+import { createWeaponDataProvider } from "./data/weapons";
+import { createSpellDataProvider } from "./data/spells";
+import { createRuneDataProvider } from "./data/runes";
+import { createProjectileParamsProvider } from "./data/projectileParams";
+import { DEFAULT_LOGIN_VARBITS } from "./data/loginVarbits";
+import { DEFAULT_LOGIN_VARPS } from "./data/loginVarps";
+import { NPC_LOOT_CONFIGS } from "./data/lootDistribution";
+import { handleSailingPlayerRestore } from "./skills/sailing";
+import { register as registerSkillHandlers } from "./skills";
 import { registerClimbingHandlers } from "./scripts/content/climbing";
 import { registerDoorHandlers } from "./scripts/content/doors";
 import { registerDefaultTalkHandlers } from "./scripts/content/defaultTalk";
@@ -25,6 +47,7 @@ import { registerRomeoHandlers } from "./scripts/content/romeo";
 import { registerDemoInteractionHandlers } from "./scripts/content/demoInteractions";
 import { registerFollowerItemHandlers } from "./scripts/items/followers";
 import { registerPacksHandlers } from "./scripts/items/packs";
+import { registerLevelUpHandlers, handleResumePauseButton, handleDismiss } from "./scripts/levelup";
 import { registerCombatWidgetHandlers } from "./widgets/combatWidgets";
 import { registerMinimapWidgetHandlers } from "./widgets/minimapWidgets";
 import { registerPrayerWidgetHandlers } from "./widgets/prayerWidgets";
@@ -36,31 +59,9 @@ import { registerSettingsWidgetHandlers } from "./widgets/settingsWidgets";
 import { registerQuestJournalWidgetHandlers } from "./widgets/questJournalWidgets";
 import { registerAccountSummaryWidgetHandlers } from "./widgets/accountSummaryWidgets";
 import { registerCollectionLogWidgetHandlers } from "./widgets/collectionLogWidgets";
-import { computeTargetBonusPercentages } from "./equipment/targetBonuses";
 import { registerWidgetCloseHandlers } from "./modals/widgetCloseHandlers";
 import { registerWidgetOpenHandlers } from "./modals/widgetOpenHandlers";
 import { registerSmithingBarModalHandler } from "./modals/smithingBarModalHandler";
-import type { NpcLootConfig } from "../../src/game/combat/DamageTracker";
-import { DEFAULT_LOGIN_VARBITS } from "./data/loginVarbits";
-import { DEFAULT_LOGIN_VARPS } from "./data/loginVarps";
-import { NPC_LOOT_CONFIGS } from "./data/lootDistribution";
-import { registerLevelUpHandlers, handleResumePauseButton, handleDismiss } from "./scripts/levelup";
-import { getProviderRegistry, resetProviderRegistry } from "../../src/game/providers/ProviderRegistry";
-import { getWeaponDataProvider } from "../../src/game/combat/WeaponDataProvider";
-import { createSpellXpProvider } from "./combat/SpellXpData";
-import { createSpecialAttackVisualProvider } from "./combat/SpecialAttackVisuals";
-import { createInstantUtilitySpecialProvider } from "./combat/RockKnockerSpecial";
-import { createWeaponDataProvider } from "./data/weapons";
-import { createSpecialAttackProvider } from "./combat/SpecialAttackRegistry";
-import { createCombatFormulaProvider } from "./combat/CombatFormulas";
-import { createCombatStyleSequenceProvider } from "./combat/CombatStyleSequences";
-import { createSkillConfiguration } from "./combat/SkillConfiguration";
-import { createEquipmentBonusProvider } from "./combat/EquipmentBonuses";
-import { createProjectileParamsProvider } from "./data/projectileParams";
-import { createSpellDataProvider } from "./data/spells";
-import { createRuneDataProvider } from "./data/runes";
-import { createDefaultAmmoDataProvider } from "../../src/game/combat/AmmoSystem";
-import { encodeMessage } from "../../src/network/messages";
 import "./combat/BossCombatScript";
 
 export class VanillaGamemode extends BaseGamemode {
@@ -68,7 +69,7 @@ export class VanillaGamemode extends BaseGamemode {
     override readonly name = "Vanilla";
 
     private bankingManager: BankingManager | undefined;
-    private shopManager: ShopManager | undefined;
+    private shopService: ShopService | undefined;
     private serverServices: GamemodeServerServices | undefined;
     private scriptServices: ScriptServices | undefined;
 
@@ -117,6 +118,7 @@ export class VanillaGamemode extends BaseGamemode {
 
     contributeScriptServices(services: ScriptServices): void {
         this.scriptServices = services;
+        const ss = this.serverServices;
 
         // Banking services
         const bm = this.bankingManager;
@@ -153,21 +155,8 @@ export class VanillaGamemode extends BaseGamemode {
         }
 
         // Shop services
-        const sm = this.shopManager;
-        const ss = this.serverServices;
-        if (sm && ss) {
-            services.shopping = {
-                openShop: (player, opts) => this.openShopInterface(player, opts),
-                closeShop: (player) => this.closeShopInterface(player),
-                buyFromShop: (player, params) => this.handleShopBuy(player, params),
-                sellToShop: (player, params) => this.handleShopSell(player, params),
-                setShopBuyMode: (player, mode) => this.updateShopMode(player, "buy", mode),
-                setShopSellMode: (player, mode) => this.updateShopMode(player, "sell", mode),
-                getShopSlotValue: (player, slotIndex) =>
-                    sm.getShopSlotValue(player, slotIndex) ?? undefined,
-                getInventoryItemSellValue: (player, itemId) =>
-                    sm.getInventoryItemSellValue(player, itemId) ?? undefined,
-            };
+        if (this.shopService) {
+            services.shopping = this.shopService.createScriptServices();
         }
 
         // Equipment target-specific bonuses
@@ -251,13 +240,10 @@ export class VanillaGamemode extends BaseGamemode {
         const bm = this.bankingManager;
         ss.registerSnapshotEncoder(
             "bank",
-            (_playerId, payload) => {
-    
-                return {
-                    message: encodeMessage({ type: "bank", payload }),
-                    context: "bank_snapshot",
-                };
-            },
+            (_playerId, payload) => ({
+                message: encodeMessage({ type: "bank", payload }),
+                context: "bank_snapshot",
+            }),
             (playerId, _payload) => {
                 const player = ss.getPlayer(playerId);
                 if (player) {
@@ -267,35 +253,7 @@ export class VanillaGamemode extends BaseGamemode {
         );
 
         // === Shops ===
-        const snapshotInventoryFn = (player: PlayerState) => {
-            ss.sendInventorySnapshot(player.id);
-        };
-        this.shopManager = new ShopManager({
-            logger: ss.logger,
-            getObjType: (id) => ss.getObjType(id) as ObjType | undefined,
-            addItemToInventory: (player, itemId, qty) =>
-                ss.addItemToInventory(player, itemId, qty),
-            snapshotInventory: snapshotInventoryFn,
-            sendGameMessage: (player, text) =>
-                ss.queueChatMessage({ messageType: "game", text, targetPlayerIds: [player.id] }),
-        });
-
-        ss.registerSnapshotEncoder("shop", (_playerId, payload) => {
-
-            return {
-                message: encodeMessage({ type: "shop", payload }),
-                context: "shop_event",
-            };
-        });
-
-        // Shop restock tick callback
-        const sm = this.shopManager;
-        ss.registerTickCallback((tick) => {
-            const updates = sm.tick(tick);
-            for (const update of updates) {
-                this.broadcastShopSlot(update.shopId, update.slot);
-            }
-        });
+        this.shopService = new ShopService({ serverServices: ss });
 
         // === Interface hooks ===
         const interfaceService = ss.getInterfaceService();
@@ -303,181 +261,6 @@ export class VanillaGamemode extends BaseGamemode {
             registerBankInterfaceHooks(interfaceService);
             registerEquipmentStatsInterfaceHooks(interfaceService);
             registerShopInterfaceHooks(interfaceService);
-        }
-    }
-
-    // === Shop helpers (moved from wsServer) ===
-
-    private openShopInterface(
-        player: PlayerState,
-        opts?: { npcTypeId?: number; shopId?: string },
-    ): void {
-        const sm = this.shopManager;
-        const ss = this.serverServices;
-        if (!sm || !ss) return;
-
-        const interfaceService = ss.getInterfaceService();
-        if (!interfaceService) return;
-
-        let snapshot: ReturnType<ShopManager["openShopForNpc"]> | undefined;
-        if (opts?.npcTypeId !== undefined) {
-            snapshot = sm.openShopForNpc(player, opts.npcTypeId);
-        } else if (opts?.shopId) {
-            snapshot = sm.openShopById(player, opts.shopId);
-        }
-
-        if (!snapshot) {
-            ss.queueChatMessage({
-                messageType: "game",
-                text: "Nothing interesting happens.",
-                targetPlayerIds: [player.id],
-            });
-            return;
-        }
-
-        const shopData: ShopOpenData = {
-            shopId: snapshot.shopId,
-            name: snapshot.name,
-            currencyItemId: snapshot.currencyItemId,
-            generalStore: snapshot.generalStore,
-            showBuy50: true,
-            stock: snapshot.stock.map((entry) => ({
-                itemId: entry.itemId,
-                quantity: entry.quantity,
-                baseStock: entry.defaultQuantity,
-                basePrice: entry.priceEach,
-            })),
-        };
-
-        interfaceService.openModal(player, SHOP_INTERFACE_ID, shopData);
-
-        ss.queueGamemodeSnapshot("shop", player.id, {
-            kind: "open",
-            shopId: snapshot.shopId,
-            name: snapshot.name,
-            currencyItemId: snapshot.currencyItemId,
-            generalStore: snapshot.generalStore,
-            buyMode: player.bank.getShopBuyMode(),
-            sellMode: player.bank.getShopSellMode(),
-            stock: snapshot.stock.map((entry) => ({
-                slot: entry.slot,
-                itemId: entry.itemId,
-                quantity: Math.max(0, entry.quantity),
-                defaultQuantity: Math.max(0, entry.defaultQuantity),
-                priceEach: entry.priceEach !== undefined ? Math.max(0, entry.priceEach) : undefined,
-                sellPrice: entry.sellPrice !== undefined ? Math.max(0, entry.sellPrice) : undefined,
-            })),
-        });
-
-        ss.queueChatMessage({
-            messageType: "game",
-            text: "You open the shop.",
-            targetPlayerIds: [player.id],
-        });
-    }
-
-    private closeShopInterface(player: PlayerState, opts: { silent?: boolean } = {}): void {
-        const sm = this.shopManager;
-        const ss = this.serverServices;
-        if (!sm || !ss) return;
-
-        const shop = sm.closeShopForPlayer(player);
-        if (!shop) return;
-
-        const interfaceService = ss.getInterfaceService();
-        if (interfaceService) {
-            interfaceService.closeModal(player, opts.silent);
-        }
-
-        ss.queueGamemodeSnapshot("shop", player.id, { kind: "close" });
-    }
-
-    private handleShopBuy(
-        player: PlayerState,
-        params: { slotIndex: number; quantity?: number } | undefined,
-    ): void {
-        const sm = this.shopManager;
-        const ss = this.serverServices;
-        if (!sm || !ss || !params || !Number.isFinite(params.slotIndex)) return;
-        const result = sm.buyFromShop(
-            player,
-            params.slotIndex,
-            params.quantity ?? 0,
-            ss.getCurrentTick(),
-        );
-        if (!result?.shopId || !result.slot) return;
-        this.broadcastShopSlot(result.shopId, result.slot);
-    }
-
-    private handleShopSell(
-        player: PlayerState,
-        params: { inventorySlot: number; itemId: number; quantity?: number } | undefined,
-    ): void {
-        const sm = this.shopManager;
-        const ss = this.serverServices;
-        if (
-            !sm ||
-            !ss ||
-            !params ||
-            !Number.isFinite(params.inventorySlot) ||
-            !Number.isFinite(params.itemId)
-        ) {
-            return;
-        }
-        const result = sm.sellToShop(
-            player,
-            params.inventorySlot,
-            params.quantity ?? 0,
-            params.itemId,
-            ss.getCurrentTick(),
-        );
-        if (!result?.shopId || !result.slot) return;
-        this.broadcastShopSlot(result.shopId, result.slot);
-    }
-
-    private updateShopMode(player: PlayerState, kind: "buy" | "sell", mode: number): void {
-        const sm = this.shopManager;
-        const ss = this.serverServices;
-        if (!sm || !ss) return;
-        if (kind === "buy") {
-            const result = sm.setBuyMode(player, mode);
-            if (!result?.shopId) return;
-            ss.queueGamemodeSnapshot("shop", player.id, {
-                kind: "mode",
-                shopId: result.shopId,
-                buyMode: result.buyMode,
-            });
-        } else {
-            const result = sm.setSellMode(player, mode);
-            if (!result?.shopId) return;
-            ss.queueGamemodeSnapshot("shop", player.id, {
-                kind: "mode",
-                shopId: result.shopId,
-                sellMode: result.sellMode,
-            });
-        }
-    }
-
-    private broadcastShopSlot(shopId: string, entry: ShopStockEntry): void {
-        const sm = this.shopManager;
-        const ss = this.serverServices;
-        if (!sm || !ss) return;
-        const watchers = sm.getWatchers(shopId);
-        if (!watchers.length) return;
-        const slot = {
-            slot: entry.slot,
-            itemId: entry.itemId,
-            quantity: Math.max(0, entry.quantity),
-            defaultQuantity: Math.max(0, entry.defaultQuantity),
-            priceEach: entry.priceEach !== undefined ? Math.max(0, entry.priceEach) : undefined,
-            sellPrice: entry.sellPrice !== undefined ? Math.max(0, entry.sellPrice) : undefined,
-        };
-        for (const watcherId of watchers) {
-            ss.queueGamemodeSnapshot("shop", watcherId, {
-                kind: "slot",
-                shopId,
-                slot,
-            });
         }
     }
 
@@ -496,7 +279,7 @@ export class VanillaGamemode extends BaseGamemode {
         resetProviderRegistry();
 
         this.bankingManager = undefined;
-        this.shopManager = undefined;
+        this.shopService = undefined;
         this.serverServices = undefined;
         this.scriptServices = undefined;
     }

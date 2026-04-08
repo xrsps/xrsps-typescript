@@ -33,7 +33,7 @@ import { PlayerNetworkLayer } from "./PlayerNetworkLayer";
 
 import { ConfigType } from "../../../src/rs/cache/ConfigType";
 import { IndexType } from "../../../src/rs/cache/IndexType";
-import { getCacheLoaderFactory } from "../../../src/rs/cache/loader/CacheLoaderFactory";
+import { getCacheLoaderFactory, type CacheLoaderFactory } from "../../../src/rs/cache/loader/CacheLoaderFactory";
 import { Huffman, tryLoadOsrsHuffman } from "../../../src/rs/chat/Huffman";
 import { DbRepository } from "../../../src/rs/config/db/DbRepository";
 import { ArchiveHealthBarDefinitionLoader } from "../../../src/rs/config/healthbar/HealthBarDefinitionLoader";
@@ -60,15 +60,16 @@ import {
 import {
     loadCollectionLogItems,
 } from "../game/collectionlog";
-import { PlayerCombatManager, createPlayerCombatManager } from "../game/combat";
-import { applyAutocastState, clearAutocastState } from "../game/combat/AutocastState";
-import { CombatCategoryData } from "../game/combat/CombatCategoryData";
-import { combatEffectApplicator } from "../game/combat";
 import {
+    PlayerCombatManager,
+    createPlayerCombatManager,
+    combatEffectApplicator,
     HITMARK_DAMAGE,
     multiCombatSystem,
     damageTracker,
 } from "../game/combat";
+import { applyAutocastState, clearAutocastState } from "../game/combat/AutocastState";
+import { CombatCategoryData } from "../game/combat/CombatCategoryData";
 import { FollowerCombatManager } from "../game/followers/FollowerCombatManager";
 import { FollowerManager } from "../game/followers/FollowerManager";
 import { GroundItemManager } from "../game/items/GroundItemManager";
@@ -81,16 +82,18 @@ import {
     PlayerState,
 } from "../game/player";
 import { PrayerSystem } from "../game/prayer/PrayerSystem";
-import { ScriptRegistry } from "../game/scripts";
-import { ScriptRuntime } from "../game/scripts";
-import { bootstrapScripts } from "../game/scripts";
+import { ScriptRegistry, ScriptRuntime, bootstrapScripts } from "../game/scripts";
 import { PlayerPersistence } from "../game/state/PlayerPersistence";
 import {
     BroadcastScheduler,
+    EquipmentHandler,
+    GatheringSystemManager,
+    ScriptScheduler,
+    StatusEffectSystem,
+    ProjectileSystem,
+    MovementSystem,
     type PlayerAnimSet,
 } from "../game/systems";
-import { EquipmentHandler } from "../game/systems";
-import { GatheringSystemManager, ScriptScheduler, StatusEffectSystem, ProjectileSystem, MovementSystem } from "../game/systems";
 import {
     TickPhaseOrchestrator,
 } from "../game/tick";
@@ -131,7 +134,7 @@ import {
 } from "./broadcast";
 import * as ServiceWiring from "./ServiceWiring";
 import type { LocTypeLoader } from "../../../src/rs/config/loctype/LocTypeLoader";
-import type { CacheLoaderFactory } from "../../../src/rs/cache/loader/CacheLoaderFactory";
+
 
 import { MessageRouter, type MessageRouterServices } from "./MessageRouter";
 import { buildTeleportNpcUpdateDelta, upsertNpcUpdateDelta } from "./NpcExternalSync";

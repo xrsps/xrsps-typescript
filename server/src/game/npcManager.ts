@@ -372,7 +372,7 @@ export class NpcManager {
     private loadNpcCombatStats(): void {
         if (this.npcCombatStats) return;
         try {
-            const filePath = path.resolve(__dirname, "../../gamemodes/vanilla/data/npc-combat-stats.json");
+            const filePath = path.resolve(__dirname, "../../../data/npc-combat-stats.json");
             const json = fs.readFileSync(filePath, "utf8");
             const data = JSON.parse(json);
             this.npcCombatStats = data?.npcs ?? {};

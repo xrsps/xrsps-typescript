@@ -32,7 +32,7 @@ export class CombatDataService {
     loadNpcCombatDefs(): void {
         if (this.npcCombatDefs) return;
         try {
-            const raw = require(path.resolve("server/gamemodes/vanilla/data/npc-combat-defs.json"));
+            const raw = require(path.resolve("server/data/npc-combat-defs.json"));
             const defaults = raw?.defaults;
             if (defaults) {
                 this.npcCombatDefaults = {
@@ -61,7 +61,7 @@ export class CombatDataService {
     loadNpcCombatStats(): void {
         if (this.npcCombatStats) return;
         try {
-            const raw = require(path.resolve("server/gamemodes/vanilla/data/npc-combat-stats.json"));
+            const raw = require(path.resolve("server/data/npc-combat-stats.json"));
             this.npcCombatStats = raw ?? {};
         } catch {
             this.npcCombatStats = {};

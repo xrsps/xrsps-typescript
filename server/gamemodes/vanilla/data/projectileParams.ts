@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import {
     PROJECTILE_ARCHETYPES,
     type ProjectileArchetypeName,
@@ -96,8 +98,6 @@ const PROJECTILE_PARAMS: Record<number, ProjectileParams> = {
 
 // Load overrides from JSON at startup
 try {
-    const fs = require("fs");
-    const path = require("path");
     const envPath = (process?.env?.PROJECTILE_PARAMS_FILE ?? "").toString();
     const defaultPath = path.resolve("server/data/projectile-params.json");
     const filePath = envPath || defaultPath;

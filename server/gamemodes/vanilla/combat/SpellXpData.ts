@@ -9,6 +9,7 @@
  * For combat XP calculation, we only use the base XP here.
  * The damage-based XP (2 per damage) is added in CombatXp.ts
  */
+import type { SpellXpProvider } from "../../../src/game/combat/SpellXpProvider";
 
 // Standard Spellbook - Combat Spells
 // Values from OSRS Wiki as of 2024
@@ -111,8 +112,6 @@ export function getSpellBaseXp(spellId: number): number {
 export function isCombatSpell(spellId: number): boolean {
     return spellId in SPELL_BASE_XP;
 }
-
-import type { SpellXpProvider } from "../../../src/game/combat/SpellXpProvider";
 
 export function createSpellXpProvider(): SpellXpProvider {
     return { getSpellBaseXp };

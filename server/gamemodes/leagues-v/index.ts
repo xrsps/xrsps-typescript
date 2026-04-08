@@ -1,5 +1,16 @@
-import { LEAGUE_TASK_COMPLETION_VARPS } from "./data/leagueTaskVarps";
+import type { EventSubscription } from "../../src/game/events";
+import type {
+    GamemodeBridge,
+    GamemodeInitContext,
+    GamemodeUiBridge,
+    GamemodeUiController,
+    HandshakeBridge,
+} from "../../src/game/gamemodes/GamemodeDefinition";
+import type { PlayerState } from "../../src/game/player";
+import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
+
 import {
+    FEATURE_FLAG_LEAGUES,
     MAP_FLAGS_LEAGUE_WORLD,
     VARBIT_FLASHSIDE,
     VARBIT_LEAGUE_AREA_LAST_VIEWED,
@@ -11,48 +22,36 @@ import {
     VARBIT_LEAGUE_AREA_SELECTION_5,
     VARBIT_LEAGUE_TUTORIAL_COMPLETED,
     VARBIT_LEAGUE_TYPE,
+    VARP_FEATURE_FLAGS_CACHED,
     VARP_LEAGUE_GENERAL,
     VARP_LEAGUE_POINTS_CLAIMED,
     VARP_LEAGUE_POINTS_COMPLETED,
     VARP_LEAGUE_POINTS_CURRENCY,
     VARP_MAP_FLAGS_CACHED,
-    VARP_FEATURE_FLAGS_CACHED,
-    FEATURE_FLAG_LEAGUES,
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../src/shared/vars";
-import type { PlayerState } from "../../src/game/player";
-import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
-import { registerLeagueTutorHandlers } from "./scripts/leagueTutor";
-import { registerLeagueWidgetHandlers } from "./scripts/leagueWidgets";
-import { registerLeagueTutorialWidgetHandlers } from "./scripts/leagueTutorialWidgets";
-import { getLeagueVDropRateMultiplier, getLeagueVReplacementItemId, isLeagueVWorldPlayer } from "./leagueDrops";
+import { decodeSideJournalTabFromStateVarp } from "../../../src/shared/ui/sideJournal";
+import { LEAGUE_SUMMARY_GROUP_ID } from "../../../src/shared/ui/leagueSummary";
+
+import { VanillaGamemode } from "../vanilla/index";
+
+import { LeagueContentProvider } from "./LeagueContentProvider";
 import { LeagueTaskManager } from "./LeagueTaskManager";
 import { LeagueTaskService, setTaskProgress, setChallengeProgress, getChallengeProgress } from "./LeagueTaskService";
+import { LeaguesVUiController } from "./LeaguesVUiController";
+import { LeagueSummaryTracker } from "./leagueSummary";
+import { LEAGUE_TASK_COMPLETION_VARPS } from "./data/leagueTaskVarps";
+import { getLeagueVDropRateMultiplier, getLeagueVReplacementItemId, isLeagueVWorldPlayer } from "./leagueDrops";
 import { syncLeagueGeneralVarp } from "./leagueGeneral";
 import { getLeaguePackedVarpsForPlayer } from "./leaguePackedVarps";
 import { getLeagueSkillXpMultiplier } from "./leagueXp";
-import { getActiveLeagueType, isLeagueVWorld, isLeagueWorld } from "./playerWorldRules";
-import { LEAGUE_SUMMARY_GROUP_ID } from "../../../src/shared/ui/leagueSummary";
-import { LeagueSummaryTracker } from "./leagueSummary";
-import type { EventSubscription } from "../../src/game/events";
-import type {
-    GamemodeBridge,
-    GamemodeInitContext,
-    GamemodeUiBridge,
-    GamemodeUiController,
-    HandshakeBridge,
-} from "../../src/game/gamemodes/GamemodeDefinition";
-import { VanillaGamemode } from "../vanilla/index";
-import { LeagueContentProvider } from "./LeagueContentProvider";
-import { LeaguesVUiController } from "./LeaguesVUiController";
+import { getActiveLeagueType, getTutorialCompleteStep, isLeagueVWorld, isLeagueWorld } from "./playerWorldRules";
+import { registerLeagueTutorHandlers } from "./scripts/leagueTutor";
+import { registerLeagueWidgetHandlers } from "./scripts/leagueWidgets";
+import { registerLeagueTutorialWidgetHandlers } from "./scripts/leagueTutorialWidgets";
 
 const TUTORIAL_SPAWN = { x: 3094, y: 3107, level: 0 };
 const VARP_LEAGUE_TASK_COUNT = 2612;
-
-function getTutorialCompleteStep(player: PlayerState): number {
-    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
-    return leagueType === 3 ? 14 : 12;
-}
 
 export class LeaguesVGamemode extends VanillaGamemode {
     override readonly id = "leagues-v";
@@ -184,7 +183,7 @@ export class LeaguesVGamemode extends VanillaGamemode {
         // Handled by event bus subscription (npc:death)
     }
 
-    override onItemCraft(_playerId: number, _itemId: number, _count: number): void {
+    onItemCraft(_playerId: number, _itemId: number, _count: number): void {
         // Handled by event bus subscription (item:craft)
     }
 
@@ -274,7 +273,6 @@ export class LeaguesVGamemode extends VanillaGamemode {
     onVarpTransmit(player: PlayerState, varpId: number, value: number, previousValue: number): void {
         if (varpId !== VARP_SIDE_JOURNAL_STATE) return;
 
-        const { decodeSideJournalTabFromStateVarp } = require("../../../src/shared/ui/sideJournal");
         const previousTab = decodeSideJournalTabFromStateVarp(previousValue);
         const currentTab = decodeSideJournalTabFromStateVarp(value);
         const tabChanged = previousTab !== currentTab;
@@ -318,7 +316,8 @@ export class LeaguesVGamemode extends VanillaGamemode {
         this.leagueSummary?.syncPlayer(player, nowMs);
     }
 
-    onPlayerDisconnect(playerId: number): void {
+    override onPlayerDisconnect(playerId: number): void {
+        super.onPlayerDisconnect(playerId);
         this.leagueSummary?.clearPlayer(playerId);
     }
 
@@ -358,7 +357,7 @@ export class LeaguesVGamemode extends VanillaGamemode {
         };
     }
 
-    createUiController(bridge: GamemodeUiBridge): GamemodeUiController {
+    override createUiController(bridge: GamemodeUiBridge): GamemodeUiController {
         this.uiBridge = bridge;
         this.leagueSummary = new LeagueSummaryTracker({
             queueWidgetEvent: (playerId, action) => bridge.queueWidgetEvent(playerId, action),

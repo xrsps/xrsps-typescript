@@ -1,3 +1,8 @@
+import type { PlayerState } from "../../../src/game/player";
+import type { IScriptRegistry, ScriptServices } from "../../../src/game/scripts/types";
+
+import { getViewportTrackerFrontUid } from "../../../src/game/scripts/types";
+import { getRootInterfaceId, DisplayMode } from "../../../src/widgets/viewport";
 import {
     decodeSideJournalTabFromStateVarp,
     encodeSideJournalTabInStateVarp,
@@ -5,15 +10,14 @@ import {
 import {
     VARBIT_FLASHSIDE,
     VARBIT_LEAGUE_TUTORIAL_COMPLETED,
-    VARBIT_LEAGUE_TYPE,
     VARBIT_SIDE_JOURNAL_TAB,
     VARP_LEAGUE_GENERAL,
     VARP_SIDE_JOURNAL_STATE,
 } from "../../../../src/shared/vars";
+
+import { getTutorialCompleteStep } from "../playerWorldRules";
 import { LeagueTaskService } from "../LeagueTaskService";
 import { syncLeagueGeneralVarp } from "../leagueGeneral";
-import { type IScriptRegistry, type ScriptServices, getViewportTrackerFrontUid } from "../../../src/game/scripts/types";
-import type { PlayerState } from "../../../src/game/player";
 
 // Interface/group IDs
 const LEAGUE_TUTORIAL_MAIN_GROUP_ID = 677; // league_tutorial_main
@@ -26,13 +30,6 @@ const COMP_TUTORIAL_BUTTON_RIGHT = 9;
 const TUTORIAL_STEP_WELCOME = 0;
 const TUTORIAL_STEP_OPEN_JOURNAL = 3;
 const TUTORIAL_STEP_OPEN_LEAGUES_SUBTAB = 4;
-function getLeagueTutorialCompleteStep(player: {
-    getVarbitValue?: (id: number) => number;
-}): number {
-    // Matches [proc,script2449] (2449): league_type 3 -> 14, else 12.
-    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
-    return leagueType === 3 ? 14 : 12;
-}
 
 // toplevel side button indices (toplevel_sidebuttons_enable uses %flashside - 1)
 // 0=combat, 1=skills, 2=quest(journal), ...
@@ -82,7 +79,7 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
                 LEAGUE_TUTORIAL_MAIN_GROUP_ID,
             );
 
-            const completeStep = getLeagueTutorialCompleteStep(player);
+            const completeStep = getTutorialCompleteStep(player);
             player.varps.setVarbitValue(VARBIT_LEAGUE_TUTORIAL_COMPLETED, completeStep);
             player.varps.setVarbitValue(VARBIT_FLASHSIDE, 0);
             player.account.accountStage = 2;
@@ -166,7 +163,6 @@ export function registerLeagueTutorialWidgetHandlers(registry: IScriptRegistry, 
             services.variables.queueVarbit?.(player.id, VARBIT_FLASHSIDE, FLASHSIDE_QUEST_TAB);
 
             // Open the Quest tab
-            const { getRootInterfaceId, DisplayMode } = require("../../../src/widgets/viewport");
             const dm = player.displayMode ?? DisplayMode.RESIZABLE_NORMAL;
             const rootId = getRootInterfaceId(dm);
             const questTabUid = (rootId << 16) | 78; // Quest tab uses childId 78

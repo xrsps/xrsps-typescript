@@ -6,22 +6,31 @@ Extrascripts live in `server/extrascripts/{id}/` and export a `register` functio
 
 ## Creating an Extrascript
 
+### 1. Create the directory
+
+```
+server/extrascripts/my-script/
+  index.ts
+```
+
+### 2. Export a register function
+
 ```typescript
 // server/extrascripts/my-script/index.ts
 import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
 
 export function register(registry: IScriptRegistry, services: ScriptServices): void {
     registry.registerCommand("hello", (event) => {
-        services.system.sendGameMessage(event.player, "Hello from my extrascript!");
+        services.messaging.sendGameMessage(event.player, "Hello from my extrascript!");
     });
 }
 ```
 
-That's it. Drop a folder in `server/extrascripts/` with an `index.ts` exporting `register`, and it's loaded automatically at startup.
+That's it. Drop a folder in `server/extrascripts/` with an `index.ts` exporting `register`, and it loads automatically at startup. No configuration needed.
 
 ## What extrascripts can do
 
-Extrascripts have access to the same `IScriptRegistry` as gamemodes. They can register:
+Extrascripts have access to the same `IScriptRegistry` and `ScriptServices` as gamemodes. They can register:
 
 - **Commands** — `::mycommand` chat commands
 - **NPC interactions** — talk-to, attack, pickpocket, etc.
@@ -36,7 +45,7 @@ Extrascripts have access to the same `IScriptRegistry` as gamemodes. They can re
 1. Gamemode calls `registerHandlers()` first
 2. All extrascripts call `register()` after
 
-This means extrascript handlers run alongside gamemode handlers. If both register a handler for the same interaction, both will be evaluated — the registry determines priority.
+Extrascript handlers run alongside gamemode handlers. If both register a handler for the same interaction, both will be evaluated — the registry determines priority.
 
 ## Hot Reload
 
@@ -48,16 +57,16 @@ Extrascripts support hot-reload during development. Set the `SCRIPT_HOT_RELOAD=1
 |----------|--------|
 | Server-specific rules (XP rates, tutorials, progression) | [Gamemode](gamemodes.md) |
 | Universal tools (debug commands, admin utilities) | Extrascript |
-| Content that only matters for one gamemode | Gamemode `registerHandlers()` |
+| Content that only matters for one server type | Gamemode `registerHandlers()` |
 | Content that should work on any server | Extrascript |
 
 **Rule of thumb:** if it makes sense on every server, it's an extrascript. If it defines or changes how the server plays, it's a gamemode.
 
-## Current Extrascripts
+## Bundled Extrascripts
 
 | Extrascript | Description |
 |-------------|-------------|
-| `item-spawner` | Admin debug tool for spawning items |
+| `item-spawner` | Admin debug tool — custom widget for searching and spawning items. Uses `CustomItemBuilder` and `CustomWidgetRegistry` for custom UI. Command: `::itemspawner` |
 
 ## Skill Implementations
 

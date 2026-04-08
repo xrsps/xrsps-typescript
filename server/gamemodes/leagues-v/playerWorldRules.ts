@@ -1,3 +1,5 @@
+import type { PlayerState } from "../../src/game/player";
+
 import {
     MAP_FLAGS_LEAGUE_WORLD,
     VARBIT_LEAGUE_TYPE,
@@ -38,4 +40,14 @@ export function getPlayerMovementCapabilities(
 
 export function hasInfiniteRunEnergy(player: PlayerWorldRulesState | undefined): boolean {
     return getPlayerMovementCapabilities(player).hasInfiniteRunEnergy;
+}
+
+/**
+ * Returns the tutorial completion step for a player's league type.
+ * League type 3 uses 14 steps; all others use 12.
+ * Matches [proc,script2449].
+ */
+export function getTutorialCompleteStep(player: PlayerState): number {
+    const leagueType = player.varps.getVarbitValue?.(VARBIT_LEAGUE_TYPE) ?? 0;
+    return leagueType === 3 ? 14 : 12;
 }
