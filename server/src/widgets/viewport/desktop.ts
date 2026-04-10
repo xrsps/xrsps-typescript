@@ -1,6 +1,6 @@
 import {
     DisplayMode,
-    InterfaceMount,
+    type InterfaceMount,
     getBuffBarInitPostScripts,
     getRootInterfaceId,
 } from "./index";

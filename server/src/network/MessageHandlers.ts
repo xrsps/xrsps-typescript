@@ -248,6 +248,18 @@ export interface MessageHandlerServices {
         targetPlayerIds?: number[];
     }) => void;
     getPublicChatPlayerType: (player: PlayerState) => number;
+    /**
+     * Push an operator-steering directive to every connected agent
+     * player via the bot-SDK. Used by the chat `::steer <text>`
+     * command; no-op when the bot-SDK is disabled or no agents are
+     * connected. Returns the number of agents that received it.
+     */
+    broadcastOperatorCommand?: (
+        source: "chat" | "admin",
+        text: string,
+        fromPlayerId?: number,
+        fromPlayerName?: string,
+    ) => number;
     eventBus?: import("../game/events/GameEventBus").GameEventBus;
     findScriptCommand: (name: string) => ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: Record<string, unknown> }) => string | void | Promise<string | void>) | undefined;
     getCurrentTick: () => number;

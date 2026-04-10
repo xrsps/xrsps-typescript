@@ -252,11 +252,47 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
 
             // Handle :: commands
             if (text.startsWith("::")) {
-                const cmd = text.slice(2).toLowerCase().trim();
+                const rawCmd = text.slice(2).trim();
+                const cmd = rawCmd.toLowerCase();
                 const senderName = sender.name || "Player";
                 logger.info(`[cmd] Player ${sender.id} (${senderName}) used command: ::${cmd}`);
                 const parts = cmd.split(/\s+/).filter((part) => part.length > 0);
                 const root = parts[0] ?? "";
+
+                if (root === "steer") {
+                    // `::steer <directive text>` — route through the
+                    // bot-SDK to every connected 'scape agent as an
+                    // operator command. Preserve the original casing
+                    // from `rawCmd` so agents see the human's exact
+                    // words, not a lowercased version.
+                    const directiveText = rawCmd.slice("steer".length).trim();
+                    if (!directiveText) {
+                        services.queueChatMessage({
+                            messageType: "game",
+                            text: "Usage: ::steer <directive text>",
+                            targetPlayerIds: [sender.id],
+                        });
+                        return;
+                    }
+                    const delivered = services.broadcastOperatorCommand?.(
+                        "chat",
+                        directiveText,
+                        sender.id,
+                        senderName,
+                    ) ?? 0;
+                    services.queueChatMessage({
+                        messageType: "game",
+                        text:
+                            delivered > 0
+                                ? `Steered ${delivered} agent${delivered === 1 ? "" : "s"}.`
+                                : "No connected 'scape agents to steer.",
+                        targetPlayerIds: [sender.id],
+                    });
+                    logger.info(
+                        `[cmd] ::steer from ${senderName} (id=${sender.id}) → ${delivered} agent(s): "${directiveText.slice(0, 80)}"`,
+                    );
+                    return;
+                }
 
                 if (root === "clear") {
                     try {

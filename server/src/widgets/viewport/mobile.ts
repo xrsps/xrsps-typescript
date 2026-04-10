@@ -2,7 +2,7 @@ import { BaseComponentUids } from "./ViewportEnumService";
 import {
     DisplayMode,
     InterfaceDestination,
-    InterfaceMount,
+    type InterfaceMount,
     getBuffBarInitPostScripts,
     getRootInterfaceId,
     getViewportEnumService,

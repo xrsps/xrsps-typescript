@@ -177,6 +177,13 @@ export function registerMessageHandlers(svc: ServerServices, router: MessageRout
 
         // Chat
         queueChatMessage: (msg) => svc.messagingService.queueChatMessage(msg),
+        broadcastOperatorCommand: (source, text, fromPlayerId, fromPlayerName) =>
+            svc.botSdkServer?.broadcastOperatorCommand(
+                source,
+                text,
+                fromPlayerId,
+                fromPlayerName,
+            ) ?? 0,
         getPublicChatPlayerType: (player) => svc.authService.getPublicChatPlayerType(player),
         eventBus: svc.eventBus,
         findScriptCommand: (name) => svc.scriptRegistry.findCommand(name) as ((event: { player: PlayerState; command: string; args: string[]; tick: number; services: Record<string, unknown> }) => string | void | Promise<string | void>) | undefined,

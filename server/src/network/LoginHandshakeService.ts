@@ -158,6 +158,42 @@ export class LoginHandshakeService {
             return;
         }
 
+        // 6. Verify password (auto-registers new account on first login).
+        // Uses generic "Invalid username or password" for wrong-password so we
+        // don't leak which usernames exist.
+        const authResult = this.svc.accountStore.verifyOrRegister(
+            normalizedUsername,
+            password ?? "",
+        );
+        switch (authResult.kind) {
+            case "wrong_password":
+                sendLoginError(3, "Invalid username or password.");
+                return;
+            case "banned":
+                sendLoginError(
+                    4,
+                    authResult.reason
+                        ? `Your account has been disabled: ${authResult.reason}`
+                        : "Your account has been disabled.",
+                );
+                return;
+            case "password_too_short":
+                sendLoginError(
+                    3,
+                    `Password must be at least ${authResult.minLength} characters.`,
+                );
+                return;
+            case "error":
+                logger.warn("[login] account store error", authResult.error);
+                sendLoginError(8, "Login server error. Please try again.");
+                return;
+            case "ok":
+                if (authResult.created) {
+                    logger.info(`[login] registered new account "${normalizedUsername}"`);
+                }
+                break;
+        }
+
         // All checks passed - login successful
         const displayName = (username ?? "").slice(0, 12);
         this.setPendingLoginName(ws, displayName);

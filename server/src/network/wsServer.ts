@@ -83,6 +83,12 @@ import {
 } from "../game/player";
 import { PrayerSystem } from "../game/prayer/PrayerSystem";
 import { ScriptRegistry, ScriptRuntime, bootstrapScripts } from "../game/scripts";
+import {
+    AgentPlayerFactory,
+    BotSdkActionRouter,
+    BotSdkServer,
+} from "./botsdk";
+import { JsonAccountStore, type AccountStore } from "../game/state/AccountStore";
 import { PlayerPersistence } from "../game/state/PlayerPersistence";
 import {
     BroadcastScheduler,
@@ -213,6 +219,10 @@ export class WSServer {
     private readonly scriptRegistry = new ScriptRegistry();
     private scriptRuntime!: ScriptRuntime;
     private playerPersistence!: PlayerPersistence;
+    private accountStore!: AccountStore;
+    private botSdkServer!: BotSdkServer;
+    private agentPlayerFactory!: AgentPlayerFactory;
+    private botSdkActionRouter!: BotSdkActionRouter;
     private movementSystem?: MovementSystem;
     private followerManager?: FollowerManager;
     private followerCombatManager?: FollowerCombatManager;
@@ -357,6 +367,7 @@ export class WSServer {
         this.tickFrameService = new TickFrameService(this.svc, this.autosaveIntervalTicks);
         this.loginHandshakeService = new LoginHandshakeService(this.svc);
         this.tickPhaseService = new TickPhaseService(this.svc);
+        this.initBotSdk(opts);
         this.populateServiceContext();
         this.messageRouter = this.createMessageRouter();
         this.initGamemode(opts);
@@ -364,6 +375,46 @@ export class WSServer {
         this.initTestBots();
         this.wss.on("connection", (ws) => this.loginHandshakeService.onConnection(ws));
         opts.ticker.on("tick", (data) => this.tickFrameService.handleTick(data));
+
+        // Bring up the bot-SDK endpoint last so all dependencies exist.
+        this.botSdkServer.start();
+    }
+
+    /**
+     * Build the bot-SDK endpoint infrastructure — factory, action router,
+     * and server. All three are no-ops until `botSdkServer.start()` is
+     * called; this method just wires the pieces together without opening
+     * a socket or touching the tick loop.
+     */
+    private initBotSdk(opts: WSServerOptions): void {
+        this.agentPlayerFactory = new AgentPlayerFactory({
+            players: () => this.players,
+            gamemode: this.gamemode,
+            accountStore: this.accountStore,
+            playerPersistence: this.playerPersistence,
+        });
+        this.botSdkActionRouter = new BotSdkActionRouter({
+            players: () => this.players,
+            getCurrentTick: () => opts.ticker.currentTick(),
+            services: () => this.svc,
+        });
+        this.botSdkServer = new BotSdkServer(
+            {
+                host: config.botSdkHost,
+                port: config.botSdkPort,
+                token: config.botSdkToken,
+                serverName: config.serverName,
+                perceptionEveryNTicks: config.botSdkPerceptionEveryNTicks,
+            },
+            {
+                factory: this.agentPlayerFactory,
+                router: this.botSdkActionRouter,
+                playerPersistence: this.playerPersistence,
+                hookTicker: (cb) => {
+                    opts.ticker.on("tick", (data) => cb(data.tick));
+                },
+            },
+        );
     }
 
     /**
@@ -439,6 +490,8 @@ export class WSServer {
 
         // Required services (always present by this point)
         s.playerPersistence = this.playerPersistence;
+        s.accountStore = this.accountStore;
+        s.botSdkServer = this.botSdkServer;
         s.dataLoaderService = this.dataLoaderService;
         s.networkLayer = this.networkLayer;
         s.authService = this.authService;
@@ -531,6 +584,10 @@ export class WSServer {
         this.playerPersistence = new PlayerPersistence({
             dataDir: getGamemodeDataDir(this.gamemode.id),
         });
+        this.accountStore = new JsonAccountStore({
+            filePath: config.accountsFilePath,
+            minPasswordLength: config.minPasswordLength,
+        });
         this.accountSummary = new AccountSummaryTracker(this.svc);
         this.reportGameTime = new ReportGameTimeTracker(this.svc);
         this.actionScheduler = new ActionScheduler((player, action, tick) =>
@@ -556,6 +613,9 @@ export class WSServer {
         });
     }
     private initWebSocketServer(opts: WSServerOptions): void {
+        const allowedOrigins = config.allowedOrigins ?? [];
+        const hasOriginAllowlist = allowedOrigins.length > 0;
+
         this.wss = new WebSocketServer({
             host: opts.host,
             port: opts.port,
@@ -565,7 +625,31 @@ export class WSServer {
                 threshold: 128, // Only compress messages larger than 128 bytes
                 concurrencyLimit: 10,
             },
+            // If an origin allowlist is configured, reject the WS upgrade before
+            // it completes. Empty allowlist = allow everything (dev/LAN default).
+            verifyClient: hasOriginAllowlist
+                ? (info, cb) => {
+                      const origin = (info.origin ?? "").trim();
+                      if (!origin) {
+                          logger.warn(`[ws] rejecting connection: missing Origin header (allowlist active)`);
+                          cb(false, 403, "Forbidden");
+                          return;
+                      }
+                      if (!allowedOrigins.includes(origin)) {
+                          logger.warn(`[ws] rejecting connection: Origin "${origin}" not in allowlist`);
+                          cb(false, 403, "Forbidden");
+                          return;
+                      }
+                      cb(true);
+                  }
+                : undefined,
         });
+
+        if (hasOriginAllowlist) {
+            logger.info(`[ws] Origin allowlist active: ${allowedOrigins.join(", ")}`);
+        } else {
+            logger.info(`[ws] Origin allowlist disabled — all origins accepted`);
+        }
         this.wss.on("listening", () => {
             logger.info(`WS listening on ws://${opts.host}:${opts.port}`);
 
@@ -1484,6 +1568,8 @@ export class WSServer {
                 this.networkLayer.sendAdminResponse(ws, message, context),
             withDirectSendBypass: (context, fn) => this.withDirectSendBypass(context, fn),
             queueChatMessage: (msg) => this.messagingService.queueChatMessage(msg),
+            broadcastOperatorCommand: (source, text, fromId, fromName) =>
+                this.botSdkServer?.broadcastOperatorCommand(source, text, fromId, fromName) ?? 0,
             closeInterruptibleInterfaces: (player) => this.interfaceManager.closeInterruptibleInterfaces(player),
             encodeMessage: encodeMessage,
         };

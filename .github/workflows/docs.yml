@@ -22,8 +22,11 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   node-version: 20
-            - run: yarn add -D vitepress
-            - run: yarn vitepress build docs
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+            - run: bun add -D vitepress
+            - run: bunx vitepress build docs
             - uses: actions/upload-pages-artifact@v3
               with:
                   path: docs/.vitepress/dist

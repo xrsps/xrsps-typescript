@@ -5,6 +5,7 @@ import { BitmapFont } from "../../rs/font/BitmapFont";
 import { IndexedSprite } from "../../rs/sprite/IndexedSprite";
 import { SpriteLoader } from "../../rs/sprite/SpriteLoader";
 import { getOrientation, isMobileMode, isTouchDevice } from "../../util/DeviceUtil";
+import { DEFAULT_SERVER } from "../../util/serverDefaults";
 import { GameState, LoginIndex } from "./GameState";
 import { LoginAction, LoginActions } from "./LoginAction";
 import { LoginScreenAnimation } from "./LoginScreenAnimation";
@@ -143,7 +144,13 @@ export interface ServerListEntry {
 }
 
 const FALLBACK_SERVERS: ServerListEntry[] = [
-    { name: "Local Development", address: "localhost:43594", secure: false, playerCount: null, maxPlayers: 2047 },
+    {
+        name: DEFAULT_SERVER.name,
+        address: DEFAULT_SERVER.address,
+        secure: DEFAULT_SERVER.secure,
+        playerCount: null,
+        maxPlayers: 2047,
+    },
 ];
 
 const SERVER_LIST_URL = "https://xrsps.com/servers.json";

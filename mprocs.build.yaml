@@ -1,0 +1,13 @@
+# mprocs layout for parallel builds. Run: `bun run build:all`
+#
+# Both procs exit when done — mprocs shows them as stopped with exit code.
+# Review the output, then Ctrl-A + q to quit.
+
+procs:
+  client-build:
+    shell: "bun run build"
+    autostart: true
+
+  server-build:
+    shell: "bun run server:build"
+    autostart: true

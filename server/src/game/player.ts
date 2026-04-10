@@ -232,6 +232,18 @@ export class PlayerState extends Actor {
 
     readonly gamemodeState: Map<string, unknown> = new Map();
 
+    /**
+     * Optional agent component. Present only on agent-controlled players
+     * (spawned via the bot-SDK endpoint, `server/src/network/botsdk/`).
+     * Human players have `agent === undefined`.
+     *
+     * The agent layer is non-invasive: existing services ignore this field
+     * entirely, and agent-aware services (`AgentPerceptionService`,
+     * `BotSdkPerceptionEmitter`) read it if present. See
+     * `server/src/agent/index.ts` for the full component shape.
+     */
+    agent?: import("../agent").AgentComponent;
+
     override readonly isPlayer = true;
     widgets: PlayerWidgetManager;
     visibleNpcIds: Set<number> = new Set();

@@ -82,6 +82,17 @@ export interface MessageRouterServices {
         autoChat?: boolean;
         targetPlayerIds?: number[];
     }) => void;
+    /**
+     * Fan a steering directive out to all connected 'scape agents
+     * via the bot-SDK. Returns the number of agents reached, or 0
+     * if no-one was listening. Called by the `::steer` chat handler.
+     */
+    broadcastOperatorCommand?: (
+        source: "chat" | "admin",
+        text: string,
+        fromPlayerId?: number,
+        fromPlayerName?: string,
+    ) => number;
 
     // Interface management
     closeInterruptibleInterfaces: (player: PlayerState) => void;
