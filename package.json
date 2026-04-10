@@ -39,18 +39,18 @@
     "xxhash-wasm": "^1.0.2"
   },
   "scripts": {
-    "start": "npx tsx scripts/ensure-cache.ts && craco start",
-    "ensure-cache": "npx tsx scripts/ensure-cache.ts",
+    "start": "bunx tsx scripts/ensure-cache.ts && craco start",
+    "ensure-cache": "bunx tsx scripts/ensure-cache.ts",
     "build": "craco build",
     "lint": "prettier --write \"./**/*.{js,ts,jsx,tsx,css,md}\"",
     "prepare": "husky install",
-    "export-textures": "npx tsx scripts/cache/export-textures.ts",
-    "export-height-map": "npx tsx scripts/cache/export-height-map.ts",
-    "export-items": "npx tsx scripts/cache/export-items.ts osrs-232_2025-08-27",
-    "export-map-images": "npx tsx scripts/cache/export-map-images.ts --force",
-    "server:start": "npx tsx scripts/ensure-cache.ts --server && npx tsx server/src/index.ts",
+    "export-textures": "bunx tsx scripts/cache/export-textures.ts",
+    "export-height-map": "bunx tsx scripts/cache/export-height-map.ts",
+    "export-items": "bunx tsx scripts/cache/export-items.ts osrs-232_2025-08-27",
+    "export-map-images": "bunx tsx scripts/cache/export-map-images.ts --force",
+    "server:start": "bunx tsx scripts/ensure-cache.ts --server && bunx tsx server/src/index.ts",
     "server:build": "tsc -p server/tsconfig.json",
-    "server:build-collision": "npx tsx server/scripts/build-collision-cache.ts --include-models --force",
+    "server:build-collision": "bunx tsx server/scripts/build-collision-cache.ts --include-models --force",
     "dev": "mprocs",
     "build:all": "mprocs --config mprocs.build.yaml",
     "test:auth": "bun scripts/test-auth.ts",
@@ -151,6 +151,7 @@
     "threads-plugin": "^1.4.0",
     "ts-node": "^10.9.1",
     "ts-shader-loader": "^2.0.2",
+    "tsx": "^4.21.0",
     "vitepress": "^1.6.4"
   }
 }
