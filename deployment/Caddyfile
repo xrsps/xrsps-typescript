@@ -1,0 +1,78 @@
+# Caddy reverse proxy for xRSPS — terminates TLS and forwards WebSocket
+# traffic to the game server running on 127.0.0.1:43594.
+#
+# Deployment model (recommended):
+#   - game.example.com  →  this Caddy → game server on 127.0.0.1:43594
+#   - xrsps.example.com →  your built client (Vercel/Netlify/Cloudflare Pages
+#                          or a second Caddy site block serving /build)
+#
+# The game server and the static client are intentionally on different hosts
+# so the client URL builder (scheme://host:port, no path) works unchanged and
+# so you can host the client on whatever CDN you want.
+#
+# Requirements before you start:
+#   1. A domain you control. DNS A/AAAA record for game.example.com → this host.
+#   2. Ports 80 + 443 open on the host firewall (Caddy uses them for automatic
+#      LetsEncrypt certificate issuance and renewal).
+#   3. The game server running on localhost:43594 (the default).
+#
+# Install Caddy: https://caddyserver.com/docs/install
+# Run: `sudo caddy run --config /path/to/Caddyfile`
+#   or `sudo systemctl enable --now caddy` with /etc/caddy/Caddyfile.
+#
+# On first run Caddy will automatically provision and renew a LetsEncrypt cert
+# — no manual openssl work required.
+#
+# Then build the client with:
+#   REACT_APP_WS_URL=wss://game.example.com REACT_APP_SERVER_NAME="My Server" bun run build
+# and host the resulting `build/` directory anywhere.
+
+# ───── Replace this with your actual game subdomain ────────────────────────
+game.example.com {
+	# Forward every request on this host (HTTP or WebSocket upgrade) to the
+	# game server. The `ws` library handles WS upgrades on any path, so a
+	# raw reverse_proxy without path filtering is correct.
+	reverse_proxy 127.0.0.1:43594 {
+		# Preserve headers the game server uses for origin allowlisting
+		# and rate limiting.
+		header_up Host {host}
+		header_up Origin {http.request.header.Origin}
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto https
+	}
+
+	# ── Security headers ──────────────────────────────────────────────────
+	header {
+		# Standard hardening
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+
+		# Remove Caddy's Server header
+		-Server
+	}
+
+	# ── Logs ──────────────────────────────────────────────────────────────
+	log {
+		output file /var/log/caddy/xrsps-access.log
+		format json
+	}
+}
+
+# ───── Optional: serve the built client from the same Caddy instance ──────
+# Uncomment and replace with the hostname you'll serve the client on. This is
+# only needed if you don't want to host the client on Vercel/Netlify/etc.
+#
+# xrsps.example.com {
+# 	root * /var/www/xrsps
+# 	try_files {path} /index.html
+# 	file_server
+#
+# 	# CRA builds rely on these for WASM shared memory (threads.js, sharp).
+# 	header {
+# 		Cross-Origin-Opener-Policy same-origin
+# 		Cross-Origin-Embedder-Policy require-corp
+# 		Cross-Origin-Resource-Policy same-origin
+# 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+# 	}
+# }

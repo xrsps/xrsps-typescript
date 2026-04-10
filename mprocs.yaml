@@ -1,0 +1,55 @@
+# mprocs process layout for xRSPS dev.
+#
+# Run: `bun run dev` (or `mprocs` directly from the repo root).
+#
+# Three tabs come up together:
+#   1. server     — the game server (binary WS on 43594, bot-SDK on 43595)
+#   2. client     — the React dev server (craco start) on :3000
+#   3. agent-dev  — dev agent: self-generated identity, connects to the
+#                   bot-SDK, spawns the system default browser pointed
+#                   at localhost:3000 so the user can watch, and runs
+#                   a random-walk loop so there's something to watch.
+#                   One script, one character, one browser window.
+#
+# The agent's identity (name + password) is generated on first run
+# and persisted to `server/data/dev-agent-identity.json`. Subsequent
+# runs reuse the same character so skills / inventory / position
+# accumulate across sessions.
+#
+# Navigation:
+#   Ctrl-A then tab → cycle procs
+#   Ctrl-A then ↓/↑ → focus next/prev proc
+#   Ctrl-A then r  → restart focused proc
+#   Ctrl-A then s  → stop focused proc
+#   Ctrl-A then x  → start a stopped proc
+#   Ctrl-A then q  → quit mprocs (stops all procs)
+#
+# Full keymap: https://github.com/pvolok/mprocs#keymap
+#
+# BOT_SDK_TOKEN is the local-dev shared secret that authorizes the
+# bot-SDK endpoint and the dev agent's connection. Not a production
+# secret — override via shell env for real deployments.
+
+procs:
+  server:
+    shell: "bun run server:start"
+    autostart: true
+    env:
+      BOT_SDK_TOKEN: "dev-secret"
+
+  client:
+    # craco compiles in the foreground. We suppress CRA's default
+    # browser auto-open (BROWSER=none) because `agent-dev` below
+    # spawns the browser itself once it's connected.
+    shell: "BROWSER=none bun run start"
+    autostart: true
+
+  agent-dev:
+    shell: "bun scripts/agent-dev.ts"
+    autostart: true
+    env:
+      BOT_SDK_TOKEN: "dev-secret"
+
+# Color / layout tweaks.
+# mprocs is mostly self-explanatory; see the link above for all options.
+hide_keymap_window: false

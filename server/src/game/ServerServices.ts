@@ -89,6 +89,7 @@ import type { VarpSyncService } from "./services/VarpSyncService";
 import type { WorldEntityService } from "./services/WorldEntityService";
 
 // ── Game – state ────────────────────────────────────────────────────────────
+import type { AccountStore } from "./state/AccountStore";
 import type { PersistenceProvider } from "./state/PersistenceProvider";
 
 // ── Game – systems ──────────────────────────────────────────────────────────
@@ -185,6 +186,15 @@ export interface ServerServices {
     players?: PlayerManager;
     npcManager?: NpcManager;
     readonly playerPersistence: PersistenceProvider;
+    readonly accountStore: AccountStore;
+    /**
+     * Bot-SDK WebSocket server. Optional because the endpoint is
+     * disabled unless `BOT_SDK_TOKEN` is set — in which case the
+     * field is still populated but `start()` is a no-op. Code that
+     * uses this should tolerate a missing `broadcastOperatorCommand`
+     * gracefully (e.g. the chat `::steer` handler).
+     */
+    botSdkServer?: import("../network/botsdk").BotSdkServer;
 
     // ── Game services ────────────────────────────────────────────────────
     readonly dataLoaderService: DataLoaderService;

@@ -1,5 +1,6 @@
 import { LoginIndex } from "./GameState";
 import { isIosStandalonePwa } from "../../util/DeviceUtil";
+import { DEFAULT_SERVER } from "../../util/serverDefaults";
 
 const STORAGE_KEY_TITLE_MUSIC_DISABLED = "osrs:titleMusicDisabled";
 const STORAGE_KEY_LAST_SERVER = "osrs:lastServer";
@@ -212,13 +213,13 @@ export class LoginState {
     hoveredServerIndex: number = -1;
 
     /** Current server address displayed on the button */
-    serverAddress: string = "localhost:43594";
+    serverAddress: string = DEFAULT_SERVER.address;
 
     /** Current server name displayed on the button */
-    serverName: string = "Local Development";
+    serverName: string = DEFAULT_SERVER.name;
 
     /** Whether the current server uses secure WebSocket */
-    serverSecure: boolean = false;
+    serverSecure: boolean = DEFAULT_SERVER.secure;
 
     /** Persist the last selected server to localStorage */
     saveLastServer(): void {

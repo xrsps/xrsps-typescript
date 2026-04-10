@@ -19,16 +19,16 @@
 
 ## Quick Start
 
-Requires **Node.js v22.16+** and **Yarn**.
+Requires **Node.js v22.16+** and **Bun v1.3+**.
 
 ```bash
 git clone https://github.com/xrsps/xrsps-typescript.git
 cd xrsps-typescript
-yarn install
-yarn server:build-collision
-yarn export-map-images
-yarn server:start        # terminal 1
-yarn start               # terminal 2
+bun install
+bun run server:build-collision
+bun run export-map-images
+bun run server:start        # terminal 1
+bun run start               # terminal 2
 ```
 
 See the [full setup guide](https://xrsps.com/setup) for details.

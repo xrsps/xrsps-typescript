@@ -530,6 +530,53 @@ export class PlayerInteractionSystem {
         );
     }
 
+    /**
+     * Programmatic attack-NPC entrypoint for agent players.
+     *
+     * `NpcCombatInteractionHandler.startNpcAttack` already accepts a
+     * `PlayerState` as its first argument (the `instanceof PlayerState`
+     * branch at line ~86 of that file), but its declared type signature
+     * is `WebSocket` for the normal human-client path. This wrapper
+     * types the agent path correctly so `BotSdkActionRouter` doesn't
+     * need an unsafe cast.
+     *
+     * Returns the same `{ok, message, chatMessage}` shape the human
+     * handler returns.
+     */
+    handleAgentNpcAttack(
+        player: PlayerState,
+        npc: NpcState,
+        currentTick: number,
+        attackDelay: number = 4,
+        modifierFlags?: number,
+    ): { ok: boolean; message?: string; chatMessage?: string } {
+        return this.npcCombatHandler.startNpcAttack(
+            player as unknown as WebSocket,
+            npc,
+            currentTick,
+            attackDelay,
+            modifierFlags,
+        );
+    }
+
+    /**
+     * Agent-player counterpart to {@link handleManualMovement}.
+     *
+     * The bot-SDK doesn't own a WebSocket, so the ws-keyed lookups in
+     * `handleManualMovement` (`interactions.get(ws)`, `pendingLocInteractions.get(ws)`,
+     * etc.) don't apply. Agent movement goes through this method instead:
+     * it performs the same "walking interrupts current activity" cleanup
+     * (skill actions, forced orientation, pending interaction focus) directly
+     * on the supplied {@link PlayerState}.
+     *
+     * Called by `PlayerManager.moveAgent()` after the path has been assigned.
+     */
+    handleAgentMovement(player: PlayerState): void {
+        this.interruptSkillActions(player.id);
+        player.clearInteraction();
+        player.clearForcedOrientation();
+    }
+
     handleManualMovement(ws: WebSocket, destination?: { x: number; y: number }): void {
         const interaction = this.interactions.get(ws);
         const me = this.players.get(ws);

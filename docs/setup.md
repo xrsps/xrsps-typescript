@@ -7,7 +7,7 @@ Get xRSPS running locally in a few minutes.
 | Tool | Version | Why |
 |------|---------|-----|
 | [Node.js](https://nodejs.org/) | v22.16+ | Runtime for both client and server |
-| [Yarn](https://classic.yarnpkg.com/en/docs/install) | v1 (Classic) | Package manager |
+| [Bun](https://bun.sh/) | v1.3+ | Package manager and script runner |
 | [Git](https://git-scm.com/) | Any recent | Clone the repo |
 
 ::: tip Node Version
@@ -28,7 +28,7 @@ cd xrsps-typescript
 ## 2. Install Dependencies
 
 ```bash
-yarn install
+bun install
 ```
 
 This pulls in everything for both the client and server.
@@ -42,7 +42,7 @@ Before you can run the game, two offline build steps are needed. These only need
 The server uses a precomputed collision map for pathfinding and movement:
 
 ```bash
-yarn server:build-collision
+bun run server:build-collision
 ```
 
 ::: info
@@ -54,17 +54,17 @@ This takes a few minutes on first run. It reads the game cache and writes collis
 The client renders the world map from pre-exported tile images:
 
 ```bash
-yarn export-map-images
+bun run export-map-images
 ```
 
 ::: info
-This can also take a few minutes. It exports tile images to `public/map/`.
+This can also take a few minutes. It exports tile images to `public/map-images/<cache-name>/`.
 :::
 
 ## 4. Start the Server
 
 ```bash
-yarn server:start
+bun run server:start
 ```
 
 The server will:
@@ -78,7 +78,7 @@ By default, the server runs the **vanilla** gamemode. To run a different gamemod
 
 ```bash
 # Environment variable
-GAMEMODE=leagues-v yarn server:start
+GAMEMODE=leagues-v bun run server:start
 
 # Or set it in server/config.json
 { "gamemode": "leagues-v" }
@@ -89,7 +89,7 @@ GAMEMODE=leagues-v yarn server:start
 Open a **second terminal** and run:
 
 ```bash
-yarn start
+bun run start
 ```
 
 This launches the React dev server (usually on `http://localhost:3000`). Your browser should open automatically. The client will also download the cache on first run if needed.
@@ -113,7 +113,7 @@ The cache is downloaded from the [OpenRS2 Archive](https://archive.openrs2.org/)
 - Delete the `caches/` folder and try again
 - The target cache version is defined in `target.txt` at the repo root
 
-### `yarn server:build-collision` is slow
+### `bun run server:build-collision` is slow
 
 This is expected on first run. Subsequent runs are fast because results are cached in `server/cache/collision/`.
 
@@ -140,9 +140,22 @@ node -v
 
 | Command | Description |
 |---------|-------------|
-| `yarn start` | Start the client dev server |
-| `yarn server:start` | Start the game server |
-| `yarn server:build-collision` | Build collision cache (once) |
-| `yarn export-map-images` | Export world map images (once) |
-| `yarn download-caches` | Manually download the OSRS cache |
-| `yarn lint` | Format code with Prettier |
+| `bun run dev` | Launch server + client together in an [mprocs](https://github.com/pvolok/mprocs) TUI |
+| `bun run start` | Start the client dev server only |
+| `bun run server:start` | Start the game server only |
+| `bun run build:all` | Build client + server in parallel (mprocs TUI) |
+| `bun run build` | Build the client only |
+| `bun run server:build` | Type-check the server only |
+| `bun run server:build-collision` | Build collision cache (once) |
+| `bun run export-map-images` | Export world map images (once) |
+| `bun run ensure-cache` | Manually download the OSRS cache |
+| `bun run test:auth` | End-to-end smoke test of the auth flow (requires server running) |
+| `bun run lint` | Format code with Prettier |
+
+::: tip Dev workflow
+`bun run dev` uses [mprocs](https://github.com/pvolok/mprocs) to run the
+server and client in a single terminal with per-process tabs. Install it
+once with `brew install mprocs` (macOS) or see the mprocs README for other
+platforms. Navigation: `Ctrl-A` then arrow keys to switch tabs, `Ctrl-A r`
+to restart a process, `Ctrl-A q` to quit.
+:::

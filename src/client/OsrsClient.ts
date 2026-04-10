@@ -68,6 +68,7 @@ import {
     sendLogout,
     sendResumeNameDialog,
     sendResumeStringDialog,
+    sendWalk,
     subscribeLogoutResponse,
     suppressReconnection,
 } from "../network/ServerConnection";
@@ -9399,31 +9400,48 @@ export class OsrsClient {
      */
     private tryAutoLogin(): void {
         try {
+            // Read credentials from URL query params. The dev mprocs
+            // tab `scripts/open-agent-browser.ts` generates an agent
+            // identity, then spawns the browser at
+            //   http://localhost:3000/?username=<agent>&password=<pw>
+            // which lands here. We clear the params immediately via
+            // history.replaceState so a manual refresh goes back to
+            // the normal login screen (and so credentials don't sit
+            // in the browser history bar longer than necessary).
+            //
+            // We deliberately do NOT read `process.env.REACT_APP_*`
+            // here anymore: build-time env var inlining is flaky under
+            // webpack caching, and URL query params are a reliable
+            // runtime signal we control end-to-end.
             const params = new URLSearchParams(window.location.search);
             const username = params.get("username");
             const password = params.get("password");
             if (!username || !password) return;
 
-            // Clear URL params to prevent re-login on refresh
             const url = new URL(window.location.href);
             url.searchParams.delete("username");
             url.searchParams.delete("password");
             window.history.replaceState({}, "", url.toString());
 
-            // Force localhost for URL-param auto-login
+            // Force localhost — auto-login is strictly a dev-workflow
+            // affordance. Production builds don't have a script
+            // putting credentials in the URL, and we don't want this
+            // path accidentally firing against a deployed xRSPS.
             setServerUrl("ws://localhost:43594");
             this.loginState.serverAddress = "localhost:43594";
             this.loginState.serverName = "Local Development";
             this.loginState.serverSecure = false;
 
-            // Set credentials and trigger login
             this.loginState.username = username;
             this.loginState.password = password;
             this.loginState.loginIndex = LoginIndex.LOGIN_FORM;
             this.loginState.savePersistedLoginState();
             this.updateGameState(GameState.CONNECTING);
             sendLogin(username.trim(), password, this.loadedCache?.info?.revision ?? 0);
-        } catch {}
+            console.log(`[auto-login] logged in as "${username}" via query params`);
+        } catch (err) {
+            console.warn("[auto-login] failed:", err);
+        }
     }
 
     /**

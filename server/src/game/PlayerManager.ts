@@ -231,6 +231,59 @@ export class PlayerManager implements PlayerRepository {
         this.interactionSystem.removeSocket(ws);
     }
 
+    /**
+     * Agent-player attack entrypoint. Delegates to the interaction
+     * system's `handleAgentNpcAttack` which types the player arg
+     * correctly for headless bots / agents. Same return shape as the
+     * ws-keyed `startNpcAttack` method.
+     */
+    attackNpcAsAgent(
+        player: PlayerState,
+        npc: import("./npc").NpcState,
+        currentTick: number,
+        modifierFlags?: number,
+    ): { ok: boolean; message?: string; chatMessage?: string } {
+        return this.interactionSystem.handleAgentNpcAttack(
+            player,
+            npc,
+            currentTick,
+            4,
+            modifierFlags,
+        );
+    }
+
+    /**
+     * Remove a headless (bot / agent) player from the world.
+     *
+     * Complement to {@link addBot}. The bot-SDK calls this when an agent
+     * disconnects and its save has been flushed: the PlayerState is pulled
+     * out of `this.bots`, its id is returned to the pool, and any
+     * interaction state is cleared so a subsequent spawn with the same
+     * name isn't blocked by a lingering entity.
+     *
+     * Returns true if the bot was found and removed.
+     */
+    removeBot(player: PlayerState): boolean {
+        const idx = this.bots.indexOf(player);
+        if (idx < 0) return false;
+        this.bots.splice(idx, 1);
+
+        try {
+            player.visibleNpcIds.clear();
+            player.clearInteraction();
+        } catch {
+            // Defensive — if the player is already in a weird state,
+            // don't let it block removal.
+        }
+
+        const id = player.id;
+        if (id >= 1 && id <= PlayerManager.MAX_SYNC_PLAYER_ID) {
+            this.freeIds.push(id);
+            this.usedIds.delete(id);
+        }
+        return true;
+    }
+
     get(ws: WebSocket): PlayerState | undefined {
         return this.players.get(ws);
     }
@@ -322,12 +375,21 @@ export class PlayerManager implements PlayerRepository {
     /**
      * Check if a username already has a live connected session.
      * Orphaned sessions are excluded so the same account can reclaim them.
+     *
+     * Bots (headless players, including agent-controlled ones) ARE included
+     * so that a human login cannot hijack an agent's name while the agent
+     * is active, and vice versa.
      */
     hasConnectedPlayer(username: string): boolean {
         const normalized = normalizePlayerAccountName(username);
         if (!normalized) return false;
         for (const player of this.players.values()) {
             if (normalizePlayerAccountName(player.name) === normalized) {
+                return true;
+            }
+        }
+        for (const bot of this.bots) {
+            if (normalizePlayerAccountName(bot.name) === normalized) {
                 return true;
             }
         }
@@ -549,6 +611,79 @@ export class PlayerManager implements PlayerRepository {
         const shouldRun = p.energy.resolveRequestedRun(run);
         p.setPathPreservingWalkDestination(res.steps, shouldRun);
         this.interactionSystem.handleManualMovement(ws, { x: to.x, y: to.y });
+
+        return { ok: true, destinationCorrection };
+    }
+
+    /**
+     * Walk a headless agent player toward a tile.
+     *
+     * Parallel path to {@link routePlayer} for agents (which have no
+     * WebSocket). Performs the same pathfinding + setPath work, then
+     * delegates interaction cleanup to
+     * {@link PlayerInteractionSystem.handleAgentMovement}. This keeps the
+     * human walking code path completely untouched: a subtle regression
+     * here affects only agent players.
+     *
+     * The logic intentionally duplicates `routePlayer`'s path-building.
+     * Factoring out the shared core is a future refactor; for now the
+     * copy is small and the parallel path is the safest option.
+     */
+    moveAgent(
+        p: PlayerState,
+        to: Tile,
+        run: boolean = false,
+        currentTick?: number,
+    ): { ok: boolean; message?: string; destinationCorrection?: Tile } {
+        if (currentTick !== undefined && p.isMovementLocked(currentTick)) {
+            return { ok: false, message: "movement_locked" };
+        }
+        if (!to || (to.x === p.tileX && to.y === p.tileY)) {
+            p.clearWalkDestination();
+            p.clearPath();
+            return { ok: true };
+        }
+
+        p.setWalkDestination({ x: to.x, y: to.y }, !!run);
+
+        // Same segmented pathfinding window the human client uses.
+        const graphSize = Math.max(16, this.pathService.getGraphSize());
+        const maxDelta = Math.max(1, (graphSize >> 1) - 3);
+        const dxToDest = to.x - p.tileX;
+        const dyToDest = to.y - p.tileY;
+        const segmentDx = Math.max(-maxDelta, Math.min(maxDelta, dxToDest));
+        const segmentDy = Math.max(-maxDelta, Math.min(maxDelta, dyToDest));
+        const segmentTo: Tile = {
+            x: p.tileX + segmentDx,
+            y: p.tileY + segmentDy,
+        };
+
+        const res = this.pathService.findPathSteps(
+            {
+                from: { x: p.tileX, y: p.tileY, plane: p.level },
+                to: segmentTo,
+                size: 1,
+                worldViewId: p.worldViewId,
+            },
+            { maxSteps: 128 },
+        );
+
+        if (!res.ok || !res.steps || res.steps.length === 0) {
+            p.clearWalkDestination();
+            return { ok: false, message: res.message || "no path" };
+        }
+
+        let destinationCorrection: Tile | undefined;
+        const selectedEnd = res.end ?? res.steps[res.steps.length - 1]!;
+        const isFinalSegment = segmentTo.x === to.x && segmentTo.y === to.y;
+        if (isFinalSegment && (selectedEnd.x !== segmentTo.x || selectedEnd.y !== segmentTo.y)) {
+            destinationCorrection = { x: selectedEnd.x, y: selectedEnd.y };
+            p.setWalkDestination(destinationCorrection, !!run);
+        }
+
+        const shouldRun = p.energy.resolveRequestedRun(run);
+        p.setPathPreservingWalkDestination(res.steps, shouldRun);
+        this.interactionSystem.handleAgentMovement(p);
 
         return { ok: true, destinationCorrection };
     }

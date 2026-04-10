@@ -1,6 +1,7 @@
 import { parseOutgoingPublicChat, sanitizeChatText } from "../chat/chatFormatting";
 import { ClientState } from "../client/ClientState";
 import { PlayerSyncContext } from "../client/sync/PlayerSyncContext";
+import { DEFAULT_WS_URL } from "../util/serverDefaults";
 import type { PlayerSyncFrame } from "../client/sync/PlayerSyncTypes";
 import { PlayerUpdateDecoder } from "../client/sync/PlayerUpdateDecoder";
 import { SkillId } from "../rs/skill/skills";
@@ -567,7 +568,7 @@ type ClientToServer =
 const getEnv = (key: string): string | undefined =>
     typeof process !== "undefined" && process.env ? process.env[key] : undefined;
 
-const DEFAULT_URL = "ws://localhost:43594";
+const DEFAULT_URL = DEFAULT_WS_URL;
 const LOGIN_CONNECT_RETRY_DELAY_MS = 1000;
 
 let socket: WebSocket | null = null;
