@@ -1,383 +1,140 @@
 /**
- * Persistent dev-mode agent — connects to the xRSPS bot-SDK endpoint and
- * runs a simple random-walk loop so you can watch the agent layer working
- * end-to-end in the unified mprocs TUI.
+ * Dev-mode agent launcher.
  *
- * This is **not** the eventual agent brain — the real agent lives in
- * `@elizaos/app-scape` in the milady repo and uses the LLM runtime. This
- * script is a placeholder that:
+ * The "agent" for dev is not a separate bot process — it's a loop
+ * *inside the React client* that drives the user's own character
+ * around (see `OsrsClient.startAutoplay`). This script exists so
+ * `bun run dev` has ONE terminal that:
  *
- *   1. Exercises the TOON bot-SDK protocol continuously (spot any
- *      regressions immediately).
- *   2. Gives the game client something visible to interact with during
- *      dev — other players logged in via the React client can see this
- *      agent walking around, attack it, etc.
- *   3. Logs perception snapshots so you can watch the server's agent
- *      perception layer in real time.
+ *   1. Generates (or reuses) a stable agent identity so the character
+ *      accumulates across sessions.
+ *   2. Waits for the CRA dev server to come up on :3000.
+ *   3. Spawns the system default browser pointed at
+ *        http://localhost:3000/?username=<agent>&password=<pw>&autoplay=1
+ *      which triggers the client's auto-login + in-browser autoplay.
+ *   4. Stays alive so mprocs keeps the tab running; logs are a quiet
+ *      "heartbeat" you can glance at to confirm the flow is healthy.
  *
- * Identity is self-generated on first run: if neither SCAPE_DEV_AGENT_NAME
- * nor SCAPE_DEV_AGENT_PASS is set, the script creates a random name /
- * password pair, persists them to `server/data/dev-agent-identity.json`,
- * and re-uses them on every subsequent run. The developer never has to
- * think about credentials.
- *
- * Lifecycle:
- *   - Waits briefly for the bot-SDK endpoint to come up (retries on
- *     ECONNREFUSED for up to 30 seconds).
- *   - Authenticates, spawns the agent with the persisted identity.
- *   - Every 6 seconds, picks a random adjacent tile and sends a walkTo.
- *   - On SIGINT / SIGTERM (Ctrl-C, or mprocs stopping the proc), cleanly
- *     sends a `disconnect` frame and exits — which triggers the server's
- *     disconnect-save path so the agent's position persists.
+ * The agent and the user share the same browser tab. Click to take
+ * over; the next autoplay tick will overwrite your destination, so
+ * you can "tag out" any time by not clicking.
  *
  * Env vars:
- *   BOT_SDK_URL           — default ws://127.0.0.1:43595
- *   BOT_SDK_TOKEN         — required (must match the server)
- *   SCAPE_DEV_AGENT_NAME  — optional override of the generated name
- *   SCAPE_DEV_AGENT_PASS  — optional override of the generated password
- *   SCAPE_DEV_STEP_MS     — default 6000 (one walk every 6 seconds)
+ *   SCAPE_CLIENT_URL      — base client URL (default http://localhost:3000)
+ *   SCAPE_DEV_AGENT_NAME  — override generated name
+ *   SCAPE_DEV_AGENT_PASS  — override generated password
+ *   OPEN_AGENT_BROWSER=0  — skip the browser spawn (useful for headless CI)
+ *   SCAPE_AUTOPLAY=0      — log in but don't start the autoplay loop
  */
 
 import { spawn } from "node:child_process";
 import { platform } from "node:os";
-import { inspect } from "node:util";
-
-import { decode, encode } from "@toon-format/toon";
-import WebSocket from "ws";
 
 import { loadOrGenerateDevAgentIdentity } from "./_dev-agent-identity";
 
-const URL = process.env.BOT_SDK_URL ?? "ws://127.0.0.1:43595";
-const TOKEN = process.env.BOT_SDK_TOKEN;
-const STEP_INTERVAL_MS = parseInt(process.env.SCAPE_DEV_STEP_MS ?? "6000", 10);
-
-const RETRY_INTERVAL_MS = 2_000;
-const CONNECT_MAX_ATTEMPTS = 15;
-
-if (!TOKEN) {
-    console.error("[agent-dev] BOT_SDK_TOKEN env var must be set");
-    process.exit(2);
-}
-
-const identity = loadOrGenerateDevAgentIdentity();
-const AGENT_NAME = identity.name;
-const AGENT_PASSWORD = identity.password;
-const AGENT_ID = `scape-dev-${AGENT_NAME}`;
-
 const CLIENT_URL = process.env.SCAPE_CLIENT_URL ?? "http://localhost:3000";
 const SKIP_BROWSER = process.env.OPEN_AGENT_BROWSER === "0";
+const AUTOPLAY = process.env.SCAPE_AUTOPLAY !== "0";
 
-// Guard against reconnect loops spawning multiple browser tabs. The
-// bot opens the browser exactly once per process lifetime, even if
-// the bot-SDK session drops and reconnects.
-let browserViewSpawned = false;
+const WAIT_FOR_CLIENT_MAX_ATTEMPTS = 60;
+const WAIT_FOR_CLIENT_INTERVAL_MS = 1_000;
+
+const identity = loadOrGenerateDevAgentIdentity();
+
+function logLine(message: string): void {
+    console.log(`[agent-dev] ${message}`);
+}
+
+function buildLoginUrl(): string {
+    const url = new URL(CLIENT_URL);
+    url.searchParams.set("username", identity.name);
+    url.searchParams.set("password", identity.password);
+    if (AUTOPLAY) url.searchParams.set("autoplay", "1");
+    return url.toString();
+}
 
 /**
- * Spawn the system default browser pointed at the xRSPS client so
- * the user can watch the bot play. Uses `open` on macOS, `start` on
- * Windows, `xdg-open` on Linux. Fire-and-forget — we detach the
- * child so the browser outlives this script.
+ * Poll the CRA dev server until it answers 200. craco's first boot
+ * can take 10-30s; we back off and retry rather than spawning a
+ * browser at a half-booted server and staring at a white page.
  */
-function openBrowserView(): void {
-    if (browserViewSpawned || SKIP_BROWSER) return;
-    browserViewSpawned = true;
+async function waitForClient(url: string): Promise<boolean> {
+    for (let attempt = 1; attempt <= WAIT_FOR_CLIENT_MAX_ATTEMPTS; attempt++) {
+        try {
+            const res = await fetch(url, { method: "GET" });
+            if (res.ok || res.status === 304) return true;
+        } catch {
+            // connection refused — dev server not up yet
+        }
+        if (attempt === 1 || attempt % 5 === 0) {
+            logLine(
+                `waiting for client at ${url} (attempt ${attempt}/${WAIT_FOR_CLIENT_MAX_ATTEMPTS})`,
+            );
+        }
+        await new Promise((r) => setTimeout(r, WAIT_FOR_CLIENT_INTERVAL_MS));
+    }
+    return false;
+}
+
+/**
+ * Spawn the system default browser pointed at the auto-login URL.
+ * `open` on macOS, `start` on Windows, `xdg-open` on Linux. The
+ * child is detached so the browser outlives this script.
+ */
+function openBrowser(url: string): void {
+    if (SKIP_BROWSER) {
+        logLine(`OPEN_AGENT_BROWSER=0 — not spawning browser`);
+        return;
+    }
     const os = platform();
     const cmd = os === "darwin" ? "open" : os === "win32" ? "cmd" : "xdg-open";
-    const args = os === "win32" ? ["/c", "start", "", CLIENT_URL] : [CLIENT_URL];
+    const args = os === "win32" ? ["/c", "start", "", url] : [url];
     try {
         const child = spawn(cmd, args, { stdio: "ignore", detached: true });
         child.unref();
-        console.log(`[agent-dev] opened browser view at ${CLIENT_URL}`);
+        logLine(`opened browser → ${url}`);
     } catch (err) {
-        console.warn(
-            `[agent-dev] failed to open browser at ${CLIENT_URL}:`,
-            err,
+        logLine(
+            `failed to open browser: ${err instanceof Error ? err.message : String(err)}`,
         );
     }
 }
 
-type Frame = Record<string, unknown>;
+async function main(): Promise<void> {
+    logLine(`identity name=${identity.name} (password redacted)`);
+    logLine(`autoplay=${AUTOPLAY ? "on" : "off"}`);
 
-function logLine(message: string): void {
-    // mprocs renders each proc's stdout verbatim; a short prefix makes it
-    // easy to tell the dev-agent tab apart from the server's own logs.
-    console.log(`[agent-dev] ${message}`);
-}
-
-function sendFrame(ws: WebSocket, frame: Frame): void {
-    if (ws.readyState !== WebSocket.OPEN) return;
-    try {
-        ws.send(encode(frame));
-    } catch (err) {
-        logLine(`send error: ${err instanceof Error ? err.message : String(err)}`);
+    const ready = await waitForClient(CLIENT_URL);
+    if (!ready) {
+        logLine(
+            `client at ${CLIENT_URL} never came up — giving up. Is the 'client' proc running?`,
+        );
+        process.exit(1);
     }
-}
+    logLine(`client is up`);
 
-function parseFrame(raw: unknown): Frame | null {
-    try {
-        const text =
-            typeof raw === "string"
-                ? raw
-                : Buffer.isBuffer(raw)
-                    ? raw.toString("utf-8")
-                    : Buffer.from(raw as ArrayBuffer).toString("utf-8");
-        const value = decode(text);
-        if (!value || typeof value !== "object") return null;
-        return value as Frame;
-    } catch {
-        return null;
-    }
-}
+    const loginUrl = buildLoginUrl();
+    openBrowser(loginUrl);
 
-async function delay(ms: number): Promise<void> {
-    return new Promise((r) => setTimeout(r, ms));
-}
+    // Keep the proc alive so mprocs leaves the tab open. A
+    // heartbeat every 60s makes it obvious at a glance that the
+    // launcher is still healthy. We don't do anything else — the
+    // real agent work happens inside the browser.
+    logLine(`launcher idle (heartbeat every 60s). Ctrl-C to stop.`);
+    const heartbeat = setInterval(() => {
+        logLine(`heartbeat: agent=${identity.name} browser URL issued`);
+    }, 60_000);
 
-/**
- * Unwrap the various shapes Bun's `ws` adapter uses for connection
- * failures. On a plain Node install, connect errors arrive as an
- * `Error` with a sensible `.message` (e.g. `ECONNREFUSED`). Under
- * Bun the adapter wraps the underlying socket error in a DOM-style
- * `ErrorEvent` whose `.message` is empty; the real message lives on
- * `.error.message` or `.error.code`. This function returns the
- * deepest useful string without JSON.stringify'ing the whole event.
- */
-function describeError(err: unknown): string {
-    if (err == null) return "unknown";
-    if (err instanceof Error) {
-        return err.message || err.name || "Error";
-    }
-    if (typeof err === "object") {
-        const record = err as {
-            message?: unknown;
-            error?: { message?: unknown; code?: unknown };
-            code?: unknown;
-            type?: unknown;
-        };
-        if (typeof record.error?.message === "string" && record.error.message.length > 0) {
-            return record.error.message;
-        }
-        if (typeof record.error?.code === "string" && record.error.code.length > 0) {
-            return record.error.code;
-        }
-        if (typeof record.message === "string" && record.message.length > 0) {
-            return record.message;
-        }
-        if (typeof record.code === "string") return record.code;
-        if (typeof record.type === "string") {
-            // ErrorEvent with nothing else populated — usually means
-            // ECONNREFUSED / connection reset. Use util.inspect to
-            // reveal whatever hidden properties exist so the message
-            // is at least grep-able.
-            const inspected = inspect(err, { depth: 2, breakLength: 120 });
-            return `${record.type}: ${inspected.slice(0, 200)}`;
-        }
-    }
-    return inspect(err, { depth: 2 }).slice(0, 200);
-}
-
-interface SessionState {
-    spawned: boolean;
-    playerId?: number;
-    lastKnown?: { x: number; z: number };
-    stepTimer?: ReturnType<typeof setInterval>;
-    shuttingDown: boolean;
-}
-
-async function connectWithRetry(): Promise<WebSocket> {
-    for (let attempt = 1; attempt <= CONNECT_MAX_ATTEMPTS; attempt++) {
-        // Create the socket and IMMEDIATELY attach a persistent error
-        // listener. Without this, Bun's `ws` adapter can emit a second
-        // error event (or a late error during socket teardown) after
-        // our once-off handler has removed itself, which would crash
-        // the process via Node's "unhandled error" path.
-        //
-        // The persistent listener below is a no-op — the connect-phase
-        // promise below has its own once-off error handler that does
-        // the real rejection. After the promise settles, the persistent
-        // handler is all that remains, which is correct: a broken
-        // socket should log silently, not crash the script.
-        const ws = new WebSocket(URL);
-        const swallowError = (_err: unknown) => {
-            // intentional no-op
-        };
-        ws.on("error", swallowError);
-
-        try {
-            await new Promise<void>((resolvePromise, reject) => {
-                let settled = false;
-                const cleanup = () => {
-                    ws.removeListener("open", onOpen);
-                    ws.removeListener("error", onError);
-                };
-                const onOpen = () => {
-                    if (settled) return;
-                    settled = true;
-                    cleanup();
-                    resolvePromise();
-                };
-                const onError = (err: unknown) => {
-                    if (settled) return;
-                    settled = true;
-                    cleanup();
-                    // Preserve the raw object so describeError can
-                    // introspect ErrorEvent shapes. Wrapping with
-                    // `new Error(String(err))` would coerce it to
-                    // `[object ErrorEvent]` and lose the real cause.
-                    reject(err as Error);
-                };
-                ws.once("open", onOpen);
-                ws.once("error", onError);
-            });
-            // Successful connect — leave the swallow handler in place.
-            // It'll still swallow post-connect errors silently, so the
-            // process won't crash on a server restart; the `close`
-            // handler below notices the drop and exits cleanly.
-            return ws;
-        } catch (err) {
-            // Tear down the failed socket completely so it can't fire
-            // any more events. The swallow handler would have kept it
-            // alive anyway, but explicit close is cheaper.
-            try { ws.close(); } catch {}
-            try { ws.removeAllListeners(); } catch {}
-            const detail = describeError(err);
-            logLine(
-                `connect attempt ${attempt}/${CONNECT_MAX_ATTEMPTS} failed (${detail}), retrying in ${RETRY_INTERVAL_MS / 1000}s`,
-            );
-            await delay(RETRY_INTERVAL_MS);
-        }
-    }
-    throw new Error(`could not reach ${URL} after ${CONNECT_MAX_ATTEMPTS} attempts`);
-}
-
-function pickRandomAdjacent(x: number, z: number): { x: number; z: number } {
-    // 8-neighbor random walk with a small chance to stay put (thinking).
-    const choices: Array<[number, number]> = [
-        [-1, 0], [1, 0], [0, -1], [0, 1],
-        [-1, -1], [1, 1], [-1, 1], [1, -1],
-    ];
-    const [dx, dz] = choices[Math.floor(Math.random() * choices.length)]!;
-    return { x: x + dx, z: z + dz };
-}
-
-async function run(): Promise<void> {
-    logLine(`target=${URL} name=${AGENT_NAME}`);
-    const ws = await connectWithRetry();
-    logLine(`connected`);
-
-    const state: SessionState = {
-        spawned: false,
-        shuttingDown: false,
+    const shutdown = (signal: string) => {
+        logLine(`received ${signal}, exiting`);
+        clearInterval(heartbeat);
+        process.exit(0);
     };
-
-    const shutdown = (reason: string) => {
-        if (state.shuttingDown) return;
-        state.shuttingDown = true;
-        if (state.stepTimer) {
-            clearInterval(state.stepTimer);
-            state.stepTimer = undefined;
-        }
-        logLine(`shutting down: ${reason}`);
-        try {
-            sendFrame(ws, { kind: "disconnect", reason });
-        } catch {}
-        // Small delay so the disconnect frame hits the wire before we close.
-        setTimeout(() => {
-            try { ws.close(1000, reason); } catch {}
-            process.exit(0);
-        }, 100);
-    };
-
-    process.on("SIGINT", () => shutdown("sigint"));
-    process.on("SIGTERM", () => shutdown("sigterm"));
-
-    ws.on("close", () => {
-        if (!state.shuttingDown) {
-            logLine("socket closed unexpectedly — exiting");
-            process.exit(1);
-        }
-    });
-
-    ws.on("error", (err) => {
-        logLine(`socket error: ${err.message}`);
-    });
-
-    ws.on("message", (raw) => {
-        const frame = parseFrame(raw);
-        if (!frame) return;
-        const kind = frame.kind;
-
-        if (kind === "authOk") {
-            logLine(`authOk server=${frame.server} version=${frame.version}`);
-            sendFrame(ws, {
-                kind: "spawn",
-                agentId: AGENT_ID,
-                displayName: AGENT_NAME,
-                password: AGENT_PASSWORD,
-                controller: "hybrid",
-                persona: "Placeholder dev agent — random-walks until milady takes over.",
-            });
-            return;
-        }
-
-        if (kind === "error") {
-            logLine(`error frame: ${frame.code}: ${frame.message}`);
-            // Don't try to keep going through an error state — most
-            // errors (bad_token, name_taken, wrong_password) are fatal.
-            shutdown(`server_error:${frame.code}`);
-            return;
-        }
-
-        if (kind === "spawnOk") {
-            state.spawned = true;
-            state.playerId = Number(frame.playerId);
-            state.lastKnown = { x: Number(frame.x), z: Number(frame.z) };
-            logLine(
-                `spawnOk playerId=${state.playerId} at (${state.lastKnown.x}, ${state.lastKnown.z})`,
-            );
-
-            // Open the browser so the user can watch. Fire-and-forget.
-            openBrowserView();
-
-            // Start the random-walk loop.
-            state.stepTimer = setInterval(() => {
-                if (!state.lastKnown) return;
-                const next = pickRandomAdjacent(state.lastKnown.x, state.lastKnown.z);
-                sendFrame(ws, {
-                    kind: "action",
-                    action: "walkTo",
-                    x: next.x,
-                    z: next.z,
-                    run: false,
-                });
-                logLine(`step → (${next.x}, ${next.z})`);
-            }, STEP_INTERVAL_MS);
-            return;
-        }
-
-        if (kind === "perception") {
-            const snapshot = frame.snapshot as Record<string, unknown> | undefined;
-            const self = snapshot?.self as Record<string, unknown> | undefined;
-            if (self) {
-                state.lastKnown = { x: Number(self.x), z: Number(self.z) };
-                const hp = self.hp;
-                const maxHp = self.maxHp;
-                const energy = self.runEnergy;
-                logLine(
-                    `perception tick=${snapshot?.tick} pos=(${self.x}, ${self.z}) hp=${hp}/${maxHp} energy=${energy}`,
-                );
-            }
-            return;
-        }
-
-        // Silently ignore acks and anything else — we only care about
-        // perception + status for the dev loop.
-    });
-
-    sendFrame(ws, { kind: "auth", token: TOKEN, version: 1 });
+    process.on("SIGINT", () => shutdown("SIGINT"));
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
-run().catch((err) => {
+main().catch((err) => {
     console.error(`[agent-dev] fatal:`, err);
     process.exit(1);
 });

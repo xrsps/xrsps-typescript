@@ -773,6 +773,24 @@ export class OsrsClient {
     private clientTickAccumulatedMs: number = 0;
     private loginMusicStartTimer?: ReturnType<typeof setTimeout>;
 
+    /**
+     * Autoplay mode — when the login URL carries `?autoplay=1`,
+     * after the game state reaches LOGGED_IN we start a setInterval
+     * that calls `sendWalk()` with a random tile near the agent's
+     * spawn. The user and the agent share the same browser tab: the
+     * user can watch the character wander, and take over at any
+     * moment by clicking somewhere (which cancels their walk
+     * destination server-side for one tick but the interval fires
+     * again shortly after).
+     */
+    private autoplayEnabled: boolean = false;
+    private autoplayTimer?: ReturnType<typeof setInterval>;
+    /** Anchor tile the random walk keeps orbiting. Seeded from the
+     *  default vanilla spawn (3222, 3218) so the agent doesn't wander
+     *  off into the void on the very first step. */
+    private autoplayAnchorX: number = 3222;
+    private autoplayAnchorY: number = 3218;
+
     // Appearance is server-driven; no client defaults.
 
     // ECS stores
@@ -8917,6 +8935,86 @@ export class OsrsClient {
                 }, remaining);
             });
         }
+
+        // Kick off the in-browser autoplay loop the first time we
+        // reach LOGGED_IN after an `?autoplay=1` login. We only start
+        // it here (not in LOADING_GAME) so that the player ECS has
+        // been populated and our controlled player actually has a
+        // tile coordinate to anchor on.
+        if (newState === GameState.LOGGED_IN && this.autoplayEnabled && !this.autoplayTimer) {
+            this.startAutoplay();
+        }
+
+        // Tear down the autoplay loop on any transition out of LOGGED_IN
+        // (logout, disconnect, reconnect flow). If the user logs back
+        // in with `?autoplay=1` still set in memory, the block above
+        // will restart it.
+        if (oldState === GameState.LOGGED_IN && newState !== GameState.LOGGED_IN && this.autoplayTimer) {
+            this.stopAutoplay();
+        }
+    }
+
+    /**
+     * Start the in-browser autoplay loop. Every ~3 seconds, pick a
+     * random tile within ~6 tiles of the anchor and send a walk
+     * command. The anchor drifts with the player, so the agent
+     * wanders instead of pacing in a fixed box. The user can take
+     * over at any moment by clicking the ground — the next walk
+     * command just overwrites their destination on the next tick.
+     */
+    private startAutoplay(): void {
+        // Seed the anchor from the controlled player's current tile
+        // if we already have it; otherwise stick with the default
+        // vanilla spawn (3222, 3218).
+        const idx = this.playerEcs.getIndexForServerId(this.controlledPlayerServerId);
+        if (idx !== undefined) {
+            const tx = (this.playerEcs.getX(idx) >> 7) | 0;
+            const ty = (this.playerEcs.getY(idx) >> 7) | 0;
+            if (tx > 0 && ty > 0) {
+                this.autoplayAnchorX = tx;
+                this.autoplayAnchorY = ty;
+            }
+        }
+        console.log(
+            `[autoplay] starting at anchor (${this.autoplayAnchorX}, ${this.autoplayAnchorY})`,
+        );
+        const step = () => {
+            try {
+                // Drift the anchor toward wherever the player actually
+                // is, so a successful walk pulls the random box
+                // forward instead of snapping back.
+                const cur = this.playerEcs.getIndexForServerId(this.controlledPlayerServerId);
+                if (cur !== undefined) {
+                    const tx = (this.playerEcs.getX(cur) >> 7) | 0;
+                    const ty = (this.playerEcs.getY(cur) >> 7) | 0;
+                    if (tx > 0 && ty > 0) {
+                        this.autoplayAnchorX = tx;
+                        this.autoplayAnchorY = ty;
+                    }
+                }
+                const dx = Math.floor(Math.random() * 13) - 6;
+                const dy = Math.floor(Math.random() * 13) - 6;
+                const targetX = this.autoplayAnchorX + dx;
+                const targetY = this.autoplayAnchorY + dy;
+                sendWalk({ x: targetX, y: targetY }, Math.random() < 0.5);
+                console.log(`[autoplay] walking to (${targetX}, ${targetY})`);
+            } catch (err) {
+                console.warn("[autoplay] step failed:", err);
+            }
+        };
+        // Fire once immediately so the user sees movement without
+        // waiting for the first interval tick.
+        step();
+        this.autoplayTimer = setInterval(step, 3000);
+    }
+
+    /** Cancel the autoplay interval. Safe to call multiple times. */
+    private stopAutoplay(): void {
+        if (this.autoplayTimer) {
+            clearInterval(this.autoplayTimer);
+            this.autoplayTimer = undefined;
+            console.log("[autoplay] stopped");
+        }
     }
 
     private cancelPendingLoginMusicStart(): void {
@@ -9418,9 +9516,16 @@ export class OsrsClient {
             const password = params.get("password");
             if (!username || !password) return;
 
+            // `autoplay=1` flips on the in-browser agent loop. The user
+            // and the agent share this tab: once LOGGED_IN fires we
+            // start walking the character around a drifting anchor.
+            const autoplayParam = params.get("autoplay");
+            this.autoplayEnabled = autoplayParam === "1" || autoplayParam === "true";
+
             const url = new URL(window.location.href);
             url.searchParams.delete("username");
             url.searchParams.delete("password");
+            url.searchParams.delete("autoplay");
             window.history.replaceState({}, "", url.toString());
 
             // Force localhost — auto-login is strictly a dev-workflow
