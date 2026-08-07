@@ -836,16 +836,16 @@ export class PlayerRenderer {
         seqId: number,
         frameIdx: number,
         mv: any,
-    ): void {
-        if (!seqType) return;
+    ): boolean {
+        if (!seqType) return false;
         if (seqType.isSkeletalSeq?.()) {
             const skeletal = mv.loaderFactory.getSkeletalSeqLoader?.()?.load(seqType.skeletalId);
-            if (!skeletal) return;
+            if (!skeletal) return false;
             const duration = this.getEffectiveSkeletalDuration(seqType, seqId | 0);
             const local = Math.max(0, frameIdx | 0) % Math.max(1, duration | 0);
             // cached sequences use the local frame index (no start offset at render time).
             model.animateSkeletal(skeletal, local | 0);
-            return;
+            return true;
         }
 
         if (seqType.frameIds && seqType.frameIds.length > 0) {
@@ -855,8 +855,10 @@ export class PlayerRenderer {
             const frame0 = mv.seqFrameLoader.load(key);
             if (frame0) {
                 model.animate(frame0, undefined, !!seqType.op14);
+                return true;
             }
         }
+        return false;
     }
 
     private applySequenceTransformationsToModel(
@@ -868,11 +870,16 @@ export class PlayerRenderer {
         overlaySeqId: number,
         overlayFrameIdx: number,
         mv: any,
-    ): void {
-        if (!baseType) return;
+    ): boolean {
+        if (!baseType) return false;
         if (!overlayType) {
-            this.applySingleSequenceToModel(model, baseType, baseSeqId | 0, baseFrameIdx | 0, mv);
-            return;
+            return this.applySingleSequenceToModel(
+                model,
+                baseType,
+                baseSeqId | 0,
+                baseFrameIdx | 0,
+                mv,
+            );
         }
 
         const baseCached = !!baseType.isSkeletalSeq?.();
@@ -882,7 +889,7 @@ export class PlayerRenderer {
             const baseSkeletal = mv.loaderFactory
                 .getSkeletalSeqLoader?.()
                 ?.load(baseType.skeletalId);
-            if (!baseSkeletal) return;
+            if (!baseSkeletal) return false;
 
             const baseDuration = this.getEffectiveSkeletalDuration(baseType, baseSeqId | 0);
             const baseLocal = Math.max(0, baseFrameIdx | 0) % Math.max(1, baseDuration | 0);
@@ -891,7 +898,7 @@ export class PlayerRenderer {
             if (overlayCached) {
                 if (!Array.isArray(baseType?.skeletalMasks)) {
                     model.animateSkeletal(baseSkeletal, baseAnimFrame);
-                    return;
+                    return true;
                 }
 
                 const overlaySkeletal = mv.loaderFactory
@@ -899,7 +906,7 @@ export class PlayerRenderer {
                     ?.load(overlayType.skeletalId);
                 if (!overlaySkeletal) {
                     model.animateSkeletal(baseSkeletal, baseAnimFrame);
-                    return;
+                    return false;
                 }
 
                 const overlayDuration = this.getEffectiveSkeletalDuration(
@@ -914,7 +921,7 @@ export class PlayerRenderer {
                     masks: baseType.skeletalMasks,
                     overlay: { seq: overlaySkeletal, frame: overlayAnimFrame },
                 });
-                return;
+                return true;
             }
 
             // Cached base + frame overlay
@@ -932,27 +939,26 @@ export class PlayerRenderer {
                 const idx = Math.max(0, overlayFrameIdx | 0) % (ids.length | 0);
                 const key = ids[idx] | 0;
                 const frame0 = mv.seqFrameLoader.load(key);
-                if (frame0) {
-                    const interleave = Array.isArray(baseType?.masks)
-                        ? (baseType.masks as number[])
-                        : undefined;
-                    if (interleave && interleave.length > 0) {
-                        model.animateInterleavedFrame(frame0, !!overlayType.op14, interleave, true);
-                    } else {
-                        model.animate(frame0, undefined, !!overlayType.op14);
-                    }
+                if (!frame0) return false;
+                const interleave = Array.isArray(baseType?.masks)
+                    ? (baseType.masks as number[])
+                    : undefined;
+                if (interleave && interleave.length > 0) {
+                    model.animateInterleavedFrame(frame0, !!overlayType.op14, interleave, true);
+                } else {
+                    model.animate(frame0, undefined, !!overlayType.op14);
                 }
             }
-            return;
+            return true;
         }
 
         // Frame base
-        if (!baseType.frameIds || baseType.frameIds.length <= 0) return;
+        if (!baseType.frameIds || baseType.frameIds.length <= 0) return false;
         const baseIds = baseType.frameIds as number[];
         const baseIdx = Math.max(0, baseFrameIdx | 0) % (baseIds.length | 0);
         const baseKey = baseIds[baseIdx] | 0;
         const baseFrame0 = mv.seqFrameLoader.load(baseKey);
-        if (!baseFrame0) return;
+        if (!baseFrame0) return false;
 
         const interleave = Array.isArray(baseType?.masks)
             ? (baseType.masks as number[])
@@ -962,7 +968,7 @@ export class PlayerRenderer {
             // OSRS: requires an interleave array; otherwise overlay is ignored.
             if (!interleave || interleave.length === 0) {
                 model.animate(baseFrame0, undefined, !!baseType.op14);
-                return;
+                return true;
             }
 
             const overlaySkeletal = mv.loaderFactory
@@ -970,7 +976,7 @@ export class PlayerRenderer {
                 ?.load(overlayType.skeletalId);
             if (!overlaySkeletal) {
                 model.animate(baseFrame0, undefined, !!baseType.op14);
-                return;
+                return false;
             }
 
             const overlayDuration = this.getEffectiveSkeletalDuration(
@@ -987,7 +993,7 @@ export class PlayerRenderer {
                 applyAlpha: false,
             });
             model.animateInterleavedFrame(baseFrame0, !!baseType.op14, interleave, false);
-            return;
+            return true;
         }
 
         // Frame base + frame overlay
@@ -998,7 +1004,7 @@ export class PlayerRenderer {
             interleave.length === 0
         ) {
             model.animate(baseFrame0, undefined, !!baseType.op14);
-            return;
+            return true;
         }
 
         const overlayIds = overlayType.frameIds as number[];
@@ -1007,7 +1013,7 @@ export class PlayerRenderer {
         const overlayFrame0 = mv.seqFrameLoader.load(overlayKey);
         if (!overlayFrame0) {
             model.animate(baseFrame0, undefined, !!baseType.op14);
-            return;
+            return false;
         }
 
         model.animateInterleavedFrames(
@@ -1017,6 +1023,7 @@ export class PlayerRenderer {
             !!overlayType.op14,
             interleave,
         );
+        return true;
     }
 
     private dynamicUpdateBuffersFor(
@@ -1088,6 +1095,7 @@ export class PlayerRenderer {
         // Do not shallow-copy face alpha: sequences (frame-based or skeletal) can mutate faceAlphas via ALPHA transforms.
         // Sharing would leak those mutations back into the cached base model and cause visual artifacts (e.g., "blur"/ghosting).
         let model = ModelMod.copyAnimated(baseModel, false, true);
+        let animationApplied = false;
         try {
             const mv = this.renderer.osrsClient as any;
             const seqType = mv.seqTypeLoader.load(seqId | 0);
@@ -1105,7 +1113,7 @@ export class PlayerRenderer {
                     overlayId >= 0 && overlayFrame >= 0
                         ? mv.seqTypeLoader.load(overlayId | 0)
                         : undefined;
-                this.applySequenceTransformationsToModel(
+                animationApplied = this.applySequenceTransformationsToModel(
                     model,
                     seqType,
                     seqId | 0,
@@ -1325,7 +1333,7 @@ export class PlayerRenderer {
             countAlpha: indicesAlpha.length | 0,
         };
         try {
-            if (cacheKey) {
+            if (cacheKey && animationApplied) {
                 const cacheAlphaVerts = new Uint8Array(verticesAlpha);
                 const cacheAlphaInds = new Int32Array(indicesAlpha);
                 this.geomCache.set(cacheKey, {

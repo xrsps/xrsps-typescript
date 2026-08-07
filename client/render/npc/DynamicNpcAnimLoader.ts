@@ -174,6 +174,14 @@ export class DynamicNpcAnimLoader {
             return cached;
         }
 
+        if (
+            !this.isSequenceFrameReady(seqId, normalizedFrame) ||
+            (overlaySeqId >= 0 &&
+                !this.isSequenceFrameReady(overlaySeqId, normalizedOverlayFrame))
+        ) {
+            return undefined;
+        }
+
         const model = this.npcModelLoader?.getModel(
             resolvedNpcType,
             seqId,
@@ -194,6 +202,17 @@ export class DynamicNpcAnimLoader {
             overlaySeqId >= 0 ? overlaySeqId | 0 : undefined,
             overlaySeqId >= 0 ? normalizedOverlayFrame | 0 : undefined,
         );
+    }
+
+    private isSequenceFrameReady(seqId: number, frameId: number): boolean {
+        const seqType = this.seqTypeLoader?.load(seqId | 0);
+        if (!seqType) return false;
+        if (seqType.isSkeletalSeq()) {
+            return !!this.skeletalSeqLoader?.load(seqType.skeletalId);
+        }
+        const ids = seqType.frameIds;
+        if (!ids?.length) return false;
+        return !!this.seqFrameLoader?.load(ids[Math.max(0, frameId | 0) % ids.length] | 0);
     }
 
     getBaseGeometry(npcTypeId: number): DynamicNpcFrameGeometry | undefined {
