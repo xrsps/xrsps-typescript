@@ -1,3 +1,4 @@
+import { ARROW_LAUNCH_DELAY_TICKS, ARROW_TRAVEL_TIME_TICKS } from "../AmmoSystem";
 import { CombatAttackStyle } from "../model/CombatAttack";
 import { type WeaponCombatContext, type WeaponCombatProfile } from "./WeaponCombatProfile";
 import { CORE_SPECIAL_ATTACK_PROFILES } from "./special-attacks";
@@ -30,6 +31,7 @@ const DEFAULT_ABYSSAL_WHIP_PROFILE: WeaponCombatProfile = Object.freeze({
 const DEFAULT_SHORTBOW_PROFILE: WeaponCombatProfile = Object.freeze({
     id: "core:shortbow",
     itemIds: Object.freeze([841]),
+    categoryIds: Object.freeze([3]),
     attackAnimation: 426,
     projectile: Object.freeze({
         id: 10,
@@ -37,6 +39,8 @@ const DEFAULT_SHORTBOW_PROFILE: WeaponCombatProfile = Object.freeze({
         endHeight: 36,
         slope: 0,
         steepness: 64,
+        startDelayTicks: ARROW_LAUNCH_DELAY_TICKS,
+        travelTimeTicks: ARROW_TRAVEL_TIME_TICKS,
         lifeModel: "linear5-clamped10",
     }),
 });

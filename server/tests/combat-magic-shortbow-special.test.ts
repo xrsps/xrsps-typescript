@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { EquipmentSlot } from "../../client/rs/config/player/Equipment";
 import { SkillId } from "../../client/rs/skill/skills";
 import { AttackType } from "../src/game/combat/AttackType";
+import {
+    ARROW_LAUNCH_DELAY_TICKS,
+    ARROW_TRAVEL_TIME_TICKS,
+    getArrowVisual,
+} from "../src/game/combat/AmmoSystem";
 import { registerSkillConfiguration } from "../src/game/combat/SkillConfigurationProvider";
 import { CombatHitEvaluator } from "../src/game/combat/engine/CombatHitEvaluator";
 import { CombatAttackStyle } from "../src/game/combat/model/CombatAttack";
@@ -20,6 +25,7 @@ import {
 import type { GamemodeDefinition } from "../src/game/gamemodes/GamemodeDefinition";
 import { NpcState } from "../src/game/npc";
 import { PlayerState } from "../src/game/player";
+import { ProjectileSystem } from "../src/game/systems/ProjectileSystem";
 
 const TEST_GAMEMODE = {
     id: "magic-shortbow-special-test",
@@ -116,6 +122,33 @@ const normalProjectile = resolveWeaponProfileValue(
 );
 assert.equal(normalProjectile?.id, 10);
 assert.equal(normalProjectile?.startDelayTicks, 16 / 30);
+assert.deepEqual(getArrowVisual(882), { launchGraphicId: 19, projectileId: 10 });
+assert.deepEqual(getArrowVisual(892), { launchGraphicId: 24, projectileId: 15 });
+assert.deepEqual(getArrowVisual(21326), { launchGraphicId: 1385, projectileId: 1384 });
+assert.deepEqual(getArrowVisual(11212), { launchGraphicId: 1111, projectileId: 1120 });
+const defaultBowProjectile = resolveWeaponProfileValue(
+    CombatPluginRegistry.shared.resolve({ weaponId: 843, categoryId: 3 }).projectile,
+    normalContext,
+);
+assert.equal(defaultBowProjectile?.startDelayTicks, ARROW_LAUNCH_DELAY_TICKS);
+assert.equal(defaultBowProjectile?.travelTimeTicks, ARROW_TRAVEL_TIME_TICKS);
+const arrowLaunch = new ProjectileSystem({ tickMs: 600 } as any).buildRangedProjectileLaunch({
+    player,
+    npc: target,
+    projectile: {
+        projectileId: defaultBowProjectile!.id,
+        startHeight: defaultBowProjectile!.startHeight,
+        endHeight: defaultBowProjectile!.endHeight,
+        slope: defaultBowProjectile!.slope,
+        steepness: defaultBowProjectile!.steepness,
+    },
+    timing: {
+        startDelay: ARROW_LAUNCH_DELAY_TICKS,
+        travelTime: ARROW_TRAVEL_TIME_TICKS,
+    },
+});
+assert.equal(arrowLaunch?.startCycleOffset, 40);
+assert.equal(arrowLaunch?.endCycleOffset, 57);
 assert.equal(
     resolveWeaponProfileValue(
         MAGIC_SHORTBOW_SPECIAL_ATTACK_PROFILE.travelDelayTicks,

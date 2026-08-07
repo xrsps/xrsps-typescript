@@ -6,6 +6,7 @@
  */
 import assert from "node:assert/strict";
 
+import { createProjectileParamsProvider } from "../gamemodes/vanilla/data/projectileParams";
 import { AttackType } from "../src/game/combat/AttackType";
 import { registerSkillConfiguration } from "../src/game/combat/SkillConfigurationProvider";
 import { CombatTickEngine } from "../src/game/combat/engine/CombatTickEngine";
@@ -14,6 +15,8 @@ import { CombatAttributes } from "../src/game/combat/state/CombatAttributes";
 import type { GamemodeDefinition } from "../src/game/gamemodes/GamemodeDefinition";
 import { NpcState } from "../src/game/npc";
 import { PlayerState } from "../src/game/player";
+import { ProjectileTimingService } from "../src/game/services/ProjectileTimingService";
+import { ProjectileSystem } from "../src/game/systems/ProjectileSystem";
 import { resolveMagicCastSpotAnimHeight } from "../src/game/spells/SpellDataProvider";
 import type { PathService } from "../src/pathfinding/PathService";
 
@@ -80,6 +83,34 @@ const autocastTarget = new NpcState(
     { x: 3215, y: 3200, level: 0 },
     { maxHitpoints: 10 },
 );
+const windStrikeDefaults = createProjectileParamsProvider().getProjectileParams(91);
+const windStrike = { id: 1, baseMaxHit: 2, projectileId: 91 };
+const windStrikeTiming = new ProjectileTimingService({
+    getTickMs: () => 600,
+    getCurrentTick: () => 0,
+    getActiveFrame: () => undefined,
+    getNpcManager: () => undefined,
+    getProjectileSystem: () => undefined,
+    getPathService: () => undefined,
+}).estimateProjectileTiming({
+    player: autocaster,
+    targetX: autocaster.tileX + 1,
+    targetY: autocaster.tileY,
+    projectileDefaults: windStrikeDefaults,
+    spellData: windStrike,
+});
+assert.equal(windStrikeTiming?.startDelay, 51 / 30);
+assert.equal(windStrikeTiming?.travelTime, 5 / 30);
+assert.equal(windStrikeTiming?.hitDelay, 56 / 30);
+const windStrikeLaunch = new ProjectileSystem({ tickMs: 600 } as any).buildSpellProjectileLaunch({
+    player: autocaster,
+    targetNpc: autocastTarget,
+    spellData: windStrike,
+    projectileDefaults: windStrikeDefaults,
+    timing: windStrikeTiming,
+});
+assert.equal(windStrikeLaunch?.startCycleOffset, 51);
+assert.equal(windStrikeLaunch?.endCycleOffset, 56);
 autocaster.setCombatTarget(autocastTarget);
 autocaster.combatAttributes.set(CombatAttributes.AUTOCAST_SPELL_ID, 21876);
 

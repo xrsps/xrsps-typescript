@@ -11,6 +11,7 @@ export interface WeaponProjectileProfile {
     readonly slope?: number;
     readonly steepness?: number;
     readonly startDelayTicks?: number;
+    readonly travelTimeTicks?: number;
     readonly lifeModel?: "linear5" | "linear5-clamped10" | "javelin" | "magic";
 }
 

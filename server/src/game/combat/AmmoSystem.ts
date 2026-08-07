@@ -219,6 +219,34 @@ export const AmmoType = {
 } as const;
 export type AmmoType = (typeof AmmoType)[keyof typeof AmmoType];
 
+export interface ArrowVisual {
+    launchGraphicId: number;
+    projectileId: number;
+}
+
+export const ARROW_LAUNCH_DELAY_TICKS = 40 / 30;
+export const ARROW_TRAVEL_TIME_TICKS = 17 / 30;
+
+// Elvarg's ammunition visuals, plus the matching modern-cache amethyst pair.
+const ARROW_VISUALS = new Map<number, ArrowVisual>([
+    [BRONZE_ARROW, { launchGraphicId: 19, projectileId: 10 }],
+    [IRON_ARROW, { launchGraphicId: 18, projectileId: 9 }],
+    [STEEL_ARROW, { launchGraphicId: 20, projectileId: 11 }],
+    [MITHRIL_ARROW, { launchGraphicId: 21, projectileId: 12 }],
+    [ADAMANT_ARROW, { launchGraphicId: 22, projectileId: 13 }],
+    [RUNE_ARROW, { launchGraphicId: 24, projectileId: 15 }],
+    [BROAD_ARROWS, { launchGraphicId: 20, projectileId: 11 }],
+    [AMETHYST_ARROW, { launchGraphicId: 1385, projectileId: 1384 }],
+    [DRAGON_ARROW, { launchGraphicId: 1111, projectileId: 1120 }],
+    [DRAGON_ARROW_P, { launchGraphicId: 1111, projectileId: 1120 }],
+    [DRAGON_ARROW_P_PLUS, { launchGraphicId: 1111, projectileId: 1120 }],
+    [DRAGON_ARROW_P_PLUS_PLUS, { launchGraphicId: 1111, projectileId: 1120 }],
+]);
+
+export function getArrowVisual(ammoId: number): ArrowVisual | undefined {
+    return ARROW_VISUALS.get(Math.trunc(ammoId));
+}
+
 export const BoltEffectType = {
     DamageBoost: "damage_boost",
     HpDrain: "hp_drain",

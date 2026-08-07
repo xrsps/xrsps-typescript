@@ -15,7 +15,13 @@ import {
     getSpellData,
     resolveMagicCastSpotAnimHeight,
 } from "../../spells/SpellDataProvider";
-import { type EnchantedBoltEffect, getEnchantedBoltEffect } from "../AmmoSystem";
+import {
+    ARROW_LAUNCH_DELAY_TICKS,
+    ARROW_TRAVEL_TIME_TICKS,
+    type EnchantedBoltEffect,
+    getArrowVisual,
+    getEnchantedBoltEffect,
+} from "../AmmoSystem";
 import { AttackType } from "../AttackType";
 import { DamageType, damageTracker } from "../DamageTracker";
 import {
@@ -1012,6 +1018,26 @@ export class CombatHitProcessor {
             return this.nonNegativeInteger(custom, "weapon travel delay");
         }
 
+        if (
+            context.attack.traits.type === AttackType.Magic &&
+            context.attacker instanceof PlayerState &&
+            context.attack.traits.spellId !== undefined
+        ) {
+            const spell = getSpellData(context.attack.traits.spellId);
+            const defaults = spell?.projectileId
+                ? this.safeProjectileDefaults(spell.projectileId)
+                : undefined;
+            const timing = this.services.projectileTimingService?.estimateProjectileTiming({
+                player: context.attacker,
+                targetX: context.target.tileX,
+                targetY: context.target.tileY,
+                projectileDefaults: defaults,
+                spellData: spell,
+                pathService: this.services.pathService,
+            });
+            if (timing) return Math.max(1, Math.ceil(timing.hitDelay));
+        }
+
         const distance = Math.max(0, Math.trunc(context.distanceTiles));
         switch (context.attack.traits.type) {
             case AttackType.Magic:
@@ -1042,6 +1068,15 @@ export class CombatHitProcessor {
             attack.traits.weaponId !== undefined
                 ? getPoweredStaffSpellData(attack.traits.weaponId)
                 : undefined;
+        const profileProjectile =
+            resolveWeaponProfileValue(profile.projectile, context) ??
+            this.resolveSpellProjectile(spellData, poweredStaff);
+        const arrowVisual =
+            !specialAttack &&
+            attack.traits.type === AttackType.Ranged &&
+            context.attacker instanceof PlayerState
+                ? getArrowVisual(context.attacker.appearance.equip[EquipmentSlot.AMMO] ?? -1)
+                : undefined;
 
         return {
             attackAnimation:
@@ -1054,7 +1089,8 @@ export class CombatHitProcessor {
             castGraphic:
                 specialAttack?.castGraphic ??
                 resolveWeaponProfileValue(profile.castGraphic, context) ??
-                this.resolveSpellCastGraphic(spellData, poweredStaff),
+                this.resolveSpellCastGraphic(spellData, poweredStaff) ??
+                (arrowVisual ? { id: arrowVisual.launchGraphicId, height: 100 } : undefined),
             impactGraphic:
                 resolveWeaponProfileValue(profile.impactGraphic, context) ??
                 this.resolveSpellImpactGraphic(spellData, poweredStaff, true),
@@ -1062,8 +1098,14 @@ export class CombatHitProcessor {
                 resolveWeaponProfileValue(profile.splashGraphic, context) ??
                 this.resolveSpellImpactGraphic(spellData, poweredStaff, false),
             projectile:
-                resolveWeaponProfileValue(profile.projectile, context) ??
-                this.resolveSpellProjectile(spellData, poweredStaff),
+                arrowVisual && profileProjectile
+                    ? {
+                          ...profileProjectile,
+                          id: arrowVisual.projectileId,
+                          startDelayTicks: ARROW_LAUNCH_DELAY_TICKS,
+                          travelTimeTicks: ARROW_TRAVEL_TIME_TICKS,
+                      }
+                    : profileProjectile,
             spellData,
         };
     }
@@ -1195,13 +1237,55 @@ export class CombatHitProcessor {
             projectileEndHeight: projectile.endHeight ?? defaults?.endHeight,
             projectileSlope: projectile.slope ?? defaults?.slope,
             projectileSteepness: projectile.steepness ?? defaults?.steepness,
-            projectileStartDelay: projectile.startDelayTicks ?? defaults?.startDelay,
+            projectileStartDelay:
+                projectile.startDelayTicks ??
+                spellData?.projectileStartDelay ??
+                defaults?.startDelay,
         };
-        const startDelay = Math.max(0, projectile.startDelayTicks ?? defaults?.startDelay ?? 0);
-        // travelDelayTicks is the impact deadline. A delayed projectile uses
-        // the remaining portion of that window so it still arrives with the hit.
-        // ProjectileSystem guarantees at least one client cycle of flight.
-        const travelTime = Math.max(0, travelDelayTicks - startDelay);
+        const magicTiming =
+            (projectile.lifeModel ?? defaults?.lifeModel) === "magic" &&
+            context.attacker instanceof PlayerState
+                ? timingService.estimateProjectileTiming({
+                      player: context.attacker,
+                      targetX: context.target.tileX,
+                      targetY: context.target.tileY,
+                      projectileDefaults: defaults,
+                      spellData: syntheticSpell,
+                      pathService: this.services.pathService,
+                  })
+                : undefined;
+        const framesPerTick = Math.max(1, Math.round(this.services.tickMs / 20));
+        const fallbackMagicStartDelay =
+            (projectile.lifeModel ?? defaults?.lifeModel) === "magic" &&
+            defaults?.delayFrames !== undefined
+                ? defaults.delayFrames / framesPerTick
+                : undefined;
+        const fallbackMagicTravelFrames =
+            (projectile.lifeModel ?? defaults?.lifeModel) === "magic"
+                ? timingService.estimateProjectileTravelFramesForParams(
+                      projectile.id,
+                      defaults,
+                      context.distanceTiles,
+                      undefined,
+                      framesPerTick,
+                  )
+                : undefined;
+        const startDelay = Math.max(
+            0,
+            projectile.startDelayTicks ??
+                magicTiming?.startDelay ??
+                defaults?.startDelay ??
+                fallbackMagicStartDelay ??
+                0,
+        );
+        // Most projectiles arrive with the hit; ammunition visuals can supply
+        // their cache-authored flight duration independently.
+        const travelTime =
+            projectile.travelTimeTicks ??
+            magicTiming?.travelTime ??
+            (fallbackMagicTravelFrames !== undefined
+                ? fallbackMagicTravelFrames / framesPerTick
+                : Math.max(0, travelDelayTicks - startDelay));
         let launch;
 
         if (context.attacker instanceof PlayerState && context.target instanceof NpcState) {

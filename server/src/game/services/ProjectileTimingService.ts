@@ -100,7 +100,7 @@ export class ProjectileTimingService {
                 framesPerTick,
             );
             if (travelFrames !== undefined && Number.isFinite(travelFrames)) {
-                travelTime = Math.max(1, travelFrames / framesPerTick);
+                travelTime = Math.max(1 / framesPerTick, travelFrames / framesPerTick);
             }
         }
 
