@@ -1,12 +1,7 @@
 import { Model } from "../../rs/model/Model";
 import { ModelData } from "../../rs/model/ModelData";
 import type { TextureLoader } from "../../rs/texture/TextureLoader";
-import {
-    getModelFaces,
-    isModelFaceTransparent,
-    type ModelFace,
-    SceneBuffer,
-} from "../buffer/SceneBuffer";
+import { getModelFacesFiltered, SceneBuffer } from "../buffer/SceneBuffer";
 import type { WebGLOsrsRenderer } from "../WebGLOsrsRenderer";
 
 type FrameKey = string; // `${spotId}|${frameIdx}|${pass}|${version}` where pass is 0=opaque,1=alpha
@@ -16,33 +11,6 @@ export class GfxCache {
     private baseBySpot = new Map<number, Model>();
     private frameGeom = new Map<FrameKey, { vertices: Uint8Array; indices: Int32Array }>();
     constructor(private renderer: WebGLOsrsRenderer) {}
-
-    private hasFaceTransparency(model: Model): boolean {
-        const alphas = (model as any).faceAlphas;
-        if (!alphas) return false;
-        for (let i = 0; i < ((model as any).faceCount | 0); i++) {
-            if ((alphas[i] & 0xff) !== 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private selectFacesForPass(
-        model: Model,
-        textureLoader: TextureLoader,
-        transparent: boolean,
-    ): ModelFace[] {
-        const faces = getModelFaces(model);
-        if (this.hasFaceTransparency(model)) {
-            return transparent ? [] : faces;
-        }
-        return faces.filter((face) =>
-            transparent
-                ? isModelFaceTransparent(textureLoader, face)
-                : !isModelFaceTransparent(textureLoader, face),
-        );
-    }
 
     private getSpotType(spotId: number): any | undefined {
         try {
@@ -200,7 +168,7 @@ export class GfxCache {
             textureIdIndexMap,
             ((model as any).verticesCount | 0) + 16,
         );
-        const faces = this.selectFacesForPass(model, textureLoader, transparent);
+        const faces = getModelFacesFiltered(model, textureLoader, transparent);
         if (faces.length > 0) sceneBuf.addModel(model, faces);
         const out = {
             vertices: sceneBuf.vertexBuf.byteArray(),
@@ -222,8 +190,9 @@ export class GfxCache {
                 const duration = Math.max(1, seq.getSkeletalDuration?.() | 0);
                 const clamped = (((frameIdx | 0) % duration) + duration) % duration;
                 const skeletal = mv.skeletalSeqLoader?.load?.(seq.skeletalId | 0);
-                const out = Model.copyAnimated(base, !skeletal?.hasAlphaTransform, true);
-                if (skeletal) out.animateSkeletal(skeletal, clamped | 0);
+                if (!skeletal) return undefined;
+                const out = Model.copyAnimated(base, !skeletal.hasAlphaTransform, true);
+                out.animateSkeletal(skeletal, clamped | 0);
                 return out;
             }
             if (seq?.frameIds && seq.frameIds.length > 0) {
@@ -241,8 +210,9 @@ export class GfxCache {
                     out.animate(seqFrame, undefined, !!seq.op14);
                     return out;
                 }
+                return undefined;
             }
-            return Model.copyAnimated(base, true, true);
+            return seq ? undefined : Model.copyAnimated(base, true, true);
         } catch {
             return undefined;
         }

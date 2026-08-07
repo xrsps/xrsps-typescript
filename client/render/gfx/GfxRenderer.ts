@@ -181,6 +181,7 @@ export class GfxRenderer {
                     .texture("u_textures", (this.renderer as any).textureArray)
                     .texture("u_textureMaterials", (this.renderer as any).textureMaterials)
                     .texture("u_waterTextures", (this.renderer as any).waterTextures)
+                    .uniform("u_worldEntityOpacity", 1.0)
                     .uniform("u_mapPos", vec2.fromValues(map.mapX, map.mapY))
                     .uniform("u_npcDataOffset", baseOffset | 0)
                     .uniform("u_worldEntityTransform", WebGLMapSquare.IDENTITY_MAT4)
