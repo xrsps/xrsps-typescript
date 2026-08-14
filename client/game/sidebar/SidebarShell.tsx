@@ -604,6 +604,21 @@ function PluginHubPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Element
     const notesGetSnapshot = useCallback(() => notesPlugin.getState(), [notesPlugin]);
     const notesState = useSyncExternalStore(notesSubscribe, notesGetSnapshot, notesGetSnapshot);
 
+    const rememberLoginPlugin = osrsClient.rememberLoginPlugin;
+    const rememberLoginSubscribe = useCallback(
+        (listener: () => void) => rememberLoginPlugin.subscribe(listener),
+        [rememberLoginPlugin],
+    );
+    const rememberLoginGetSnapshot = useCallback(
+        () => rememberLoginPlugin.getState(),
+        [rememberLoginPlugin],
+    );
+    const rememberLoginState = useSyncExternalStore(
+        rememberLoginSubscribe,
+        rememberLoginGetSnapshot,
+        rememberLoginGetSnapshot,
+    );
+
     const interactHighlightPlugin = osrsClient.interactHighlightPlugin;
     const interactHighlightSubscribe = useCallback(
         (listener: () => void) => interactHighlightPlugin.subscribe(listener),
@@ -672,6 +687,15 @@ function PluginHubPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Element
                     notesPlugin.setConfig({ enabled });
                 },
             },
+            {
+                id: "remember_login",
+                name: "Remember Login",
+                description: "Restores credentials stored unencrypted in this browser.",
+                enabled: rememberLoginState.config.enabled,
+                setEnabled: (enabled: boolean) => {
+                    osrsClient.setRememberLoginEnabled(enabled);
+                },
+            },
         ],
         [
             groundItemsPlugin,
@@ -680,6 +704,8 @@ function PluginHubPanel({ osrsClient }: { osrsClient: OsrsClient }): JSX.Element
             interactHighlightState.config.enabled,
             notesPlugin,
             notesState.config.enabled,
+            osrsClient,
+            rememberLoginState.config.enabled,
             tileMarkersPlugin,
             tileMarkersState.config.enabled,
         ],

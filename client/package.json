@@ -40,7 +40,7 @@
     "start": "tsx ../server/scripts/ensure-cache.ts && craco start",
     "dev": "yarn start",
     "build": "craco build",
-    "test": "tsx tests/direction-orientation.test.ts && tsx tests/npc-instance-flush-controller.test.ts && tsx tests/cache-streaming.test.ts && tsx tests/enter-to-type-chat.test.ts && tsx tests/chat-channel-prefix.test.ts && tsx tests/camera-controls.test.ts",
+    "test": "tsx tests/direction-orientation.test.ts && tsx tests/npc-instance-flush-controller.test.ts && tsx tests/cache-streaming.test.ts && tsx tests/enter-to-type-chat.test.ts && tsx tests/chat-channel-prefix.test.ts && tsx tests/camera-controls.test.ts && tsx tests/remember-login-plugin.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "export-textures": "tsx scripts/cache/export-textures.ts",
     "export-height-map": "tsx scripts/cache/export-height-map.ts",

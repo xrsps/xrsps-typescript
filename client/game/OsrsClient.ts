@@ -264,6 +264,8 @@ import { createBrowserInteractHighlightPluginPersistence } from "./plugins/inter
 import { InteractHighlightPlugin } from "./plugins/interacthighlight/InteractHighlightPlugin";
 import { createBrowserNotesPluginPersistence } from "./plugins/notes/BrowserNotesPluginPersistence";
 import { NotesPlugin } from "./plugins/notes/NotesPlugin";
+import { createBrowserRememberLoginPluginPersistence } from "./plugins/rememberlogin/BrowserRememberLoginPluginPersistence";
+import { RememberLoginPlugin } from "./plugins/rememberlogin/RememberLoginPlugin";
 import { createBrowserTileMarkersPluginPersistence } from "./plugins/tilemarkers/BrowserTileMarkersPluginPersistence";
 import { TileMarkersPlugin } from "./plugins/tilemarkers/TileMarkersPlugin";
 import { ResolveTilePlaneFn } from "./scene/PlaneResolver";
@@ -488,6 +490,7 @@ export class OsrsClient {
     readonly groundItemsPlugin: GroundItemsPlugin;
     readonly interactHighlightPlugin: InteractHighlightPlugin;
     readonly notesPlugin: NotesPlugin;
+    readonly rememberLoginPlugin: RememberLoginPlugin;
     readonly tileMarkersPlugin: TileMarkersPlugin;
     readonly tileHighlightManager: TileHighlightManager = new TileHighlightManager();
     private sidebarPluginVisibility: Required<SidebarPluginVisibilityOptions> = {
@@ -1007,6 +1010,9 @@ export class OsrsClient {
         );
         this.notesPlugin = new NotesPlugin(
             createBrowserNotesPluginPersistence("osrs.plugin.notes.v1", "osrs.sidebar.notes"),
+        );
+        this.rememberLoginPlugin = new RememberLoginPlugin(
+            createBrowserRememberLoginPluginPersistence("osrs.plugin.remember_login.v1"),
         );
         this.tileMarkersPlugin = new TileMarkersPlugin(
             createBrowserTileMarkersPluginPersistence("osrs.plugin.tile_markers.v1"),
@@ -4903,6 +4909,14 @@ export class OsrsClient {
 
     // ========== Login Screen Methods ==========
 
+    setRememberLoginEnabled(enabled: boolean): void {
+        this.rememberLoginPlugin.setEnabled(
+            enabled,
+            this.loginState.username,
+            this.loginState.password,
+        );
+    }
+
     /**
      * Update the game state and handle transitions.
      * Handles game state transitions with cleanup/setup logic.
@@ -4930,6 +4944,7 @@ export class OsrsClient {
 
         // Setup new state
         if (newState === GameState.LOGIN_SCREEN) {
+            this.rememberLoginPlugin.restore(this.loginState);
             // Chat starts locked ("Press Enter to Chat") on the next login.
             this.enterToTypeChat?.reset();
             this.loginState.networkState = 0;
@@ -4948,6 +4963,10 @@ export class OsrsClient {
         }
 
         if (newState === GameState.CONNECTING) {
+            this.rememberLoginPlugin.remember(
+                this.loginState.username,
+                this.loginState.password,
+            );
             this.loginState.setResponse("", "Connecting to server...", "", "");
 
             // Set up loading requirements BEFORE server responds
@@ -5276,6 +5295,7 @@ export class OsrsClient {
                 return "new_user";
 
             case "existing_user":
+                this.rememberLoginPlugin.restore(this.loginState);
                 this.loginState.promptCredentials();
                 if (isMobileMode) {
                     this.loginState.onMobile = true;
