@@ -68,6 +68,8 @@ export class OverheadPrayerOverlay implements Overlay {
     private actorStacks?: Map<number, number>;
     private entries: OverheadPrayerEntry[] = [];
 
+    scale: number = 1.0;
+
     init(args: OverlayInitArgs): void {
         this.app = args.app;
         this.sceneUniforms = args.sceneUniforms;
@@ -264,18 +266,21 @@ export class OverheadPrayerOverlay implements Overlay {
             center[1] = height - headOffset;
             center[2] = entry.worldZ;
 
-            const spriteW = sprite.w;
-            const spriteH = sprite.h;
+            const scale =
+                Number.isFinite(this.scale) && this.scale > 0 ? this.scale : 1.0;
+            const spriteW = Math.max(1, Math.round(sprite.w * scale));
+            const spriteH = Math.max(1, Math.round(sprite.h * scale));
 
             // Continue the per-actor element offset above any text/health bars;
             // an untouched offset advances by 7 before icons are placed.
             const groupKey = typeof entry.groupKey === "number" ? entry.groupKey | 0 : undefined;
-            let var18 = (groupKey !== undefined ? stacks?.get(groupKey) : undefined) ?? -2;
-            if (var18 === -2) {
-                var18 += 7;
+            const stackOffset = groupKey !== undefined ? stacks?.get(groupKey) : undefined;
+            let var18 = stackOffset ?? -2 * scale;
+            if (stackOffset === undefined) {
+                var18 += 7 * scale;
             }
-            var18 += 25;
-            const x = -12;
+            var18 += 25 * scale;
+            const x = -12 * scale;
             const y = -var18;
             if (groupKey !== undefined) {
                 stacks?.set(groupKey, var18);
