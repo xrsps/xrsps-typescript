@@ -18,7 +18,7 @@ export function shouldSkipWidgetClickInput(
     // the menu-selecting click from being processed as a widget click
     if (deps.getMenuJustClosed()) {
         deps.setMenuJustClosed(false);
-        return false;
+        return true;
     }
     return false;
 }

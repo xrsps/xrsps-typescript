@@ -409,26 +409,5 @@ export function widgetEntriesToSimple(
     // normalizeMenuEntries expects OSRS insertion order (reverse-render semantics) and would invert
     // widget ops like minimap orbs.
     const ordered = list;
-    if (menuState) {
-        for (const entry of ordered) {
-            const idx = menuState.add({
-                option: entry.option,
-                target: entry.target,
-                action: entry.action,
-                handler: entry.onClick,
-            });
-            entry.menuStateIndex = idx;
-            if (entry.subEntries) {
-                for (const sub of entry.subEntries) {
-                    sub.menuStateIndex = menuState.add({
-                        option: sub.option,
-                        target: sub.target,
-                        action: inferMenuAction(sub.option),
-                        handler: sub.onClick,
-                    });
-                }
-            }
-        }
-    }
     return ordered;
 }

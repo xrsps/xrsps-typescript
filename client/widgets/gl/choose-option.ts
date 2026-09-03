@@ -517,25 +517,19 @@ export function drawChooseOptionMenu(
         (ui as any).__osrsClient ||
         (typeof globalThis !== "undefined" ? (globalThis as any).__osrsClient : undefined);
 
+    let menuCleanupDone = false;
     // Helper that aggressively closes any open menu (world or widget) and asks for a redraw.
     const closeAllMenus = () => {
-        // Idempotency guard: avoid double-closing (MenuState.invoke may call ctx.closeMenu in finally).
-        const hadUiMenu = !!ui.menu;
-        const hadWorldMenu = !!globalClient?.menuOpen;
+        if (menuCleanupDone) return;
+        menuCleanupDone = true;
         ui.__menuRt = undefined;
-        if (!hadUiMenu && !hadWorldMenu) {
-            unregisterMenuTargets(ui.__menuTargetCount | 0, ui.__menuSubTargetCount | 0);
-            return;
-        }
+        try {
+            clicks?.cancelActiveClick?.();
+            (canvas as any).__inputBridge?.consumeClick?.();
+        } catch {}
         try {
             if (ui.menu) ui.menu.open = false;
             ui.menu = undefined;
-        } catch {}
-        // Cancel any active click in the registry to prevent onClick from firing on release
-        try {
-            clicks?.cancelActiveClick?.();
-            // Also consume the click in UIInputBridge to reset held-state tracking
-            (canvas as any).__inputBridge?.consumeClick?.();
         } catch {}
         try {
             if (typeof (menu as any)?.closeWorldMenu === "function") (menu as any).closeWorldMenu();
