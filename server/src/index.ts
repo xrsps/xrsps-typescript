@@ -25,7 +25,8 @@ async function main() {
     const cacheEnv = initCacheEnv("caches");
     logger.info(`Boot: cache ready (rev=${cacheEnv.info.revision}, name=${cacheEnv.info.name})`);
 
-    // Build full scenes like the editor (models included) so server has parity
+    // Collision only: models are never needed here (the `false` below), and
+    // decoding them retains every loc model and OOMs the build.
     logger.info("Boot: creating map collision service (precomputed=true)...");
     const mapService = new MapCollisionService(cacheEnv, false, {
         precomputedRoot: serverPath("cache", "collision"),

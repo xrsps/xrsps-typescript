@@ -47,7 +47,7 @@ COPY server/tsconfig.json ./server/tsconfig.json
 # from client/node_modules; the server package declares the same deps, so alias it.
 RUN ln -s /app/server/node_modules /app/client/node_modules \
     && cd server && NODE_OPTIONS=--max-old-space-size=4096 \
-    yarn tsx scripts/build-collision-cache.ts --include-models --force
+    yarn tsx scripts/build-collision-cache.ts --force
 
 # ---------------------------------------------------------------------------
 FROM base AS runtime

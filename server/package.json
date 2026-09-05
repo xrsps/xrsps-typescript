@@ -20,7 +20,7 @@
     "dev": "yarn start",
     "build": "yarn typecheck",
     "typecheck": "tsc --noEmit -p tsconfig.quests.json",
-    "build-collision": "tsx scripts/build-collision-cache.ts --include-models --force",
+    "build-collision": "tsx scripts/build-collision-cache.ts --force",
     "build-npc-aggression": "tsx scripts/build-npc-aggression.ts",
     "build-shops": "tsx scripts/build-shops.ts",
     "ensure-cache": "tsx scripts/ensure-cache.ts --server",
