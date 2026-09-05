@@ -1,0 +1,60 @@
+# Fly.io config for the XRSPS game server (WebSocket + OSRS cache over HTTPS).
+#
+#   fly apps create <your-app-name>
+#   fly volumes create xrsps_data --region ams --size 1 -a <your-app-name>
+#   fly deploy -a <your-app-name>
+#
+# Then the client (on Vercel) talks to:
+#   wss://<your-app-name>.fly.dev            (game WebSocket)
+#   https://<your-app-name>.fly.dev/caches/  (OSRS cache, HTTP Range)
+#   https://<your-app-name>.fly.dev/status   (player count for the login screen)
+
+app = "xrsps-server"          # <- change to your app name (must be globally unique)
+primary_region = "ams"        # Amsterdam; pick the region closest to your players
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "43594"
+  GAMEMODE = "vanilla"
+  SERVER_NAME = "XRSPS"
+  XRSPS_DATA_DIR = "/data"
+  SERVE_CACHE = "true"
+  # Restrict cache/status CORS to your Vercel domain once you have it, e.g.
+  # CORS_ORIGIN = "https://your-client.vercel.app"
+  # Set to "false" to stop new usernames from registering:
+  # ALLOW_ACCOUNT_REGISTRATION = "true"
+
+# Persistent volume for SQLite saves/accounts (XRSPS_DATA_DIR).
+[[mounts]]
+  source = "xrsps_data"
+  destination = "/data"
+  initial_size = "1GB"
+
+[http_service]
+  internal_port = 43594
+  force_https = true
+  # A game server must stay up between ticks — never let Fly stop it.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 1000
+    hard_limit = 2000
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "90s"
+    method = "GET"
+    path = "/status"
+
+# The server holds the whole OSRS cache + collision data in memory (~1 GB RSS at
+# boot with zero players). 2 GB is the sane minimum; scale up for larger populations.
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"

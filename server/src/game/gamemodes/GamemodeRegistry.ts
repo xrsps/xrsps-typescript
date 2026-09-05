@@ -36,8 +36,30 @@ export function createGamemode(id: string): GamemodeDefinition {
     return gamemode;
 }
 
+/**
+ * Per-gamemode persistent data directory (SQLite saves, accounts, trade escrow).
+ *
+ * Defaults to `server/data/gamemodes/{id}`. Set `XRSPS_DATA_DIR` to relocate it
+ * (e.g. onto a mounted volume in Docker/Fly.io); tracked seed files such as
+ * `player-defaults.json` are copied into the new location on first use.
+ */
 export function getGamemodeDataDir(id: string): string {
-    return path.resolve(DATA_DIR, id);
+    const builtIn = path.resolve(DATA_DIR, id);
+    const override = process.env.XRSPS_DATA_DIR?.trim();
+    if (!override) return builtIn;
+
+    const dir = path.resolve(override, id);
+    try {
+        fs.mkdirSync(dir, { recursive: true });
+        const defaults = path.resolve(builtIn, "player-defaults.json");
+        const target = path.resolve(dir, "player-defaults.json");
+        if (fs.existsSync(defaults) && !fs.existsSync(target)) {
+            fs.copyFileSync(defaults, target);
+        }
+    } catch (err) {
+        console.warn(`[gamemodes] failed to prepare data dir ${dir}`, err);
+    }
+    return dir;
 }
 
 export function listAvailableGamemodes(): string[] {

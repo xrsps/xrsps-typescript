@@ -123,9 +123,11 @@ import { LocTileLookupService } from "../world/LocTileLookupService";
 import { locCanResolveToId } from "../world/LocTransforms";
 import { MapCollisionService } from "../world/MapCollisionService";
 import { InstancedAreaManager } from "../world/InstancedAreaManager";
+import { serverPath } from "../paths";
 import { AccountStore } from "./AccountStore";
 import { AuthenticationService } from "./AuthenticationService";
 import { BroadcastService } from "./BroadcastService";
+import { createCacheHttpHandler } from "./CacheHttpHandler";
 import { LoginHandshakeService } from "./LoginHandshakeService";
 import { MessageRouter, type MessageRouterServices } from "./MessageRouter";
 import { buildTeleportNpcUpdateDelta, upsertNpcUpdateDelta } from "./NpcExternalSync";
@@ -606,15 +608,30 @@ export class WSServer {
 
             const httpServer = (this.wss as unknown as { _server?: import("http").Server })._server;
             if (httpServer) {
+                // Optional static hosting of the OSRS cache (Range + CORS) so a
+                // remotely hosted client can load assets from this same host.
+                // Disable with SERVE_CACHE=false.
+                const serveCache = (process.env.SERVE_CACHE ?? "true").trim().toLowerCase();
+                const cacheHandler =
+                    serveCache === "false" || serveCache === "0"
+                        ? undefined
+                        : createCacheHttpHandler({
+                              cachesDir: serverPath("caches"),
+                              allowOrigin: process.env.CORS_ORIGIN?.trim() || "*",
+                          });
+                const corsOrigin = process.env.CORS_ORIGIN?.trim() || "*";
+
                 httpServer.removeAllListeners("request");
                 httpServer.on(
                     "request",
                     (req: import("http").IncomingMessage, res: import("http").ServerResponse) => {
-                        if (req.url === "/status") {
+                        const urlPath = (req.url ?? "").split("?")[0];
+                        if (urlPath === "/status" || urlPath === "/health") {
                             const count = this.players?.getRealPlayerCount() ?? 0;
                             res.writeHead(200, {
                                 "Content-Type": "application/json",
-                                "Access-Control-Allow-Origin": "*",
+                                "Access-Control-Allow-Origin": corsOrigin,
+                                "Cache-Control": "no-store",
                             });
                             res.end(
                                 JSON.stringify({
@@ -623,6 +640,8 @@ export class WSServer {
                                     maxPlayers: opts.maxPlayers ?? config.maxPlayers,
                                 }),
                             );
+                        } else if (cacheHandler && cacheHandler(req, res)) {
+                            // handled by the cache handler
                         } else {
                             res.writeHead(426);
                             res.end();

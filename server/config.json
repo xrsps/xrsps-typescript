@@ -1,5 +1,5 @@
 {
-    "serverName": "Local Development",
+    "serverName": "XRSPS",
     "maxPlayers": 2047,
-    "gamemode": "leagues-v"
+    "gamemode": "vanilla"
 }

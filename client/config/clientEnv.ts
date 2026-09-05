@@ -33,24 +33,48 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
+/**
+ * Single-knob production config: the game server's public hostname
+ * (e.g. `xrsps-server.fly.dev`). When set, every other default below is
+ * derived from it — `wss://<host>` for the game, `https://<host>/caches/`
+ * for the OSRS cache and `https://<host>/status` for player counts. The
+ * explicit `REACT_APP_*` variables still take precedence when present.
+ */
+export function getGameHost(): string | undefined {
+    const raw = read(process.env.REACT_APP_GAME_HOST);
+    if (!raw) return undefined;
+    return raw.replace(/^[a-z]+:\/\//i, "").replace(/\/+$/, "");
+}
+
 /** Base URL for OSRS cache files. Trailing slash always present. */
 export function getCacheBaseUrl(): string {
     const fromEnv = read(process.env.REACT_APP_CACHE_BASE_URL);
-    if (!fromEnv) return "/caches/";
+    if (!fromEnv) {
+        const host = getGameHost();
+        return host ? `https://${host}/caches/` : "/caches/";
+    }
     return fromEnv.endsWith("/") ? fromEnv : `${fromEnv}/`;
 }
 
 /** Default WebSocket URL used before the player picks a server. */
 export function getDefaultWsUrl(): string {
-    return read(process.env.REACT_APP_DEFAULT_WS_URL) ?? "ws://localhost:43594";
+    const fromEnv = read(process.env.REACT_APP_DEFAULT_WS_URL);
+    if (fromEnv) return fromEnv;
+    const host = getGameHost();
+    return host ? `wss://${host}` : "ws://localhost:43594";
 }
 
 export function getDefaultServerAddress(): string {
-    return read(process.env.REACT_APP_DEFAULT_SERVER_ADDRESS) ?? "localhost:43594";
+    return (
+        read(process.env.REACT_APP_DEFAULT_SERVER_ADDRESS) ?? getGameHost() ?? "localhost:43594"
+    );
 }
 
 export function getDefaultServerName(): string {
-    return read(process.env.REACT_APP_DEFAULT_SERVER_NAME) ?? "Local Development";
+    return (
+        read(process.env.REACT_APP_DEFAULT_SERVER_NAME) ??
+        (getGameHost() ? "XRSPS" : "Local Development")
+    );
 }
 
 export function getDefaultServerSecure(): boolean {
@@ -63,10 +87,22 @@ export function getDefaultServerSecure(): boolean {
 /**
  * Optional full server list baked in at build time (JSON array).
  * When set, this takes precedence over fetching `/servers.json`.
+ * Falls back to a single entry derived from `REACT_APP_GAME_HOST`.
  */
 export function getConfiguredServers(): ConfiguredServer[] | undefined {
     const raw = read(process.env.REACT_APP_SERVERS_JSON);
-    if (!raw) return undefined;
+    if (!raw) {
+        const host = getGameHost();
+        if (!host) return undefined;
+        return [
+            {
+                name: getDefaultServerName(),
+                address: getDefaultServerAddress(),
+                secure: getDefaultServerSecure(),
+                maxPlayers: 2047,
+            },
+        ];
+    }
     try {
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed)) return undefined;

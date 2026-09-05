@@ -57,6 +57,10 @@ yarn dev
 
 See [docs/setup.md](docs/setup.md) for details.
 
+## Deploying (Vercel + Fly.io)
+
+The browser client deploys to **Vercel** as a static site; the game server (WebSocket + OSRS cache) runs as a Docker container on **Fly.io** (or Railway / any Docker host). See [DEPLOY.md](DEPLOY.md) for the step-by-step guide — the client needs a single environment variable, `REACT_APP_GAME_HOST`, pointing at the server's hostname.
+
 ---
 
 Fan project. Not affiliated with, endorsed by, or connected to Jagex Ltd.
