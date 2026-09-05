@@ -1,18 +1,21 @@
 {
-  "name": "xrsps",
-  "version": "0.1.0",
-  "private": true,
-  "packageManager": "yarn@4.12.0",
-  "engines": {
-    "node": ">=22.16.0"
-  },
-  "scripts": {
-    "setup": "yarn install --immutable && yarn --cwd server install --immutable && yarn --cwd client install --immutable && yarn --cwd server ensure-cache && yarn --cwd server build-collision",
-    "start": "yarn concurrently --kill-others --names server,client \"yarn --cwd server start\" \"yarn --cwd client start\"",
-    "server": "yarn --cwd server start",
-    "client": "yarn --cwd client start"
-  },
-  "devDependencies": {
-    "concurrently": "^9.2.1"
-  }
+    "name": "xrsps",
+    "version": "0.1.0",
+    "private": true,
+    "packageManager": "yarn@4.12.0",
+    "engines": {
+        "node": ">=22.16.0"
+    },
+    "scripts": {
+        "setup": "yarn install --immutable && yarn --cwd server install --immutable && yarn --cwd client install --immutable && yarn --cwd server ensure-cache && yarn --cwd server build-collision",
+        "start": "yarn concurrently --kill-others --names server,client \"yarn --cwd server start\" \"yarn --cwd client start\"",
+        "server": "yarn --cwd server start",
+        "client": "yarn --cwd client start",
+        "eyes": "yarn --cwd tools/eyes serve",
+        "eyes:setup": "yarn --cwd tools/eyes install && yarn --cwd tools/eyes install-browser",
+        "eyes:mcp": "yarn --cwd tools/eyes mcp"
+    },
+    "devDependencies": {
+        "concurrently": "^9.2.1"
+    }
 }

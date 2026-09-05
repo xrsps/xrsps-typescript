@@ -30,6 +30,8 @@ export default defineConfig({
                     { text: 'Architecture', link: '/ARCHITECTURE' },
                     { text: 'Gamemodes', link: '/gamemodes' },
                     { text: 'Extrascripts', link: '/extrascripts' },
+                    { text: 'Deploying', link: '/deploy' },
+                    { text: 'Eyes (agent tooling)', link: '/eyes' },
                 ],
             },
         ],

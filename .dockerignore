@@ -4,6 +4,8 @@
 .cursor
 .vercel
 docs
+tools
+.mcp.json
 tmp
 **/node_modules
 **/.yarn

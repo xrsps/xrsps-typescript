@@ -1,0 +1,23 @@
+{
+  "name": "@xrsps/eyes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Eyes for coding agents: drives the XRSPS browser client in headless Chromium (screenshots, game state, input) via MCP or CLI.",
+  "packageManager": "yarn@4.12.0",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "bin": "./src/cli.js",
+  "scripts": {
+    "install-browser": "playwright install chromium",
+    "mcp": "node src/mcp.js",
+    "serve": "node src/cli.js serve",
+    "test": "node tests/smoke.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "playwright": "^1.55.0",
+    "zod": "^3.25.0"
+  }
+}

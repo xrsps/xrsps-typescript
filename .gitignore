@@ -82,3 +82,10 @@ docs/node_modules/
 .dev-notes/
 *.discord.md
 
+
+# tools/eyes (agent eyes): deps, test screenshots, ad-hoc shots
+tools/eyes/node_modules/
+tools/eyes/.yarn/
+tools/eyes/tests/out/
+eyes-*.jpg
+eyes-*.png

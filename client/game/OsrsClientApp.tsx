@@ -32,6 +32,7 @@ import { fetchCacheList, loadCacheFilesAuto } from "./Caches";
 import { GameContainer } from "./GameContainer";
 import { getAvailableRenderers } from "./GameRenderers";
 import { OsrsClient } from "./OsrsClient";
+import { installEyesBridge } from "./debug/EyesBridge";
 import {
     getClientPreference,
     setClientPreference,
@@ -303,6 +304,8 @@ function OsrsClientApp() {
             // Set OsrsClient immediately so GameContainer can render the login overlay
             setOsrsClient(client);
             window.osrsClient = client;
+            // Automation/debug hook (only when ?eyes=1): window.__eyes
+            installEyesBridge(client);
 
             // ========== Download cache with progress routed through OsrsClient ==========
             // Load all cache files during DOWNLOADING phase

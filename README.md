@@ -57,6 +57,10 @@ yarn dev
 
 See [docs/setup.md](docs/setup.md) for details.
 
+## Eyes for coding agents
+
+`tools/eyes/` lets Claude Code (or any MCP host) *see* the running game: screenshots, live game state (tile, HP, NPCs, inventory, chat, open widgets), mouse/keyboard input and game actions, exposed as `game_*` MCP tools or a CLI. The repo's `.mcp.json` wires it into Claude Code automatically; run `yarn eyes:setup` once, then `yarn start` and ask Claude to open the game. See [tools/eyes/README.md](tools/eyes/README.md).
+
 ## Deploying (Vercel + Fly.io)
 
 The browser client deploys to **Vercel** as a static site; the game server (WebSocket + OSRS cache) runs as a Docker container on **Fly.io** (or Railway / any Docker host). See [DEPLOY.md](DEPLOY.md) for the step-by-step guide — the client needs a single environment variable, `REACT_APP_GAME_HOST`, pointing at the server's hostname.

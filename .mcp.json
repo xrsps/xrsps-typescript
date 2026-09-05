@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "xrsps-eyes": {
+      "command": "node",
+      "args": ["tools/eyes/src/mcp.js"],
+      "env": {
+        "EYES_CLIENT_URL": "http://localhost:3000"
+      }
+    }
+  }
+}
