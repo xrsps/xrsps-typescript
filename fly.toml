@@ -9,7 +9,7 @@
 #   https://<your-app-name>.fly.dev/caches/  (OSRS cache, HTTP Range)
 #   https://<your-app-name>.fly.dev/status   (player count for the login screen)
 
-app = "xrsps-server"          # <- change to your app name (must be globally unique)
+app = "xrsps-drogo"          # <- your app name (globally unique)
 primary_region = "ams"        # Amsterdam; pick the region closest to your players
 
 [build]
@@ -22,6 +22,13 @@ primary_region = "ams"        # Amsterdam; pick the region closest to your playe
   SERVER_NAME = "XRSPS"
   XRSPS_DATA_DIR = "/data"
   SERVE_CACHE = "true"
+  # Admin list. Without this the server falls back to a hardcoded "lol,bot"
+  # (server/src/network/AuthenticationService.ts), which would hand admin to
+  # any stranger who registers those names. "!disabled" can never match a real
+  # account (names are /^[a-z0-9 _-]+$/), so nobody is admin by default.
+  # Grant yourself admin without a redeploy:
+  #   flyctl secrets set ADMIN_USERNAMES=yourname -a xrsps-drogo
+  ADMIN_USERNAMES = "!disabled"
   # Restrict cache/status CORS to your Vercel domain once you have it, e.g.
   # CORS_ORIGIN = "https://your-client.vercel.app"
   # Set to "false" to stop new usernames from registering:

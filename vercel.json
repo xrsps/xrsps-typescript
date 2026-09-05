@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "create-react-app",
-  "installCommand": "yarn --cwd client install --immutable",
+  "installCommand": "corepack enable && yarn --cwd client install --immutable",
   "buildCommand": "CI=false yarn --cwd client build",
   "outputDirectory": "client/build",
   "headers": [
