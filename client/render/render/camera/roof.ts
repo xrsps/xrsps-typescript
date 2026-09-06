@@ -287,8 +287,10 @@ export function clampCullTileToGridBounds(host: WebGLOsrsRendererHost, tile: { x
 
 export function getRenderCullTile(host: WebGLOsrsRendererHost, ): { x: number; y: number } {
 
-        // Scene draw-distance is camera-anchored, then clamped to the loaded grid bounds.
-        return host.clampCullTileToGridBounds(host.getCameraTileXY());
+        // The duel orbit can sit beyond draw distance at maximum zoom. Keep the
+        // player's scene visible, matching the player-centred map streaming.
+        return host.clampCullTileToGridBounds(host.osrsClient.duelArenaMode
+            ? host.getPlayerTileXY() : host.getCameraTileXY());
     
 }
 

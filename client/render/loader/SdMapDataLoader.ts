@@ -1418,6 +1418,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 const sceneX = worldX - baseX;
                 const sceneY = worldY - baseY;
                 state.sceneBuilder.setTerrainOverride(sceneX, sceneY, level, {
+                    height: Number.isFinite(overrideValue.height) ? overrideValue.height! | 0 : undefined,
                     underlay:
                         typeof overrideValue.underlay === "number"
                             ? overrideValue.underlay | 0

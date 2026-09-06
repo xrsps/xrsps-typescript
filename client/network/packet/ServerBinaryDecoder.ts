@@ -4,6 +4,7 @@
  * Replaces JSON.parse for server-to-client messages.
  * Returns the same message format as the JSON protocol for compatibility.
  */
+import { decodeDuelSnapshotPayload } from "../../common/duel/DuelSnapshotCodec";
 import {
     INSTANCE_CHUNK_COUNT,
     PLANE_COUNT,
@@ -1861,6 +1862,12 @@ export function decodeServerPacket(data: Uint8Array | ArrayBuffer): DecodedServe
                 };
             }
         }
+
+        case ServerPacketId.DUEL_SNAPSHOT:
+            return {
+                type: "duel_snapshot",
+                payload: decodeDuelSnapshotPayload(reader.readBytes(packetLength)),
+            };
 
         case ServerPacketId.GAMEMODE_DATA: {
             const flags = reader.readByte();

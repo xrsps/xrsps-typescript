@@ -849,7 +849,8 @@ export class PlayerManager implements PlayerRepository {
             pid: number;
         };
         const actors: Actor[] = [];
-        const key = (x: number, y: number) => `${x},${y}`;
+        const key = (x: number, y: number, actor: Actor) =>
+            `${actor.p.gamemode.getMovementGroup?.(actor.p) ?? "world"}:${x},${y}`;
         // Helper to read queued steps safely
         const peek = (p: PlayerState, idx: number): { x: number; y: number } | undefined => {
             const q = p.getPathQueue();
@@ -904,11 +905,11 @@ export class PlayerManager implements PlayerRepository {
         const byCur1 = new Map<string, Actor>();
         const byDest1 = new Map<string, Actor[]>();
         for (const a of actors) {
-            byCur1.set(key(a.curX, a.curY), a);
+            byCur1.set(key(a.curX, a.curY, a), a);
             if (a.intends1) {
-                const arr = byDest1.get(key(a.intends1.x, a.intends1.y)) || [];
+                const arr = byDest1.get(key(a.intends1.x, a.intends1.y, a)) || [];
                 arr.push(a);
-                byDest1.set(key(a.intends1.x, a.intends1.y), arr);
+                byDest1.set(key(a.intends1.x, a.intends1.y, a), arr);
             }
         }
         const allow1 = new Set<Actor>();
@@ -916,7 +917,7 @@ export class PlayerManager implements PlayerRepository {
         // Swaps for step1
         for (const a of actors) {
             if (!a.intends1) continue;
-            const b = byCur1.get(key(a.intends1.x, a.intends1.y));
+            const b = byCur1.get(key(a.intends1.x, a.intends1.y, a));
             if (!b || !b.intends1) continue;
             if (b.intends1.x === a.curX && b.intends1.y === a.curY) {
                 allow1.add(a);
@@ -951,7 +952,7 @@ export class PlayerManager implements PlayerRepository {
             const dx = a.intends1.x - a.curX;
             const dy = a.intends1.y - a.curY;
             if (dx === 0 || dy === 0) continue;
-            const sideKeys = [key(a.curX, a.intends1.y), key(a.intends1.x, a.curY)];
+            const sideKeys = [key(a.curX, a.intends1.y, a), key(a.intends1.x, a.curY, a)];
             let blocked = false;
             for (const sideKey of sideKeys) {
                 const occ = byCur1.get(sideKey);
@@ -984,11 +985,11 @@ export class PlayerManager implements PlayerRepository {
         const byDest2 = new Map<string, Actor[]>();
         for (const a of actors) {
             const pos = after1Pos.get(a)!;
-            byCur2.set(key(pos.x, pos.y), a);
+            byCur2.set(key(pos.x, pos.y, a), a);
             if (a.intends2) {
-                const arr = byDest2.get(key(a.intends2.x, a.intends2.y)) || [];
+                const arr = byDest2.get(key(a.intends2.x, a.intends2.y, a)) || [];
                 arr.push(a);
-                byDest2.set(key(a.intends2.x, a.intends2.y), arr);
+                byDest2.set(key(a.intends2.x, a.intends2.y, a), arr);
             }
         }
         const allow2 = new Set<Actor>();
@@ -997,7 +998,7 @@ export class PlayerManager implements PlayerRepository {
         for (const a of actors) {
             if (!a.intends2) continue;
             const aPos = after1Pos.get(a)!;
-            const b = byCur2.get(key(a.intends2.x, a.intends2.y));
+            const b = byCur2.get(key(a.intends2.x, a.intends2.y, a));
             if (!b || !b.intends2) continue;
             const bPos = after1Pos.get(b)!;
             if (b.intends2.x === aPos.x && b.intends2.y === aPos.y) {
@@ -1036,7 +1037,7 @@ export class PlayerManager implements PlayerRepository {
             const dx = a.intends2.x - pos.x;
             const dy = a.intends2.y - pos.y;
             if (dx === 0 || dy === 0) continue;
-            const sideKeys = [key(pos.x, a.intends2.y), key(a.intends2.x, pos.y)];
+            const sideKeys = [key(pos.x, a.intends2.y, a), key(a.intends2.x, pos.y, a)];
             let blocked = false;
             for (const sideKey of sideKeys) {
                 const occ = byCur2.get(sideKey);
@@ -1061,7 +1062,7 @@ export class PlayerManager implements PlayerRepository {
         // Prevent running into an occupied tile when the occupant is not leaving this sub-step.
         for (const a of actors) {
             if (!a.intends2) continue;
-            const destActor = byCur2.get(key(a.intends2.x, a.intends2.y));
+            const destActor = byCur2.get(key(a.intends2.x, a.intends2.y, a));
             if (!destActor || destActor === a) continue;
             if (!blocksActor(destActor, a)) continue;
             const destPos = after1Pos.get(destActor)!;

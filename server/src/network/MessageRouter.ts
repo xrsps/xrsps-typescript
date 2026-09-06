@@ -170,6 +170,9 @@ export class MessageRouter {
      */
     dispatch(ws: WebSocket, parsed: { type: string; payload?: unknown }): boolean {
         const player = this.services.getPlayer(ws);
+        if (player?.gamemode.allowClientMessage?.(player, parsed.type, parsed.payload) === false) {
+            return true;
+        }
 
         // Pre-processing: Close interruptible interfaces for certain actions
         if (INTERFACE_CLOSING_ACTIONS.has(parsed.type)) {

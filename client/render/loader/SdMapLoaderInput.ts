@@ -47,6 +47,7 @@ export type SdMapLoaderInput = {
             shape?: number;
             rotation?: number;
             renderFlags?: number;
+            height?: number;
         }
     >;
 

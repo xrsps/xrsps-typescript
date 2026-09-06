@@ -296,6 +296,7 @@ export interface MessageHandlerServices {
         autoChat?: boolean;
         chatType?: number;
         targetPlayerIds?: number[];
+        standalone?: boolean;
     }) => void;
     getPublicChatPlayerType: (player: PlayerState) => number;
     getPlayerPermission: (player: PlayerState) => import("./PlayerPermission").PlayerPermission;

@@ -772,6 +772,9 @@ export class PlayerState extends Actor {
         const normalized: Tile[] = Array.isArray(steps)
             ? steps.map((step) => ({ x: step.x, y: step.y }))
             : [];
+        const disallowed = normalized.findIndex((step) =>
+            this.gamemode.canMoveTo?.(this, step.x, step.y) === false);
+        if (disallowed >= 0) normalized.splice(disallowed);
         super.setPath(normalized, run);
     }
 

@@ -1,0 +1,40 @@
+@font-face { font-family: "OSRS Chat"; src: url(../../media/RuneScape-Plain-12.ttf); }
+.duel-public-chat { position: absolute; left: 0; bottom: 0; width: min(519px, 100%); pointer-events: auto; z-index: 35; color: #000; font: 16px "OSRS Chat", monospace; text-shadow: none; image-rendering: pixelated; }
+.duel-chat-paper { position: relative; height: 142px; padding: 6px 7px 4px 10px; background: var(--chat-paper, linear-gradient(#c8bca0, #c5b796)) center / 100% 100% no-repeat; }
+.duel-chat-log { height: 112px; overflow-y: auto; overscroll-behavior: contain; padding-right: 5px; scrollbar-width: thin; scrollbar-color: #5c533e #c1b393; }
+.duel-chat-lines { display: flex; min-height: 100%; flex-direction: column; justify-content: flex-end; }
+.duel-public-chat .duel-chat-line { flex-shrink: 0; margin: 0; line-height: 13px; overflow-wrap: anywhere; user-select: text; }
+.duel-chat-line strong { font-weight: normal; color: #000; }
+.duel-chat-public span { color: #0000ff; }
+.duel-chat-trade span, .duel-chat-duel span { color: #800080; }
+.duel-chat-input { display: flex; align-items: center; height: 20px; gap: 2px; border-top: 1px solid #918772; }
+.duel-chat-input label { flex-shrink: 0; }
+.duel-public-chat .duel-chat-input input { flex: 1; width: 0; min-width: 0; height: 19px; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #0000ff; font: 16px "OSRS Chat", monospace; }
+.duel-public-chat .duel-chat-input input::placeholder { color: #000; }
+.duel-public-chat .duel-chat-input input:focus-visible { outline: none; }
+.duel-public-chat .duel-chat-input button { min-height: 0; height: 18px; padding: 0 3px; border: 0; border-radius: 0; background: transparent; color: #473f2c; font: 13px "OSRS Chat", monospace; }
+.duel-chat-tabs { display: flex; height: 23px; padding: 0 4px; gap: 0; background: var(--chat-tabs, #383329) center / 100% 100%; }
+.duel-public-chat .duel-chat-tabs button { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; height: 23px; padding: 0 1px; border: 0; border-radius: 0; color: #fff; background: var(--chat-button, linear-gradient(#685e4c, #29251e)) center / 100% 100%; font: 13px "OSRS Chat", monospace; line-height: 10px; text-shadow: 1px 1px #000; }
+.duel-public-chat .duel-chat-tabs button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px #a89771; filter: brightness(1.2); }
+.duel-public-chat .duel-chat-tabs button:disabled { cursor: default; opacity: .58; }
+.duel-chat-tabs small { color: #00ff00; font: inherit; line-height: 9px; }
+.duel-chat-tabs button:disabled small { color: #ddd; }
+.duel-public-chat .duel-chat-tabs .duel-chat-report { flex: 1.95; background-image: var(--chat-report, linear-gradient(#781c1c, #410c0c)); white-space: nowrap; font-size: 12px; }
+.duel-public-chat .duel-chat-collapse, .duel-public-chat .duel-chat-expand { position: absolute; right: 17px; top: 4px; min-height: 0; width: 14px; height: 14px; padding: 0; border: 1px solid #766b50; border-radius: 0; color: #252112; background: #b8ad90; font: 12px "OSRS Chat", monospace; }
+.duel-public-chat .duel-chat-expand { right: 4px; top: -17px; }
+.duel-public-chat .duel-chat-new { position: absolute; right: 25px; bottom: 25px; padding: 0 5px; min-height: 18px; border-radius: 0; background: #514733; color: #ffe4a1; font: 13px "OSRS Chat", monospace; }
+.duel-public-chat .duel-chat-notice { position: absolute; left: 5px; right: 5px; bottom: 23px; padding: 3px 5px; background: #c9bda0; color: #900; font-size: 13px; }
+.duel-chat-audience { position: absolute; top: -17px; left: 10px; color: #ead7b2; font-size: 12px; text-shadow: 1px 1px #000; pointer-events: none; }
+.duel-public-chat-arena:not(.duel-public-chat-collapsed) { bottom: 166px; width: min(519px, 100%); }
+.duel-ui-lobby .duel-lobby-footer { left: auto; right: 24px; bottom: 22px; width: 360px; max-width: calc(100% - 555px); text-align: right; }
+@media (max-width: 760px) {
+    .duel-public-chat { width: 100%; }
+    .duel-public-chat-arena, .duel-public-chat-arena:not(.duel-public-chat-collapsed) { bottom: 185px; }
+    .duel-chat-tabs { padding: 0 2px; }
+    .duel-public-chat .duel-chat-tabs button { font-size: 11px; }
+    .duel-public-chat .duel-chat-tabs .duel-chat-report { font-size: 10px; }
+    .duel-ui-lobby .duel-lobby-footer { left: 14px; right: 14px; bottom: 196px; width: auto; max-width: none; text-align: left; }
+    .duel-ui-lobby .duel-requests { bottom: 245px; max-height: 30%; }
+    .duel-ui-lobby:has(.duel-public-chat-collapsed) .duel-lobby-footer { bottom: 60px; }
+    .duel-ui-lobby:has(.duel-public-chat-collapsed) .duel-requests { bottom: 110px; }
+}

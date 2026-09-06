@@ -49,6 +49,11 @@ const MESSAGE_TYPE_MAP: Record<string, number> = {
 };
 
 class ChatHistoryStore {
+    private readonly listeners = new Set<() => void>();
+    subscribe = (listener: () => void): (() => void) => {
+        this.listeners.add(listener);
+        return () => { this.listeners.delete(listener); };
+    };
     // Store messages by type
     private messagesByType = new Map<number, ChatMessage[]>();
     // Global UID counter for messages
@@ -119,6 +124,7 @@ class ChatHistoryStore {
         if (this.onMessageAdded) {
             this.onMessageAdded(msg);
         }
+        for (const listener of this.listeners) listener();
 
         return uid;
     }
@@ -284,6 +290,7 @@ class ChatHistoryStore {
         // PERF: Clear and invalidate the sorted messages cache
         this.sortedMessagesCache.messages = [];
         this.sortedMessagesCache.valid = false;
+        for (const listener of this.listeners) listener();
     }
 
     /**
@@ -301,6 +308,11 @@ class ChatHistoryStore {
             }
         }
         return latest;
+    }
+
+    getRecentMessages(limit = 100): readonly ChatMessage[] {
+        const count = Math.max(0, Math.min(100, limit));
+        return count === 0 ? [] : this.getSortedMessages().slice(-count);
     }
 }
 

@@ -13,6 +13,7 @@ import { SpritePixels } from "../../rs/sprite/SpritePixels";
 import type { TextureLoader } from "../../rs/texture/TextureLoader";
 import { HSL_RGB_MAP } from "../../rs/util/ColorUtil";
 import { FONT_PLAIN_11 } from "../fonts";
+import { itemStackText } from "../../common/items/ItemStackText";
 
 type FaceVisibilityPredicate = (model: Model, faceIndex: number) => boolean;
 
@@ -165,19 +166,7 @@ export class ItemIconRenderer {
         const font = this.getFont(FONT_PLAIN_11);
         if (!font) return;
 
-        const qty = quantity | 0;
-        let text: string;
-        let color: string;
-        if (qty < 100_000) {
-            text = String(qty);
-            color = "#ffff00";
-        } else if (qty < 10_000_000) {
-            text = String(Math.floor(qty / 1000)) + "K";
-            color = "#ffffff";
-        } else {
-            text = String(Math.floor(qty / 1_000_000)) + "M";
-            color = "#00ff80";
-        }
+        const { text, color } = itemStackText(quantity);
 
         // OSRS: Font.draw(var21, 0, 9, 16776960, 1) -> shadow at +1,+1 and main at +0,+0.
         font.draw(ctx, text, 1, 10, "#000001");

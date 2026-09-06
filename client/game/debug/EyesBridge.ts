@@ -24,6 +24,9 @@ import {
 import { ClientState } from "../ClientState";
 import type { OsrsClient } from "../OsrsClient";
 import { GameState } from "../login/GameState";
+import type { DuelSnapshot } from "../../common/duel/DuelProtocol";
+import { duelStore } from "../duel/DuelStore";
+import { getDuelCameraState } from "../duel/DuelCameraControls";
 
 type Tile = { x: number; y: number; plane: number };
 
@@ -177,6 +180,21 @@ export function createEyesBridge(client: OsrsClient) {
     const api = {
         version: 1,
 
+        /** Latest authoritative duel state; copies keep automation from mutating the store. */
+        duel(): DuelSnapshot | null {
+            try {
+                if (!client.duelArenaMode) return null;
+                const snapshot = duelStore.getSnapshot();
+                return {
+                    ...snapshot,
+                    self: snapshot.self ? { ...snapshot.self } : null,
+                    opponent: snapshot.opponent ? { ...snapshot.opponent } : null,
+                };
+            } catch {
+                return null;
+            }
+        },
+
         /** One-shot summary of where the game is right now. */
         state() {
             const tile = localTile();
@@ -206,6 +224,8 @@ export function createEyesBridge(client: OsrsClient) {
                     zoom: client.camera.viewportZoom,
                     width: client.camera.screenWidth,
                     height: client.camera.screenHeight,
+                    distance: client.duelArenaMode && client.isLoggedIn() ? getDuelCameraState(client).distance : null,
+                    position: { x: client.camera.pos[0], y: client.camera.pos[1], z: client.camera.pos[2] },
                 },
                 menuOpen: ClientState.isMenuOpen,
                 // type 0 sub-interfaces are OSRS "modal" interfaces (dialogs, character creator, bank...)

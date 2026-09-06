@@ -121,6 +121,8 @@ export interface GamemodeServerServices {
     ): void;
     addCollisionFlags(x: number, y: number, level: number, flags: number): void;
     removeCollisionFlags(x: number, y: number, level: number, flags: number): void;
+    /** Match custom flat ground on the client without replacing dynamic collision overlays. */
+    setTerrainHeight?(x: number, y: number, level: number, height: number): void;
     registerStaticGroundItem(spawn: StaticGroundItemSpawn): void;
     getInterfaceService(): InterfaceService | undefined;
     getCurrentTick(): number;
@@ -187,6 +189,16 @@ export interface GamemodeDefinition {
     // === Player Rules ===
     canInteract(player: PlayerState): boolean;
     canInteractWithNpc?(player: PlayerState, npcTypeId: number, option: string): boolean;
+    canAttackPlayer?(attacker: PlayerState, target: PlayerState): boolean;
+    canSeePlayer?(viewer: PlayerState, target: PlayerState): boolean;
+    /** Override proximity-based public chat with an explicit audience. */
+    getPublicChatRecipientIds?(sender: PlayerState): number[];
+    canMoveTo?(player: PlayerState, x: number, y: number): boolean;
+    getMovementGroup?(player: PlayerState): string;
+    allowClientMessage?(player: PlayerState, type: string, payload: unknown): boolean;
+    /** Return true when the gamemode owns the complete safe-death lifecycle. */
+    handlePlayerDeath?(player: PlayerState, killer?: PlayerState): boolean;
+    shouldSpawnTestBots?(): boolean;
 
     // === Player Lifecycle ===
     initializePlayer(player: PlayerState): void;

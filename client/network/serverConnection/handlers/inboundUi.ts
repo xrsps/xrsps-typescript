@@ -1,4 +1,5 @@
 import { ClientState } from "../../../game/ClientState";
+import { duelStore } from "../../../game/duel/DuelStore";
 import {
     VARP_AREA_SOUNDS_VOLUME,
     VARP_COMBAT_TARGET_PLAYER_INDEX,
@@ -43,6 +44,10 @@ import { applyGroundItemsDelta, cloneGroundItemsPayload } from "../utils/groundI
 import { sanitizeBankSlotMessage, sanitizeInventorySlotMessage, sanitizeSpellResult } from "../utils/sanitize";
 
 export function handleInboundUi(msg: any): boolean {
+    if (msg.type === "duel_snapshot") {
+        duelStore.update(msg.payload);
+        return true;
+    }
     if (msg.type === "inventory") {
         const payload: any = msg.payload;
         if (!payload) return true;
@@ -217,7 +222,8 @@ export function handleInboundUi(msg: any): boolean {
         try {
             const event: ChatMessageEvent = {
                 messageType: payload.messageType,
-                chatType: payload.chatType,
+                // The standalone packet's public channel index is 1; CS2 uses 2.
+                chatType: payload.messageType === "public" ? 2 : payload.chatType,
                 text: payload.text,
                 from: payload.from,
                 prefix: payload.prefix,

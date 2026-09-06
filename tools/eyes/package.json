@@ -13,7 +13,15 @@
     "install-browser": "playwright install chromium",
     "mcp": "node src/mcp.js",
     "serve": "node src/cli.js serve",
-    "test": "node tests/smoke.test.js"
+    "test": "node tests/smoke.test.js",
+    "test:duel": "node tests/duel-smoke.test.js",
+    "test:duel-lobby": "node tests/duel-lobby.test.js",
+    "test:duel-chat": "node tests/duel-public-chat.test.js",
+    "test:duel-camera": "node tests/duel-camera-assets.test.js",
+    "test:duel-context": "node tests/duel-context-menu.test.js",
+    "test:duel-reload": "node tests/duel-reload.test.js",
+    "test:duel-ui": "node tests/duel-ui.test.js",
+    "test:duel-shop": "node tests/duel-shop.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",

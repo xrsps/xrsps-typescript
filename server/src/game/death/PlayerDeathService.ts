@@ -100,6 +100,7 @@ export class PlayerDeathService {
             customRespawn?: RespawnLocation;
         },
     ): boolean {
+        if (player.gamemode.handlePlayerDeath?.(player, options?.killer)) return true;
         // Skip if already dying
         if (this.pendingDeaths.has(player.id)) {
             return false;

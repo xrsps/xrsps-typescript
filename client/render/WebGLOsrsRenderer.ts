@@ -288,6 +288,7 @@ export class WebGLOsrsRenderer extends GameRenderer<WebGLMapSquare> {
             shape?: number;
             rotation?: number;
             renderFlags?: number;
+            height?: number;
         }
     > = new Map();
     public gamemodeWorldLocOverrideKeys: Set<string> = new Set();

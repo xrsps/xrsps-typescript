@@ -835,6 +835,15 @@ function createChatHandler(services: MessageHandlerServices): MessageHandler<"ch
 
             // Regular chat message
             const senderName = sender.name || "Player";
+            const recipients = sender.gamemode.getPublicChatRecipientIds?.(sender);
+            if (recipients !== undefined) {
+                if (recipients.length === 0) return;
+                // Standalone public chat reaches a shared social area beyond the
+                // player-sync range. The standalone flag prevents duplicate sync chat.
+                services.queueChatMessage({ messageType: "public", from: senderName, playerId: sender.id, standalone: true,
+                    text: text.slice(0, 200), targetPlayerIds: recipients });
+                return;
+            }
             const messageType = payload.messageType === "game" ? "game" : "public";
             const colorIdRaw = payload.colorId;
             const effectIdRaw = payload.effectId;

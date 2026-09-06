@@ -101,6 +101,7 @@ export interface PlayerTickFrameData {
     }>;
     chatMessages: Array<{
         messageType: string;
+        standalone?: boolean;
         playerId?: number;
         text?: string;
         playerType?: number;
@@ -374,7 +375,7 @@ export class PlayerPacketEncoder {
 
         // Public chat messages
         for (const msg of frame.chatMessages) {
-            if (msg.messageType !== "public") continue;
+            if (msg.messageType !== "public" || msg.standalone) continue;
             const pid = msg.playerId ?? -1;
             if (pid < 0) continue;
             const text = (msg.text ?? "").toString();
@@ -418,6 +419,9 @@ export class PlayerPacketEncoder {
         for (const view of views.values()) {
             const id = view.id;
             if (id < 0 || id >= 2048) continue;
+            const candidate = liveById.get(id);
+            if (id !== localIndex && candidate &&
+                player.gamemode.canSeePlayer?.(player, candidate) === false) continue;
             const tileX = view.x >> 7;
             const tileY = view.y >> 7;
             const level = view.level & 0x3;

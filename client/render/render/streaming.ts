@@ -429,6 +429,7 @@ export function applyGamemodeWorldLocs(host: WebGLOsrsRendererHost, ): Set<numbe
             affectedMapIds.add(host.getMapIdForWorldTile(x, y));
 
             host.terrainOverrides.set(key, {
+                height: Number.isFinite(terrain.height) ? terrain.height! | 0 : undefined,
                 underlay:
                     typeof terrain.underlay === "number" ? terrain.underlay | 0 : undefined,
                 overlay: typeof terrain.overlay === "number" ? terrain.overlay | 0 : undefined,

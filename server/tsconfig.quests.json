@@ -3,6 +3,7 @@
   "include": [
     "src/**/*",
     "data/**/*",
+    "gamemodes/duel/**/*",
     "gamemodes/vanilla/quests/**/*",
     "gamemodes/vanilla/widgets/questListData.ts",
     "gamemodes/vanilla/widgets/questListUi.ts",

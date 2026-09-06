@@ -72,6 +72,10 @@ export class CombatTargetResolver {
         if (attacker === target) {
             return "same_entity";
         }
+        if (attacker instanceof PlayerState && target instanceof PlayerState &&
+            attacker.gamemode.canAttackPlayer?.(attacker, target) === false) {
+            return "unattackable";
+        }
         if (attacker.level !== target.level) {
             return "different_plane";
         }

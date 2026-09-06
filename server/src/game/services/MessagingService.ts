@@ -56,6 +56,7 @@ export class MessagingService {
         autoChat?: boolean;
         chatType?: number;
         targetPlayerIds?: number[];
+        standalone?: boolean;
     }): void {
         const normalized: ChatMessageSnapshot = {
             ...message,

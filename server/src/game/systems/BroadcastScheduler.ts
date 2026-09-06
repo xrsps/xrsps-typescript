@@ -91,6 +91,8 @@ export interface ChatMessageSnapshot {
     /** Raw OSRS chatbox channel id, when it differs from messageType. */
     chatType?: number;
     targetPlayerIds?: number[];
+    /** Send one area-wide chat packet, including identity, instead of a nearby sync block. */
+    standalone?: boolean;
 }
 
 /**

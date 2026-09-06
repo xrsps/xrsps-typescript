@@ -36,6 +36,8 @@ export type WorldTerrainOverrideRow = {
     shape?: number;
     rotation?: number;
     renderFlags?: number;
+    /** Flat tile height in native OSRS units, applied to all four ground corners. */
+    height?: number;
 };
 
 let tasksByStructId: Map<number, LeagueTaskRow> | null = null;

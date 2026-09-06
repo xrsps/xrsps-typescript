@@ -161,6 +161,11 @@ export class WidgetsOverlay implements Overlay {
 
     update(args: OverlayUpdateArgs): void {
         void args;
+        if (this.isArenaView()) {
+            this.widgetEntries.length = 0;
+            this.clearAndHide();
+            return;
+        }
         if (!this.glRenderer || !this.overlayCanvas) {
             console.warn("WidgetsOverlay: No GL renderer or canvas");
             return;
@@ -423,6 +428,11 @@ export class WidgetsOverlay implements Overlay {
         parent.appendChild(overlayCanvas);
     }
 
+    private isArenaView(): boolean {
+        const client = this.ctx.getGameContext?.()?.osrsClient;
+        return !!client?.duelArenaMode && !!client?.isLoggedIn();
+    }
+
     private getOverlayRenderSize(): { width: number; height: number } {
         const hostCanvas = this.app?.gl?.canvas as HTMLCanvasElement | undefined;
         const cssWidth =
@@ -561,6 +571,10 @@ export class WidgetsOverlay implements Overlay {
     }
 
     draw(phase: RenderPhase): void {
+        if (this.isArenaView()) {
+            this.clearAndHide();
+            return;
+        }
         // Only draw in PostPresent phase
         if (phase !== RenderPhase.PostPresent) {
             return;

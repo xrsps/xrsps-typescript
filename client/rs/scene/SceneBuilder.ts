@@ -48,6 +48,7 @@ type TerrainOverride = {
     shape?: number;
     rotation?: number;
     renderFlags?: number;
+    height?: number;
 };
 
 export class SceneBuilder {
@@ -230,6 +231,9 @@ export class SceneBuilder {
             }
         }
 
+        // Object placement and ground contouring must read the final terrain heights.
+        this.applyTerrainOverrides(scene);
+
         for (let mx = mapStartX; mx < mapEndX; mx++) {
             for (let my = mapStartY; my < mapEndY; my++) {
                 const locData = this.getLocData(mx, my);
@@ -242,7 +246,6 @@ export class SceneBuilder {
             }
         }
 
-        this.applyTerrainOverrides(scene);
         this.addTileModels(scene, smoothUnderlays);
         scene.setTileMinLevels();
 
@@ -270,6 +273,15 @@ export class SceneBuilder {
             const x = Number(parts[0]) | 0;
             const y = Number(parts[1]) | 0;
             const level = Number(parts[2]) | 0;
+            if (Number.isFinite(override.height) && level >= 0 && level < scene.levels) {
+                // Include shared edge vertices even when the tile itself is just outside this scene.
+                for (let dx = 0; dx <= 1; dx++) for (let dy = 0; dy <= 1; dy++) {
+                    const hx = x + dx, hy = y + dy;
+                    if (hx >= 0 && hy >= 0 && hx <= scene.sizeX && hy <= scene.sizeY) {
+                        scene.tileHeights[level][hx][hy] = override.height! | 0;
+                    }
+                }
+            }
             if (!scene.isWithinBounds(level, x, y)) continue;
 
             if (typeof override.underlay === "number") {
@@ -1678,6 +1690,8 @@ export class SceneBuilder {
                 }
             }
         }
+
+        this.applyTerrainOverrides(scene);
 
         // Phase 3: Decode locs chunk-by-chunk
         for (let plane = 0; plane < PLANE_COUNT; plane++) {

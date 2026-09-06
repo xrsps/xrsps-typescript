@@ -27,7 +27,7 @@ export class ChatBroadcaster implements BroadcastDomain {
         for (const msg of frame.chatMessages) {
             // In binary player sync mode, player public chat is carried by the
             // PublicChat update block instead of the standalone `chat` message.
-            if (msg.messageType === "public" && msg.playerId !== undefined) {
+            if (msg.messageType === "public" && msg.playerId !== undefined && !msg.standalone) {
                 continue;
             }
 

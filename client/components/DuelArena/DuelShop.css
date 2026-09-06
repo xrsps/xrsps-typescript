@@ -1,0 +1,62 @@
+.duel-shop { color: #dfd1b7; }
+.duel-shop-intro { display: flex; gap: 14px; align-items: center; margin: 16px 0 22px; }
+.duel-shop-seal { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid #a58a51; color: #e3bd6d; font-size: 28px; transform: rotate(45deg); background: #30291b; }
+.duel-shop-eyebrow { display: block; color: #bfa571; font-size: 10px; letter-spacing: 1.6px; margin-bottom: 5px; }
+.duel-shop-intro p { margin: 0; font-size: 13px; line-height: 1.5; }
+.duel-shop-progress { display: flex; gap: 12px; padding: 12px 0; border-block: 1px solid #64573b; margin-bottom: 18px; color: #958b77; font-size: 10px; }
+.duel-shop-progress span { flex: 1; white-space: nowrap; }
+.duel-shop-progress b { margin-left: 6px; font-weight: 400; }
+.duel-shop-progress [aria-current="step"] { color: #f1d491; }
+.duel-shop-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.duel-shop-tabs button { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; }
+.duel-shop-tabs button[aria-pressed="true"] { border-color: #d1af63; color: #f5d58e; background: #55462c; }
+.duel-shop-packages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.duel-shop .duel-shop-package { display: flex; align-items: center; flex-direction: column; gap: 7px; min-width: 0; padding: 17px 8px 10px; background: linear-gradient(145deg, #373022, #231f17); border: 1px solid #76613c; color: #d8c8a8; }
+.duel-shop .duel-shop-package[aria-pressed="true"] { border-color: #e1bc70; box-shadow: inset 0 0 0 1px #947b48; background: linear-gradient(145deg, #57452b, #32291d); }
+.duel-shop-package-art { position: relative; display: flex; justify-content: center; align-items: center; width: 100px; height: 70px; background: radial-gradient(ellipse, #b399542e, transparent 70%); }
+.duel-shop-package-art .duel-currency-icon { transform: scale(2); }
+.duel-shop-package-art.is-bundle .duel-currency-icon { position: absolute; left: 18px; transform: rotate(-14deg) scale(1.7); }
+.duel-shop-package-art.is-bundle .duel-currency-icon + .duel-currency-icon { left: 44px; top: 24px; transform: rotate(9deg) scale(1.7); }
+.duel-shop-package strong { font-family: Georgia, serif; font-size: 21px; font-weight: 400; color: #f4e2b7; }
+.duel-shop-package > span:not(.duel-shop-package-art) { font-size: 11px; }
+.duel-shop-package .duel-shop-package-name { color: #f0d7a5; font-family: Georgia, serif; font-size: 14px; }
+.duel-shop-package .duel-shop-package-description { color: #b7a98e; line-height: 1.5; min-height: 32px; font-size: 10px; }
+.duel-shop-package small { margin: 7px 0; color: #b5a78e; font-size: 10px; }
+.duel-shop-selected { align-self: stretch; border-top: 1px solid #75603b; padding-top: 9px; }
+.duel-shop-package[aria-pressed="true"] .duel-shop-selected { color: #f4d48b; }
+.duel-shop-payment-note { font-size: 11px; line-height: 1.6; padding: 12px 0 0; color: #bdb098; }
+.duel-shop-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid #64573b; padding-top: 14px; margin-top: 16px; }
+.duel-shop-footer > span { color: #b9aa8e; font-size: 11px; }
+.duel-shop-footer > div { display: flex; gap: 8px; }
+.duel-shop-review { background: #211e17; border: 1px solid #80683e; padding: 18px; }
+.duel-shop-review-title { display: flex; align-items: center; gap: 14px; padding-bottom: 15px; border-bottom: 1px solid #574a32; }
+.duel-shop-review-title > div { display: flex; flex-direction: column; gap: 3px; }
+.duel-shop-review-title strong { font-family: Georgia, serif; color: #f1dca6; font-size: 25px; font-weight: 400; }
+.duel-shop-review-title span { font-size: 11px; }
+.duel-shop-status { margin-left: auto; color: #d1b87d; border: 1px solid #8b7649; padding: 4px 7px; letter-spacing: 1px; }
+.duel-shop-review dl { margin: 15px 0 0; font-size: 12px; }
+.duel-shop-review dl > div { display: flex; justify-content: space-between; gap: 15px; padding: 6px 0; }
+.duel-shop-review dt { color: #a99a7e; }
+.duel-shop-review dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.duel-shop-draft-message { padding: 15px 16px; margin-top: 16px; background: #363725; border: 1px solid #6b7445; }
+.duel-shop-draft-message strong { font-size: 14px; color: #d7dfad; }
+.duel-shop-draft-message p { font-size: 12px; line-height: 1.6; margin: 7px 0 0; }
+.duel-shop-checkout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+.duel-shop-checkout > div { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.duel-shop-checkout label { font-size: 12px; color: #e6d7b8; }
+.duel-shop-checkout input { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px; border: 1px solid #8b7447; background: #211e17; color: #f4e0b5; font: inherit; font-size: 13px; }
+.duel-shop-checkout input:focus { outline: 2px solid #cfb571; outline-offset: 2px; }
+.duel-shop-checkout input[readonly] { color: #b6a585; border-color: #5e523c; }
+.duel-shop-checkout small { color: #ad9e83; font-size: 10px; }
+@media (max-width: 540px) {
+    .duel-shop-intro { margin-block: 10px 15px; }
+    .duel-shop-progress { gap: 7px; font-size: 9px; }
+    .duel-shop-progress b { margin-left: 3px; }
+    .duel-shop-packages { gap: 6px; }
+    .duel-shop .duel-shop-package { padding: 8px 3px; }
+    .duel-shop-package strong { font-size: 16px; }
+    .duel-shop-package > span:not(.duel-shop-package-art), .duel-shop-package small { font-size: 9px; }
+    .duel-shop-footer { flex-direction: column; align-items: stretch; }
+    .duel-shop-footer > div { justify-content: flex-end; }
+    .duel-shop-checkout { grid-template-columns: 1fr; }
+}

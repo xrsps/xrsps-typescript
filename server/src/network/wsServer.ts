@@ -371,7 +371,7 @@ export class WSServer {
         this.messageRouter = this.createMessageRouter();
         this.initGamemode(opts);
         this.initPlayerAnimations();
-        this.initTestBots();
+        if (this.gamemode.shouldSpawnTestBots?.() !== false) this.initTestBots();
         this.wss.on("connection", (ws) => this.loginHandshakeService.onConnection(ws));
         opts.ticker.on("tick", (data) => this.tickFrameService.handleTick(data));
     }
@@ -1298,6 +1298,7 @@ export class WSServer {
                     groundItems: this.groundItems,
                     locationService: this.locationService,
                     pathService: this.options.pathService,
+                    mapService: this.options.mapService,
                 }),
             });
             logger.info(`Boot: gamemode "${this.gamemode.id}" initialized`);

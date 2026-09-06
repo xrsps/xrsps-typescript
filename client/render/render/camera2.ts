@@ -189,6 +189,7 @@ import {
 import { KNOWN_WATER_TEXTURE_IDS } from "../water/WaterTextureIds";
 import type { WebGLOsrsRendererHost } from "./hostInterface";
 import { RENDER_CONSTANTS } from "./constants";
+import { updateDuelArenaCamera } from "./camera/DuelArenaCamera";
 
 export function updateCameraFollow(host: WebGLOsrsRendererHost, deltaTime?: number, timeSec?: number): void {
 
@@ -204,6 +205,11 @@ export function updateCameraFollow(host: WebGLOsrsRendererHost, deltaTime?: numb
         // Update player position for fog calculation (use actual player pos)
         host.playerPosUni[0] = playerX;
         host.playerPosUni[1] = playerZ;
+
+        if (host.osrsClient.duelArenaMode) {
+            updateDuelArenaCamera(host, timeSec);
+            return;
+        }
 
         // OSRS follow camera uses a smoothed focal point (oculusOrbFocalPointX/Y) that eases toward the player.
         // Important: update is tick-based (integer math), not frame-delta based; otherwise the camera/focal timebase

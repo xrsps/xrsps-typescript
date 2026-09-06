@@ -54,6 +54,7 @@ export class MapCollisionService {
     private precomputedRoot: string | undefined;
     private usePrecomputed: boolean;
     private itemLayerSupportCache: Map<number, ItemLayerSupportSquare | null> = new Map();
+    private terrainHeightCorners = new Map<string, number>();
 
     constructor(env: CacheEnv, includeModels: boolean = false, opts: MapCollisionOptions = {}) {
         this.env = env;
@@ -473,7 +474,17 @@ export class MapCollisionService {
         return l;
     }
 
+    /** Preserve authored ground through lazy map loading and collision-cache upgrades. */
+    setTerrainHeight(worldX: number, worldY: number, plane: number, height: number): void {
+        if (![worldX, worldY, plane, height].every(Number.isInteger) || plane < 0 || plane > 3) return;
+        for (let dx = 0; dx <= 1; dx++) for (let dy = 0; dy <= 1; dy++) {
+            this.terrainHeightCorners.set(`${worldX + dx},${worldY + dy},${plane}`, height);
+        }
+    }
+
     getHeightAt(worldX: number, worldY: number, plane: number): number | undefined {
+        const override = this.terrainHeightCorners.get(`${worldX},${worldY},${plane}`);
+        if (override !== undefined) return override;
         const mapX = this.mapSquareCoord(worldX);
         const mapY = this.mapSquareCoord(worldY);
         if (mapX < 0 || mapY < 0) return undefined;
@@ -509,6 +520,14 @@ export class MapCollisionService {
         const tileY = worldYUnits >> 7;
         const fracX = worldXUnits & 0x7f;
         const fracY = worldYUnits & 0x7f;
+        const corner = (dx: number, dy: number) => this.terrainHeightCorners.get(`${tileX + dx},${tileY + dy},${plane}`);
+        const override00 = corner(0, 0), override10 = corner(1, 0);
+        const override01 = corner(0, 1), override11 = corner(1, 1);
+        if (override00 !== undefined && override10 !== undefined && override01 !== undefined && override11 !== undefined) {
+            const row0 = ((128 - fracX) * override00 + fracX * override10) >> 7;
+            const row1 = ((128 - fracX) * override01 + fracX * override11) >> 7;
+            return ((128 - fracY) * row0 + fracY * row1) >> 7;
+        }
         const mapX = this.mapSquareCoord(tileX);
         const mapY = this.mapSquareCoord(tileY);
         if (mapX < 0 || mapY < 0) return undefined;
@@ -535,10 +554,10 @@ export class MapCollisionService {
             }
         }
         const heights = ms.tileHeights[level];
-        const h00 = heights[lx][ly];
-        const h10 = heights[lx + 1][ly];
-        const h01 = heights[lx][ly + 1];
-        const h11 = heights[lx + 1][ly + 1];
+        const h00 = override00 ?? heights[lx][ly];
+        const h10 = override10 ?? heights[lx + 1][ly];
+        const h01 = override01 ?? heights[lx][ly + 1];
+        const h11 = override11 ?? heights[lx + 1][ly + 1];
         const interpRow0 = ((128 - fracX) * h00 + fracX * h10) >> 7;
         const interpRow1 = ((128 - fracX) * h01 + fracX * h11) >> 7;
         return ((128 - fracY) * interpRow0 + fracY * interpRow1) >> 7;

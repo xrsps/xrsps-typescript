@@ -299,6 +299,7 @@ function OsrsClientApp() {
                 rendererType,
                 // No cache yet - will be initialized after download
             );
+            client.duelArenaMode = new URLSearchParams(window.location.search).get("classic") !== "1";
             clientToDispose = client;
 
             // Set OsrsClient immediately so GameContainer can render the login overlay
@@ -608,7 +609,7 @@ function OsrsClientApp() {
 
     return (
         <div className={appClassName}>
-            {bannerWrapper}
+            {!osrsClient?.duelArenaMode && bannerWrapper}
             {content}
         </div>
     );

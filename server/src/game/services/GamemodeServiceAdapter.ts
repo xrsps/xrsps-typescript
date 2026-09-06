@@ -3,6 +3,7 @@ import type { WebSocket } from "ws";
 import { logger } from "../../utils/logger";
 import type { InterfaceService } from "../../widgets/InterfaceService";
 import type { PathService } from "../../pathfinding/PathService";
+import type { MapCollisionService } from "../../world/MapCollisionService";
 import type { GameEventBus } from "../events/GameEventBus";
 import type { GamemodeServerServices } from "../gamemodes/GamemodeDefinition";
 import type { GroundItemManager } from "../items/GroundItemManager";
@@ -58,6 +59,7 @@ export interface GamemodeServiceAdapterDeps {
     groundItems?: Pick<GroundItemManager, "registerStaticSpawn">;
     locationService?: LocationService;
     pathService?: PathService;
+    mapService?: Pick<MapCollisionService, "setTerrainHeight">;
 }
 
 /**
@@ -123,6 +125,8 @@ export function buildGamemodeServices(deps: GamemodeServiceAdapterDeps): Gamemod
             deps.pathService?.getCollisionOverlays()?.addFlags(x, y, level, flags),
         removeCollisionFlags: (x, y, level, flags) =>
             deps.pathService?.getCollisionOverlays()?.removeFlags(x, y, level, flags),
+        setTerrainHeight: (x, y, level, height) =>
+            deps.mapService?.setTerrainHeight(x, y, level, height),
         registerStaticGroundItem: (spawn) => {
             deps.groundItems?.registerStaticSpawn(spawn, deps.getCurrentTick());
         },

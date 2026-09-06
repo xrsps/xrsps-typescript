@@ -18,7 +18,7 @@ primary_region = "ams"        # Amsterdam; pick the region closest to your playe
 [env]
   HOST = "0.0.0.0"
   PORT = "43594"
-  GAMEMODE = "vanilla"
+  GAMEMODE = "duel"
   SERVER_NAME = "XRSPS"
   XRSPS_DATA_DIR = "/data"
   SERVE_CACHE = "true"

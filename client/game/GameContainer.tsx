@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { RenderStatsOverlay } from "../components/RenderStatsOverlay";
 import { OsrsLoadingBar } from "../components/OsrsLoadingBar";
+import { DuelArenaOverlay } from "../components/DuelArena/DuelArenaOverlay";
 // Legacy CSS menu and React minimap/orbs removed in favor of widget-based rendering
 import { subscribeChatMessages, subscribeHandshake } from "../network/ServerConnection";
 import { DownloadProgress } from "../rs/cache/CacheFiles";
@@ -350,7 +351,11 @@ export function GameContainer({ osrsClient }: OsrsContainerProps): JSX.Element {
     }
 
     return (
-        <div className="max-height game-container-root">
+        <div className="max-height game-container-root" onContextMenuCapture={event => {
+            // The game menu can appear between right-button down and contextmenu.
+            // Capture at the game root so the newly opened interface is covered too.
+            if (osrsClient.duelArenaMode) { event.preventDefault(); event.stopPropagation(); }
+        }}>
             <div
                 className={[
                     "game-viewport",
@@ -364,7 +369,7 @@ export function GameContainer({ osrsClient }: OsrsContainerProps): JSX.Element {
                     <div className="game-canvas-stage">
                         {loadingBarOverlay}
 
-                        <div className="hud right-top">
+                        {!osrsClient.duelArenaMode && <div className="hud right-top">
                             <div className="fps-counter content-text">{fps}</div>
 
                             {!hideUi && (
@@ -382,11 +387,11 @@ export function GameContainer({ osrsClient }: OsrsContainerProps): JSX.Element {
                                     )}
                                 </>
                             )}
-                        </div>
+                        </div>}
 
                         {/* CSS-based OSRS menu removed in favor of GL overlay */}
 
-                        {!hideUi && osrsClient.customLabelScreens.length > 0 && (
+                        {!osrsClient.duelArenaMode && !hideUi && osrsClient.customLabelScreens.length > 0 && (
                             <>
                                 {osrsClient.customLabelScreens.map((lbl, i) => (
                                     <div
@@ -409,10 +414,11 @@ export function GameContainer({ osrsClient }: OsrsContainerProps): JSX.Element {
                         )}
 
                         <Canvas renderer={renderer} />
+                        {osrsClient.duelArenaMode && <DuelArenaOverlay client={osrsClient} />}
                     </div>
                 </div>
 
-                {!hideUi && (
+                {!osrsClient.duelArenaMode && !hideUi && (
                     <span>
                         {/* Bottom-left performance/optimization overlay (F3 toggles) */}
 
@@ -429,20 +435,20 @@ export function GameContainer({ osrsClient }: OsrsContainerProps): JSX.Element {
                     </span>
                 )}
 
-                {!hideUi && !osrsClient.isOnLoginScreen() && (
+                {!osrsClient.duelArenaMode && !hideUi && !osrsClient.isOnLoginScreen() && (
                     <SidebarShell osrsClient={osrsClient} store={osrsClient.sidebar} />
                 )}
             </div>
 
             {/* Debug controls sidebar (Leva) - top-left corner */}
 
-            <DebugControls
+            {!osrsClient.duelArenaMode && <DebugControls
                 renderer={renderer}
                 hideUi={hideUi}
                 setRenderer={setRenderer}
                 setHideUi={setHideUi}
                 setDownloadProgress={setDownloadProgress}
-            />
+            />}
         </div>
     );
 }

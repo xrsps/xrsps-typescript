@@ -1,4 +1,5 @@
 import { vec3 } from "gl-matrix";
+import { applyStandalonePublicChat } from "./chat/StandalonePublicChat";
 
 import { directionToDelta } from "../common/Direction";
 import { ChatMessageType } from "../common/chat/ChatMessageType";
@@ -802,6 +803,8 @@ export class OsrsClient {
     cameraSpeed: number = 1;
 
     // Camera behavior
+    // The focused Duel Arena shell owns controls; the world keeps combat overlays.
+    duelArenaMode: boolean = true;
     // When true, disables free-cam and keeps camera focused on Player[0]
     followPlayerCamera: boolean = true;
     // OSRS-style zoom shape parameters (match vanilla defaults)
@@ -2764,6 +2767,7 @@ export class OsrsClient {
         // Subscribe to chat messages to add to history and mark chatCycle for transmit
         try {
             this.unsubscribeChatMessages = subscribeChatMessages((msg) => {
+                applyStandalonePublicChat(this.playerEcs, msg);
                 // Add message to chat history for CS2 scripts to query
                 const isTradeRequest = msg.chatType === ChatMessageType.TRADE_REQUEST;
                 if (isTradeRequest && msg.from && msg.playerId !== undefined) {
@@ -3694,6 +3698,7 @@ export class OsrsClient {
      * notification_display_init (3343) which assume a 178x100 host area.
      */
     isPointOverWidget(px: number, py: number): boolean {
+        if (this.duelArenaMode && this.isLoggedIn()) return false;
         return this.widgetInteraction.isPointOverWidget(px, py);
     }
 

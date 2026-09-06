@@ -1,0 +1,104 @@
+.duel-ui-lobby { background: linear-gradient(#17140f88, transparent 25%, transparent 70%, #17140fdd); }
+.duel-ui-lobby .duel-top { pointer-events: none; }
+.duel-lobby-card { position: absolute; top: 30px; left: 30px; width: 276px; padding: 18px; background: #211e17e8; border: 1px solid #c4a87866; border-radius: 6px; pointer-events: auto; }
+.duel-currency-summary { display: flex; flex-direction: column; gap: 16px; margin: 22px 0; }
+.duel-currency-summary > span { display: flex; align-items: center; gap: 9px; font-size: 12px; color: #d4c4aa; }
+.duel-currency-summary b { margin-left: auto; font-weight: 500; color: #f0dba8; font-variant-numeric: tabular-nums; }
+@font-face { font-family: "OSRS Stack"; src: url(../../media/RuneScape-Plain-11.ttf); }
+.duel-currency-icon { position: relative; flex: 0 0 36px; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 32px; }
+.duel-currency-icon img { display: block; width: 36px; height: 32px; image-rendering: pixelated; }
+.duel-stack-quantity { position: absolute; top: -2px; left: 0; font: 11px/11px "OSRS Stack", monospace; text-shadow: 1px 1px #000001; white-space: nowrap; }
+.duel-lobby-tools { display: flex; gap: 6px; }
+.duel-lobby-tools button { font-size: 10px; min-height: 36px; padding: 7px 9px; flex: 1; white-space: nowrap; }
+.duel-player-list { border-top: 1px solid #9c80543d; margin-top: 16px; padding-top: 10px; max-height: 280px; overflow: auto; }
+.duel-player-list > div { display: flex; align-items: center; gap: 4px; padding: 5px 0; }
+.duel-player-list span { font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.duel-player-list p { font-size: 12px; line-height: 1.6; color: #bdaf97; }
+.duel-player-list button { min-height: 30px; font-size: 9px; padding: 4px 7px; }
+.duel-lobby-footer { position: absolute; bottom: 25px; left: 30px; right: 30px; display: flex; justify-content: space-between; align-items: end; gap: 18px; }
+.duel-lobby-footer p { color: #ecd6af; font-size: 12px; text-shadow: 0 2px 5px #000; margin-bottom: 7px; }
+.duel-lobby-footer span { color: #bbad96; font-size: 10px; }
+.duel-lobby-footer button { font-size: 11px; background: #1b1915bb; }
+.duel-requests { position: absolute; top: 30px; right: 30px; width: 288px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100% - 140px); overflow: auto; pointer-events: auto; }
+.duel-request { background: #211e17f5; border: 1px solid #c4a87888; border-radius: 6px; padding: 18px; box-shadow: 0 8px 24px #0004; }
+.duel-request p { margin: 10px 0 7px; font-size: 13px; line-height: 1.5; }
+.duel-request small { color: #b6a78c; font-size: 10px; }
+.duel-request > div { display: flex; gap: 6px; margin-top: 15px; }
+.duel-request button { font-size: 11px; padding: 7px 10px; min-height: 36px; }
+.duel-player-menu { position: fixed; width: 250px; pointer-events: auto; border: 2px solid #827254; padding: 4px; background: #28251eee; box-shadow: 0 4px 20px #0007; z-index: 55; max-height: 75vh; overflow: auto; }
+.duel-player-menu p { color: #dec496; background: #171610; padding: 7px 9px; font: 13px Georgia, serif; }
+.duel-player-menu button { display: block; width: 100%; border: 0; border-radius: 0; text-align: left; font-size: 12px; min-height: 33px; padding: 7px 9px; background: transparent; }
+.duel-player-menu strong { color: #efd169; font-weight: 500; }
+.duel-modal-backdrop { position: absolute; inset: 0; pointer-events: auto; background: #0d0b08a8; display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 60; }
+.duel-modal { position: relative; max-height: 100%; overflow: auto; padding: 24px 28px; outline: none; background: #27231cfb; }
+.duel-modal-wide { width: min(100%, 640px); }
+.duel-modal-heading { display: flex; justify-content: space-between; align-items: center; }
+.duel-modal-heading .duel-close { padding: 0; border: 0; min-height: 28px; width: 28px; font-size: 24px; background: transparent; color: #ae9c7c; }
+.duel-modal h2 { margin: 0 0 15px; text-align: left; font-size: 30px; }
+.duel-modal h3 { color: #e3c797; font-size: 13px; font-weight: 500; margin: 0 0 20px; }
+.duel-modal h3 small { display: block; font-size: 10px; margin-top: 6px; color: #af9d81; }
+.duel-agreement { background: #18161088; border: 1px solid #9c805444; padding: 10px 14px; text-align: left; }
+.duel-agreement strong { color: #efdab4; font-weight: 500; }
+.duel-agreement span { display: block; color: #bba98b; font-size: 10px; }
+.duel-offer-columns { display: grid; grid-template-columns: 1fr 1fr; margin: 20px 0 16px; text-align: left; border: 1px solid #9c805444; }
+.duel-offer-columns > section { padding: 18px; background: #1c191344; min-width: 0; }
+.duel-offer-columns > section + section { border-left: 1px solid #9c805444; background: #18161077; }
+.duel-currency-fields { display: flex; flex-direction: column; gap: 18px; }
+.duel-currency-fields label { display: flex; align-items: center; gap: 9px; font-size: 12px; margin-bottom: 9px; color: #d4c4aa; }
+.duel-currency-fields input { min-height: 36px; padding: 7px 10px; font-size: 13px; color: #f0dba8; }
+.duel-currency-fields small { font-size: 9px; color: #a99a81; }
+.duel-amount-steps { display: flex; gap: 5px; margin: 7px 0; }
+.duel-amount-steps button { font-size: 10px; min-height: 27px; padding: 3px 6px; flex: 1; }
+.duel-modal p.duel-approved { font-size: 11px; color: #a8ca89; margin-top: 16px; }
+.duel-modal p.duel-approval { font-size: 11px; color: #9d907b; margin-top: 16px; }
+.duel-offer-total { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #9c805444; padding: 0 0 16px; margin-bottom: 15px; text-align: left; }
+.duel-offer-total > span { color: #bba98b; font-size: 12px; }
+.duel-offer-total strong { color: #efd49f; font: 22px Georgia, serif; }
+.duel-offer-total small { font-size: 13px; }
+.duel-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.duel-dialog-actions button { font-size: 12px; padding: 10px 14px; }
+.duel-challenge-weapons { display: flex; flex-direction: column; gap: 10px; margin: 22px 0; }
+.duel-challenge-weapons button { display: grid; grid-template-columns: 40px 1fr; text-align: left; gap: 5px 9px; }
+.duel-challenge-weapons span { grid-row: 1 / 3; align-self: center; text-align: center; font: 32px Georgia, serif; color: #d9b574; }
+.duel-challenge-weapons strong { font-weight: 500; font-size: 13px; }
+.duel-challenge-weapons small { font-size: 10px; color: #ac9e85; }
+.duel-ui button[aria-pressed="true"] { border-color: #d9b574; background: #483b26; }
+.duel-wide-button { margin-top: 22px; width: 100%; }
+.duel-wallet-form { text-align: left; }
+.duel-segment { display: inline-flex; gap: 4px; margin: 0 14px 15px 0; }
+.duel-segment button { min-height: 34px; font-size: 11px; padding: 7px 12px; }
+.duel-wallet-form label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; color: #d4c4aa; }
+.duel-wallet-form label small { font-size: 10px; color: #a99a81; }
+.duel-bank-amount { display: flex; gap: 8px; }
+.duel-bank-amount input { min-width: 0; }
+.duel-bank-amount button { font-size: 12px; padding: 8px 15px; }
+.duel-exchange { display: flex; flex-wrap: wrap; gap: 10px; text-align: left; margin-top: 22px; padding-top: 18px; border-top: 1px solid #9c805444; }
+.duel-exchange > div { width: 100%; }
+.duel-exchange h3 { margin-bottom: 3px; }
+.duel-exchange p { font-size: 11px; }
+.duel-exchange button { flex: 1; min-height: 34px; padding: 6px 10px; font-size: 11px; }
+.duel-locked-weapon { display: flex; align-items: center; gap: 15px; padding: 10px 18px; border: 1px solid #bfa78050; background: #24221de8; border-radius: 5px; font-size: 13px; }
+.duel-logout-error { position: absolute; bottom: 90px; left: 30px; color: #f5ba9d; font-size: 12px; }
+@media (max-width: 760px) {
+    .duel-ui-lobby .duel-top { top: 16px; }
+    .duel-lobby-card { left: 14px; top: 88px; width: 235px; padding: 12px; }
+    .duel-lobby-card .duel-currency-summary { margin: 12px 0; gap: 9px; }
+    .duel-requests { top: auto; bottom: 100px; left: 14px; right: 14px; width: auto; max-height: 43%; }
+    .duel-lobby-footer { bottom: 16px; left: 14px; right: 14px; align-items: center; }
+    .duel-lobby-footer p { font-size: 10px; }
+    .duel-lobby-footer span { font-size: 9px; }
+    .duel-lobby-footer button { min-height: 34px; font-size: 10px; padding: 6px 10px; white-space: nowrap; }
+    .duel-modal-backdrop { padding: 10px; }
+    .duel-modal { padding: 16px; }
+    .duel-modal h2 { font-size: 25px; }
+    .duel-offer-columns > section { padding: 12px; }
+    .duel-currency-summary > span { flex-wrap: wrap; font-size: 11px; }
+    .duel-currency-summary b { width: 100%; margin-left: 23px; }
+    .duel-lobby-card .duel-currency-summary b { width: auto; margin-left: auto; }
+    .duel-amount-steps { gap: 3px; }
+    .duel-amount-steps button { font-size: 9px; padding: 3px 4px; }
+    .duel-dialog-actions { flex-wrap: wrap; }
+    .duel-dialog-actions button { font-size: 11px; padding: 8px 12px; }
+    .duel-bank-amount { flex-wrap: wrap; }
+    .duel-bank-amount input { flex: 1; width: 100px; }
+}

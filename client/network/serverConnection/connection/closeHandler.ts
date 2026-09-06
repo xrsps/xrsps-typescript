@@ -1,4 +1,5 @@
 import { setPacketSocket } from "../../packet";
+import { duelStore } from "../../../game/duel/DuelStore";
 import { WS_GLOBAL_KEY, WS_SUPPRESS_RECONNECT_KEY, RECONNECT_DELAY_MAX_MS, RECONNECT_MAX_ATTEMPTS } from "../constants";
 import { clearLoginConnectRetryTimer } from "./loginHelpers";
 import { state } from "../state";
@@ -10,6 +11,7 @@ export function initSocketCloseHandler(ws: WebSocket, initConnection: (url: stri
         }
 
         state.socket = null;
+        duelStore.reset();
         const reasonPart = evt.reason ? `, reason=${evt.reason}` : "";
         // eslint-disable-next-line no-console
         console.log(`[ws] disconnected (code=${evt.code}, clean=${evt.wasClean}${reasonPart})`);

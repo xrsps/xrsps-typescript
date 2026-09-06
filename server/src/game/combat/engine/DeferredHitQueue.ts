@@ -123,6 +123,11 @@ export class DeferredHitQueue {
             if (!target || !this.isAlive(target, clock)) continue;
 
             const source = this.options.resolveEntity(pending.source);
+            if (target instanceof PlayerState) {
+                if (!target.canBeAttacked()) continue;
+                if (source instanceof PlayerState &&
+                    source.gamemode.canAttackPlayer?.(source, target) === false) continue;
+            }
             const requestedDamage =
                 pending.hitsplatType === DeferredHitsplatType.Block
                     ? 0

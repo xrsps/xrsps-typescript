@@ -482,6 +482,9 @@ export function getSceneViewportWidgetRect(host: WebGLOsrsRendererHost, ): { x: 
         const viewport = widgetManager?.viewportWidget as any;
         const fallbackWidth = Math.max(1, (host.app.width || host.canvas.width || 1) | 0);
         const fallbackHeight = Math.max(1, (host.app.height || host.canvas.height || 1) | 0);
+        if (host.osrsClient.duelArenaMode && host.osrsClient.isLoggedIn()) {
+            return { x: 0, y: 0, width: fallbackWidth, height: fallbackHeight };
+        }
         const layoutWidth = Math.max(1, (widgetManager?.canvasWidth || fallbackWidth) | 0);
         const layoutHeight = Math.max(1, (widgetManager?.canvasHeight || fallbackHeight) | 0);
         const scaleX = fallbackWidth / layoutWidth;
