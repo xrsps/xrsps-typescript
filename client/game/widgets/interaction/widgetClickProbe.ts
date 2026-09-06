@@ -1,4 +1,5 @@
 import { sendPlayerOption } from "../../../network/ServerConnection";
+import { handleDuelChatRequestClick } from "../../duel/DuelChatRequests";
 import { ClickRegistry } from "../../../widgets/gl/click-registry";
 import type { WidgetManager } from "../../../widgets/WidgetManager";
 import {
@@ -82,6 +83,7 @@ export function handleTradeRequestChatClick(
     widgets: readonly any[],
     tradeRequestTargetsByName: ReadonlyMap<string, number>,
 ): boolean {
+    if (handleDuelChatRequestClick(widgets)) return true;
     for (let i = widgets.length - 1; i >= 0; i--) {
         const text = String(widgets[i]?.text ?? "")
             .replace(/<[^>]*>/g, "")

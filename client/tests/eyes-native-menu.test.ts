@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import { createEyesBridge } from "../game/debug/EyesBridge";
+import type { OsrsClient } from "../game/OsrsClient";
+import { MenuState } from "../ui/menu/MenuState";
+
+const world = new MenuState();
+const widgets = new MenuState();
+let worldClicks = 0, widgetClicks = 0;
+world.add({ option: "Walk here", handler: () => worldClicks++ });
+widgets.add({ option: "Accept challenge", handler: () => widgetClicks++ });
+const canvas: any = { __ui: {} };
+const client = { renderer: { canvas }, menuOpen: false, menuState: world } as unknown as OsrsClient;
+const eyes = createEyesBridge(client);
+assert.equal(eyes.menu().open, false);
+client.menuOpen = true;
+assert.equal(eyes.menu().open, true, "world menu uses the live client flag before its overlay is attached");
+canvas.__ui.menu = { open: true, menuState: widgets };
+assert.equal(eyes.menu().open, true, "visible widget menu must be reported open");
+assert.equal(eyes.menu().entries[0].action, "Accept challenge", "visible widget menu owns its own registry");
+eyes.menuInvoke(0);
+assert.equal(widgetClicks, 1);
+assert.equal(worldClicks, 0, "invoking a visible widget entry must not invoke a stale world action");
+canvas.__ui.menu.open = false;
+assert.equal(eyes.menu().open, false, "the displayed menu's close state is authoritative");
+canvas.__ui.menu = { open: true, menuState: world };
+eyes.menuInvoke(0);
+assert.equal(worldClicks, 1);
+console.log("Eyes reports the visible native menu and invokes its active registry");

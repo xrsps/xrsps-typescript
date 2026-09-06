@@ -3,6 +3,7 @@ import type { WebSocket } from "ws";
 import { encodeClientMessage } from "../../client/network/packet/ClientBinaryEncoder";
 import { decodeServerPacket } from "../../client/network/packet/ServerBinaryDecoder";
 import { decodeClientPacket } from "../src/network/packet/ClientBinaryDecoder";
+import { ServerBinaryEncoder } from "../src/network/packet/ServerBinaryEncoder";
 import { registerChatHandler } from "../src/network/handlers/chatHandler";
 import { ChatBroadcaster } from "../src/network/broadcast/ChatBroadcaster";
 import type { BroadcastContext } from "../src/network/broadcast/BroadcastDomain";
@@ -13,6 +14,8 @@ import type { ChatMessageSnapshot } from "../src/game/systems/BroadcastScheduler
 import type { TickFrame } from "../src/game/tick/TickPhaseOrchestrator";
 
 let recipients = [1,2,3];
+const welcome = decodeServerPacket(new ServerBinaryEncoder().encodeChatMessage("server", "Welcome"));
+assert.equal((welcome?.payload as {chatType:number}).chatType, 0, "native server notices must not become private messages");
 const sender = {id:1,name:"Alice",gamemode:{getPublicChatRecipientIds:()=>recipients}} as unknown as PlayerState;
 const messages: ChatMessageSnapshot[] = [];
 let handle: MessageHandler<"chat"> = () => { throw Error("Handler not registered"); };

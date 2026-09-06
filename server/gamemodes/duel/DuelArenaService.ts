@@ -34,6 +34,16 @@ export class DuelArenaService {
     }
     setScriptServices(scripts: ScriptServices): void { this.scripts = scripts; }
 
+    isFreeInLobby(player: PlayerState): boolean {
+        return this.connected.get(player.id) === player && !this.memberships.has(player.id) &&
+            !this.trade.isBusy(player.id) && player.level === DUEL_LOBBY_CENTER.level && this.insideLobby(player.tileX, player.tileY);
+    }
+
+    mutateBank<T>(player: PlayerState, mutation: () => T): T {
+        if (!this.isFreeInLobby(player)) throw Error("Finish or cancel your current duel or trade first.");
+        return this.economy.mutateBank(player, mutation);
+    }
+
     enter(player: PlayerState): void {
         this.economy.initialize(player);
         this.connected.set(player.id, player);
@@ -146,6 +156,7 @@ export class DuelArenaService {
     private start(room: DuelSession): void {
         try {
             room.seats.forEach((seat, side) => {
+                this.services.getInterfaceService?.()?.closeModal(seat.player);
                 prepareDuelFighter(seat.player, room.weaponId, side, this.services);
                 this.position(seat.player, ARENA_CENTER.x + (side === 0 ? -2 : 2), ARENA_CENTER.y);
                 seat.player.setForcedOrientation(side === 0 ? 1536 : 512);
@@ -223,6 +234,7 @@ export class DuelArenaService {
     private bank(player: PlayerState, args: string[]): void {
         this.requireFree(player);
         const [action, currency, raw] = args;
+        if (action === "open") { this.scripts?.banking?.openBank?.(player); return; }
         if ((action !== "deposit" && action !== "withdraw") || (currency !== "gold" && currency !== "platinum")) throw Error("Choose a bank action and currency.");
         this.economy.bank(player, action, currency, this.amount(raw));
         this.notice(player, action === "deposit" ? "Currency deposited in your bank." : "Currency withdrawn to your inventory.");

@@ -351,7 +351,7 @@ export function GameContainer({ osrsClient }: OsrsContainerProps): JSX.Element {
     }
 
     return (
-        <div className="max-height game-container-root" onContextMenuCapture={event => {
+        <div className={`max-height game-container-root ${osrsClient.widgetManager?.rootInterface === 548 ? "game-fixed-layout" : ""}`} onContextMenuCapture={event => {
             // The game menu can appear between right-button down and contextmenu.
             // Capture at the game root so the newly opened interface is covered too.
             if (osrsClient.duelArenaMode) { event.preventDefault(); event.stopPropagation(); }

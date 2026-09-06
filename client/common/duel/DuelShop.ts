@@ -1,5 +1,5 @@
 /** The Al Kharid shopkeeper uses an original cache model and native Talk-to action. */
-export const DUEL_SHOPKEEPER = { id: 2817, x: 3383, y: 3236, level: 0, direction: 0, wanderRadius: 0 } as const;
+export const DUEL_SHOPKEEPER = { id: 2817, x: 3370, y: 3267, level: 0, direction: 0, wanderRadius: 0 } as const;
 
 export type ShopCurrency = "gold" | "platinum";
 export interface DuelShopPackage {

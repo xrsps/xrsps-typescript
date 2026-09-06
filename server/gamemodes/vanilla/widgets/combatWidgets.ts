@@ -144,10 +144,11 @@ function tryActivateInstantUtilitySpecial(
     if (!rockKnockerSeqId && !fishstabberSeqId && !lumberUpSeqId) {
         return false;
     }
-    if (wasInstantUtilitySpecialHandledAtTick(player, currentTick)) {
+    const marker = player as unknown as Record<string, number | undefined>;
+    if (wasInstantUtilitySpecialHandledAtTick(marker, currentTick)) {
         return true;
     }
-    markInstantUtilitySpecialHandledAtTick(player, currentTick);
+    markInstantUtilitySpecialHandledAtTick(marker, currentTick);
 
     const currentEnergy = player.specEnergy.getUnits();
     if (currentEnergy < 100) {

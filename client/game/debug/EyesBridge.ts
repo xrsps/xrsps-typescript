@@ -26,7 +26,6 @@ import type { OsrsClient } from "../OsrsClient";
 import { GameState } from "../login/GameState";
 import type { DuelSnapshot } from "../../common/duel/DuelProtocol";
 import { duelStore } from "../duel/DuelStore";
-import { getDuelCameraState } from "../duel/DuelCameraControls";
 
 type Tile = { x: number; y: number; plane: number };
 
@@ -77,6 +76,16 @@ export function shouldInstallEyes(): boolean {
 }
 
 export function createEyesBridge(client: OsrsClient) {
+    function nativeMenu() {
+        const canvas = client.renderer?.canvas as (HTMLCanvasElement & {
+            __ui?: { menu?: { open?: boolean; menuState?: OsrsClient["menuState"] } };
+        }) | undefined;
+        const displayed = canvas?.__ui?.menu;
+        return {
+            open: displayed ? displayed.open === true : client.menuOpen === true,
+            state: displayed?.open && displayed.menuState ? displayed.menuState : client.menuState,
+        };
+    }
     // Private-but-stable internals the bridge reads. Kept in one place so a
     // rename upstream only breaks this file.
     const internals = () =>
@@ -117,7 +126,10 @@ export function createEyesBridge(client: OsrsClient) {
             const w = client.camera.screenWidth || window.innerWidth;
             const hgt = client.camera.screenHeight || window.innerHeight;
             if (sx < 0 || sy < 0 || sx > w || sy > hgt) return null;
-            return { x: sx, y: sy };
+            const canvas = client.renderer.canvas;
+            const rect = canvas.getBoundingClientRect();
+            return { x: Math.round(rect.left + sx * rect.width / canvas.width),
+                y: Math.round(rect.top + sy * rect.height / canvas.height) };
         } catch {
             return null;
         }
@@ -131,7 +143,11 @@ export function createEyesBridge(client: OsrsClient) {
                     my: number,
                 ) => { tileX: number; tileY: number; plane: number } | undefined;
             };
-            const t = renderer.computeTerrainTileAt?.(sx, sy);
+            const canvas = client.renderer.canvas;
+            const rect = canvas.getBoundingClientRect();
+            const t = renderer.computeTerrainTileAt?.(
+                (sx - rect.left) * canvas.width / Math.max(1, rect.width),
+                (sy - rect.top) * canvas.height / Math.max(1, rect.height));
             return t ? { x: t.tileX, y: t.tileY, plane: t.plane } : null;
         } catch {
             return null;
@@ -224,10 +240,11 @@ export function createEyesBridge(client: OsrsClient) {
                     zoom: client.camera.viewportZoom,
                     width: client.camera.screenWidth,
                     height: client.camera.screenHeight,
-                    distance: client.duelArenaMode && client.isLoggedIn() ? getDuelCameraState(client).distance : null,
+                    zoomHeight: client.zoomHeight,
+                    zoomWidth: client.zoomWidth,
                     position: { x: client.camera.pos[0], y: client.camera.pos[1], z: client.camera.pos[2] },
                 },
-                menuOpen: ClientState.isMenuOpen,
+                menuOpen: nativeMenu().open,
                 // type 0 sub-interfaces are OSRS "modal" interfaces (dialogs, character creator, bank...)
                 modalOpen: !!session?.modalStack?.length || openWidgets.some((w) => w.type === 0),
                 rootInterface: client.widgetManager?.rootInterface ?? -1,
@@ -367,7 +384,8 @@ export function createEyesBridge(client: OsrsClient) {
 
         /** Entries of the currently built right-click/left-click menu. */
         menu() {
-            const menu = client.menuState;
+            const active = nativeMenu();
+            const menu = active.state;
             const entries: {
                 index: number;
                 action: string;
@@ -387,12 +405,12 @@ export function createEyesBridge(client: OsrsClient) {
                     identifier: e.identifier,
                 });
             }
-            return { open: ClientState.isMenuOpen, entries };
+            return { open: active.open, entries };
         },
 
         /** Invoke a menu entry by index (as if clicked). */
         menuInvoke(index: number) {
-            client.menuState.invoke(index | 0);
+            nativeMenu().state.invoke(index | 0);
             return true;
         },
 

@@ -22,6 +22,7 @@ export type EnterToTypeChatDeps = {
     varManager: VarManager;
     widgetManager: WidgetManager;
     isLoggedIn: () => boolean;
+    useClassicTyping?: () => boolean;
     isItemSpawnerSearchFocused: () => boolean;
 };
 
@@ -45,7 +46,7 @@ export class EnterToTypeChat {
 
     /** Desktop-only; touch devices keep tap-to-type. */
     isEnabled(): boolean {
-        return !isMobileMode && this.deps.isLoggedIn();
+        return !isMobileMode && this.deps.isLoggedIn() && !this.deps.useClassicTyping?.();
     }
 
     /** True while the chatbox ignores typing (keys are free for camera/hotkeys). */

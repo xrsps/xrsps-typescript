@@ -5,11 +5,8 @@ import { DUEL_SHOPKEEPER } from "../../client/common/duel/DuelShop";
 import { ARENA_CENTER, DUEL_LOBBY_BOUNDS, DUEL_LOBBY_CENTER, isDuelSnapshot, type DuelSnapshot } from "../../client/common/duel/DuelProtocol";
 import { DuelArenaService } from "../gamemodes/duel/DuelArenaService";
 import type { DuelEconomy } from "../gamemodes/duel/DuelEconomy";
-import { buildDuelLobbyCollision, buildDuelLobbyPacket, DUEL_LOBBY_BANK_CHESTS, DUEL_LOBBY_OBJECTS, DUEL_LOBBY_SCENE_BOUNDS } from "../gamemodes/duel/DuelLobbyScene";
-import { isDuelLobbyWalkable } from "../gamemodes/duel/DuelLobbySpawns";
-import { DUEL_ARENA_DEBRIS_IDS, DUEL_ARENA_UPPER_DEBRIS_IDS, DUEL_ARENA_SCENERY_BOUNDS, DUEL_ARENA_SCENERY_CHANGES } from "../gamemodes/duel/DuelArenaScenery";
-import nativeRemovals from "../gamemodes/duel/data/lobby-base-locs.json";
-import arenaScenery from "../gamemodes/duel/data/arena-scenery.json";
+import { buildDuelLobbyCollision, buildDuelLobbyPacket, DUEL_LOBBY_BANK_CHESTS, DUEL_LOBBY_SCENE_BOUNDS } from "../gamemodes/duel/DuelLobbyScene";
+import { DUEL_LOBBY_SPAWN_TILES, isDuelLobbyWalkable } from "../gamemodes/duel/DuelLobbySpawns";
 import { DuelGamemode } from "../gamemodes/duel";
 import { registerDuelProviders } from "../gamemodes/duel/DuelProviders";
 import { ensureEquipQtyArrayOn } from "../src/game/equipment";
@@ -19,8 +16,8 @@ import { encodeDuelSnapshot } from "../src/network/packet/DuelSnapshotEncoder";
 
 const collision=buildDuelLobbyCollision();
 const bounds=DUEL_LOBBY_BOUNDS;
-assert.equal(bounds.maxX-bounds.minX+1,21);
-assert.equal(bounds.maxY-bounds.minY+1,14);
+assert.deepEqual(bounds,{minX:3357,maxX:3388,minY:3261,maxY:3274});
+assert.deepEqual(DUEL_LOBBY_CENTER,{x:3367,y:3267,level:0});
 const key=(x:number,y:number)=>`${x},${y}`;
 const flag=(x:number,y:number)=>collision.getFlag(x-DUEL_LOBBY_SCENE_BOUNDS.minX,y-DUEL_LOBBY_SCENE_BOUNDS.minY);
 const reachable=new Set([key(DUEL_LOBBY_CENTER.x,DUEL_LOBBY_CENTER.y)]);
@@ -40,30 +37,18 @@ let walkable=0;
 for (let x:number=bounds.minX;x<=bounds.maxX;x++) for (let y:number=bounds.minY;y<=bounds.maxY;y++) {
     if (!isDuelLobbyWalkable(x,y)) continue;
     walkable++;
-    assert.ok(reachable.has(key(x,y)),`walkable tile ${x},${y} must connect to the main plaza`);
 }
-assert.ok(walkable>=250,`the compact courtyard should keep its central floor clear; found ${walkable}`);
-assert.ok(DUEL_LOBBY_SCENE_BOUNDS.maxY<3240,"courtyard clearing must preserve the native south arcade");
-assert.ok(nativeRemovals.every(loc=>loc.y<3240),"the cached courtyard removal manifest must also preserve arcade supports");
-assert.ok(arenaScenery.removals.length>0,"the ruined arena's loose debris is cleaned");
-assert.ok(arenaScenery.removals.every(loc=>
-    (loc.level===0 && loc.type>3 && DUEL_ARENA_DEBRIS_IDS.includes(loc.id)) ||
-    (loc.level===1 && loc.type===22 && DUEL_ARENA_UPPER_DEBRIS_IDS.includes(loc.id))),
-    "arena cleanup removes only approved debris, never structural walls or upper floors");
-assert.ok(arenaScenery.removals.every(loc=>loc.x>=DUEL_ARENA_SCENERY_BOUNDS.minX && loc.x<=DUEL_ARENA_SCENERY_BOUNDS.maxX &&
-    loc.y>=DUEL_ARENA_SCENERY_BOUNDS.minY && loc.y<=DUEL_ARENA_SCENERY_BOUNDS.maxY),"cleanup stays inside the selected arena");
-assert.ok(DUEL_ARENA_SCENERY_CHANGES.every(loc=>![3123,3124,44829,44830,44804,44857,44884].includes(loc.oldId)),
-    "native paving, statues, flags, lower walls and upper masonry remain in the original arena");
-for (const id of [825,826,827,828,10844,10845,10846,10847,16824,25121,29979,29980]) {
-    assert.ok(arenaScenery.removals.some(loc=>loc.id===id && loc.level===0),`visible ground debris ${id} is removed`);
-}
-for (const id of DUEL_ARENA_UPPER_DEBRIS_IDS) {
-    assert.ok(arenaScenery.removals.some(loc=>loc.id===id && loc.level===1),`raised-edge loose chips ${id} are removed`);
-}
+assert.ok(reachable.size>=250,`the native courtyard should have connected space for arrivals; found ${reachable.size}`);
+assert.ok(walkable>reachable.size,"the original walls still isolate closed rooms");
+assert.ok(DUEL_LOBBY_SPAWN_TILES.every(tile=>reachable.has(key(tile.x,tile.y))),"arrivals must not land inside native closed rooms");
+assert.equal(isDuelLobbyWalkable(3381,3269),false,"the native bank chest retains its original collision");
+assert.equal(isDuelLobbyWalkable(3367.5,3265),false,"spawns only use whole world tiles");
 assert.ok(reachable.has(key(DUEL_SHOPKEEPER.x,DUEL_SHOPKEEPER.y-1)),"the shopkeeper can be approached");
-for (const chest of DUEL_LOBBY_BANK_CHESTS) assert.ok(reachable.has(key(chest.x,chest.y-1)),"every bank chest can be approached");
+for (const chest of DUEL_LOBBY_BANK_CHESTS) {
+    assert.equal(chest.locId,3194,"banks use the original cache chest");
+    assert.ok(reachable.has(key(chest.approachX,chest.approachY)),"every native bank chest can be approached");
+}
 assert.equal(isDuelLobbyWalkable(ARENA_CENTER.x,ARENA_CENTER.y),false,"lobby geometry does not include the fight ring");
-assert.ok(DUEL_LOBBY_OBJECTS.every((loc)=>!(Math.abs(loc.x-ARENA_CENTER.x)<=6 && Math.abs(loc.y-ARENA_CENTER.y)<=6)));
 
 registerDuelProviders();
 const gamemode=new DuelGamemode();
@@ -103,11 +88,6 @@ assert.ok(!players.some((player)=>player.tileX===replacement.tileX && player.til
 const content=buildDuelLobbyPacket();
 assert.equal(new DataView(content.buffer).getUint16(1,false),content.length-3);
 const payload=JSON.parse(inflateSync(content.subarray(8)).toString("utf8"));
-const terrain=payload.datasets.find((dataset:{key:string})=>dataset.key==="worldTerrainOverrides").rows;
-const changes=payload.datasets.find((dataset:{key:string})=>dataset.key==="worldLocChanges").rows;
-assert.ok(changes.some((loc:{oldId:number;y:number})=>loc.oldId===849 && loc.y>=3240),"spear debris cleanup reaches the actual client content packet");
-assert.ok(changes.some((loc:{oldId:number;level:number})=>loc.oldId===29979 && loc.level===0),"arrow cleanup reaches the actual client content packet");
-assert.ok(changes.some((loc:{oldId:number;level:number})=>loc.oldId===6815 && loc.level===1),"raised-edge shard cleanup reaches the actual client content packet");
-assert.ok(terrain.filter((tile:{level:number})=>tile.level===0).every((tile:{height:number})=>tile.height===-160),"the courtyard ground is level in the actual client content packet");
-assert.ok(terrain.every((tile:{y:number})=>tile.y<3240),"the content packet does not erase native arcade floors");
-console.log(`Duel lobby capacity checks passed: ${walkable} connected walkable tiles, 200 distinct server arrivals, ${rosterPacket.length}-byte roster, ${content.length}-byte world content. This is not a network/GPU load test.`);
+assert.equal(payload.gamemodeId,"duel");
+assert.deepEqual(payload.datasets,[],"the native client receives no replacement scenery or terrain");
+console.log(`Native courtyard checks passed: ${reachable.size} connected walkable tiles, 200 distinct server arrivals, ${rosterPacket.length}-byte roster, ${content.length}-byte world content. This is not a network/GPU load test.`);

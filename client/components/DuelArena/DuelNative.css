@@ -1,0 +1,61 @@
+/* The native cache renders the game frame, chat, inventory, tabs and menus. */
+@font-face { font-family: "Duel Native"; src: url(../../media/RuneScape-Plain-12.ttf); }
+@font-face { font-family: "Duel Native Bold"; src: url(../../media/RuneScape-Bold-12.ttf); }
+.duel-native { background: none; font-family: "Duel Native", sans-serif; }
+.duel-native .duel-modal { padding: 12px 18px; }
+.duel-native .duel-modal h2 { font-family: "Duel Native Bold", serif; }
+.duel-native .duel-offer-columns { margin: 10px 0; }
+.duel-native .duel-offer-columns > section { padding: 10px; }
+.duel-native .duel-modal h3 { margin-bottom: 10px; }
+.duel-native .duel-currency-fields { gap: 8px; }
+.duel-native .duel-dialog-actions { margin-top: 10px; }
+.duel-native .duel-panel {
+    border: 3px ridge #8c8064;
+    border-radius: 0;
+    background: #494335;
+    box-shadow: 0 0 0 1px #15130e, 0 8px 24px #0006;
+}
+.duel-native .duel-panel h2 { color: #ff981f; font-size: 23px; text-shadow: 1px 1px #000; }
+.duel-native .duel-modal-heading { border-bottom: 1px solid #786b50; }
+.duel-native .duel-modal-backdrop { background: #0005; }
+.duel-native button { border-radius: 0; border: 2px outset #82775e; }
+.duel-native .duel-primary { background: #565340; color: #00ff00; border-color: #8b8168; }
+.duel-native .duel-primary:hover:not(:disabled) { background: #69604a; }
+.duel-native .duel-countdown { width: 65%; top: 24%; color: #ffff00; }
+.duel-native .duel-countdown strong { color: #ffff00; font-size: 64px; }
+
+.game-fixed-layout .duel-shop-intro { display: none; }
+.game-fixed-layout .duel-modal h2 { margin-bottom: 8px; }
+.game-fixed-layout .duel-modal p { line-height: 1.3; }
+.game-fixed-layout .duel-agreement { padding: 6px 10px; }
+.game-fixed-layout .duel-currency-summary { margin: 8px 0; gap: 8px; }
+.game-fixed-layout .duel-currency-fields > div { display: grid; grid-template-columns: 1fr 95px; gap: 3px 6px; }
+.game-fixed-layout .duel-currency-fields label { margin: 0; }
+.game-fixed-layout .duel-currency-fields input { min-height: 30px; padding: 3px 6px; }
+.game-fixed-layout .duel-amount-steps { grid-column: 1 / -1; margin: 0; }
+.game-fixed-layout .duel-currency-fields small { grid-column: 1 / -1; }
+.game-fixed-layout .duel-modal p.duel-approved,
+.game-fixed-layout .duel-modal p.duel-approval { margin-top: 8px; }
+.game-fixed-layout .duel-offer-total { padding-bottom: 7px; margin-bottom: 7px; }
+.game-fixed-layout .duel-notice { margin-top: 6px; }
+.game-fixed-layout .duel-dialog-actions button { min-height: 32px; padding: 6px 10px; }
+.game-fixed-layout .duel-shop-progress { margin-bottom: 8px; padding: 6px 0; }
+.game-fixed-layout .duel-shop-tabs { margin-bottom: 8px; }
+.game-fixed-layout .duel-shop-tabs button { min-height: 32px; padding: 2px 8px; }
+.game-fixed-layout .duel-shop .duel-shop-package { gap: 4px; padding: 8px; }
+.game-fixed-layout .duel-shop-package-art { height: 42px; }
+.game-fixed-layout .duel-shop-package-art .duel-currency-icon { transform: scale(1.3); }
+.game-fixed-layout .duel-shop-package-art.is-bundle .duel-currency-icon + .duel-currency-icon { top: 8px; }
+.game-fixed-layout .duel-shop-package-description { display: none; }
+.game-fixed-layout .duel-shop-package small { margin: 3px 0; }
+.game-fixed-layout .duel-shop-package strong { font-size: 18px; }
+.game-fixed-layout .duel-shop-selected { padding-top: 5px; }
+.game-fixed-layout .duel-shop-payment-note { padding-top: 6px; }
+.game-fixed-layout .duel-shop-footer { padding-top: 8px; margin-top: 8px; }
+.game-fixed-layout .duel-shop-footer button { min-height: 32px; padding: 6px 12px; }
+.game-fixed-layout .duel-shop-review { padding: 10px; }
+.game-fixed-layout .duel-shop-review-title { padding-bottom: 8px; }
+.game-fixed-layout .duel-shop-review dl { margin-top: 8px; }
+.game-fixed-layout .duel-shop-review dl > div { padding: 3px 0; }
+.game-fixed-layout .duel-shop-checkout { margin-top: 8px; }
+.game-fixed-layout .duel-shop-checkout input { min-height: 32px; padding: 6px 10px; }

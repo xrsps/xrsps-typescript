@@ -56,7 +56,7 @@ export function getOrbsMountUid(
         const mobileOrbsUid = (getRootInterfaceId(DisplayMode.MOBILE) << 16) | 22;
         return fallbackTargetUid ?? mobileOrbsUid;
     }
-    return (getRootInterfaceId(DisplayMode.FIXED) << 16) | 11;
+    return (getRootInterfaceId(DisplayMode.FIXED) << 16) | 25;
 }
 
 export function getMinimapOrbsGroupId(minimapToggleValue: number): number {

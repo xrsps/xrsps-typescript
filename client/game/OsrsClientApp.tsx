@@ -300,6 +300,11 @@ function OsrsClientApp() {
                 // No cache yet - will be initialized after download
             );
             client.duelArenaMode = new URLSearchParams(window.location.search).get("classic") !== "1";
+            if (client.duelArenaMode) {
+                // Initial courtyard view only; the original camera controls take over from here.
+                client.camera.snapToYaw(1024);
+                client.camera.snapToPitch(64);
+            }
             clientToDispose = client;
 
             // Set OsrsClient immediately so GameContainer can render the login overlay

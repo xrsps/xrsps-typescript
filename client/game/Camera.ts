@@ -30,6 +30,7 @@ export class Camera {
     private targetPos: vec3;
     private targetPitch: number;
     private targetYaw: number;
+    private minimumScenePitchAngle: number = 128;
 
     private readonly positionMaxSpeedPerSec = 12; // tiles per second toward target
     private readonly positionSpringPerSec = 6; // proportional easing factor
@@ -139,7 +140,19 @@ export class Camera {
     }
 
     getScenePitchAngle(): number {
-        return Camera.rawPitchToScenePitchAngle(this.pitch);
+        return Math.max(Camera.rawPitchToScenePitchAngle(this.pitch), this.minimumScenePitchAngle);
+    }
+
+    getMinimumScenePitchAngle(): number {
+        return this.minimumScenePitchAngle;
+    }
+
+    setMinimumScenePitchAngle(angle: number): void {
+        const minimum = clamp(Number(angle) || 128, 128, 383);
+        if (minimum !== this.minimumScenePitchAngle) {
+            this.minimumScenePitchAngle = minimum;
+            this.updated = true;
+        }
     }
 
     getScenePitchRadians(): number {

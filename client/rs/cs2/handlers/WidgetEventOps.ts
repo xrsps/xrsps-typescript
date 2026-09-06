@@ -2,6 +2,7 @@
  * Widget event handler operations: CC_SETON* and IF_SETON*
  */
 import { Opcodes } from "../Opcodes";
+import { bindNativeChatRow } from "../ChatRowIdentity";
 import type { HandlerMap } from "./HandlerTypes";
 
 /**
@@ -54,7 +55,9 @@ export function registerWidgetEventOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.CC_SETONOP, (ctx, intOp) => {
-        ctx.setEventHandler(getTargetWidget(ctx, intOp), "onOp");
+        const widget = getTargetWidget(ctx, intOp);
+        ctx.setEventHandler(widget, "onOp");
+        bindNativeChatRow(ctx.cs2Vm, ctx.currentScriptId, widget);
     });
 
     handlers.set(Opcodes.CC_SETONDRAGCOMPLETE, (ctx, intOp) => {
@@ -200,7 +203,9 @@ export function registerWidgetEventOps(handlers: HandlerMap): void {
     });
 
     handlers.set(Opcodes.IF_SETONOP, (ctx) => {
+        const uid = ctx.intStack[ctx.intStackSize - 1];
         ctx.setEventHandlerByUid("onOp");
+        bindNativeChatRow(ctx.cs2Vm, ctx.currentScriptId, ctx.widgetManager.getWidgetByUid(uid));
     });
 
     handlers.set(Opcodes.IF_SETONDRAGCOMPLETE, (ctx) => {

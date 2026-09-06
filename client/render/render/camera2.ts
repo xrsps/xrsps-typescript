@@ -189,7 +189,6 @@ import {
 import { KNOWN_WATER_TEXTURE_IDS } from "../water/WaterTextureIds";
 import type { WebGLOsrsRendererHost } from "./hostInterface";
 import { RENDER_CONSTANTS } from "./constants";
-import { updateDuelArenaCamera } from "./camera/DuelArenaCamera";
 
 export function updateCameraFollow(host: WebGLOsrsRendererHost, deltaTime?: number, timeSec?: number): void {
 
@@ -205,11 +204,6 @@ export function updateCameraFollow(host: WebGLOsrsRendererHost, deltaTime?: numb
         // Update player position for fog calculation (use actual player pos)
         host.playerPosUni[0] = playerX;
         host.playerPosUni[1] = playerZ;
-
-        if (host.osrsClient.duelArenaMode) {
-            updateDuelArenaCamera(host, timeSec);
-            return;
-        }
 
         // OSRS follow camera uses a smoothed focal point (oculusOrbFocalPointX/Y) that eases toward the player.
         // Important: update is tick-based (integer math), not frame-delta based; otherwise the camera/focal timebase
@@ -299,18 +293,18 @@ export function updateCameraFollow(host: WebGLOsrsRendererHost, deltaTime?: numb
         const zoom =
             (host.osrsClient.zoomWidth - host.osrsClient.zoomHeight) * (v / 100) +
             host.osrsClient.zoomHeight;
-        let camAngleX = camera.getScenePitchAngle();
-        const terrainMinCamAngleX = (host.cameraTerrainPitchPressure | 0) >> 8;
-        if (terrainMinCamAngleX > camAngleX) {
-            camAngleX = terrainMinCamAngleX;
-        }
+        let minimumCamAngleX = (host.cameraTerrainPitchPressure | 0) >> 8;
         // active pitch-shake also raises the minimum camera angle for orbit distance.
         if (host.cameraShakeEnabled[4]) {
             const shakeMinCamAngleX = (host.cameraShakeWaveAmplitude[4] | 0) + 128;
-            if (shakeMinCamAngleX > camAngleX) {
-                camAngleX = shakeMinCamAngleX;
+            if (shakeMinCamAngleX > minimumCamAngleX) {
+                minimumCamAngleX = shakeMinCamAngleX;
             }
         }
+        // Orbit and view must use the same terrain-limited pitch. Keeping the limit
+        // separate from input pitch lets the user's angle return as pressure decays.
+        camera.setMinimumScenePitchAngle(minimumCamAngleX);
+        const camAngleX = camera.getScenePitchAngle();
 
         const yawRad = (camera.yaw - 1024) * RS_TO_RADIANS;
         const pitchRad = -camAngleX * RS_TO_RADIANS;

@@ -12,9 +12,9 @@ try {
     await mkdir(output,{recursive:true});
     await first.open({username:names[0],password:"RightClick2026"});
     await second.open({username:names[1],password:"RightClick2026"});
-    await first.walk(3375,3232); await second.walk(3379,3232);
-    await first.waitFor("eyes.state().tile.x === 3375 && eyes.state().tile.y === 3232");
-    await second.waitFor("eyes.state().tile.x === 3379 && eyes.state().tile.y === 3232");
+    await first.walk(3365,3265); await second.walk(3369,3265);
+    await first.waitFor("eyes.state().tile.x === 3365 && eyes.state().tile.y === 3265");
+    await second.waitFor("eyes.state().tile.x === 3369 && eyes.state().tile.y === 3265");
     await look("01-two-players-before-right-click");
     // Retain native events and inspect them after dispatch; a microtask in an
     // earlier capture listener can run before React's root listener cancels it.

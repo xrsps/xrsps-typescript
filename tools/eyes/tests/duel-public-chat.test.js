@@ -56,9 +56,9 @@ try {
     await look(first,"02-both-real-players-speaking");
 
     // Opposite ends of the small courtyard remain beyond the 15-tile model range.
-    await first.walk(3368,3232); await second.walk(3386,3232);
-    await first.waitFor("eyes.state().tile.x === 3368 && eyes.state().tile.y === 3232",30000);
-    await second.waitFor("eyes.state().tile.x === 3386 && eyes.state().tile.y === 3232",30000);
+    await first.walk(3358,3265); await second.walk(3376,3265);
+    await first.waitFor("eyes.state().tile.x === 3358 && eyes.state().tile.y === 3265",30000);
+    await second.waitFor("eyes.state().tile.x === 3376 && eyes.state().tile.y === 3265",30000);
     await first.waitFor(`!eyes.players(15).some(player => player.name.toLowerCase() === ${JSON.stringify(names[1])})`);
     await speak(first,"You can hear me across the whole courtyard");
     await see(second,"You can hear me across the whole courtyard");
@@ -94,9 +94,9 @@ try {
     assert.equal(fit,true,"public chat stays within the mobile viewport");
     await look(first,"05-mobile-public-chat");
     await first.page.setViewportSize({width:1280,height:800});
-    await first.walk(3375,3232); await second.walk(3379,3232);
-    await first.waitFor("eyes.state().tile.x === 3375 && eyes.state().tile.y === 3232",30000);
-    await second.waitFor("eyes.state().tile.x === 3379 && eyes.state().tile.y === 3232",30000);
+    await first.walk(3365,3265); await second.walk(3369,3265);
+    await first.waitFor("eyes.state().tile.x === 3365 && eyes.state().tile.y === 3265",30000);
+    await second.waitFor("eyes.state().tile.x === 3369 && eyes.state().tile.y === 3265",30000);
     const opponent = (await second.bridge("duel")).self.id;
     await first.say(`::duel challenge ${opponent} dagger`);
     await second.page.getByRole("button",{name:"Accept challenge",exact:true}).click();

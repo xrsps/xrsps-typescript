@@ -10,7 +10,7 @@ const names = {red:`lr${suffix}`,blue:`lb${suffix}`};
 const password = "LobbyTest2026";
 // The central paved crossing stays clear, close to new-account arrival tiles,
 // and within the normal player-follow camera for real click-to-walk checks.
-const courtyardTiles = {red:{x:3375,y:3232},blue:{x:3379,y:3232}};
+const courtyardTiles = {red:{x:3365,y:3265},blue:{x:3369,y:3265}};
 const directory = new URL("./out/duel-lobby/", import.meta.url);
 const snapshot = (game) => game.bridge("duel");
 const until = (game, expression, timeout = 25000) => game.waitFor(expression, timeout);

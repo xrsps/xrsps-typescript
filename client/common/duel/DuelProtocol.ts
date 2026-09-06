@@ -1,7 +1,7 @@
 /** Shared rules and server-authored state for the Duel Arena and its courtyard. */
 export const ARENA_CENTER = { x: 3378, y: 3251, level: 0 } as const;
-export const DUEL_LOBBY_CENTER = { x: 3377, y: 3232, level: 0 } as const;
-export const DUEL_LOBBY_BOUNDS = { minX: 3367, maxX: 3387, minY: 3226, maxY: 3239 } as const;
+export const DUEL_LOBBY_CENTER = { x: 3367, y: 3267, level: 0 } as const;
+export const DUEL_LOBBY_BOUNDS = { minX: 3357, maxX: 3388, minY: 3261, maxY: 3274 } as const;
 export const DUEL_WEAPONS = { dagger: 5698, whip: 4151 } as const;
 export const DUEL_CURRENCY_LIMIT = 2147483647;
 export type DuelWeapon = keyof typeof DUEL_WEAPONS;

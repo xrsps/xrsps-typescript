@@ -30,7 +30,7 @@ function getXpCounterMountUid(displayMode: number): number {
     // DisplayMode enum:
     // 0 = FIXED, 1 = RESIZABLE_NORMAL, 2 = RESIZABLE_LIST, 3 = FULLSCREEN, 4 = MOBILE
     if (displayMode === 0) {
-        return (548 << 16) | 17;
+        return (548 << 16) | 45;
     }
     if (displayMode === 2) {
         return (164 << 16) | 7;

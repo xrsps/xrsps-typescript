@@ -41,11 +41,12 @@
     "start": "tsx ../server/scripts/ensure-cache.ts && craco start",
     "dev": "yarn start",
     "build": "craco build",
-    "test": "tsx tests/direction-orientation.test.ts && tsx tests/npc-instance-flush-controller.test.ts && tsx tests/cache-streaming.test.ts && tsx tests/enter-to-type-chat.test.ts && tsx tests/chat-channel-prefix.test.ts && tsx tests/camera-controls.test.ts && tsx tests/renderer-lifecycle.test.ts && tsx tests/widget-root-onload-race.test.ts && tsx tests/duel-public-chat.test.ts && tsx tests/duel-shop.test.ts && tsx tests/item-stack-text.test.ts",
+    "test": "tsx tests/direction-orientation.test.ts && tsx tests/npc-instance-flush-controller.test.ts && tsx tests/cache-streaming.test.ts && tsx tests/enter-to-type-chat.test.ts && tsx tests/chat-channel-prefix.test.ts && tsx tests/camera-controls.test.ts && tsx tests/renderer-lifecycle.test.ts && tsx tests/widget-root-onload-race.test.ts && tsx tests/duel-public-chat.test.ts && tsx tests/duel-shop.test.ts && tsx tests/item-stack-text.test.ts && tsx tests/duel-native-menu.test.ts && tsx tests/duel-native-chat.test.ts && tsx tests/eyes-native-menu.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "export-textures": "tsx scripts/cache/export-textures.ts",
     "export-height-map": "tsx scripts/cache/export-height-map.ts",
-    "export-items": "tsx scripts/cache/export-items.ts"
+    "export-items": "tsx scripts/cache/export-items.ts",
+    "test:duel-native": "tsx tests/duel-native-menu.test.ts && tsx tests/duel-native-chat.test.ts && tsx tests/eyes-native-menu.test.ts"
   },
   "eslintConfig": {
     "extends": [

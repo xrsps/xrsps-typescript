@@ -225,7 +225,6 @@ export function toCssEvent(host: WebGLOsrsRendererHost,
 
 export function isMouseInUIRegion(host: WebGLOsrsRendererHost, mx: number, my: number): boolean {
 
-        if (host.osrsClient.duelArenaMode) return false;
         return checkMouseInUIRegion(mx, my, host.canvas.width, host.canvas.height);
     
 }

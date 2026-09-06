@@ -101,38 +101,38 @@ export interface InterfaceDestinationEntry {
  */
 export const InterfaceDestination = {
     // Utility interfaces - childId varies by display mode
-    CHAT_BOX: { interfaceId: 162, fixedChildId: 24, resizeChildId: 96, resizeListChildId: 93 },
-    USERNAME: { interfaceId: 163, fixedChildId: 19, resizeChildId: 9, resizeListChildId: 9 },
+    CHAT_BOX: { interfaceId: 162, fixedChildId: 11, resizeChildId: 96, resizeListChildId: 93 },
+    USERNAME: { interfaceId: 163, fixedChildId: 34, resizeChildId: 9, resizeListChildId: 9 },
     PVP_OVERLAY: { interfaceId: -1, fixedChildId: 15, resizeChildId: 4, resizeListChildId: 4 },
-    MINI_MAP: { interfaceId: 160, fixedChildId: 11, resizeChildId: 22, resizeListChildId: 22 },
-    XP_COUNTER: { interfaceId: 122, fixedChildId: 17, resizeChildId: 7, resizeListChildId: 7 },
+    MINI_MAP: { interfaceId: 160, fixedChildId: 25, resizeChildId: 22, resizeListChildId: 22 },
+    XP_COUNTER: { interfaceId: 122, fixedChildId: 45, resizeChildId: 7, resizeListChildId: 7 },
 
     // Tab interfaces - childId is the tab container slot (same across display modes)
     // Tab order matches enum_1137 and GameframeTab enum indices (0-13)
-    ATTACK: { interfaceId: 593, fixedChildId: 76, resizeChildId: 76, resizeListChildId: 76 }, // Tab 0
-    SKILLS: { interfaceId: 320, fixedChildId: 77, resizeChildId: 77, resizeListChildId: 77 }, // Tab 1
+    ATTACK: { interfaceId: 593, fixedChildId: 81, resizeChildId: 76, resizeListChildId: 76 }, // Tab 0
+    SKILLS: { interfaceId: 320, fixedChildId: 82, resizeChildId: 77, resizeListChildId: 77 }, // Tab 1
     QUEST: {
         interfaceId: SIDE_JOURNAL_GROUP_ID,
-        fixedChildId: 78,
+        fixedChildId: 83,
         resizeChildId: 78,
         resizeListChildId: 78,
     }, // Tab 2
-    INVENTORY: { interfaceId: 149, fixedChildId: 79, resizeChildId: 79, resizeListChildId: 79 }, // Tab 3
-    EQUIPMENT: { interfaceId: 387, fixedChildId: 80, resizeChildId: 80, resizeListChildId: 80 }, // Tab 4
-    PRAYER: { interfaceId: 541, fixedChildId: 81, resizeChildId: 81, resizeListChildId: 81 }, // Tab 5
-    MAGIC: { interfaceId: 218, fixedChildId: 82, resizeChildId: 82, resizeListChildId: 82 }, // Tab 6
-    CLAN_CHAT: { interfaceId: 7, fixedChildId: 83, resizeChildId: 83, resizeListChildId: 83 }, // Tab 7
+    INVENTORY: { interfaceId: 149, fixedChildId: 84, resizeChildId: 79, resizeListChildId: 79 }, // Tab 3
+    EQUIPMENT: { interfaceId: 387, fixedChildId: 85, resizeChildId: 80, resizeListChildId: 80 }, // Tab 4
+    PRAYER: { interfaceId: 541, fixedChildId: 86, resizeChildId: 81, resizeListChildId: 81 }, // Tab 5
+    MAGIC: { interfaceId: 218, fixedChildId: 87, resizeChildId: 82, resizeListChildId: 82 }, // Tab 6
+    CLAN_CHAT: { interfaceId: 7, fixedChildId: 88, resizeChildId: 83, resizeListChildId: 83 }, // Tab 7
     ACCOUNT_MANAGEMENT: {
         interfaceId: 109,
-        fixedChildId: 84,
+        fixedChildId: 89,
         resizeChildId: 84,
         resizeListChildId: 84,
     }, // Tab 8
-    SOCIAL: { interfaceId: 429, fixedChildId: 85, resizeChildId: 85, resizeListChildId: 85 }, // Tab 9
-    LOG_OUT: { interfaceId: 182, fixedChildId: 86, resizeChildId: 86, resizeListChildId: 86 }, // Tab 10
-    SETTINGS: { interfaceId: 116, fixedChildId: 87, resizeChildId: 87, resizeListChildId: 87 }, // Tab 11
-    EMOTES: { interfaceId: 216, fixedChildId: 88, resizeChildId: 88, resizeListChildId: 88 }, // Tab 12
-    MUSIC: { interfaceId: 239, fixedChildId: 89, resizeChildId: 89, resizeListChildId: 89 }, // Tab 13
+    SOCIAL: { interfaceId: 429, fixedChildId: 90, resizeChildId: 85, resizeListChildId: 85 }, // Tab 9
+    LOG_OUT: { interfaceId: 182, fixedChildId: 91, resizeChildId: 86, resizeListChildId: 86 }, // Tab 10
+    SETTINGS: { interfaceId: 116, fixedChildId: 92, resizeChildId: 87, resizeListChildId: 87 }, // Tab 11
+    EMOTES: { interfaceId: 216, fixedChildId: 93, resizeChildId: 88, resizeListChildId: 88 }, // Tab 12
+    MUSIC: { interfaceId: 239, fixedChildId: 94, resizeChildId: 89, resizeListChildId: 89 }, // Tab 13
 } satisfies Record<string, InterfaceDestinationEntry>;
 
 /**
@@ -190,9 +190,9 @@ export function getChildId(dest: InterfaceDestinationEntry, displayMode: Display
 export const ContainerChildIds = {
     // Desktop fixed (548)
     FIXED: {
-        MAINMODAL: 15, // toplevel:mainmodal - modal interfaces (bank, shop, etc.)
-        INVENTORY_TAB: 79, // Tab 3 container (SIDE3) - for inventory interface only
-        SIDEMODAL: 74, // toplevel:sidemodal - bank/shop side panels (hides ALL tabs via script 1213)
+        MAINMODAL: 41, // cache enum1129: 161:16 -> 548:41
+        INVENTORY_TAB: 84, // cache enum1129: 161:79 -> 548:84
+        SIDEMODAL: 79, // cache enum1129: 161:74 -> 548:79
     },
     // Desktop resizable (161)
     RESIZABLE: {
@@ -252,6 +252,9 @@ export function getMainmodalUid(displayMode: DisplayMode): number {
 export function getViewportTrackerFrontUid(displayMode: DisplayMode): number {
     // Base container UID in toplevel_osrs_stretch (161).
     const baseUid = BaseComponentUids.VIEWPORT_TRACKER_FRONT;
+    if (displayMode === DisplayMode.FIXED) {
+        return viewportEnumService?.getComponent(baseUid, displayMode) ?? ((548 << 16) | 42);
+    }
 
     if (displayMode === DisplayMode.MOBILE) {
         // Enum 1745 maps 161:17 -> 601:28 in our cache.
@@ -275,6 +278,9 @@ export function getViewportTrackerFrontUid(displayMode: DisplayMode): number {
  */
 export function getPopoutUid(displayMode: DisplayMode): number {
     const baseUid = BaseComponentUids.POPOUT;
+    if (displayMode === DisplayMode.FIXED) {
+        return viewportEnumService?.getComponent(baseUid, displayMode) ?? ((548 << 16) | 6);
+    }
 
     if (displayMode === DisplayMode.MOBILE) {
         // Enum 1745 maps 161:98 -> 601:134 in our cache.
@@ -369,7 +375,7 @@ export function getPrayerTabUid(displayMode: DisplayMode): number {
         return (rootId << 16) | MOBILE_PRAYER_TAB_CHILD;
     }
 
-    const prayerTabChild = InterfaceDestination.PRAYER.resizeChildId;
+    const prayerTabChild = getChildId(InterfaceDestination.PRAYER, displayMode);
     return (rootId << 16) | prayerTabChild;
 }
 
@@ -391,8 +397,11 @@ export function getSidemodalUid(displayMode: DisplayMode): number {
         return viewportEnumService.getMobileComponent(BaseComponentUids.SIDEMODAL);
     }
 
-    // All desktop modes use child ID 74 for sidemodal
-    // Fixed (548), Resizable (161), Resizable List (164), Fullscreen (165)
+    if (displayMode === DisplayMode.FIXED) {
+        return viewportEnumService?.getComponent(BaseComponentUids.SIDEMODAL, displayMode) ??
+            ((rootId << 16) | ContainerChildIds.FIXED.SIDEMODAL);
+    }
+    // Resizable desktop modes use child ID 74 for sidemodal.
     return (rootId << 16) | ContainerChildIds.RESIZABLE.SIDEMODAL;
 }
 

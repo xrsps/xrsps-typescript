@@ -537,17 +537,20 @@ export function render(host: WebGLOsrsRendererHost, time: number, deltaTime: num
         host.tickPass(timeSec, ticksElapsed, clientTicksElapsed, clientCycle);
         profiler.endPhase();
 
+        // Smooth user input before calculating the orbit so its angle matches the view.
+        camera.applySmoothing(deltaTime);
+        camera.setMinimumScenePitchAngle(128);
         // Now update follow camera and matrices using up-to-date player position
         if (host.osrsClient.followPlayerCamera && host.osrsClient.playerEcs.size() > 0) {
             host.updateCameraFollow(deltaTime, timeSec);
         }
-        camera.applySmoothing(deltaTime);
         let cameraShakeApplied = false;
         let restoreCameraX = 0;
         let restoreCameraY = 0;
         let restoreCameraZ = 0;
         let restoreCameraPitch = 0;
         let restoreCameraYaw = 0;
+        let restoreCameraMinimumPitch = 128;
         // Ensure camera uses valid dimensions
         const camWidth = Math.max(1, host.app.width || host.canvas.width || 1);
         const camHeight = Math.max(1, host.app.height || host.canvas.height || 1);
@@ -580,13 +583,10 @@ export function render(host: WebGLOsrsRendererHost, time: number, deltaTime: num
                 restoreCameraZ = camera.getPosZ();
                 restoreCameraPitch = camera.pitch | 0;
                 restoreCameraYaw = camera.yaw | 0;
+                restoreCameraMinimumPitch = camera.getMinimumScenePitchAngle();
 
-                let shakenPitch = restoreCameraPitch;
-                if ((shake.pitch | 0) !== 0) {
-                    let camAngleX = 128 + Math.floor((clamp(shakenPitch, 0, 512) * 255) / 512);
-                    camAngleX = Math.max(128, Math.min(383, camAngleX + (shake.pitch | 0)));
-                    shakenPitch = clamp(Math.floor(((camAngleX - 128) * 512) / 255), 0, 512);
-                }
+                const shakenScenePitch = clamp(camera.getScenePitchAngle() + (shake.pitch | 0), 128, 383);
+                const shakenPitch = clamp(Math.ceil(((shakenScenePitch - 128) * 512) / 255), 0, 512);
                 const shakenYaw = (restoreCameraYaw + (shake.yaw | 0)) & 2047;
 
                 camera.snapToPosition(
@@ -595,6 +595,7 @@ export function render(host: WebGLOsrsRendererHost, time: number, deltaTime: num
                     restoreCameraZ + shake.z / 128,
                 );
                 camera.snapToPitch(shakenPitch);
+                camera.setMinimumScenePitchAngle(128);
                 camera.snapToYaw(shakenYaw);
                 camera.update(
                     camWidth,
@@ -784,6 +785,7 @@ export function render(host: WebGLOsrsRendererHost, time: number, deltaTime: num
         if (cameraShakeApplied) {
             camera.snapToPosition(restoreCameraX, restoreCameraY, restoreCameraZ);
             camera.snapToPitch(restoreCameraPitch);
+            camera.setMinimumScenePitchAngle(restoreCameraMinimumPitch);
             camera.snapToYaw(restoreCameraYaw);
             camera.update(
                 camWidth,
