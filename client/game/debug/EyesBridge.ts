@@ -20,7 +20,7 @@ import {
     sendWalk,
     sendWidgetClose,
     sendWidgetOpen,
-} from "../../network/serverConnection";
+} from "../../network/ServerConnection";
 import { ClientState } from "../ClientState";
 import type { OsrsClient } from "../OsrsClient";
 import { GameState } from "../login/GameState";
