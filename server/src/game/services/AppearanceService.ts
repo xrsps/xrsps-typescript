@@ -3,6 +3,10 @@ import type { IdkType } from "../../../../client/rs/config/idktype/IdkType";
 import { EquipmentSlot } from "../../../../client/rs/config/player/Equipment";
 import { PlayerAppearance as CachePlayerAppearance } from "../../../../client/rs/config/player/PlayerAppearance";
 import { logger } from "../../utils/logger";
+import {
+    buildAnimSetFromBas,
+    ensureCorePlayerAnimSet,
+} from "../../network/anim/playerAnim";
 import type { ServerServices } from "../ServerServices";
 import type { WeaponDataEntry } from "../combat/WeaponDataProvider";
 import { weaponDataEntries } from "../combat/WeaponDataProvider";
@@ -13,35 +17,19 @@ const EQUIP_SLOT_COUNT = 14;
 
 export type { PlayerAppearanceState, PlayerAnimSet };
 
-const PLAYER_ANIM_KEYS = ["idle", "walk", "run", "turnLeft", "turnRight"] as const;
-
-function buildAnimSetFromBas(bas: BasType | undefined): PlayerAnimSet | undefined {
-    if (!bas) return undefined;
-    const set: PlayerAnimSet = {};
-    // BasType fields use `*SeqId` naming but some cache variants use short names
-    const b = bas as BasType & Record<string, number | undefined>;
-    if (b.idleSeq !== undefined) set.idle = b.idleSeq;
-    else if (bas.idleSeqId >= 0) set.idle = bas.idleSeqId;
-    if (b.walkSeq !== undefined) set.walk = b.walkSeq;
-    else if (bas.walkSeqId >= 0) set.walk = bas.walkSeqId;
-    if (b.runSeq !== undefined) set.run = b.runSeq;
-    else if (bas.runSeqId >= 0) set.run = bas.runSeqId;
-    if (b.turnLeft !== undefined) set.turnLeft = b.turnLeft;
-    else if (bas.idleLeftSeqId >= 0) set.turnLeft = bas.idleLeftSeqId;
-    if (b.turnRight !== undefined) set.turnRight = b.turnRight;
-    else if (bas.idleRightSeqId >= 0) set.turnRight = bas.idleRightSeqId;
-    return set;
-}
-
-function ensureCorePlayerAnimSet(source: PlayerAnimSet, fallback: PlayerAnimSet): PlayerAnimSet {
-    const result: PlayerAnimSet = { ...source };
-    for (const key of PLAYER_ANIM_KEYS) {
-        if (result[key] === undefined || result[key]! < 0) {
-            result[key] = fallback[key];
-        }
-    }
-    return result;
-}
+const PLAYER_ANIM_KEYS = [
+    "idle",
+    "walk",
+    "walkBack",
+    "walkLeft",
+    "walkRight",
+    "run",
+    "runBack",
+    "runLeft",
+    "runRight",
+    "turnLeft",
+    "turnRight",
+] as const;
 
 /**
  * Manages player appearance, animation sets, body kits, and weapon data.
@@ -232,7 +220,13 @@ export class AppearanceService {
             const basLoader = this.services.dataLoaderService.getBasTypeLoader();
             if (basLoader) {
                 const fromBas = this.loadAnimSetFromBas(() => basLoader.load(basId));
-                if (fromBas) return ensureCorePlayerAnimSet(fromBas, genderFallback);
+                if (fromBas) {
+                    return ensureCorePlayerAnimSet(
+                        fromBas,
+                        genderFallback,
+                        this.defaultPlayerAnim,
+                    );
+                }
             }
         }
         return ensureCorePlayerAnimSet(genderFallback, this.defaultPlayerAnim);
