@@ -1086,7 +1086,6 @@ export class OsrsClient {
             varManager: this.varManager,
             widgetManager: this.widgetManager,
             isLoggedIn: () => this.isLoggedIn(),
-            useClassicTyping: () => this.duelArenaMode,
             isItemSpawnerSearchFocused: () => this.itemSpawnerUi.isSearchFocused(),
         });
         this.mobileChatKeyboard = new MobileChatKeyboard({
@@ -2193,7 +2192,6 @@ export class OsrsClient {
             } else if (payload?.action === "set_root") {
                 console.log("[OsrsClient] Server setting root interface", payload.groupId);
                 if (this.widgetManager) {
-                    this.cs2Vm.context.windowMode = payload.groupId === 548 ? 1 : 2;
                     // Set varc 170 (display mode) based on the root interface
                     // Enum 185 maps: 0->1137 (161 widgets), 1->1101, 2->1067, 3->1175, 4->1293
                     // For interface 161/165, use mode 0 since Enum 1137 has interface 161 tab widgets
@@ -3700,6 +3698,7 @@ export class OsrsClient {
      * notification_display_init (3343) which assume a 178x100 host area.
      */
     isPointOverWidget(px: number, py: number): boolean {
+        if (this.duelArenaMode && this.isLoggedIn()) return false;
         return this.widgetInteraction.isPointOverWidget(px, py);
     }
 

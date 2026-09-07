@@ -212,8 +212,6 @@ export interface GamemodeDefinition {
     getLoginVarbits?(player: PlayerState): Array<[varbitId: number, value: number]>;
     /** Varp defaults applied during login (volume, music track, etc.). */
     getLoginVarps?(player: PlayerState): Array<[varpId: number, value: number]>;
-    /** Default desktop gameframe at login; mobile clients keep the mobile layout. */
-    getLoginDisplayMode?(player: PlayerState): import("../../widgets/viewport").DisplayMode;
     isTutorialActive(player: PlayerState): boolean;
     isTutorialPreStart?(player: PlayerState): boolean;
     getSpawnLocation(player: PlayerState): { x: number; y: number; level: number };

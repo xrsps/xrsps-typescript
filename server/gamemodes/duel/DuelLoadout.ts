@@ -1,5 +1,4 @@
 import { SKILL_IDS, SkillId, getXpForLevel } from "../../../client/rs/skill/skills";
-import { VARP_ATTACK_STYLE, VARP_AUTO_RETALIATE, VARP_SPECIAL_ATTACK } from "../../../client/common/vars";
 import { clearAutocastState } from "../../src/game/combat/AutocastState";
 import { CombatAttributes } from "../../src/game/combat/state/CombatAttributes";
 import type { GamemodeServerServices } from "../../src/game/gamemodes/GamemodeDefinition";
@@ -16,7 +15,6 @@ export function equipDuelWeapon(player: PlayerState, weaponId: DuelWeaponId,
     services.getEquipQtyArray(player)[3] = 1;
     services.refreshCombatWeapon(player);
     player.setCombatStyle(0, player.combat.weaponCategory);
-    player.varps.setVarpValue(VARP_ATTACK_STYLE, player.combat.styleSlot);
     services.refreshAppearance(player);
     player.markAppearanceDirty();
     player.markCombatStateDirty();
@@ -31,8 +29,6 @@ export function stopDuelCombat(player: PlayerState): void {
     player.clearWalkDestination();
     player.specEnergy.setActivated(false);
     player.combat.autoRetaliate = false;
-    player.varps.setVarpValue(VARP_AUTO_RETALIATE, 1);
-    player.varps.setVarpValue(VARP_SPECIAL_ATTACK, 0);
     player.status.poisonEffect = undefined;
     player.status.venomEffect = undefined;
     player.status.diseaseEffect = undefined;

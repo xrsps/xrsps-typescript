@@ -3,7 +3,6 @@ import {
     InterfaceMount,
     getBuffBarInitPostScripts,
     getRootInterfaceId,
-    getViewportEnumService,
 } from "./index";
 
 const BUFF_BAR_INTERFACE_ID = 651;
@@ -59,10 +58,10 @@ export function getDesktopInterfaces(
     // Some overlays use a distinct mount point in resizable-list mode (164).
     // Format: { groupId, fixedChildId, resizeChildId, resizeListChildId? }
     const dedicatedInterfaces = [
-        { groupId: 162, fixedChildId: 11, resizeChildId: 96 }, // CHAT_BOX
-        { groupId: 163, fixedChildId: 34, resizeChildId: 9 }, // USERNAME
-        { groupId: 160, fixedChildId: 25, resizeChildId: 22 }, // MINI_MAP
-        { groupId: 122, fixedChildId: 45, resizeChildId: 7 }, // XP_COUNTER
+        { groupId: 162, fixedChildId: 24, resizeChildId: 96 }, // CHAT_BOX
+        { groupId: 163, fixedChildId: 19, resizeChildId: 9 }, // USERNAME
+        { groupId: 160, fixedChildId: 11, resizeChildId: 22 }, // MINI_MAP
+        { groupId: 122, fixedChildId: 17, resizeChildId: 7 }, // XP_COUNTER
         {
             groupId: BUFF_BAR_INTERFACE_ID,
             fixedChildId: 32,
@@ -117,9 +116,7 @@ export function getDesktopInterfaces(
             continue;
         }
 
-        const targetUid = displayMode === DisplayMode.FIXED
-            ? getViewportEnumService()?.getComponent((161 << 16) | mapping.childId, displayMode) ?? ((rootId << 16) | (81 + mapping.tabIndex))
-            : (rootId << 16) | mapping.childId;
+        const targetUid = (rootId << 16) | mapping.childId;
         interfaces.push({
             targetUid,
             groupId: mapping.groupId,
@@ -142,9 +139,7 @@ export function getRemainingTabInterfaces(displayMode: DisplayMode): InterfaceMo
         // Skip Quest tab - it's already open
         if (mapping.tabIndex === QUEST_TAB_INDEX) continue;
 
-        const targetUid = displayMode === DisplayMode.FIXED
-            ? getViewportEnumService()?.getComponent((161 << 16) | mapping.childId, displayMode) ?? ((rootId << 16) | (81 + mapping.tabIndex))
-            : (rootId << 16) | mapping.childId;
+        const targetUid = (rootId << 16) | mapping.childId;
         interfaces.push({
             targetUid,
             groupId: mapping.groupId,

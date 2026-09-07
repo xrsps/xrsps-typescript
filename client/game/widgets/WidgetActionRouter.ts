@@ -24,7 +24,6 @@ import {
     type WidgetActionEvent,
 } from "./widgetActionPayload";
 import { handleTradeWidgetAction, type WidgetActionTradeDeps } from "./widgetActionTrade";
-import { handleDuelChatRequestAction } from "../duel/DuelChatRequests";
 
 export type { WidgetActionEvent } from "./widgetActionPayload";
 
@@ -101,7 +100,6 @@ export class WidgetActionRouter {
             event = { ...event, widget: w, slot: (w.childIndex ?? event.slot) as any };
         }
         const groupId = w?.groupId ?? w?.uid >>> 16;
-        if (handleDuelChatRequestAction(w, event.option)) return;
         const childId =
             w?.fileId != null && w?.fileId >= 0
                 ? w.fileId

@@ -211,7 +211,6 @@ export function worldEntriesToSimple(
             actionIndex:
                 typeof e.actionIndex === "number" && e.actionIndex >= 0 ? e.actionIndex : undefined,
             opcode: typeof e.opcode === "number" ? e.opcode : undefined,
-            deprioritized: e.deprioritized,
             playerServerId:
                 typeof e.playerServerId === "number"
                     ? e.playerServerId

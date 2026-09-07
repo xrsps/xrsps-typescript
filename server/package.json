@@ -24,8 +24,7 @@
     "build-npc-aggression": "tsx scripts/build-npc-aggression.ts",
     "build-shops": "tsx scripts/build-shops.ts",
     "ensure-cache": "tsx scripts/ensure-cache.ts --server",
-    "test": "tsx tests/authentication.test.ts && tsx tests/friends-chat.test.ts && tsx tests/duel-protocol.test.ts && tsx tests/duel-arena.test.ts && tsx tests/duel-economy.test.ts && tsx tests/duel-public-chat.test.ts && tsx tests/terrain-height-overrides.test.ts && tsx tests/duel-lobby-capacity.test.ts && tsx tests/fixed-gameframe.test.ts && tsx tests/duel-native-ui.test.ts",
-    "test:duel-native": "tsx tests/fixed-gameframe.test.ts && tsx tests/duel-native-ui.test.ts && tsx tests/duel-lobby-capacity.test.ts"
+    "test": "tsx tests/authentication.test.ts && tsx tests/friends-chat.test.ts && tsx tests/duel-protocol.test.ts && tsx tests/duel-arena.test.ts && tsx tests/duel-economy.test.ts && tsx tests/duel-public-chat.test.ts && tsx tests/terrain-height-overrides.test.ts && tsx tests/duel-lobby-capacity.test.ts"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",

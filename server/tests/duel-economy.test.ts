@@ -9,10 +9,6 @@ import { registerDuelProviders } from "../gamemodes/duel/DuelProviders";
 import { PlayerState } from "../src/game/player";
 import { PlayerPersistence } from "../src/game/state/PlayerPersistence";
 import { getSqliteDatabase } from "../src/game/state/SqliteDatabase";
-import { DuelNativeBank } from "../gamemodes/duel/DuelNativeBank";
-import type { DuelArenaService } from "../gamemodes/duel/DuelArenaService";
-import type { GamemodeServerServices } from "../src/game/gamemodes/GamemodeDefinition";
-import type { ScriptServices } from "../src/game/scripts/types";
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "duel-economy-"));
 const database = getSqliteDatabase({dataDir});
@@ -38,56 +34,6 @@ function savedGold(key: string): number {
 const zero = {gold:0,platinum:0};
 
 try {
-    // Exercise the original BankingManager through the duel adapter. Its native
-    // widget operations must commit alongside persisted inventory, just like stakes.
-    const banker = player(90, "native-banker");
-    banker.setEquipmentSlot(3, 5698);
-    banker.widgets.open(12, { modal: true });
-    let freeInLobby = true;
-    const bankServer = {
-        registerSnapshotEncoder: () => {}, getInterfaceService: () => undefined,
-        getInventory: (target: PlayerState) => target.getInventoryEntries(),
-        sendInventorySnapshot: () => {}, queueGamemodeSnapshot: () => {}, queueWidgetEvent: () => {},
-        queueChatMessage: () => {}, queueVarbit: () => {}, logger: { warn: () => {} },
-        addItemToInventory: (target: PlayerState, itemId: number, quantity: number) => {
-            const inventory = target.getInventoryEntries();
-            let slot = inventory.findIndex((entry) => entry.itemId === itemId);
-            if (slot < 0) slot = inventory.findIndex((entry) => entry.itemId <= 0);
-            if (slot < 0) return { added: 0 };
-            target.setInventorySlot(slot, itemId, (inventory[slot].itemId === itemId ? inventory[slot].quantity : 0) + quantity);
-            return { added: quantity };
-        },
-    } as unknown as GamemodeServerServices;
-    const nativeBank = new DuelNativeBank(bankServer, {
-        isFreeInLobby: () => freeInLobby,
-        mutateBank: <T>(target: PlayerState, mutation: () => T) => economy.mutateBank(target, mutation),
-    } as unknown as DuelArenaService);
-    const bankScripts = { messaging: { sendGameMessage: () => {} } } as unknown as ScriptServices;
-    nativeBank.contribute(bankScripts);
-    const banking = bankScripts.banking!;
-    assert.equal(banking.depositInventoryItemToBank!(banker, 0, 100_000).ok, true);
-    assert.equal(savedGold("native-banker"), 900_000);
-    assert.equal(economy.wallet(banker).bank.gold, 100_000);
-    assert.equal(banking.withdrawFromBankSlot!(banker, 0, 25_000).ok, true);
-    assert.equal(savedGold("native-banker"), 925_000);
-    assert.equal(economy.wallet(banker).bank.gold, 75_000);
-    freeInLobby = false;
-    assert.equal(banking.depositInventoryItemToBank!(banker, 0, 10_000).ok, false);
-    assert.equal(savedGold("native-banker"), 925_000, "a stale bank cannot change stake/trade balances");
-    freeInLobby = true;
-    assert.equal(banking.depositEquipmentToBank!(banker), false);
-    assert.equal(banking.removeEquipmentSlot!(banker, 3), false);
-    assert.equal(banker.appearance.equip![3], 5698, "native bank cannot remove or duplicate duel equipment");
-    const nativeSave = banker.exportPersistentVars;
-    banker.exportPersistentVars = () => { throw Error("native bank save failed"); };
-    assert.equal(banking.depositInventoryItemToBank!(banker, 0, 10_000).ok, false);
-    banker.exportPersistentVars = nativeSave;
-    assert.deepEqual(economy.wallet(banker), { inventory: { gold: 925_000, platinum: 0 }, bank: { gold: 75_000, platinum: 0 } });
-    assert.equal(savedGold("native-banker"), 925_000, "failed native bank save rolls both containers back");
-    assert.throws(() => economy.mutateBank(banker, () => banker.setInventorySlot(0, 995, 999_999)), /cannot hold/);
-    assert.equal(savedGold("native-banker"), 925_000, "native banking must conserve the account's combined currency");
-    assert.equal(gold(banker), 925_000);
-
     let alice = player(1, "alice"), bob = player(2, "bob"), other = player(3, "other");
     assert.equal(gold(alice), 1_000_000);
     economy.initialize(alice);

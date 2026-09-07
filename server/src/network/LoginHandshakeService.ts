@@ -537,7 +537,7 @@ export class LoginHandshakeService {
                 {
                     const displayMode = isMobileClient
                         ? DisplayMode.MOBILE
-                        : this.svc.gamemode.getLoginDisplayMode?.(p) ?? DisplayMode.RESIZABLE_NORMAL;
+                        : DisplayMode.RESIZABLE_NORMAL;
                     const rootInterfaceGroupId = getRootInterfaceId(displayMode);
                     for (const script of getViewportRootInitScripts()) {
                         this.svc.networkLayer.withDirectSendBypass("runClientScript", () =>

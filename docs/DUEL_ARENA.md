@@ -1,10 +1,10 @@
 # Duel Arena
 
-The default game uses the original cache-driven OSRS client: its **765 × 503 fixed
-gameframe**, minimap, combat styles, inventory, settings, bank, chatbox, player
-menus and walking. Human players meet in the original Duel Arena courtyard and
-fight in a separate ring. Duel offers, currency trades and the shop remain
-additional windows over that client; there is no replacement fullscreen HUD.
+The default game brings **human players** together in a shared sandstone courtyard.
+Players can walk around, challenge each other, trade currency, and manage their
+own saved inventory and bank. Accepted duels use the existing OSRS combat engine
+in a separate ring. The camera follows your player, with adjustable rotation,
+tilt, and zoom.
 
 ## Play locally
 
@@ -17,53 +17,41 @@ additional windows over that client; there is no replacement fullscreen HUD.
 3. Click the courtyard floor to walk. Right-click another player and choose
    **Challenge**, then select **Dragon dagger P++** or **Abyssal whip**. The chosen
    weapon applies to both fighters and cannot change during that fight.
-4. The other player clicks the challenge request in the native chatbox, or
-   right-clicks that line and chooses **Accept challenge**. Both see the stake interface
+4. The other player accepts the challenge. Both players see the stake interface
    and can offer gold, platinum tokens, or both from their inventories. Different
    amounts are allowed, including a free duel with zero stakes.
 5. Save any changed offer, then both press **Accept offer**. Check the final
    amounts and weapon, then both press **Confirm & fight**. Editing either offer
    clears both players' acceptance and returns to the offer screen.
-6. Both stakes are secured before the three-second countdown. Use the opponent's
-   native **Attack** option to fight and click the ring floor to move. The native
-   **Combat Options** tab controls attack style, auto-retaliate and special attack.
-   A special attack costs 25% energy for the dagger or 50% for the whip.
+6. Both stakes are secured before the three-second countdown. Use **Attack** or
+   click the opponent to fight. Click the ring floor to move. **Special attack**
+   costs 25% energy for the dagger or 50% for the whip.
 7. The winner receives the full combined stake, with **no tax**. Players return
    to the courtyard after the result. A new challenge starts a fresh offer;
    previous stakes and confirmations are never reused.
 
 Every fight starts with equal level-99 combat stats, 99 hitpoints, and full special
 energy. Equipment is supplied for the duel. Inventory and bank contents survive
-preparation, death, returning to the lobby, and reconnecting. Native tabs remain
-visible, while the server disallows food, prayer, equipment changes, teleports
-and actions outside the duel rules.
+preparation, death, returning to the lobby, and reconnecting. The focused mode
+does not expose food, prayer, equipment changes, or other open-world actions.
 
 Use the **mouse wheel** over the world to zoom. **Left/right arrows** rotate the
 view and **up/down arrows** tilt it. The camera continues following your player
-as you roam. Typing uses the classic chat input; letter keys do not steer the
-camera. Arrow keys retain the original camera controls.
+as you roam. Chat, menus, and other interface controls keep keyboard and wheel
+input within the interface.
 
-The original north waiting courtyard is centred at **(3367, 3267, plane 0)**,
-with bounds **X 3357–3388 / Y 3261–3274**. Its terrain, walls, original buildings,
-scenery and walking collision come directly from the installed OSRS cache.
-The earlier custom plaza and arena scenery removals are no longer applied.
-The bank uses the native open chests at **(3381, 3269)** and **(3382, 3270)**;
-the shopkeeper stands at **(3370, 3267)**. The existing duel ring remains centred
-at **(3378, 3251)**, separate from the waiting courtyard.
-
-New arrivals use connected native floor tiles and avoid the shopkeeper, bank
-chests and closed rooms. The cache-derived arrival map never replaces live
-walking collision. After changing the installed cache or courtyard bounds, run
-`yarn --cwd server tsx scripts/inspect-native-duel-courtyard.ts --write` to rebuild
-the arrival data, then rerun without `--write` to verify it against the cache.
+The original compact courtyard is centred at **(3377, 3232, plane 0)**, with
+bounds **X 3367–3387 / Y 3226–3239** (21×14 tiles). Palms, benches, statues,
+bank chests and the shopkeeper surround its clear central crossing.
+The native arena arcade remains intact; loose spear barricades and ruined
+masonry fragments are removed from the combat ring while its walls, statues
+and flags remain.
 
 ## Banking and trading
 
-Choose **Bank** on either original courtyard bank chest to open the native bank.
-Use its inventory deposit controls and item withdrawal menu to move saved items.
+Open **Bank & inventory** in the lobby to deposit or withdraw either currency.
 Inventory balances are available for stakes and trades; bank balances must first
-be withdrawn. Choose **Exchange tokens** on the shopkeeper, or type **::exchange**,
-to convert inventory currency at **1 platinum token = 1,000 gold**.
+be withdrawn. The exchange rate is **1 platinum token = 1,000 gold**.
 Gold and platinum use their original cache item sprites (items 995 and 13204),
 including the appropriate coin-pile image for the displayed amount.
 The small quantity labels on these sprites follow the native stack format:
@@ -77,8 +65,7 @@ The small quantity labels on these sprites follow the native stack format:
 Abbreviated labels round down; the balance and offer fields retain the exact
 amount. An empty stack has no overlaid quantity label.
 
-Right-click a nearby player and choose **Trade with**. The recipient accepts the
-request through its native chatbox line. After they accept,
+Right-click a nearby player and choose **Trade**. After they accept the request,
 both players enter their offers, review them, and confirm. Changes reset both
 approvals. Currency only moves when both players confirm the final trade.
 Cancelling or disconnecting before confirmation leaves both balances unchanged.
@@ -89,7 +76,7 @@ containers but are not offered through this currency interface.
 
 ## Courtyard shop
 
-Right-click the courtyard shopkeeper and choose **Talk-to**, or enter
+Right-click the shopkeeper near the bank and choose **Talk-to**, or enter
 **::shop** in chat, to open **The Arena Exchange**. Choose a gold or platinum
 package, review the signed-in account and amount, then enter an email address
 to prepare an order draft.
@@ -106,22 +93,24 @@ and purchase fulfilment are not connected.
 
 ## Public chat
 
-The original parchment chatbox and cache-scripted channel controls render the
-conversation. With the game focused, type directly beside your player name and
-press **Enter** to send; there is no extra Enter-to-start step. Scrolling, channel
-selection and request menus use the original widgets.
+The original cache parchment and bottom channel tabs show messages from everyone in the courtyard,
+including players outside the nearby model-rendering range. Press **Enter** from
+the world or click its input to start typing; press **Enter** again to send. Arrow keys and scrolling over chat
+do not control the camera. **Escape** leaves the input.
 
-Public messages reach everyone in the courtyard, including players outside the
-nearby model-rendering range. Nearby players also see native yellow speech above
-the speaker's model for about three seconds. Distant messages do not create
-extra player models or duplicate history lines. Each active duel has its own
-two-player chat audience, separate from the lobby.
-
-Duel and trade requests appear as clickable native chat lines. Each line refers
-to its exact request and recipient; expired or already-consumed lines cannot
-accept a later request. **::shop** and **::exchange** open local duel windows and
-are not broadcast as speech. These shortcuts do not intercept vanilla-server
-commands when no duel account is active.
+The panel keeps the most recent 100 messages, supports scrolling, and can
+be collapsed by clicking its selected channel tab. **All**, **Game**, **Public**,
+**Trade**, and **Duel** filter actual message and request history. Private chat,
+clan chat, and abuse reporting remain visibly unavailable. It shows an unread count when messages
+arrive while collapsed or while reading older lines. Public text renders as plain
+text, and each message is delivered once to its audience. The lobby and isolated
+duel audiences are separate. On entering the ring the panel collapses to keep
+combat controls clear; open **Public** or press **Enter** to speak to your
+opponent. Its audience label changes to **Your duel**.
+Nearby players also see speech above the speaker's actual model in native yellow
+text for about three seconds. Distant messages still reach the courtyard history
+without creating models or duplicate chat lines. Enter **::shop** to open the
+local shop interface; the command is not broadcast as public speech.
 
 ## Server rules and persistence
 
@@ -153,10 +142,8 @@ commands when no duel account is active.
 
 ## Commands and protocol
 
-Duel negotiation windows and native player-menu actions send these commands
-through the existing binary chat packet. Original bank and combat widgets also
-use their normal client packets, validated by the duel server's allowed actions.
-Amounts are whole non-negative integers; bank actions and
+The React controls and context menu send these commands through the existing
+binary chat packet. Amounts are whole non-negative integers; bank actions and
 exchanges require positive amounts. IDs and revisions come from the latest
 server-authored snapshot.
 
@@ -169,7 +156,6 @@ server-authored snapshot.
 | `confirm <roomId> <revision>` | Confirm the reviewed stake and weapon |
 | `attack` / `special` | Attack the paired opponent |
 | `leave` | Cancel, leave the result, or forfeit active combat |
-| `bank open` | Open the native bank while free in the courtyard |
 | `bank <deposit\|withdraw> <gold\|platinum> <amount>` | Move currency between personal containers |
 | `exchange <gold\|platinum> <amount>` | Convert inventory currency |
 | `trade_request <playerId>` | Send a nearby player a trade request |
@@ -195,44 +181,44 @@ compatible with the new snapshot protocol.
   database volume when updating the server.
 - **Vercel:** build the updated client with the existing `vercel.json` and
   `REACT_APP_GAME_HOST`. No new client environment variables are needed.
-- The courtyard and arena load their original cache terrain and scenery. The duel
-  content packet identifies the gamemode and clears prior session overrides;
-  it does not replace map objects, floors, heights or collision.
+- The custom courtyard is delivered through the gamemode content packet. Its
+  sandstone walls, paths, palms, statues, benches, and bank chests use existing
+  cache assets with matching server collision. The original combat ring remains
+  part of the installed OSRS cache.
 
-The traditional client interface is now the default in duel mode. The open-world
-game still requires a separate server running `GAMEMODE=vanilla`.
+For engine maintenance, `?classic=1` restores the traditional client interface.
+That flag does not change server rules; the open-world game requires a separate
+server running `GAMEMODE=vanilla`.
 
 ## Verification
 
 Run `yarn --cwd client typecheck`, `yarn --cwd client test`,
 `yarn --cwd server typecheck`, and `yarn --cwd server test`.
 
-Server tests cover the fixed-gameframe mapping, native bank and combat action
-permissions, protocol fixtures, malformed packets, request ownership and
+Server tests cover protocol fixtures, malformed packets, request ownership and
 expiry, revised offers, fixed weapons, movement and damage isolation, safe death,
 refunds, forfeits, persistent balances, rollback, replay protection, overflow,
 and reconnect/restart recovery.
 
-Client tests also cover native player-menu callbacks, exact chat-request identity,
-stale requests, classic typing and standalone overhead speech. Focused native
-checks are available as `yarn --cwd client test:duel-native` and
-`yarn --cwd server test:duel-native`.
-
-With both local services already running, set `EYES_CHROMIUM` to the installed
-Google Chrome executable and run these real-input browser suites:
-
-| Command in `tools/eyes` | Coverage |
-| --- | --- |
-| `yarn test:duel-native` | Fixed gameframe and tabs, click-to-walk, wheel/arrow camera, public and overhead chat, native player context menu, challenge window, native bank deposit/withdraw |
-| `yarn test:duel-native-flow` | Two humans accept native trade/challenge request lines, revise offers, fight with both weapons through native combat controls, receive full payouts and retain balances after native logout/reload |
-| `yarn test:duel-native-shop` | Native chat opens the package shop and currency exchange; username/email checkout creates an unpaid draft without granting currency |
-| `yarn test:duel` | All three suites, sequentially |
-
-The previous `test:duel-lobby` and `test:duel-reload` commands now run the native
-flow suite. `test:duel-chat`, `test:duel-camera`, `test:duel-context` and
-`test:duel-ui` run the native foundation suite; `test:duel-shop` runs the native
-shop suite. These scripts no longer run tests targeting the retired fullscreen
-HUD. Suites save screenshots and state in `tools/eyes/tests/out/` before and
-after actions. A suite is verified only when its actual run completes successfully.
-For a focused single-browser bank check, set `EYES_NATIVE_BANK_ONLY=1` when running
-`test:duel-native`; leave it unset for the complete two-player foundation suite.
+With both local services already running, run
+`yarn --cwd tools/eyes test:duel-lobby` for the two-browser lobby workflow. It
+checks roaming, real player context menus, banking, currency conversion, trading,
+stake confirmation, fixed weapons, combat, forfeits, and persistent balances.
+Set `EYES_FULL_DUEL=1` to wait for a full combat death as well. `test:duel` is an
+alias for the lobby workflow. `yarn --cwd tools/eyes test:duel-ui` checks keyboard
+login, password-error recovery, bank persistence, logout, mobile layout, and
+closing dialogs with Escape.
+`yarn --cwd tools/eyes test:duel-reload` checks two consecutive sign-out,
+page-reload, and sign-in cycles against the same saved inventory and bank.
+`yarn --cwd tools/eyes test:duel-chat` checks two real players speaking, delivery
+beyond the nearby player range, Enter-to-send, plain text rendering, scrollable
+history, collapse, opponent chat in the ring, mobile layout, and camera isolation
+while typing. `yarn --cwd tools/eyes test:duel-camera` checks wheel zoom, arrow-key
+rotation and tilt, player following, bank-input isolation, original currency
+sprites, and scenery at maximum zoom and low camera pitch.
+`yarn --cwd tools/eyes test:duel-context` verifies that real player right-clicks,
+including right-clicks on the open game menu, suppress the browser context menu.
+`yarn --cwd tools/eyes test:duel-shop` checks the real shopkeeper, `::shop`, native
+pouch/chest art, both currencies, account/email checkout, explicit order submission,
+keyboard focus, unchanged balances, and mobile layout. Set `EYES_CHROMIUM` to your
+installed Google Chrome executable to run these checks in Chrome.

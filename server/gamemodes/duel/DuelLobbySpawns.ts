@@ -6,29 +6,24 @@ import { buildDuelLobbyCollision, DUEL_LOBBY_SCENE_BOUNDS } from "./DuelLobbySce
 type Tile = {x:number;y:number};
 type Occupant = {id:number;tileX:number;tileY:number;level:number};
 const collision = buildDuelLobbyCollision();
-const blocked = CollisionFlag.OBJECT | CollisionFlag.OBJECT_ROUTE_BLOCKER | CollisionFlag.FLOOR | CollisionFlag.FLOOR_DECORATION;
+const blocked = CollisionFlag.OBJECT | CollisionFlag.FLOOR | CollisionFlag.FLOOR_DECORATION;
 
 export function isDuelLobbyWalkable(x:number,y:number):boolean {
     const bounds=DUEL_LOBBY_BOUNDS;
-    return Number.isInteger(x) && Number.isInteger(y) && x>=bounds.minX && x<=bounds.maxX && y>=bounds.minY && y<=bounds.maxY &&
+    return x>=bounds.minX && x<=bounds.maxX && y>=bounds.minY && y<=bounds.maxY &&
         (collision.getFlag(x-DUEL_LOBBY_SCENE_BOUNDS.minX,y-DUEL_LOBBY_SCENE_BOUNDS.minY)&blocked)===0;
 }
 
-// Follow native wall/door collision so arrivals cannot land inside a closed room.
+// Arrivals start around the plaza, expanding outward as it fills. Every candidate
+// is an actual clear floor tile; nobody is placed in palms, benches, or a chest.
 export const DUEL_LOBBY_SPAWN_TILES: readonly Tile[] = (() => {
-    const tiles:Tile[]=[{x:DUEL_LOBBY_CENTER.x,y:DUEL_LOBBY_CENTER.y}];
-    const reached=new Set([`${DUEL_LOBBY_CENTER.x},${DUEL_LOBBY_CENTER.y}`]);
-    const directions=[[-1,0,CollisionFlag.BLOCK_WEST],[1,0,CollisionFlag.BLOCK_EAST],
-        [0,-1,CollisionFlag.BLOCK_SOUTH],[0,1,CollisionFlag.BLOCK_NORTH]];
-    for (let index=0;index<tiles.length;index++) for (const [dx,dy,mask] of directions) {
-        const x=tiles[index].x+dx,y=tiles[index].y+dy,key=`${x},${y}`;
-        if (reached.has(key) || !isDuelLobbyWalkable(x,y) ||
-            (collision.getFlag(x-DUEL_LOBBY_SCENE_BOUNDS.minX,y-DUEL_LOBBY_SCENE_BOUNDS.minY)&mask)!==0) continue;
-        reached.add(key); tiles.push({x,y});
+    const tiles:Tile[]=[];
+    const bounds=DUEL_LOBBY_BOUNDS;
+    for (let x=bounds.minX+1;x<bounds.maxX;x++) for (let y=bounds.minY+1;y<bounds.maxY;y++) {
+        if (isDuelLobbyWalkable(x,y) && !(x===DUEL_SHOPKEEPER.x && y===DUEL_SHOPKEEPER.y)) tiles.push({x,y});
     }
     const distance=(tile:Tile)=>Math.max(Math.abs(tile.x-DUEL_LOBBY_CENTER.x),Math.abs(tile.y-DUEL_LOBBY_CENTER.y));
-    return tiles.filter(tile=>!(tile.x===DUEL_SHOPKEEPER.x && tile.y===DUEL_SHOPKEEPER.y))
-        .sort((a,b)=>distance(a)-distance(b) || a.y-b.y || a.x-b.x);
+    return tiles.sort((a,b)=>distance(a)-distance(b) || a.y-b.y || a.x-b.x);
 })();
 
 export function findDuelLobbySpawn(playerId:number,players:Iterable<Occupant>):Tile {

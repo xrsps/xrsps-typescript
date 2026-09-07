@@ -1,5 +1,8 @@
 import Denque from "denque";
-import { applyDuelWorldMenu, canAttackDuelPlayer } from "../../../game/duel/DuelWorldMenu";
+import { duelStore } from "../../../game/duel/DuelStore";
+import { duelInteractionStore } from "../../../game/duel/DuelInteractionStore";
+import { DUEL_SHOPKEEPER } from "../../../common/duel/DuelShop";
+import { duelShopStore } from "../../../game/duel/DuelShopStore";
 import { mat4, vec2, vec3, vec4 } from "gl-matrix";
 import { button, folder } from "leva";
 import { Schema } from "leva/dist/declarations/src/types";
@@ -204,9 +207,10 @@ export function checkInteractions(host: WebGLOsrsRendererHost, ): void {
         const pickY = inputManager.pickY;
         const picked = pickX !== -1 && pickY !== -1;
         const leftClicked = inputManager.leftClickX !== -1 && inputManager.leftClickY !== -1;
+        if (host.osrsClient.duelArenaMode && duelInteractionStore.getSnapshot() && !picked) return;
 
         // If the click is inside the bottom-right UI tabs region, consume it (don't interact with world).
-        if (leftClicked) {
+        if (leftClicked && !host.osrsClient.duelArenaMode) {
             const contW = 241;
             const contH = 37 + 261 + 37; // strip + panel + strip
             const contX = host.app.width - 8 - contW; // right margin 8
@@ -486,9 +490,8 @@ export function checkInteractions(host: WebGLOsrsRendererHost, ): void {
                     typeof localEcsIndex === "number"
                         ? playerEcs.getY(localEcsIndex | 0) >> 7
                         : 0;
-                const canAttackPlayers = host.osrsClient.duelArenaMode
-                    ? canAttackDuelPlayer(sid)
-                    : isInWilderness(localWorldX, localWorldY);
+                const canAttackPlayers =
+                    host.osrsClient.duelArenaMode || isInWilderness(localWorldX, localWorldY);
                 const targetIsClanMember = isClanMemberName(playerLabel);
 
                 // When hovering a player, Walk here target becomes the player's label.
@@ -552,8 +555,14 @@ export function checkInteractions(host: WebGLOsrsRendererHost, ): void {
                     return;
                 }
 
+                if (host.osrsClient.duelArenaMode && duelStore.getSnapshot().location === "lobby") {
+                    menuEntries.push({ option: "Challenge", targetId: sid, targetType: MenuTargetType.PLAYER,
+                        targetName: playerLabel, targetLevel: targetCombatLevel, playerServerId: sid });
+                    return;
+                }
                 // No selection: insert player actions in 7..0 order.
                 for (let actionIdx = 7; actionIdx >= 0; actionIdx--) {
+                    if (host.osrsClient.duelArenaMode && actionIdx !== 0) continue;
                     if (actionIdx === 2) {
                         menuEntries.push({
                             option: "Follow",
@@ -593,10 +602,10 @@ export function checkInteractions(host: WebGLOsrsRendererHost, ): void {
                             },
                         });
                     } else if (actionIdx === 0) {
-                        // Player combat is a Wilderness-only menu action.
+                        // The server validates duel participants and Wilderness combat rules.
                         if (!canAttackPlayers) continue;
                         const attackOption = ClientState.playerAttackOption | 0;
-                        if (attackOption === 3) continue;
+                        if (attackOption === 3 && !host.osrsClient.duelArenaMode) continue;
 
                         let deprioritized = false;
                         if (attackOption === 1) {
@@ -611,6 +620,7 @@ export function checkInteractions(host: WebGLOsrsRendererHost, ): void {
                         if (localTeam !== 0 && targetTeam !== 0) {
                             deprioritized = localTeam === targetTeam;
                         }
+                        if (host.osrsClient.duelArenaMode) deprioritized = false;
 
                         menuEntries.push({
                             option: "Attack",
@@ -1205,8 +1215,6 @@ export function checkInteractions(host: WebGLOsrsRendererHost, ): void {
                 }
             }
 
-            if (host.osrsClient.duelArenaMode) applyDuelWorldMenu(menuEntries);
-
             // Wrap NPC/LOC/PLAYER/OBJ entries to spawn a red cross when selected
             try {
                 const tileForMenu = host.osrsClient.menuTile ?? hoveredTile;
@@ -1230,6 +1238,45 @@ export function checkInteractions(host: WebGLOsrsRendererHost, ): void {
                     }
                 }
             } catch {}
+        }
+        if (host.osrsClient.duelArenaMode) {
+            if ((picked || leftClicked) && duelStore.getSnapshot().location === "lobby") {
+                const shopkeeper = menuEntries.find(e => e.targetType === MenuTargetType.NPC && e.targetId === DUEL_SHOPKEEPER.id);
+                if (shopkeeper) {
+                    if (picked) {
+                        const rect = host.canvas.getBoundingClientRect();
+                        duelInteractionStore.open({ x: rect.left + pickX * rect.width / host.app.width,
+                            y: rect.top + pickY * rect.height / host.app.height, players: [], shopkeeper: shopkeeper.targetName });
+                    } else duelShopStore.open();
+                    inputManager.clearPick();
+                    return;
+                }
+                if (menuEntries.some(e => e.targetType === MenuTargetType.LOC && e.targetId === 10562)) {
+                    duelInteractionStore.openBank();
+                    inputManager.clearPick();
+                    return;
+                }
+                const players = menuEntries.filter(e => e.option === "Challenge" && e.targetType === MenuTargetType.PLAYER)
+                    .map(e => ({ id: e.playerServerId ?? e.targetId, name: e.targetName }));
+                if (players.length) {
+                    const rect = host.canvas.getBoundingClientRect();
+                    const x = picked ? pickX : inputManager.leftClickX;
+                    const y = picked ? pickY : inputManager.leftClickY;
+                    duelInteractionStore.open({ x: rect.left + x * rect.width / host.app.width,
+                        y: rect.top + y * rect.height / host.app.height, players });
+                    inputManager.clearPick();
+                    return;
+                }
+            }
+            if (picked) { inputManager.clearPick(); return; }
+            // Arena controls expose only movement and attacks on the other human player.
+            for (let i = menuEntries.length - 1; i >= 0; i--) {
+                const entry = menuEntries[i];
+                const arenaAction =
+                    entry.option === "Walk here" || entry.option === "Cancel" ||
+                    (entry.option === "Attack" && entry.targetType === MenuTargetType.PLAYER);
+                if (!arenaAction) menuEntries.splice(i, 1);
+            }
         }
         const effectiveEntries =
             host.osrsClient.menuOpen &&
@@ -1263,6 +1310,7 @@ export function checkInteractions(host: WebGLOsrsRendererHost, ): void {
         // 2) OR top entry opcode is CC_OP_LowPriority (1007)
         // AND top entry is not shiftClickable
         const leftClickMenuToggle = !!(
+            !host.osrsClient.duelArenaMode &&
             leftClicked &&
             !host.osrsClient.menuOpen &&
             shouldLeftClickOpenMenu(simpleEntries, !!host.osrsClient.settings?.leftClickOpensMenu)

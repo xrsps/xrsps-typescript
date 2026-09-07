@@ -28,21 +28,6 @@ export class DuelEconomy {
 
     wallet(player: PlayerState): DuelWallet { return wallet(player); }
 
-    mutateBank<T>(player: PlayerState, mutation: () => T): T {
-        return this.ledger.transaction([player], () => {
-            const before = wallet(player);
-            const result = mutation();
-            // Native banking must obey the same per-container currency limits.
-            const after = wallet(player);
-            for (const currency of CURRENCIES) {
-                if (before.inventory[currency] + before.bank[currency] !== after.inventory[currency] + after.bank[currency]) {
-                    throw Error("Your inventory or bank cannot hold that amount. Try a smaller amount.");
-                }
-            }
-            return result;
-        });
-    }
-
     bank(player: PlayerState, direction: "deposit" | "withdraw", currency: Currency, amount: number): void {
         requireAmount(amount, false);
         if (!CURRENCIES.includes(currency) || !["deposit", "withdraw"].includes(direction)) throw new Error("Invalid bank action.");

@@ -9,8 +9,6 @@ import { duelChatStore, createDuelChatEventBridge } from "../game/duel/DuelChatC
 import { createIdleDuelSnapshot } from "../common/duel/DuelProtocol";
 import { executeDuelChatCommand } from "../game/duel/DuelChatCommands";
 import { duelShopStore } from "../game/duel/DuelShopStore";
-import { duelStore } from "../game/duel/DuelStore";
-import { duelInteractionStore } from "../game/duel/DuelInteractionStore";
 
 chatHistory.clear();
 let updates = 0;
@@ -69,24 +67,13 @@ state.self = {id:7,name:"Alice",hp:99,maxHp:99,weaponId:5698,specialEnergy:100,r
 state.requests = [{id:"request1",fromId:8,fromName:"Bob",weaponId:5698,expiresInTicks:99}];
 state.tradeRequests = [{id:"trade1",fromId:9,fromName:"Carol",expiresInTicks:50}];
 bridge(state); bridge(state);
-assert.equal(events.filter(event=>event.type===103).length,1,"native challenge channel and no duplicate invitations");
-assert.equal(events.filter(event=>event.type===101).length,1,"native trade request channel and no duplicate invitations");
+assert.equal(events.filter(event=>event.type===16).length,1,"repeated snapshots do not duplicate duel invitations");
+assert.equal(events.filter(event=>event.type===4).length,1,"repeated snapshots do not duplicate trade invitations");
 duelShopStore.reset();
-duelStore.reset();
-assert.equal(executeDuelChatCommand("::shop"),false,"vanilla chat commands continue to the server");
-assert.equal(executeDuelChatCommand("::exchange"),false,"duel exchange does not intercept vanilla commands");
-assert.equal(duelShopStore.getSnapshot().open,false);
-assert.equal(duelStore.update(state),true);
 assert.equal(executeDuelChatCommand(" ::SHOP "),true);
 assert.equal(duelShopStore.getSnapshot().open,true);
 duelShopStore.reset();
 assert.equal(executeDuelChatCommand("::shop now"),false,"only the exact shop command opens the shop");
 assert.equal(executeDuelChatCommand("I like ::shop"),false,"public speech is not interpreted as a command");
 assert.equal(duelShopStore.getSnapshot().open,false);
-let exchangeOpened = 0;
-const stopExchange = duelInteractionStore.subscribeExchange(() => exchangeOpened++);
-assert.equal(executeDuelChatCommand("::exchange"),true,"duel players can open the local currency exchange");
-assert.equal(exchangeOpened,1);
-stopExchange();
-duelStore.reset();
 console.log("duel public chat: stable bounded history, privacy, clear, literal text and standalone channel normalization passed");

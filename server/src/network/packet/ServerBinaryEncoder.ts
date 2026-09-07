@@ -722,7 +722,7 @@ export class ServerBinaryEncoder {
             channel: 4,
             clan: 5,
             trade: 6,
-            server: 0, // Native server notices use game chat; type 7 is a private message.
+            server: 7,
         };
         this.buffer.writeString(text);
         this.buffer.writeByte(chatType ?? typeMap[messageType] ?? 0);

@@ -30,12 +30,4 @@ varcInts.set(5, 0);
 assert.equal(enterToType.shouldBlockChatboxKeys(false), true);
 assert.equal(enterToType.isWasdCameraActive(0), true);
 
-const classic = new EnterToTypeChat({
-    cs2Vm: {} as any, varManager: { getVarcInt: () => 0 } as any, widgetManager: {} as any,
-    isLoggedIn: () => true, useClassicTyping: () => true,
-    isItemSpawnerSearchFocused: () => false,
-});
-assert.equal(classic.isEnabled(), false);
-assert.equal(classic.shouldBlockChatboxKeys(false), false);
-assert.equal(classic.isWasdCameraActive(0), false);
 console.log("enter-to-type-chat.test.ts: all tests passed");

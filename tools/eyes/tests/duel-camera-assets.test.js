@@ -41,8 +41,8 @@ try {
     await game.waitFor(`eyes.state().camera.pitch < ${high.pitch}`);
     await look("03-arrow-key-orbit");
     const beforeWalk = await camera();
-    await game.clickTile(3371, 3265, 0);
-    await game.waitFor("eyes.state().tile.x === 3371 && eyes.state().tile.y === 3265", 20000);
+    await game.clickTile(3381, 3232, 0);
+    await game.waitFor("eyes.state().tile.x === 3381 && eyes.state().tile.y === 3232", 20000);
     const afterWalk = await camera();
     assert.ok(Math.abs(afterWalk.position.x - beforeWalk.position.x) > 3, "camera follows the player after a real ground click");
     await look("04-player-follow");

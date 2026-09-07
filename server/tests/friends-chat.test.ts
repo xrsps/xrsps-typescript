@@ -75,7 +75,7 @@ assert.deepEqual(setupOpens, [
     {
         groupId: 94,
         options: {
-            targetUid: (548 << 16) | 41, // Native fixed main-modal container (cache enum 1129).
+            targetUid: (548 << 16) | 15,
             type: 0,
             modal: true,
             scope: "modal",

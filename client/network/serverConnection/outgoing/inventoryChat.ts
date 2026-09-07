@@ -4,7 +4,6 @@ import type { GroundItemActionPayload } from "../types";
 import { send } from "../connection/send";
 import { state } from "../state";
 import type { FriendsChatAction } from "../../../common/social/FriendsChat";
-import { executeDuelChatCommand } from "../../../game/duel/DuelChatCommands";
 
 export function sendInventoryUse(
     slot: number,
@@ -96,7 +95,6 @@ export function sendChat(
         return;
     }
     const filtered = sanitizeChatText(String(text ?? ""));
-    if (executeDuelChatCommand(filtered)) return;
     if (!filtered) {
         console.log("[sendChat] Filtered text is empty");
         return;

@@ -1,4 +1,5 @@
 import { Schema } from "leva/dist/declarations/src/types";
+import { updateDuelCameraInput } from "./duel/DuelCameraControls";
 
 import { Renderer } from "./render/Renderer";
 import { SceneBuilder } from "../rs/scene/SceneBuilder";
@@ -159,6 +160,12 @@ export abstract class GameRenderer<T extends MapSquare = MapSquare> extends Rend
     handleInput(deltaTime: number) {
         // OSRS frame start: transfer click state (clickMode1 -> clickMode3)
         this.osrsClient.inputManager.onFrameStart();
+        if (this.osrsClient.duelArenaMode && this.osrsClient.isLoggedIn()) {
+            this.osrsClient.inputManager.setTouchCameraOrbitEnabled(true);
+            updateDuelCameraInput(this.osrsClient, deltaTime);
+            if (this.osrsClient.menuOpen) this.osrsClient.closeMenu();
+            return;
+        }
         // Orbit only in-world; login keeps one-finger drag for list scrolling.
         this.osrsClient.inputManager.setTouchCameraOrbitEnabled(this.osrsClient.isLoggedIn());
 

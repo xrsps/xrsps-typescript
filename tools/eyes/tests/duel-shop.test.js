@@ -23,7 +23,7 @@ async function openThroughMerchant() {
     await game.waitFor("eyes.npcs(30).some(npc => npc.typeId === 2817 && npc.screen)", 30000);
     const actor = (await game.npcs(30)).find(npc => npc.typeId === 2817);
     assert.equal(actor?.name, "Shop keeper", "the shopkeeper is a real cache NPC");
-    assert.deepEqual(actor?.tile, { x: 3370, y: 3267, plane: 0 });
+    assert.deepEqual(actor?.tile, { x: 3383, y: 3236, plane: 0 });
     const talk = game.page.getByRole("menuitem", { name: "Talk-to Shop keeper", exact: true });
     // Feet are projected by the engine; probe only points on that model.
     for (const offset of [15, 25, 5, 35, 0]) {
@@ -66,8 +66,8 @@ try {
     const account = (await game.bridge("duel")).self.name;
     const wallet = (await game.bridge("duel")).wallet;
     await look("01-courtyard-with-merchant");
-    await game.walk(3370, 3264, true);
-    await game.waitFor("eyes.state().tile.x === 3370 && eyes.state().tile.y === 3264", 25000);
+    await game.walk(3383, 3233, true);
+    await game.waitFor("eyes.state().tile.x === 3383 && eyes.state().tile.y === 3233", 25000);
     await openThroughMerchant();
     await game.page.waitForFunction(() => {
         const images = Array.from(document.querySelectorAll(".duel-shop-package-art img"));

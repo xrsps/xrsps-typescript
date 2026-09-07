@@ -505,14 +505,6 @@ export class MenuState {
 
         try {
             const opcode = this.opcodes[index] | 0;
-            // Local effects can close/reset or rebuild the menu. Keep the selected
-            // route intact before calling them so the packet still targets this entry.
-            const argument1 = this.argument1[index];
-            const argument2 = this.argument2[index];
-            const identifier = this.identifiers[index];
-            const itemId = this.itemIds[index];
-            const action = this.actions[index];
-            const target = this.targets[index];
             const normalizedOpcode = normalizeMenuOpcode(opcode);
             const hasExplicitHandler = !!this.hasExplicitHandler[index];
             const handler = this.handlers[index];
@@ -532,13 +524,13 @@ export class MenuState {
             // Call menuAction with OSRS-style parameters from parallel arrays
             // This sends the binary packet to the server
             menuAction(
-                argument1, // arg0 (local X or widget child)
-                argument2, // arg1 (local Y or widget parent)
+                this.argument1[index], // arg0 (local X or widget child)
+                this.argument2[index], // arg1 (local Y or widget parent)
                 opcode, // opcode
-                identifier, // identifier (entity ID)
-                itemId, // itemId
-                action, // action text
-                target, // target text
+                this.identifiers[index], // identifier (entity ID)
+                this.itemIds[index], // itemId
+                this.actions[index], // action text
+                this.targets[index], // target text
                 screenX ?? 0, // screen X position
                 screenY ?? 0, // screen Y position
             );

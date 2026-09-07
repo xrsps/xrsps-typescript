@@ -1,40 +1,27 @@
 import { DUEL_LOBBY_CENTER, type DuelSnapshot } from "../../../client/common/duel/DuelProtocol";
 import { DUEL_SHOPKEEPER } from "../../../client/common/duel/DuelShop";
 import { encodeDuelSnapshot } from "../../src/network/packet/DuelSnapshotEncoder";
-import { BaseGamemode } from "../../src/game/gamemodes/BaseGamemode";
+import { BaseGamemode, DefaultUiController } from "../../src/game/gamemodes/BaseGamemode";
 import type { GamemodeInitContext, GamemodeUiBridge } from "../../src/game/gamemodes/GamemodeDefinition";
 import type { PlayerState } from "../../src/game/player";
 import type { IScriptRegistry, ScriptServices } from "../../src/game/scripts/types";
 import { DEFAULT_LOGIN_VARBITS } from "../vanilla/data/loginVarbits";
 import { DEFAULT_LOGIN_VARPS } from "../vanilla/data/loginVarps";
 import { DuelArenaService } from "./DuelArenaService";
-import { buildDuelLobbyPacket } from "./DuelLobbyScene";
+import { buildDuelLobbyPacket, installDuelLobbyCollision } from "./DuelLobbyScene";
 import { registerDuelProviders } from "./DuelProviders";
-import { allowDuelClientMessage } from "./DuelClientRules";
-import { DuelNativeBank } from "./DuelNativeBank";
-import { registerDuelNativeUi } from "./DuelNativeUi";
-import { VanillaUiController } from "../vanilla/VanillaUiController";
-import { registerEquipmentStatsInterfaceHooks } from "../vanilla/equipment/EquipmentStatsInterfaceHooks";
-import { registerWidgetCloseHandlers } from "../vanilla/modals/widgetCloseHandlers";
-import { registerWidgetOpenHandlers } from "../vanilla/modals/widgetOpenHandlers";
-import { DisplayMode } from "../../src/widgets/viewport";
 
 export class DuelGamemode extends BaseGamemode {
     override readonly id = "duel";
     override readonly name = "Duel Arena";
     private arena?: DuelArenaService;
     private duelScripts?: ScriptServices;
-    private nativeBank?: DuelNativeBank;
-    private serverServices?: GamemodeInitContext["serverServices"];
 
     override initialize(context: GamemodeInitContext): void {
         registerDuelProviders();
+        installDuelLobbyCollision(context.serverServices);
         context.serverServices.spawnNpc({ ...DUEL_SHOPKEEPER, name: "Shop keeper" });
         this.arena = new DuelArenaService(context.serverServices);
-        this.serverServices = context.serverServices;
-        this.nativeBank = new DuelNativeBank(context.serverServices, this.arena);
-        const interfaces = context.serverServices.getInterfaceService();
-        if (interfaces) registerEquipmentStatsInterfaceHooks(interfaces);
         if (this.duelScripts) this.arena.setScriptServices(this.duelScripts);
         context.serverServices.registerSnapshotEncoder("duel", (_id, payload) => ({
             message: encodeDuelSnapshot(payload as DuelSnapshot), context: "duel_snapshot",
@@ -46,17 +33,6 @@ export class DuelGamemode extends BaseGamemode {
         this.duelScripts = services;
         this.arena?.setScriptServices(services);
         registry.registerCommand("duel", ({ player, args }) => this.arena?.command(player, args));
-        registerDuelNativeUi(registry, services);
-    }
-
-    contributeScriptServices(services: ScriptServices): void {
-        this.duelScripts = services;
-        this.arena?.setScriptServices(services);
-        this.nativeBank?.contribute(services);
-        registerWidgetCloseHandlers(services, {
-            closeModal: (player) => this.serverServices?.getInterfaceService()?.closeModal(player),
-        });
-        registerWidgetOpenHandlers(services);
     }
 
     override initializePlayer(player: PlayerState): void { player.account.accountStage = 2; }
@@ -69,10 +45,9 @@ export class DuelGamemode extends BaseGamemode {
     shouldSpawnTestBots(): boolean { return false; }
     getLoginVarbits(_player: PlayerState): Array<[number, number]> { return DEFAULT_LOGIN_VARBITS; }
     getLoginVarps(_player: PlayerState): Array<[number, number]> { return DEFAULT_LOGIN_VARPS; }
-    getLoginDisplayMode(_player: PlayerState): DisplayMode { return DisplayMode.FIXED; }
     override getSkillXpMultiplier(_player: PlayerState): number { return 0; }
-    override createUiController(bridge: GamemodeUiBridge): VanillaUiController {
-        return new VanillaUiController(bridge);
+    override createUiController(_bridge: GamemodeUiBridge): DefaultUiController {
+        return new DefaultUiController();
     }
     canAttackPlayer(attacker: PlayerState, target: PlayerState): boolean {
         return this.arena?.canAttack(attacker, target) ?? false;
@@ -88,8 +63,13 @@ export class DuelGamemode extends BaseGamemode {
         return this.arena?.movementGroup(player) ?? "duel:lobby";
     }
     handlePlayerDeath(player: PlayerState): boolean { return this.arena?.handleDeath(player) ?? true; }
-    allowClientMessage(player: PlayerState, type: string, payload: unknown): boolean {
-        return allowDuelClientMessage(player, type, payload, this.arena?.isFreeInLobby(player) ?? false);
+    allowClientMessage(_player: PlayerState, type: string, payload: unknown): boolean {
+        if (type === "chat") {
+            const text = (payload as { text?: unknown })?.text;
+            return typeof text === "string" && (!text.trim().startsWith("::") || /^::duel(?:\s|$)/i.test(text.trim()));
+        }
+        return ["walk", "player_attack", "logout", "ping", "keepalive", "window_status",
+            "client_info", "interface_close", "focus", "idle"].includes(type);
     }
 }
 

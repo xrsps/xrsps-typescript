@@ -27,7 +27,6 @@
  */
 import { sendChat } from "../../../network/ServerConnection";
 import { chatHistory } from "../ChatHistory";
-import { recordNativeChatRead } from "../ChatRowIdentity";
 import { Opcodes } from "../Opcodes";
 import type { HandlerMap } from "./HandlerTypes";
 
@@ -292,7 +291,6 @@ export function registerChatOps(handlers: HandlerMap): void {
     // Pushes: type, cycle, sender, prefix, text, friendStatus, clan, timestamp (4 ints + 4 strings)
     handlers.set(Opcodes.CHAT_GETHISTORYEX_BYUID, (ctx) => {
         const uid = ctx.intStack[--ctx.intStackSize];
-        recordNativeChatRead(ctx.cs2Vm, ctx.currentScriptId, uid);
         const msg = chatHistory.getByUid(uid);
 
         if (msg) {

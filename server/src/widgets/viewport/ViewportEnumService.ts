@@ -1,6 +1,6 @@
 import type { EnumTypeLoader } from "../../../../client/rs/config/enumtype/EnumTypeLoader";
 import { logger } from "../../utils/logger";
-import type { DisplayMode } from "./index";
+import { DisplayMode } from "./index";
 
 /**
  * Enum IDs used for display mode component mapping.
@@ -100,13 +100,11 @@ export const BaseComponentUids = {
  */
 export class ViewportEnumService {
     private mobileMapping: Map<number, number>;
-    private fixedMapping: Map<number, number>;
     private enumLoader: EnumTypeLoader;
 
     constructor(enumTypeLoader: EnumTypeLoader) {
         this.enumLoader = enumTypeLoader;
         this.mobileMapping = this.loadEnumAsMap(ViewportEnumIds.MOBILE);
-        this.fixedMapping = this.loadEnumAsMap(ViewportEnumIds.FIXED);
 
         // Log loaded mapping count for debugging
         logger.info(
@@ -134,13 +132,11 @@ export class ViewportEnumService {
      * @returns Component UID for the specified display mode
      */
     getComponent(baseUid: number, displayMode: DisplayMode): number {
-        if (displayMode === 4 /* DisplayMode.MOBILE */) {
+        if (displayMode === DisplayMode.MOBILE) {
             return this.getMobileComponent(baseUid);
         }
-        if (displayMode === 0 /* DisplayMode.FIXED */) {
-            return this.fixedMapping.get(baseUid) ?? ((548 << 16) | (baseUid & 0xffff));
-        }
-        // Resizable mode uses the canonical 161 UIDs directly.
+        // Desktop modes use the base 161 UIDs directly
+        // (Fixed mode 548 shares the same relative positions)
         return baseUid;
     }
 
@@ -219,7 +215,6 @@ export class ViewportEnumService {
      */
     reload(): void {
         this.mobileMapping = this.loadEnumAsMap(ViewportEnumIds.MOBILE);
-        this.fixedMapping = this.loadEnumAsMap(ViewportEnumIds.FIXED);
         logger.info(
             `[ViewportEnumService] Reloaded enum ${ViewportEnumIds.MOBILE} with ${this.mobileMapping.size} mappings`,
         );
